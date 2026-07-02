@@ -49,7 +49,7 @@ function loadMap(index) {
 function startRound(index) {
   loadMap(index);
   for (const p of players) {
-    p.spellId = 'fireball';
+    p.spellId = null;
     despawnPlayer(p);
     spawnPlayer(p, currentMap.def.spawns[p.slot]);
   }
@@ -538,7 +538,7 @@ function drawHUD(now) {
     }
     ctx.font = '13px Georgia';
     ctx.fillStyle = '#9c8ab8';
-    ctx.fillText(SPELLS[p.spellId].name, x, 74);
+    ctx.fillText(p.spellId ? SPELLS[p.spellId].name : '· · ·', x, 74);
   }
   if (now < bannerUntil) {
     if (bannerHyper) {
@@ -665,7 +665,7 @@ function frame(now) {
   }
 
   updatePlayers(now);
-  if (game.state === 'PLAY') updateTomes(now);
+  if (game.state === 'PLAY' || game.state === 'LOBBY') updateTomes(now);
   updateEffects(now, dt);
   currentMap.def.update?.(currentMap, now, dt);
 

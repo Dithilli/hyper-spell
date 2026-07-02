@@ -14,7 +14,7 @@ function createPlayer(slot, controller) {
   const p = {
     ...def, slot, controller,
     group: Body.nextGroup(true),
-    roundWins: 0, spellId: 'fireball', hp: 100,
+    roundWins: 0, spellId: null, hp: 100,
     alive: false, facing: slot % 2 === 0 ? 1 : -1,
     walkPhase: 0, lastGround: 0, lastCast: 0, airJumps: 1,
     sizeScale: 1, megaCasts: 0, megaUntil: 0,
@@ -179,7 +179,7 @@ function updatePlayers(now) {
           sfx.jump();
         }
       }
-      if (c.cast && !piggy && now > (game.fightAt || 0)) castSpell(p, now);
+      if (c.cast && p.spellId && !piggy && now > (game.fightAt || 0)) castSpell(p, now);
     }
     // right yourself after a blow (skip while slipping on a banana)
     if (!slipped) Body.setAngle(body, body.angle * 0.88);
@@ -235,8 +235,8 @@ function drawWizardFigure(p, x, y, scale, now, angle = 0) {
   ctx.lineTo(2 + p.facing * 3, -30); ctx.closePath(); ctx.fill();
   ctx.fillRect(-11, -16, 22, 3);
 
-  const spell = SPELLS[p.spellId];
-  if (now - p.lastCast > spell.cooldown) {
+  const spell = p.spellId && SPELLS[p.spellId];
+  if (spell && now - p.lastCast > spell.cooldown) {
     ctx.fillStyle = spell.color;
     ctx.beginPath(); ctx.arc(p.facing * 12, -6, 2.5, 0, Math.PI * 2); ctx.fill();
   }

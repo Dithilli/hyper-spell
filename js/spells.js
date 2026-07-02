@@ -333,7 +333,8 @@ const SPELLS = {
 };
 
 function castSpell(p, now) {
-  const spell = SPELLS[p.spellId];
+  const spell = p.spellId && SPELLS[p.spellId];
+  if (!spell) return;
   if (now - p.lastCast < spell.cooldown) return;
   p.lastCast = now;
   // HYPERSPELL proc: any cast has a chance to go supernova

@@ -807,7 +807,7 @@ regSpell('poltergeist', {
     }
   },
 });
-regSpell('disarm', { name: 'Butterfingers', color: '#f5deb3', cooldown: 4500, cast(p) { for (const q of enemiesOf(p)) { q.spellId = 'fireball'; spawnText(q.body.position.x, q.body.position.y - 44, 'DISARMED', '#f5deb3'); } } });
+regSpell('disarm', { name: 'Butterfingers', color: '#f5deb3', cooldown: 4500, cast(p) { for (const q of enemiesOf(p)) { q.spellId = null; spawnText(q.body.position.x, q.body.position.y - 44, 'DISARMED', '#f5deb3'); } } });
 regSpell('roulette', {
   name: 'Roulette', color: '#ff6b81', cooldown: 1000,
   cast(p) {
@@ -920,7 +920,11 @@ regSpell('mirrorcast', {
   name: 'Mirror Cast', color: '#dcdcf0', cooldown: 1200,
   cast(p) {
     const t = nearestEnemy(p);
-    const id = t && t.spellId !== 'mirrorcast' && t.spellId !== 'roulette' ? t.spellId : 'fireball';
+    const id = t && t.spellId && t.spellId !== 'mirrorcast' && t.spellId !== 'roulette' ? t.spellId : null;
+    if (!id) {
+      spawnText(p.body.position.x, p.body.position.y - 52, 'NOTHING!', '#dcdcf0');
+      return;
+    }
     spawnText(p.body.position.x, p.body.position.y - 52, SPELLS[id].name.toUpperCase(), SPELLS[id].color);
     SPELLS[id].cast(p);
   },

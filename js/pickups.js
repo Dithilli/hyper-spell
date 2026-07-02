@@ -3,19 +3,19 @@ const tomes = new Set();
 const hats = new Set();
 let nextTomeAt = 0, lastTomeSpell = null;
 function tomePool() {
-  return Object.keys(SPELLS).filter(k => k !== 'fireball');
+  return Object.keys(SPELLS);
 }
 
 function scheduleTomes(now) {
-  nextTomeAt = now + rand(3000, 6000);
+  nextTomeAt = now + rand(1200, 2500);
 }
 
 function updateTomes(now) {
-  if (now > nextTomeAt && tomes.size < 2) {
+  if (now > nextTomeAt && tomes.size < 3) {
     const megaOut = hats.size > 0 || players.some(p => p.megaCasts > 0);
-    if (!megaOut && Math.random() < 0.22) spawnHat(now);
+    if (!megaOut && Math.random() < 0.14) spawnHat(now);
     else spawnTome(now);
-    nextTomeAt = now + rand(8000, 12000);
+    nextTomeAt = now + rand(3500, 5500);
   }
   for (const t of [...tomes, ...hats]) {
     if (now - t.bornAt > 20000) {
