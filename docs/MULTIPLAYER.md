@@ -1,6 +1,6 @@
 # HyperSpell Online — Multiplayer Planning Doc
 
-*Status: planning only, nothing implemented. Written July 1, 2026.*
+*Status: planning only, nothing implemented. Written July 1, 2026. Updated July 2: cheating is explicitly a non-concern (internal easter egg product) — see the addendum at the bottom, which revises the recommendation toward feel and simplicity and shortens the estimates.*
 
 ## The ask
 
@@ -13,7 +13,7 @@ Take the couch-multiplayer wizard brawler and make it a genuinely online game th
 
 ## TL;DR difficulty verdict
 
-**Moderate — 3-6 weeks to a solid MVP, not a rewrite.** Two facts make this much easier than it would normally be:
+**Moderate — 3-6 weeks to a solid MVP, not a rewrite.** *(July 2 update: with cheating declared a non-concern, the addendum's host-peer + client-authoritative plan cuts the first shippable online version to ~1-1.5 weeks.)* Two facts make this much easier than it would normally be:
 
 1. **The simulation already runs headless.** Our smoke-test harness runs the complete game (Matter.js physics, all 106 spells, all 104 maps) in Node with no browser, no canvas, no real clock. That harness is ~80% of a game server's core loop. This is the hard part of most "make it online" projects, and we accidentally already built it.
 2. **Hyperspell's stack fits.** Clerk JWTs for auth, K8s for stateful game-server pods, Postgres for leaderboards, Vercel/Next.js for the client shell. No new vendor needed.
@@ -127,3 +127,55 @@ Keep the game couch-multiplayer, add Clerk login + report match results to a lea
 1. Ship the **office ladder** fallback now (days, zero risk, builds hype)
 2. Phase 1-2 spike to a playable two-browser prototype over the real internet — this answers the only question that matters (*does it feel good?*) before we commit to the rest
 3. If feel is good → phases 3-5 and a company-wide season one
+
+---
+
+## Addendum (July 2): cheating is a non-concern — optimize for feel
+
+David's direction: this is an internal easter-egg product. Nobody will cheat on the
+leaderboard, and any performance/feel gain that "increases cheating risk" is fine.
+That removes the constraint that forced the strictest architecture. Revised takes:
+
+### What changes
+
+**1. Client-authoritative own movement (the big one).**
+Instead of sending inputs and waiting a round trip to see your own wizard move,
+each client *simulates its own wizard locally* and broadcasts position/velocity.
+The server (or host) accepts it as truth. Your controls feel exactly like the
+couch game — zero perceived input latency, no prediction/reconciliation code at
+all. Knockback from remote explosions arrives as impulse events you apply to
+yourself. Occasional divergence (a crate shoves you on the server but not locally)
+is invisible chaos in a game that is already chaos. This was off the table with a
+trusted leaderboard; now it's the default.
+
+**2. Host-peer becomes a legitimate Phase-2 shortcut (Option C, rehabilitated).**
+One browser hosts the whole sim (we know it runs headless — it can certainly run
+in a tab); friends connect over WebRTC data channels. The Hyperspell server only
+does signaling (tiny) and records results for the leaderboard. In an office —
+same building, same network — latency is single-digit milliseconds and it plays
+identically to couch mode. Zero game-server infrastructure to build, deploy, or
+scale. Host closes their tab mid-match? The match just ends — acceptable for an
+easter egg. This cuts the online prototype from ~2 weeks to roughly **one**.
+
+**3. Simpler wire format.** Skip delta compression and quantization for v1 —
+plain JSON snapshots at 20 Hz are fine on office wifi for 4 players. Optimize
+only if someone plays from home and complains.
+
+**4. Drop from scope entirely:** input validation, movement sanity checks,
+abuse/moderation for public lobbies (it's colleagues), report/kick flows.
+
+### Revised recommendation
+
+- **v1 (≈1-1.5 weeks):** host-peer WebRTC. Sim/render split (Phase 1, still
+  needed) + a host tab that owns the world + client-authoritative wizards +
+  lobby codes via a tiny signaling endpoint + results POSTed to the leaderboard.
+  Trust everything. Ship it to the office.
+- **v2 (only if wanted):** move the host sim onto a K8s pod (the code is the
+  same headless sim) so matches don't depend on someone's laptop tab, add the
+  lobby browser + auto-start countdown, keep client-authoritative movement.
+  This is the "lives on Hyperspell servers" version — roughly +1.5-2 weeks.
+
+Leaderboard integrity note, for honesty: with client-authoritative everything,
+the leaderboard is a gentleman's agreement. Given the audience (the company),
+that's exactly what it should be. If it ever goes customer-facing, revisit the
+original Option A — the doc above still describes it.
