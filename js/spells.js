@@ -339,8 +339,9 @@ function castSpell(p, now) {
   if (!spell) return;
   if (now - p.lastCast < spell.cooldown) return;
   p.lastCast = now;
-  // HYPERSPELL proc: any cast has a chance to go supernova
-  const hyper = Math.random() < 0.07;
+  // HYPERSPELL proc: chance scales with cooldown so spam doesn't farm rolls —
+  // ~1.2% per second of cooldown, capped at 6% (rare enough to stay special)
+  const hyper = Math.random() < Math.min(0.06, spell.cooldown * 0.000012);
   p.mega = (p.megaCasts > 0 ? 1.7 : 1) * (hyper ? 2.2 : 1);
   if (hyper) {
     setBanner('✦ HYPERSPELL ✦', '#e8d5ff', 1100, true);
