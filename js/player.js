@@ -1,10 +1,22 @@
 // player.js — player lifecycle, movement, statuses, wizard rendering
+const MAX_PLAYERS = 8;
 const PLAYER_DEFS = [
   { name: 'P1', color: '#4ecdc4', hat: '#2a9d94' },
   { name: 'P2', color: '#ff6b81', hat: '#c44558' },
   { name: 'P3', color: '#ffd166', hat: '#d4a52f' },
   { name: 'P4', color: '#a55eea', hat: '#7d3fc4' },
+  { name: 'P5', color: '#ff9f43', hat: '#c67a2e' },
+  { name: 'P6', color: '#9acd32', hat: '#6b9023' },
+  { name: 'P7', color: '#e8e8f0', hat: '#a8a8c0' },
+  { name: 'P8', color: '#7f9cf5', hat: '#5a6fc2' },
 ];
+
+function spawnPointFor(p) {
+  const spawns = currentMap.def.spawns;
+  const base = spawns[p.slot % spawns.length];
+  const jitter = p.slot >= spawns.length ? (p.slot - spawns.length + 1) * 26 * (p.slot % 2 ? 1 : -1) : 0;
+  return { x: Math.max(40, Math.min(W - 40, base.x + jitter)), y: base.y };
+}
 
 const players = [];
 const gibs = new Set();
@@ -162,7 +174,13 @@ function updatePlayers(now) {
       const canJump = now - p.lastGround < 120;
       let move = c.move;
       if (now < (p.reversedUntil || 0)) move = -move;
-      if (move) p.facing = move > 0 ? 1 : -1;
+      // aim: mouse point or right stick beats movement facing
+      if (c.aimVec) p.aimAngle = Math.atan2(c.aimVec.y, c.aimVec.x);
+      else if (c.aimPoint) p.aimAngle = Math.atan2(c.aimPoint.y - body.position.y, c.aimPoint.x - body.position.x);
+      else if (c.aimAngle != null) p.aimAngle = c.aimAngle; // network players send a precomputed angle
+      else p.aimAngle = null;
+      if (p.aimAngle != null && Math.abs(Math.cos(p.aimAngle)) > 0.25) p.facing = Math.cos(p.aimAngle) > 0 ? 1 : -1;
+      else if (move) p.facing = move > 0 ? 1 : -1;
       let target = move * 7;
       if (now < (p.speedUntil || 0)) target *= 1.6;
       if (now < (p.heavyUntil || 0)) target *= 0.5;

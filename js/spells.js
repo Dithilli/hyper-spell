@@ -3,9 +3,20 @@ const projectiles = new Set();
 const activeEffects = [];
 const summons = new Set();
 
+// unit direction a player is aiming: mouse/stick aim if present,
+// else classic facing + lob elevation (vy), gravity-aware
+function aimDir(p, speed = 20, vy = 0) {
+  if (p.aimAngle != null) return { x: Math.cos(p.aimAngle), y: Math.sin(p.aimAngle) };
+  const gdir = engine.gravity.y < 0 ? -1 : 1;
+  const len = Math.hypot(speed, vy) || 1;
+  return { x: p.facing * (speed / len), y: (vy * gdir) / len };
+}
+
 function shoot(p, { r, speed, vy = 0, color, density = 0.002, restitution = 0.6, expireMs, gravityScale = 1, angle }) {
   const { x, y } = p.body.position;
-  const fb = Bodies.circle(x + p.facing * 26, y - 6, r, {
+  const dir = angle != null ? { x: Math.cos(angle), y: Math.sin(angle) } : aimDir(p, speed, vy);
+  const spd = Math.hypot(speed, vy);
+  const fb = Bodies.circle(x + dir.x * 28, y - 6 + dir.y * 16, r, {
     density, frictionAir: 0, restitution, label: 'projectile',
     collisionFilter: { group: p.group },
   });
@@ -13,9 +24,7 @@ function shoot(p, { r, speed, vy = 0, color, density = 0.002, restitution = 0.6,
   fb.color = color;
   fb.gravityScale = gravityScale;
   if (expireMs) fb.expireAt = performance.now() + expireMs;
-  const gdir = engine.gravity.y < 0 ? -1 : 1; // lob against gravity, whichever way it points
-  if (angle != null) Body.setVelocity(fb, { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed });
-  else Body.setVelocity(fb, { x: p.facing * speed, y: vy * gdir });
+  Body.setVelocity(fb, { x: dir.x * spd, y: dir.y * spd });
   projectiles.add(fb);
   Composite.add(world, fb);
   return fb;
@@ -101,17 +110,22 @@ function explode(x, y, radius = 150, power = 22, damage = 0, owner = null) {
   }
 }
 
-function raycastHit(p, yOff = 0) {
-  const from = { x: p.body.position.x + p.facing * 20, y: p.body.position.y - 6 + yOff };
+function raycastHit(p, angOff = 0) {
+  let dir = aimDir(p, 1, 0);
+  if (angOff) {
+    const a = Math.atan2(dir.y, dir.x) + angOff;
+    dir = { x: Math.cos(a), y: Math.sin(a) };
+  }
+  const from = { x: p.body.position.x + dir.x * 22, y: p.body.position.y - 6 + dir.y * 14 };
   const candidates = Composite.allBodies(world).filter(b =>
     b !== p.body && !b.isSensor && b.label !== 'gib' && b.label !== 'projectile' && b.collisionFilter.mask !== 0);
   for (let d = 0; d < 1400; d += 10) {
-    const pt = { x: from.x + p.facing * d, y: from.y };
-    if (pt.x < -40 || pt.x > W + 40) break;
+    const pt = { x: from.x + dir.x * d, y: from.y + dir.y * d };
+    if (pt.x < -40 || pt.x > W + 40 || pt.y < -60 || pt.y > H + 40) break;
     const hit = Query.point(candidates, pt)[0];
-    if (hit) return { hit, pt, from };
+    if (hit) return { hit, pt, from, dir };
   }
-  return { hit: null, pt: { x: from.x + p.facing * 1400, y: from.y }, from };
+  return { hit: null, pt: { x: from.x + dir.x * 1400, y: from.y + dir.y * 1400 }, from, dir };
 }
 
 function boltVisual(x0, y0, x1, y1, color = '#fff89e', width = 3, life = 130) {
@@ -159,6 +173,7 @@ function spawnSingularity(x, y, m = 1) {
   spawnRing(x, y, '#a55eea');
   activeEffects.push({
     until: performance.now() + 2200 * m,
+    net: { k: 'sing', x, y },
     update() {
       const R = 350 * (1 + (m - 1) * 0.5);
       for (const b of Composite.allBodies(world)) {
@@ -210,6 +225,7 @@ function makeZone({ x, y, r, life, color, tick, tickBody, draw, onEnd }) {
   activeEffects.push({
     until: performance.now() + life,
     x, y, r,
+    net: { k: 'zone', x, y, r, c: color },
     update(now) {
       if (tick) {
         for (const q of players) {
@@ -251,23 +267,24 @@ const SPELLS = {
       const m = p.mega || 1;
       const range = 240 * m;
       const { x, y } = p.body.position;
+      const dir = aimDir(p, 1, 0);
       for (const b of Composite.allBodies(world)) {
         if (b.isStatic || b === p.body || b.isSensor) continue;
         const dx = b.position.x - x, dy = b.position.y - y;
         const d = Math.hypot(dx, dy);
         if (d > range || d === 0) continue;
-        if (Math.sign(dx) !== p.facing && Math.abs(dx) > 20) continue;
-        if (Math.abs(dy) > d * 0.6) continue;
+        if ((dx * dir.x + dy * dir.y) / d < 0.55) continue; // ~56° cone around aim
         const s = 1 - d / range;
         if (b.label === 'projectile') {
-          Body.setVelocity(b, { x: p.facing * Math.hypot(b.velocity.x, b.velocity.y), y: -2 });
+          const spd = Math.hypot(b.velocity.x, b.velocity.y);
+          Body.setVelocity(b, { x: dir.x * spd, y: dir.y * spd });
           continue;
         }
-        Body.setVelocity(b, { x: b.velocity.x + p.facing * 18 * m * s, y: b.velocity.y - 6 * m * s });
+        Body.setVelocity(b, { x: b.velocity.x + dir.x * 18 * m * s, y: b.velocity.y + dir.y * 18 * m * s - 3 * s });
       }
-      Body.setVelocity(p.body, { x: p.body.velocity.x - p.facing * 7, y: p.body.velocity.y - 2 });
+      Body.setVelocity(p.body, { x: p.body.velocity.x - dir.x * 7, y: p.body.velocity.y - dir.y * 4 - 2 });
       for (let i = 0; i < 14; i++) {
-        particles.push({ kind: 'spark', x: x + p.facing * 20, y: y - 6 + rand(-14, 14), vx: p.facing * rand(6, 14), vy: rand(-1, 1), life: 18, maxLife: 18, color: '#d7f5ef', r: 2 });
+        particles.push({ kind: 'spark', x: x + dir.x * 20, y: y - 6 + dir.y * 20 + rand(-10, 10), vx: dir.x * rand(6, 14), vy: dir.y * rand(6, 14) + rand(-1, 1), life: 18, maxLife: 18, color: '#d7f5ef', r: 2 });
       }
     },
   },
@@ -275,7 +292,7 @@ const SPELLS = {
     name: 'Lightning', color: '#fff89e', cooldown: 900,
     cast(p) {
       const m = p.mega || 1;
-      const { hit, pt, from } = raycastHit(p);
+      const { hit, pt, from, dir } = raycastHit(p);
       sfx.lightning();
       doFlash('#ffffff', 0.35);
       slowMo(0.05, 70);
@@ -283,7 +300,7 @@ const SPELLS = {
       boltVisual(from.x, from.y, pt.x, pt.y, '#fff89e', 3 * m);
       spawnParticles(pt.x, pt.y, '#fff89e', 12, 6);
       if (hit && !hit.isStatic) {
-        Body.setVelocity(hit, { x: hit.velocity.x + p.facing * 28 * m, y: hit.velocity.y - 10 * m });
+        Body.setVelocity(hit, { x: hit.velocity.x + dir.x * 28 * m, y: hit.velocity.y + dir.y * 28 * m - 8 * m });
         if (hit.label === 'player') damagePlayer(hit.player, 50 * m);
       }
     },

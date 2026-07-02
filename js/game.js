@@ -1,5 +1,5 @@
 // game.js — state machine, round/match flow, collisions, main loop, rendering
-const kbControllers = [new KeyboardController(KEYMAPS[0]), new KeyboardController(KEYMAPS[1])];
+const kbControllers = [new KeyboardController(KEYMAPS[0], true), new KeyboardController(KEYMAPS[1])];
 const assignedPads = new Set();
 const padPrev = {};
 
@@ -51,7 +51,7 @@ function startRound(index) {
   for (const p of players) {
     p.spellId = null;
     despawnPlayer(p);
-    spawnPlayer(p, currentMap.def.spawns[p.slot]);
+    spawnPlayer(p, spawnPointFor(p));
   }
   game.state = 'PLAY';
   game.fightAt = performance.now() + 1100;
@@ -63,7 +63,7 @@ function startRound(index) {
 game.onDeath = (p) => {
   if (game.state === 'LOBBY') {
     setTimeout(() => {
-      if (game.state === 'LOBBY' && !p.alive) spawnPlayer(p, currentMap.def.spawns[p.slot]);
+      if (game.state === 'LOBBY' && !p.alive) spawnPlayer(p, spawnPointFor(p));
     }, 1200);
     return;
   }
@@ -112,12 +112,13 @@ function resetMatch() {
   loadMap(0);
   for (const p of players) {
     despawnPlayer(p);
-    spawnPlayer(p, currentMap.def.spawns[p.slot]);
+    spawnPlayer(p, spawnPointFor(p));
   }
   setBanner('LOBBY', '#e8d5ff', 900);
 }
 
 addEventListener('keydown', e => {
+  if (netMode === 'client') return; // clients send these to the host instead
   if (e.code === 'Space' && game.state === 'LOBBY' && players.length >= 2) startRound(game.mapIndex);
   if (e.code === 'KeyR') resetMatch();
   if (game.state === 'LOBBY' && /^Digit[1-9]$/.test(e.code)) {
@@ -128,15 +129,15 @@ addEventListener('keydown', e => {
 
 // ---------- joining ----------
 function joinPlayer(controller) {
-  if (players.length >= 4) return;
+  if (players.length >= MAX_PLAYERS) return;
   const p = createPlayer(players.length, controller);
-  spawnPlayer(p, currentMap.def.spawns[p.slot]);
+  spawnPlayer(p, spawnPointFor(p));
   sfx.pickup();
   setBanner(`${p.name} JOINED`, p.color, 900);
 }
 
 function scanJoins() {
-  if (game.state === 'VICTORY' || players.length >= 4) return;
+  if (game.state === 'VICTORY' || players.length >= MAX_PLAYERS) return;
   for (const kc of kbControllers) {
     if (kc.assigned) continue;
     if (kc.poll().castPressed) {
@@ -398,85 +399,107 @@ function drawGibs() {
   for (const gib of gibs) drawBodyRounded(gib, gib.color);
 }
 
-function drawProjectiles() {
-  for (const fb of projectiles) {
-    const r = fb.circleRadius || 7;
-    ctx.shadowColor = fb.color || '#ffb347';
+// draws any dynamic body (real or network ghost) by label
+function drawDynamicBody(b, now) {
+  const col = (b.render && b.render.fillStyle) || b.color || '#c0c0cc';
+  if (b.label === 'projectile') {
+    const r = b.circleRadius || 7;
+    ctx.shadowColor = b.color || '#ffb347';
     ctx.shadowBlur = 12;
-    ctx.fillStyle = fb.color || '#ffb347';
-    ctx.beginPath(); ctx.arc(fb.position.x, fb.position.y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = b.color || '#ffb347';
+    ctx.beginPath(); ctx.arc(b.position.x, b.position.y, r, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.beginPath(); ctx.arc(fb.position.x, fb.position.y, r * 0.45, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.position.x, b.position.y, r * 0.45, 0, Math.PI * 2); ctx.fill();
+    return;
   }
+  if (b.label === 'crate') { drawCrate(b); return; }
+  if (b.label === 'critter') {
+    drawBodyRounded(b, col);
+    const dir = b.critter ? b.critter.dir : 1;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(b.position.x + dir * 4, b.position.y - 3, 2.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(b.position.x + dir * 4.8, b.position.y - 3, 1, 0, Math.PI * 2); ctx.fill();
+    return;
+  }
+  if (b.label === 'decoy') {
+    const p = b.decoyOf;
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(b.position.x, b.position.y - 4, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = p.hat;
+    ctx.beginPath();
+    ctx.moveTo(b.position.x - 9, b.position.y - 10);
+    ctx.lineTo(b.position.x + 9, b.position.y - 10);
+    ctx.lineTo(b.position.x + 2, b.position.y - 26);
+    ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+    return;
+  }
+  if (b.label === 'saw') {
+    drawBodyRounded(b, col);
+    ctx.save();
+    ctx.translate(b.position.x, b.position.y);
+    ctx.rotate(b.angle);
+    ctx.strokeStyle = '#7a7a8c';
+    ctx.lineWidth = 2;
+    const r = (b.circleRadius || 15) + 3;
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * (r - 6), Math.sin(a) * (r - 6));
+      ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return;
+  }
+  if (b.label === 'mine') {
+    drawBodyRounded(b, col);
+    ctx.fillStyle = Math.sin(now * 0.008) > 0 ? '#ff4444' : '#661111';
+    ctx.beginPath(); ctx.arc(b.position.x, b.position.y - 6, 2.5, 0, Math.PI * 2); ctx.fill();
+    return;
+  }
+  if (b.label === 'piano') {
+    drawBodyRounded(b, col);
+    ctx.save();
+    ctx.translate(b.position.x, b.position.y);
+    ctx.rotate(b.angle);
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillRect(-34, 4, 68, 10);
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = 1;
+    for (let i = -30; i <= 30; i += 8) { ctx.beginPath(); ctx.moveTo(i, 4); ctx.lineTo(i, 14); ctx.stroke(); }
+    ctx.restore();
+    return;
+  }
+  drawBodyRounded(b, col);
+}
+
+function drawProjectiles(now) {
+  for (const fb of projectiles) drawDynamicBody(fb, now);
 }
 
 function drawSummons(now) {
-  for (const b of summons) {
-    const col = b.render.fillStyle || '#c0c0cc';
-    if (b.label === 'crate') { drawCrate(b); continue; }
-    if (b.label === 'critter') {
-      drawBodyRounded(b, col);
-      const dir = b.critter ? b.critter.dir : 1;
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(b.position.x + dir * 4, b.position.y - 3, 2.2, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#000';
-      ctx.beginPath(); ctx.arc(b.position.x + dir * 4.8, b.position.y - 3, 1, 0, Math.PI * 2); ctx.fill();
-      continue;
-    }
-    if (b.label === 'decoy') {
-      const p = b.decoyOf;
-      ctx.globalAlpha = 0.55;
-      ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(b.position.x, b.position.y - 4, 8, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = p.hat;
-      ctx.beginPath();
-      ctx.moveTo(b.position.x - 9, b.position.y - 10);
-      ctx.lineTo(b.position.x + 9, b.position.y - 10);
-      ctx.lineTo(b.position.x + 2, b.position.y - 26);
-      ctx.closePath(); ctx.fill();
-      ctx.globalAlpha = 1;
-      continue;
-    }
-    if (b.label === 'saw') {
-      drawBodyRounded(b, col);
-      ctx.save();
-      ctx.translate(b.position.x, b.position.y);
-      ctx.rotate(b.angle);
-      ctx.strokeStyle = '#7a7a8c';
-      ctx.lineWidth = 2;
-      const r = (b.circleRadius || 15) + 3;
-      for (let i = 0; i < 8; i++) {
-        const a = i * Math.PI / 4;
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(a) * (r - 6), Math.sin(a) * (r - 6));
-        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-        ctx.stroke();
-      }
-      ctx.restore();
-      continue;
-    }
-    if (b.label === 'mine') {
-      drawBodyRounded(b, col);
-      ctx.fillStyle = Math.sin(now * 0.008) > 0 ? '#ff4444' : '#661111';
-      ctx.beginPath(); ctx.arc(b.position.x, b.position.y - 6, 2.5, 0, Math.PI * 2); ctx.fill();
-      continue;
-    }
-    if (b.label === 'piano') {
-      drawBodyRounded(b, col);
-      ctx.save();
-      ctx.translate(b.position.x, b.position.y);
-      ctx.rotate(b.angle);
-      ctx.fillStyle = '#f0f0f0';
-      ctx.fillRect(-34, 4, 68, 10);
-      ctx.strokeStyle = '#111';
-      ctx.lineWidth = 1;
-      for (let i = -30; i <= 30; i += 8) { ctx.beginPath(); ctx.moveTo(i, 4); ctx.lineTo(i, 14); ctx.stroke(); }
-      ctx.restore();
-      continue;
-    }
-    drawBodyRounded(b, col);
+  for (const b of summons) drawDynamicBody(b, now);
+}
+
+function drawReticle(now) {
+  if (!mouse.present) return;
+  const p = players.find(q => q.controller === kbControllers[0]);
+  if (!p || !p.alive) return;
+  ctx.strokeStyle = p.color;
+  ctx.lineWidth = 1.5;
+  ctx.globalAlpha = 0.85;
+  ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 9, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath();
+  for (const [dx, dy] of [[12, 0], [-12, 0], [0, 12], [0, -12]]) {
+    ctx.moveTo(mouse.x + dx * 0.5, mouse.y + dy * 0.5);
+    ctx.lineTo(mouse.x + dx, mouse.y + dy);
   }
+  ctx.stroke();
+  ctx.globalAlpha = 1;
 }
 
 let vignetteCache = null;
@@ -523,8 +546,9 @@ function drawHUD(now) {
   ctx.font = '12px Georgia';
   ctx.fillStyle = '#675a7d';
   ctx.fillText(`${currentMap.def.name} · ${game.mapIndex + 1}/${MAPS.length}`, W / 2, 18);
-  for (const p of players) {
-    const x = [150, W - 150, 450, W - 450][p.slot];
+  const spacing = Math.min(300, (W - 220) / Math.max(players.length - 1, 1));
+  players.forEach((p, i) => {
+    const x = players.length === 1 ? 150 : W / 2 + (i - (players.length - 1) / 2) * spacing;
     ctx.font = 'bold 20px Georgia';
     ctx.fillStyle = p.color;
     ctx.fillText(p.name, x, 38);
@@ -539,7 +563,7 @@ function drawHUD(now) {
     ctx.font = '13px Georgia';
     ctx.fillStyle = '#9c8ab8';
     ctx.fillText(p.spellId ? SPELLS[p.spellId].name : '· · ·', x, 74);
-  }
+  });
   if (now < bannerUntil) {
     if (bannerHyper) {
       const pulse = 1 + 0.12 * Math.sin(now * 0.03);
@@ -561,6 +585,12 @@ function drawHUD(now) {
   }
 }
 
+function controllerHint(p) {
+  if (p.controller instanceof GamepadController) return `GAMEPAD ${p.controller.index + 1}`;
+  if (p.controller instanceof KeyboardController) return p.controller.map === KEYMAPS[0] ? 'WASD + MOUSE' : '← → ↑ + ENTER';
+  return 'ONLINE';
+}
+
 function drawLobby() {
   ctx.fillStyle = 'rgba(12,8,18,0.72)';
   ctx.fillRect(W / 2 - 430, 55, 860, 265);
@@ -571,20 +601,20 @@ function drawLobby() {
   ctx.font = '16px Georgia';
   ctx.fillStyle = '#9c8ab8';
   ctx.fillText('press E · ENTER · or any gamepad button to join', W / 2, 162);
-  for (let i = 0; i < 4; i++) {
-    const x = W / 2 - 300 + i * 200;
+  const slots = Math.max(4, Math.min(MAX_PLAYERS, players.length + 1));
+  const slotW = Math.min(200, 840 / slots);
+  for (let i = 0; i < slots; i++) {
+    const x = W / 2 + (i - (slots - 1) / 2) * slotW;
     const p = players[i];
     ctx.strokeStyle = p ? p.color : '#4a3f5e';
     ctx.lineWidth = 2;
-    ctx.strokeRect(x - 70, 185, 140, 60);
+    ctx.strokeRect(x - slotW / 2 + 6, 185, slotW - 12, 60);
     ctx.font = 'bold 20px Georgia';
     ctx.fillStyle = p ? p.color : '#4a3f5e';
     ctx.fillText(p ? p.name + ' ✦' : 'JOIN', x, 218);
-    ctx.font = '12px Georgia';
+    ctx.font = '11px Georgia';
     ctx.fillStyle = '#675a7d';
-    const hint = p
-      ? (p.controller instanceof GamepadController ? `GAMEPAD ${p.controller.index + 1}` : (p.controller.map === KEYMAPS[0] ? 'WASD + E' : '← → ↑ + ENTER'))
-      : 'E · ENTER · PAD';
+    const hint = p ? controllerHint(p) : 'E · ENTER · PAD';
     ctx.fillText(hint, x, 238);
   }
   ctx.font = 'bold 20px Georgia';
@@ -627,10 +657,12 @@ function draw(now) {
   drawTomes(now);
   drawSummons(now);
   drawGibs();
-  drawProjectiles();
+  drawProjectiles(now);
   for (const e of activeEffects) e.draw?.(now);
   drawParticles();
   for (const p of players) if (p.alive) drawWizard(p, now);
+
+  drawReticle(now);
 
   ctx.fillStyle = getVignette();
   ctx.fillRect(0, 0, W, H);
@@ -651,6 +683,11 @@ function draw(now) {
 // ---------- main loop ----------
 let last = performance.now();
 function frame(now) {
+  if (netMode === 'client') {
+    netClientFrame(now);
+    requestAnimationFrame(frame);
+    return;
+  }
   const rawDt = Math.min(now - last, 33);
   last = now;
   updateTimeScale(now);
@@ -694,6 +731,7 @@ function frame(now) {
   postPhysics(now);
   updateParticles(timeScale);
   draw(now);
+  if (netMode === 'host') netHostTick(now);
   requestAnimationFrame(frame);
 }
 

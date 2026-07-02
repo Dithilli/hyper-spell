@@ -123,38 +123,41 @@ function unMega(p) {
   }
 }
 
+function drawTomeAt(x, y, angle, spellColor, now) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.shadowColor = spellColor;
+  ctx.shadowBlur = 12 + 6 * Math.sin(now * 0.008);
+  ctx.fillStyle = '#3a2f4d';
+  ctx.fillRect(-10, -12, 20, 24);
+  ctx.fillStyle = spellColor;
+  ctx.fillRect(-10, -12, 4, 24);
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = spellColor;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(-10, -12, 20, 24);
+  ctx.restore();
+}
+
+function drawHatAt(x, y, angle, now) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.shadowColor = '#ffd700';
+  ctx.shadowBlur = 16 + 8 * Math.sin(now * 0.01);
+  ctx.fillStyle = '#ffd700';
+  ctx.beginPath();
+  ctx.moveTo(-11, 6); ctx.lineTo(11, 6); ctx.lineTo(3, -14);
+  ctx.closePath(); ctx.fill();
+  ctx.fillRect(-14, 6, 28, 4);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff3b0';
+  ctx.beginPath(); ctx.arc(1, -2, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
 function drawTomes(now) {
-  for (const t of tomes) {
-    const c = SPELLS[t.spell].color;
-    ctx.save();
-    ctx.translate(t.position.x, t.position.y);
-    ctx.rotate(t.angle);
-    ctx.shadowColor = c;
-    ctx.shadowBlur = 12 + 6 * Math.sin(now * 0.008);
-    ctx.fillStyle = '#3a2f4d';
-    ctx.fillRect(-10, -12, 20, 24);
-    ctx.fillStyle = c;
-    ctx.fillRect(-10, -12, 4, 24);
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = c;
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(-10, -12, 20, 24);
-    ctx.restore();
-  }
-  for (const h of hats) {
-    ctx.save();
-    ctx.translate(h.position.x, h.position.y);
-    ctx.rotate(h.angle);
-    ctx.shadowColor = '#ffd700';
-    ctx.shadowBlur = 16 + 8 * Math.sin(now * 0.01);
-    ctx.fillStyle = '#ffd700';
-    ctx.beginPath();
-    ctx.moveTo(-11, 6); ctx.lineTo(11, 6); ctx.lineTo(3, -14);
-    ctx.closePath(); ctx.fill();
-    ctx.fillRect(-14, 6, 28, 4);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#fff3b0';
-    ctx.beginPath(); ctx.arc(1, -2, 2, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-  }
+  for (const t of tomes) drawTomeAt(t.position.x, t.position.y, t.angle, SPELLS[t.spell].color, now);
+  for (const h of hats) drawHatAt(h.position.x, h.position.y, h.angle, now);
 }

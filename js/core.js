@@ -9,6 +9,9 @@ const engine = Engine.create();
 engine.gravity.y = 2;
 const world = engine.world;
 
+// 'couch' (local only) | 'host' (simulating + broadcasting) | 'client' (rendering remote state)
+let netMode = 'couch';
+
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 

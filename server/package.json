@@ -1,0 +1,13 @@
+{
+  "name": "hyperspell-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LAN static host + WebSocket relay for HyperSpell online",
+  "main": "serve.js",
+  "scripts": {
+    "start": "node serve.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

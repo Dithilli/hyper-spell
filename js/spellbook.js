@@ -28,13 +28,13 @@ function statusBolt(p, o, apply) {
   return fb;
 }
 
-function zapRay(p, dmg, imp, width = 3, yOff = 0) {
+function zapRay(p, dmg, imp, width = 3, angOff = 0) {
   const m = p.mega || 1;
-  const { hit, pt, from } = raycastHit(p, yOff);
+  const { hit, pt, from, dir } = raycastHit(p, angOff);
   boltVisual(from.x, from.y, pt.x, pt.y, '#fff89e', width * m);
   spawnParticles(pt.x, pt.y, '#fff89e', 10, 5);
   if (hit && !hit.isStatic) {
-    Body.setVelocity(hit, { x: hit.velocity.x + p.facing * imp * m, y: hit.velocity.y - imp * 0.35 * m });
+    Body.setVelocity(hit, { x: hit.velocity.x + dir.x * imp * m, y: hit.velocity.y + dir.y * imp * m - imp * 0.2 * m });
     if (hit.label === 'player') damagePlayer(hit.player, dmg * m);
   }
   return { hit, pt };
@@ -249,19 +249,22 @@ regSpell('skysmite', {
     skyBolt(t ? t.body.position.x : frontPos(p, 200).x, 45, p, p.mega || 1);
   },
 });
-regSpell('sweep', { name: 'Laser Sweep', color: '#ffef99', cooldown: 1300, cast(p) { for (const yo of [-70, 0, 40]) zapRay(p, 20, 12, 2, yo); sfx.lightning(); } });
+regSpell('sweep', { name: 'Laser Sweep', color: '#ffef99', cooldown: 1300, cast(p) { for (const ao of [-0.16, 0, 0.16]) zapRay(p, 20, 12, 2, ao); sfx.lightning(); } });
 regSpell('disintegrate', {
   name: 'Disintegrate', color: '#ff4df0', cooldown: 2400,
   cast(p) {
     const m = p.mega || 1;
     const { x, y } = p.body.position;
-    boltVisual(x + p.facing * 16, y - 6, p.facing > 0 ? W : 0, y - 6, '#ff4df0', 5 * m, 180);
+    const dir = aimDir(p, 1, 0);
+    boltVisual(x + dir.x * 16, y - 6 + dir.y * 16, x + dir.x * 1500, y - 6 + dir.y * 1500, '#ff4df0', 5 * m, 180);
     sfx.lightning();
     doFlash('#ff4df0', 0.2);
     for (const b of [...Composite.allBodies(world)]) {
       if (b.isStatic || b.isSensor || b === p.body) continue;
-      if (Math.abs(b.position.y - (y - 6)) > 26) continue;
-      if (Math.sign(b.position.x - x) !== p.facing) continue;
+      const rx = b.position.x - x, ry = b.position.y - (y - 6);
+      const t = rx * dir.x + ry * dir.y;
+      if (t < 0 || t > 1500) continue;
+      if (Math.abs(rx * dir.y - ry * dir.x) > 26) continue; // distance from the beam line
       if (b.label === 'player') { damagePlayer(b.player, 30 * m); continue; }
       spawnParticles(b.position.x, b.position.y, '#ff4df0', 8, 4);
       projectiles.delete(b); gibs.delete(b); tomes.delete(b); hats.delete(b); summons.delete(b);
@@ -286,15 +289,18 @@ regSpell('railgun', {
   cast(p) {
     const m = p.mega || 1;
     const { x, y } = p.body.position;
-    boltVisual(x + p.facing * 16, y - 6, p.facing > 0 ? W + 20 : -20, y - 6, '#9ef0f0', 4 * m, 160);
+    const dir = aimDir(p, 1, 0);
+    boltVisual(x + dir.x * 16, y - 6 + dir.y * 16, x + dir.x * 1500, y - 6 + dir.y * 1500, '#9ef0f0', 4 * m, 160);
     sfx.lightning();
     addShake(8);
-    Body.setVelocity(p.body, { x: p.body.velocity.x - p.facing * 8, y: p.body.velocity.y });
+    Body.setVelocity(p.body, { x: p.body.velocity.x - dir.x * 8, y: p.body.velocity.y - dir.y * 5 });
     for (const b of Composite.allBodies(world)) {
       if (b.isStatic || b.isSensor || b === p.body) continue;
-      if (b.bounds.min.y > y - 6 || b.bounds.max.y < y - 6) continue;
-      if (Math.sign(b.position.x - x) !== p.facing) continue;
-      Body.setVelocity(b, { x: b.velocity.x + p.facing * 30 * m, y: b.velocity.y - 6 });
+      const rx = b.position.x - x, ry = b.position.y - (y - 6);
+      const t = rx * dir.x + ry * dir.y;
+      if (t < 0 || t > 1500) continue;
+      if (Math.abs(rx * dir.y - ry * dir.x) > 28) continue;
+      Body.setVelocity(b, { x: b.velocity.x + dir.x * 30 * m, y: b.velocity.y + dir.y * 30 * m - 4 });
       if (b.label === 'player') damagePlayer(b.player, 40 * m);
     }
   },
@@ -401,8 +407,10 @@ regSpell('tornado', {
     const e = {
       until: performance.now() + 3500,
       x: start.x, vx: p.facing * 2.6,
+      net: { k: 'tor', x: start.x },
       update() {
         e.x += e.vx;
+        e.net.x = e.x;
         if (e.x < 40 || e.x > W - 40) e.vx = -e.vx;
         for (const b of Composite.allBodies(world)) {
           if (b.isStatic || b.isSensor) continue;
@@ -531,9 +539,10 @@ regSpell('napalm', {
 regSpell('phoenixdash', {
   name: 'Phoenix Dash', color: '#ffb347', cooldown: 2000,
   cast(p) {
-    Body.setVelocity(p.body, { x: p.facing * 25, y: -4 });
+    const dir = aimDir(p, 25, 4);
+    Body.setVelocity(p.body, { x: dir.x * 25, y: dir.y * 25 - 2 });
     p.invulnUntil = performance.now() + 600;
-    for (let i = 0; i < 20; i++) particles.push({ kind: 'spark', x: p.body.position.x - p.facing * i * 4, y: p.body.position.y + rand(-8, 8), vx: -p.facing * rand(2, 6), vy: rand(-2, 2), life: 22, maxLife: 22, color: '#ffb347', r: 2.5 });
+    for (let i = 0; i < 20; i++) particles.push({ kind: 'spark', x: p.body.position.x - dir.x * i * 4, y: p.body.position.y - dir.y * i * 4 + rand(-8, 8), vx: -dir.x * rand(2, 6), vy: rand(-2, 2), life: 22, maxLife: 22, color: '#ffb347', r: 2.5 });
   },
 });
 regSpell('volcanospell', {
@@ -576,10 +585,12 @@ regSpell('blink', {
   name: 'Blink', color: '#c3b1e1', cooldown: 1300,
   cast(p) {
     spawnParticles(p.body.position.x, p.body.position.y, '#c3b1e1', 14, 5);
-    const nx = Math.max(30, Math.min(W - 30, p.body.position.x + p.facing * 220));
-    Body.setPosition(p.body, { x: nx, y: p.body.position.y - 10 });
+    const dir = aimDir(p, 1, 0);
+    const nx = Math.max(30, Math.min(W - 30, p.body.position.x + dir.x * 220));
+    const ny = Math.max(40, Math.min(H - 60, p.body.position.y + dir.y * 160));
+    Body.setPosition(p.body, { x: nx, y: ny });
     p.invulnUntil = performance.now() + 300;
-    spawnParticles(nx, p.body.position.y, '#c3b1e1', 14, 5);
+    spawnParticles(nx, ny, '#c3b1e1', 14, 5);
     sfx.pickup();
   },
 });

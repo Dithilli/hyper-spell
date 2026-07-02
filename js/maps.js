@@ -131,6 +131,7 @@ function addSpinner(m, x, y, len, rate = 0.02, color = '#2c2438') {
 
 function addMover(m, x, y, w, h, { ay = 80, period = 3000, color } = {}) {
   const b = addStatic(m, x, y, w, h, { color });
+  b.kinematic = true;
   (m.data.movers ??= []).push({ b, x, y, ay, phase: rand(0, 6.28), period });
   return b;
 }
