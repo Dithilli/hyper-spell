@@ -47,6 +47,7 @@ function loadMap(index) {
 }
 
 function startRound(index) {
+  clearReplay();
   loadMap(index);
   for (const p of players) {
     p.spellId = null;
@@ -78,11 +79,12 @@ function checkRoundEnd() {
   const winner = alive[0] || null;
   game.state = 'ROUND_END';
   game.winner = winner;
+  const replayMs = startReplay(performance.now()); // 0 if the round was too short
   if (winner) {
     winner.roundWins++;
-    setBanner(`${winner.name} +1`, winner.color, 1800);
+    setBanner(`${winner.name} +1`, winner.color, 1800 + replayMs);
   } else {
-    setBanner('DRAW', '#e8d5ff', 1800);
+    setBanner('DRAW', '#e8d5ff', 1800 + replayMs);
   }
   sfx.roundWin();
   slowMo(0.3, 900);
@@ -90,7 +92,7 @@ function checkRoundEnd() {
     if (game.state !== 'ROUND_END') return;
     if (winner && winner.roundWins >= game.winsNeeded) startVictory(winner);
     else startRound(nextMapIndex());
-  }, 1900);
+  }, 1900 + replayMs);
 }
 
 function nextMapIndex() {
@@ -107,6 +109,7 @@ function startVictory(p) {
 }
 
 function resetMatch() {
+  clearReplay();
   for (const p of players) p.roundWins = 0;
   game.state = 'LOBBY';
   loadMap(0);
@@ -647,6 +650,16 @@ function drawVictory(now) {
 }
 
 function draw(now) {
+  if (game.replay) {
+    // killcam: re-render the recorded tape; the live sim keeps running unseen
+    shake *= 0.88;
+    flashAlpha *= 0.86;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(-30, -30, W + 60, H + 60);
+    drawReplay(now);
+    drawHUD(now);
+    return;
+  }
   const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
   shake *= 0.88;
   ctx.setTransform(1, 0, 0, 1, sx, sy);
@@ -730,6 +743,7 @@ function frame(now) {
   Engine.update(engine, Math.max(dt, 0.5));
   postPhysics(now);
   updateParticles(timeScale);
+  replayRecord(now);
   draw(now);
   if (netMode === 'host') netHostTick(now);
   requestAnimationFrame(frame);
