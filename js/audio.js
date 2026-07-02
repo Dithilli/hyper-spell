@@ -54,6 +54,11 @@ const sfx = {
   blackhole: () => blip({ type: 'sine', freq: 220, freqEnd: 28, dur: 1.2, vol: 0.28 }),
   freeze: () => blip({ type: 'triangle', freq: 1200, freqEnd: 400, dur: 0.2, vol: 0.14 }),
   fight: () => blip({ type: 'square', freq: 392, freqEnd: 784, dur: 0.15, vol: 0.2 }),
+  boing: () => blip({ type: 'sine', freq: 150, freqEnd: 900, dur: 0.22, vol: 0.18 }),
+  clang: () => { boom({ dur: 0.15, from: 3000, to: 400, vol: 0.3 }); blip({ type: 'square', freq: 880, freqEnd: 440, dur: 0.2, vol: 0.12 }); },
+  squeak: () => blip({ type: 'sine', freq: 1200, freqEnd: 1800, dur: 0.12, vol: 0.15 }),
+  oink: () => { blip({ type: 'sawtooth', freq: 220, freqEnd: 380, dur: 0.09, vol: 0.15 }); blip({ type: 'sawtooth', freq: 380, freqEnd: 180, dur: 0.11, vol: 0.15, delay: 0.09 }); },
+  hyper: () => { [392, 523, 659, 784, 1047].forEach((f, i) => blip({ type: 'square', freq: f, dur: 0.1, vol: 0.16, delay: i * 0.05 })); boom({ dur: 0.4, from: 200, to: 2500, vol: 0.3, highpass: true }); },
   roundWin: () => [523, 659, 784].forEach((f, i) => blip({ freq: f, dur: 0.18, vol: 0.18, delay: i * 0.12 })),
   victory: () => [523, 659, 784, 1047, 1319].forEach((f, i) => blip({ freq: f, dur: 0.25, vol: 0.2, delay: i * 0.15 })),
 };

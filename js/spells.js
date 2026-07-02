@@ -1,8 +1,9 @@
-// spells.js — spell registry, projectiles, explosions, timed effects
+// spells.js — spell core: projectiles, explosions, summons, effects, casting
 const projectiles = new Set();
 const activeEffects = [];
+const summons = new Set();
 
-function shoot(p, { r, speed, vy = 0, color, density = 0.002, restitution = 0.6, expireMs, gravityScale = 1 }) {
+function shoot(p, { r, speed, vy = 0, color, density = 0.002, restitution = 0.6, expireMs, gravityScale = 1, angle }) {
   const { x, y } = p.body.position;
   const fb = Bodies.circle(x + p.facing * 26, y - 6, r, {
     density, frictionAir: 0, restitution, label: 'projectile',
@@ -12,10 +13,57 @@ function shoot(p, { r, speed, vy = 0, color, density = 0.002, restitution = 0.6,
   fb.color = color;
   fb.gravityScale = gravityScale;
   if (expireMs) fb.expireAt = performance.now() + expireMs;
-  Body.setVelocity(fb, { x: p.facing * speed, y: vy });
+  if (angle != null) Body.setVelocity(fb, { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed });
+  else Body.setVelocity(fb, { x: p.facing * speed, y: vy });
   projectiles.add(fb);
   Composite.add(world, fb);
   return fb;
+}
+
+function dropProjectile(p, x, y, { r = 10, vx = 0, vy = 12, color, density = 0.004, expireMs = 6000 }) {
+  const fb = Bodies.circle(x, y, r, { density, frictionAir: 0, label: 'projectile' });
+  fb.owner = p;
+  fb.color = color;
+  fb.gravityScale = 1;
+  fb.expireAt = performance.now() + expireMs;
+  Body.setVelocity(fb, { x: vx, y: vy });
+  projectiles.add(fb);
+  Composite.add(world, fb);
+  return fb;
+}
+
+function removeProjectile(fb) {
+  projectiles.delete(fb);
+  Composite.remove(world, fb);
+}
+
+function summon(body, { life = 5000, color, ...flags } = {}) {
+  if (color) body.render.fillStyle = color;
+  Object.assign(body, flags);
+  body.dieAt = performance.now() + life;
+  summons.add(body);
+  Composite.add(world, body);
+  return body;
+}
+
+function removeSummon(b) {
+  if (!summons.has(b)) return;
+  summons.delete(b);
+  spawnParticles(b.position.x, b.position.y, b.render.fillStyle || '#e8d5ff', 6, 3, 20);
+  Composite.remove(world, b);
+}
+
+function enemiesOf(p) {
+  return players.filter(q => q.alive && q !== p);
+}
+
+function nearestEnemy(p, maxD = 1e9, from = p.body.position) {
+  let best = null, bd = maxD;
+  for (const q of enemiesOf(p)) {
+    const d = Math.hypot(q.body.position.x - from.x, q.body.position.y - from.y);
+    if (d < bd) { bd = d; best = q; }
+  }
+  return best;
 }
 
 function explode(x, y, radius = 150, power = 22, damage = 0, owner = null) {
@@ -51,17 +99,56 @@ function explode(x, y, radius = 150, power = 22, damage = 0, owner = null) {
   }
 }
 
-function raycastHit(p) {
-  const from = { x: p.body.position.x + p.facing * 20, y: p.body.position.y - 6 };
+function raycastHit(p, yOff = 0) {
+  const from = { x: p.body.position.x + p.facing * 20, y: p.body.position.y - 6 + yOff };
   const candidates = Composite.allBodies(world).filter(b =>
-    b !== p.body && !b.isSensor && b.label !== 'gib' && b.label !== 'projectile');
+    b !== p.body && !b.isSensor && b.label !== 'gib' && b.label !== 'projectile' && b.collisionFilter.mask !== 0);
   for (let d = 0; d < 1400; d += 10) {
     const pt = { x: from.x + p.facing * d, y: from.y };
     if (pt.x < -40 || pt.x > W + 40) break;
     const hit = Query.point(candidates, pt)[0];
-    if (hit) return { hit, pt };
+    if (hit) return { hit, pt, from };
   }
-  return { hit: null, pt: { x: from.x + p.facing * 1400, y: from.y } };
+  return { hit: null, pt: { x: from.x + p.facing * 1400, y: from.y }, from };
+}
+
+function boltVisual(x0, y0, x1, y1, color = '#fff89e', width = 3, life = 130) {
+  const pts = [{ x: x0, y: y0 }];
+  const segs = 9;
+  for (let i = 1; i <= segs; i++) {
+    pts.push({
+      x: x0 + (x1 - x0) * i / segs + (i < segs ? rand(-14, 14) : 0),
+      y: y0 + (y1 - y0) * i / segs + (i < segs ? rand(-14, 14) : 0),
+    });
+  }
+  activeEffects.push({
+    until: performance.now() + life,
+    draw() {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (const q of pts.slice(1)) ctx.lineTo(q.x, q.y);
+      ctx.stroke();
+    },
+  });
+}
+
+function groundYAt(x) {
+  const candidates = Composite.allBodies(world).filter(b =>
+    b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0);
+  for (let y = 0; y < H; y += 12) {
+    if (Query.point(candidates, { x, y })[0]) return y;
+  }
+  return H - 30;
+}
+
+function skyBolt(x, dmg, owner, m = 1) {
+  const hitY = groundYAt(x);
+  boltVisual(x, -20, x, hitY, '#fff89e', 3 * m);
+  doFlash('#ffffff', 0.2);
+  sfx.lightning();
+  explode(x, hitY, 80 * m, 12 * m, dmg * m, owner);
 }
 
 function spawnSingularity(x, y, m = 1) {
@@ -81,7 +168,7 @@ function spawnSingularity(x, y, m = 1) {
           if (b.label === 'player') damagePlayer(b.player, 999);
           else {
             spawnParticles(b.position.x, b.position.y, '#a55eea', 6, 3);
-            projectiles.delete(b); gibs.delete(b); tomes.delete(b); hats.delete(b);
+            projectiles.delete(b); gibs.delete(b); tomes.delete(b); hats.delete(b); summons.delete(b);
             Composite.remove(world, b, true);
           }
           continue;
@@ -113,6 +200,36 @@ function spawnSingularity(x, y, m = 1) {
       ctx.globalAlpha = 1;
     },
     onEnd() { explode(x, y, 160, 18, 25); },
+  });
+}
+
+// circular zone effect: calls tick(player) for alive players inside, every frame
+function makeZone({ x, y, r, life, color, tick, tickBody, draw, onEnd }) {
+  activeEffects.push({
+    until: performance.now() + life,
+    x, y, r,
+    update(now) {
+      if (tick) {
+        for (const q of players) {
+          if (!q.alive) continue;
+          if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < r) tick(q, now);
+        }
+      }
+      if (tickBody) {
+        for (const b of Composite.allBodies(world)) {
+          if (b.isStatic || b.isSensor) continue;
+          if (Math.hypot(b.position.x - x, b.position.y - y) < r) tickBody(b, now);
+        }
+      }
+    },
+    draw(now) {
+      if (draw) { draw(now); return; }
+      ctx.globalAlpha = 0.16 + 0.06 * Math.sin(now * 0.01);
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    },
+    onEnd,
   });
 }
 
@@ -155,29 +272,13 @@ const SPELLS = {
   lightning: {
     name: 'Lightning', color: '#fff89e', cooldown: 900,
     cast(p) {
-      const { hit, pt } = raycastHit(p);
+      const m = p.mega || 1;
+      const { hit, pt, from } = raycastHit(p);
       sfx.lightning();
       doFlash('#ffffff', 0.35);
       slowMo(0.05, 70);
       addShake(6);
-      const from = { x: p.body.position.x + p.facing * 14, y: p.body.position.y - 8 };
-      const pts = [from];
-      const segs = 9;
-      for (let i = 1; i <= segs; i++) {
-        pts.push({ x: from.x + (pt.x - from.x) * i / segs, y: from.y + (pt.y - from.y) * i / segs + (i < segs ? rand(-14, 14) : 0) });
-      }
-      const m = p.mega || 1;
-      activeEffects.push({
-        until: performance.now() + 130,
-        draw() {
-          ctx.strokeStyle = '#fff89e';
-          ctx.lineWidth = 3 * m;
-          ctx.beginPath();
-          ctx.moveTo(pts[0].x, pts[0].y);
-          for (const q of pts.slice(1)) ctx.lineTo(q.x, q.y);
-          ctx.stroke();
-        },
-      });
+      boltVisual(from.x, from.y, pt.x, pt.y, '#fff89e', 3 * m);
       spawnParticles(pt.x, pt.y, '#fff89e', 12, 6);
       if (hit && !hit.isStatic) {
         Body.setVelocity(hit, { x: hit.velocity.x + p.facing * 28 * m, y: hit.velocity.y - 10 * m });
@@ -218,17 +319,12 @@ const SPELLS = {
       const times = Array.from({ length: Math.round(7 * m) }, (_, i) => t0 + i * 170 + rand(0, 80));
       let spawned = 0;
       activeEffects.push({
-        until: t0 + 1600,
+        until: t0 + 1600 + (times.length - 7) * 170,
         update(now) {
           while (spawned < times.length && now > times[spawned]) {
             spawned++;
-            const rock = Bodies.circle(cx + rand(-260, 260), -50, 13, { density: 0.006, frictionAir: 0, label: 'projectile' });
-            rock.color = '#ff8c5a';
-            rock.owner = p;
+            const rock = dropProjectile(p, cx + rand(-260, 260), -50, { r: 13, vy: 18, vx: rand(-2, 2), color: '#ff8c5a', density: 0.006 });
             rock.onHit = () => explode(rock.position.x, rock.position.y, 90 * m, 14 * m, 28 * m, p);
-            Body.setVelocity(rock, { x: rand(-2, 2), y: 18 });
-            projectiles.add(rock);
-            Composite.add(world, rock);
           }
         },
       });
@@ -240,19 +336,24 @@ function castSpell(p, now) {
   const spell = SPELLS[p.spellId];
   if (now - p.lastCast < spell.cooldown) return;
   p.lastCast = now;
-  p.mega = p.megaCasts > 0 ? 1.7 : 1;
+  // HYPERSPELL proc: any cast has a chance to go supernova
+  const hyper = Math.random() < 0.07;
+  p.mega = (p.megaCasts > 0 ? 1.7 : 1) * (hyper ? 2.2 : 1);
+  if (hyper) {
+    setBanner('✦ HYPERSPELL ✦', '#e8d5ff', 1100, true);
+    doFlash('#a55eea', 0.4);
+    slowMo(0.25, 380);
+    addShake(10);
+    spawnRing(p.body.position.x, p.body.position.y, '#a55eea');
+    sfx.hyper();
+  }
   sfx.cast();
   spell.cast(p);
   if (p.megaCasts > 0) {
     p.megaCasts--;
     spawnText(p.body.position.x, p.body.position.y - 60, `${p.megaCasts} LEFT`, '#ffd700');
-    if (p.megaCasts === 0) setTimeout(() => unMega(p), 600);
+    if (p.megaCasts === 0) p.megaUntil = now + 600;
   }
-}
-
-function removeProjectile(fb) {
-  projectiles.delete(fb);
-  Composite.remove(world, fb);
 }
 
 function updateEffects(now, dt) {

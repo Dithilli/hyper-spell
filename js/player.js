@@ -1,4 +1,4 @@
-// player.js — player lifecycle, movement, damage, wizard rendering
+// player.js — player lifecycle, movement, statuses, wizard rendering
 const PLAYER_DEFS = [
   { name: 'P1', color: '#4ecdc4', hat: '#2a9d94' },
   { name: 'P2', color: '#ff6b81', hat: '#c44558' },
@@ -16,7 +16,8 @@ function createPlayer(slot, controller) {
     group: Body.nextGroup(true),
     roundWins: 0, spellId: 'fireball', hp: 100,
     alive: false, facing: slot % 2 === 0 ? 1 : -1,
-    walkPhase: 0, lastGround: 0, lastCast: 0,
+    walkPhase: 0, lastGround: 0, lastCast: 0, airJumps: 1,
+    sizeScale: 1, megaCasts: 0, megaUntil: 0,
     frozenUntil: 0, wasFrozen: false, input: { ...IDLE_INPUT },
   };
   p.body = Bodies.circle(0, -100, 15, {
@@ -28,16 +29,29 @@ function createPlayer(slot, controller) {
   return p;
 }
 
+function clearStatuses(p) {
+  p.frozenUntil = 0; p.burnUntil = 0; p.nextBurnTick = 0;
+  p.reversedUntil = 0; p.slipUntil = 0; p.floatyUntil = 0;
+  p.heavyUntil = 0; p.speedUntil = 0; p.jumpBoostUntil = 0;
+  p.invulnUntil = 0; p.reflectUntil = 0; p.shrinkUntil = 0;
+  p.growUntil = 0; p.pigUntil = 0; p.megaCasts = 0; p.megaUntil = 0;
+}
+
+function setPlayerScale(p, target) {
+  const ratio = target / p.sizeScale;
+  if (Math.abs(ratio - 1) < 0.01) return;
+  Body.scale(p.body, ratio, ratio);
+  p.sizeScale = target;
+  spawnParticles(p.body.position.x, p.body.position.y, '#e8d5ff', 6, 3);
+}
+
 function spawnPlayer(p, pos) {
   if (!p.alive) Composite.add(world, p.body);
   p.alive = true;
   p.hp = 100;
-  p.frozenUntil = 0;
-  p.megaCasts = 0;
-  if ((p.sizeScale || 1) > 1) {
-    Body.scale(p.body, 0.5, 0.5);
-    p.sizeScale = 1;
-  }
+  p.airJumps = 1;
+  clearStatuses(p);
+  setPlayerScale(p, 1);
   p.body.frictionAir = 0.02;
   Body.setPosition(p.body, pos);
   Body.setVelocity(p.body, { x: 0, y: 0 });
@@ -52,12 +66,23 @@ function despawnPlayer(p) {
   p.alive = false;
 }
 
+function healPlayer(p, amt) {
+  if (!p.alive) return;
+  p.hp = Math.min(100, p.hp + amt);
+  spawnText(p.body.position.x, p.body.position.y - 34, `+${Math.round(amt)}`, '#7bd88f');
+}
+
 function damagePlayer(p, amt) {
   if (!p || !p.alive) return;
+  const now = performance.now();
+  if (now < (p.invulnUntil || 0)) {
+    spawnText(p.body.position.x, p.body.position.y - 34, 'BLOCKED', '#e8d5ff');
+    return;
+  }
   const n = Math.round(amt);
   if (n <= 0) return;
   p.hp -= n;
-  p.hurtUntil = performance.now() + 130;
+  p.hurtUntil = now + 130;
   if (p.hp <= 0) killPlayer(p);
   else spawnText(p.body.position.x, p.body.position.y - 34, `-${n}`, '#ffffff');
 }
@@ -88,7 +113,7 @@ function grounded(p) {
   const { x, y } = p.body.position;
   const s = p.sizeScale || 1;
   const below = Query.region(Composite.allBodies(world), { min: { x: x - 11 * s, y: y + 14 * s }, max: { x: x + 11 * s, y: y + 22 * s } });
-  return below.some(b => b !== p.body && b.label !== 'projectile' && b.label !== 'lava' && b.label !== 'gib');
+  return below.some(b => b !== p.body && b.label !== 'projectile' && b.label !== 'lava' && b.label !== 'gib' && b.collisionFilter.mask !== 0);
 }
 
 function updatePlayers(now) {
@@ -96,39 +121,86 @@ function updatePlayers(now) {
     if (!p.alive) continue;
     const body = p.body;
     const frozen = now < p.frozenUntil;
+    const slipped = now < (p.slipUntil || 0);
+    const piggy = now < (p.pigUntil || 0);
+
+    // size management: mega base × status modifier
+    const base = (p.megaCasts > 0 || now < p.megaUntil) ? 2 : 1;
+    let mod = 1;
+    if (now < (p.shrinkUntil || 0) || piggy) mod = 0.6;
+    else if (now < (p.growUntil || 0)) mod = 1.5;
+    const desired = base * mod;
+    if (Math.abs(desired - p.sizeScale) > 0.01) setPlayerScale(p, desired);
+
+    // burn damage over time
+    if (now < (p.burnUntil || 0) && now > (p.nextBurnTick || 0)) {
+      p.nextBurnTick = now + 450;
+      damagePlayer(p, 3);
+      spawnParticles(body.position.x, body.position.y - 10, '#ff8c5a', 3, 3, 20);
+    }
+
+    // floaty: balloon-style anti-gravity
+    if (now < (p.floatyUntil || 0)) {
+      Body.applyForce(body, body.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * body.mass * 1.5 });
+    }
+
     if (p.wasFrozen && !frozen) {
       body.frictionAir = 0.02;
       spawnParticles(body.position.x, body.position.y, '#9be7ff', 10, 4);
     }
     p.wasFrozen = frozen;
+
     const c = p.input;
-    if (!frozen && game.state !== 'VICTORY') {
+    if (!frozen && !slipped && game.state !== 'VICTORY') {
       const onGround = grounded(p);
-      if (onGround) p.lastGround = now;
+      if (onGround) { p.lastGround = now; p.airJumps = 1; }
       const canJump = now - p.lastGround < 120;
-      if (c.move) p.facing = c.move > 0 ? 1 : -1;
-      const target = c.move * 7;
-      const blend = onGround ? (currentMap.def.icy ? 0.09 : 0.25) : 0.08;
+      let move = c.move;
+      if (now < (p.reversedUntil || 0)) move = -move;
+      if (move) p.facing = move > 0 ? 1 : -1;
+      let target = move * 7;
+      if (now < (p.speedUntil || 0)) target *= 1.6;
+      if (now < (p.heavyUntil || 0)) target *= 0.5;
+      if (currentMap.def.muddy) target *= 0.65;
+      const blend = onGround ? (currentMap.def.icy ? 0.09 : currentMap.def.muddy ? 0.12 : 0.25) : 0.08;
       Body.setVelocity(body, { x: body.velocity.x + (target - body.velocity.x) * blend, y: body.velocity.y });
-      if (c.jump && canJump && body.velocity.y > -2) {
-        Body.setVelocity(body, { x: body.velocity.x, y: (p.sizeScale || 1) > 1 ? -17 : -15 });
-        p.lastGround = 0;
-        sfx.jump();
+
+      const heavy = now < (p.heavyUntil || 0);
+      const jumpVy = now < (p.jumpBoostUntil || 0) ? -22 : (p.sizeScale > 1.6 ? -17 : -15);
+      if (!heavy) {
+        if (c.jump && canJump && body.velocity.y > -2) {
+          Body.setVelocity(body, { x: body.velocity.x, y: jumpVy });
+          p.lastGround = 0;
+          sfx.jump();
+        } else if (c.jumpPressed && !canJump && p.airJumps > 0) {
+          p.airJumps--;
+          Body.setVelocity(body, { x: body.velocity.x, y: now < (p.jumpBoostUntil || 0) ? -19 : -13 });
+          spawnParticles(body.position.x, body.position.y + 12, '#e8d5ff', 8, 3, 20);
+          sfx.jump();
+        }
       }
-      if (c.cast && now > (game.fightAt || 0)) castSpell(p, now);
+      if (c.cast && !piggy && now > (game.fightAt || 0)) castSpell(p, now);
     }
+    // right yourself after a blow (skip while slipping on a banana)
+    if (!slipped) Body.setAngle(body, body.angle * 0.88);
     Body.setAngularVelocity(body, body.angularVelocity * 0.9);
     p.walkPhase += Math.abs(body.velocity.x) * 0.06;
     if (body.position.y > H + 60) killPlayer(p);
+    if (currentMap.def.wrap) {
+      if (body.position.x < -20) Body.setPosition(body, { x: W + 15, y: body.position.y });
+      if (body.position.x > W + 20) Body.setPosition(body, { x: -15, y: body.position.y });
+    }
   }
 }
 
 function drawWizardFigure(p, x, y, scale, now, angle = 0) {
+  const piggy = now < (p.pigUntil || 0);
+  const col = piggy ? '#ff9ecb' : p.color;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
   ctx.scale(scale, scale);
-  ctx.strokeStyle = p.color;
+  ctx.strokeStyle = col;
   ctx.lineWidth = 4;
   ctx.lineCap = 'round';
 
@@ -145,14 +217,17 @@ function drawWizardFigure(p, x, y, scale, now, angle = 0) {
     ctx.lineTo(footX, 15 - lift);
   }
   ctx.moveTo(0, 4); ctx.lineTo(0, -6);
-  // back arm swings while running; casting arm stays forward
   const armSwing = Math.sin(p.walkPhase) * 4 * f;
   ctx.moveTo(0, -3); ctx.lineTo(-p.facing * (7 - armSwing), 5 - Math.abs(armSwing) * 0.4);
   ctx.moveTo(0, -3); ctx.lineTo(p.facing * 11, -5);
   ctx.stroke();
 
-  ctx.fillStyle = p.color;
+  ctx.fillStyle = col;
   ctx.beginPath(); ctx.arc(0, -11, 5.5, 0, Math.PI * 2); ctx.fill();
+  if (piggy) {
+    ctx.fillStyle = '#ff7eb6';
+    ctx.beginPath(); ctx.arc(p.facing * 5, -10, 2.5, 0, Math.PI * 2); ctx.fill();
+  }
 
   ctx.fillStyle = p.hat;
   ctx.beginPath();
@@ -171,12 +246,26 @@ function drawWizardFigure(p, x, y, scale, now, angle = 0) {
 function drawWizard(p, now) {
   const { x, y } = p.body.position;
   const s = p.sizeScale || 1;
-  if (s > 1) {
+  if (s > 1.6) {
     ctx.shadowColor = '#ffd700';
     ctx.shadowBlur = 18;
   }
   drawWizardFigure(p, x, y, s, now, p.body.angle * 0.35);
   ctx.shadowBlur = 0;
+  if (now < (p.floatyUntil || 0)) {
+    ctx.strokeStyle = '#ff6b81';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x, y - 26 * s); ctx.lineTo(x + 3, y - 44 * s); ctx.stroke();
+    ctx.fillStyle = '#ff6b81';
+    ctx.beginPath(); ctx.arc(x + 3, y - 52 * s, 9, 0, Math.PI * 2); ctx.fill();
+  }
+  if (now < (p.invulnUntil || 0) || now < (p.reflectUntil || 0)) {
+    ctx.strokeStyle = now < (p.reflectUntil || 0) ? '#4ecdff' : '#ffd700';
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.5 + 0.3 * Math.sin(now * 0.02);
+    ctx.beginPath(); ctx.arc(x, y - 8 * s, 24 * s, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
   if (now < (p.hurtUntil || 0)) {
     ctx.globalAlpha = 0.5;
     ctx.fillStyle = '#ffffff';

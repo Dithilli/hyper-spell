@@ -1,8 +1,10 @@
 // pickups.js — spell tomes and the rare Mega Hat raining from the sky
 const tomes = new Set();
 const hats = new Set();
-const TOME_SPELLS = ['gust', 'lightning', 'frost', 'blackhole', 'meteor'];
 let nextTomeAt = 0, lastTomeSpell = null;
+function tomePool() {
+  return Object.keys(SPELLS).filter(k => k !== 'fireball');
+}
 
 function scheduleTomes(now) {
   nextTomeAt = now + rand(3000, 6000);
@@ -26,8 +28,9 @@ function updateTomes(now) {
 }
 
 function spawnTome(now) {
+  const pool = tomePool();
   let spell;
-  do { spell = pick(TOME_SPELLS); } while (spell === lastTomeSpell);
+  do { spell = pick(pool); } while (spell === lastTomeSpell && pool.length > 1);
   lastTomeSpell = spell;
   const tome = Bodies.rectangle(rand(120, W - 120), -40, 20, 24, { density: 0.001, frictionAir: 0.05, label: 'tome' });
   tome.spell = spell;
