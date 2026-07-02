@@ -1,20 +1,28 @@
 // pickups.js — spell tomes and the rare Mega Hat raining from the sky
 const tomes = new Set();
 const hats = new Set();
-let nextTomeAt = 0, lastTomeSpell = null;
+let nextTomeAt = 0, lastTomeSpell = null, firstDrop = false;
 function tomePool() {
   return Object.keys(SPELLS);
 }
 
 function scheduleTomes(now) {
   nextTomeAt = now + rand(1200, 2500);
+  firstDrop = true;
 }
 
 function updateTomes(now) {
-  if (now > nextTomeAt && tomes.size < 3) {
-    const megaOut = hats.size > 0 || players.some(p => p.megaCasts > 0);
-    if (!megaOut && Math.random() < 0.14) spawnHat(now);
-    else spawnTome(now);
+  if (now > nextTomeAt && (firstDrop || tomes.size < 3)) {
+    if (firstDrop) {
+      // opening volley: one tome per wizard, everyone gets armed
+      firstDrop = false;
+      const n = Math.max(2, players.length);
+      for (let i = 0; i < n; i++) spawnTome(now);
+    } else {
+      const megaOut = hats.size > 0 || players.some(p => p.megaCasts > 0);
+      if (!megaOut && Math.random() < 0.14) spawnHat(now);
+      else spawnTome(now);
+    }
     nextTomeAt = now + rand(3500, 5500);
   }
   for (const t of [...tomes, ...hats]) {
