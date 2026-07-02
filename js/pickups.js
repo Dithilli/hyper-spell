@@ -18,7 +18,7 @@ function updateTomes(now) {
     nextTomeAt = now + rand(3500, 5500);
   }
   for (const t of [...tomes, ...hats]) {
-    if (now - t.bornAt > 20000) {
+    if (now - t.bornAt > 20000 || t.position.y > H + 80 || t.position.y < -120) {
       spawnParticles(t.position.x, t.position.y, '#e8d5ff', 6, 3);
       tomes.delete(t);
       hats.delete(t);
@@ -27,12 +27,42 @@ function updateTomes(now) {
   }
 }
 
+// find a drop point that actually lands somewhere wizards can reach,
+// respecting ceilings and flipped gravity
+function tomeDropSpot() {
+  const g = engine.gravity.y;
+  const solids = Composite.allBodies(world).filter(b =>
+    (b.isStatic || b.label === 'plank') && !b.isSensor && b.collisionFilter.mask !== 0 &&
+    b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
+  for (let tries = 0; tries < 24; tries++) {
+    const x = rand(90, W - 90);
+    const col = solids.filter(b => x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6);
+    if (!col.length) continue;
+    if (g >= 0) {
+      const tops = col.map(b => b.bounds.min.y).filter(y => y > 130 && y < H - 50);
+      if (!tops.length) continue;
+      const top = Math.min(...tops);
+      const blocked = col.some(b => b.bounds.max.y < top - 4 && b.bounds.max.y > 0);
+      return { x, y: blocked ? top - 34 : -40 };
+    } else {
+      const bottoms = col.map(b => b.bounds.max.y).filter(y => y > 100 && y < H - 80);
+      if (!bottoms.length) continue;
+      const bottom = Math.max(...bottoms);
+      const blocked = col.some(b => b.bounds.min.y > bottom + 4 && b.bounds.min.y < H);
+      return { x, y: blocked ? bottom + 34 : H + 40 };
+    }
+  }
+  const s = pick(currentMap.def.spawns);
+  return { x: s.x, y: Math.max(60, s.y - 40) };
+}
+
 function spawnTome(now) {
   const pool = tomePool();
   let spell;
   do { spell = pick(pool); } while (spell === lastTomeSpell && pool.length > 1);
   lastTomeSpell = spell;
-  const tome = Bodies.rectangle(rand(120, W - 120), -40, 20, 24, { density: 0.001, frictionAir: 0.05, label: 'tome' });
+  const spot = tomeDropSpot();
+  const tome = Bodies.rectangle(spot.x, spot.y, 20, 24, { density: 0.001, frictionAir: 0.05, label: 'tome' });
   tome.spell = spell;
   tome.bornAt = now;
   tomes.add(tome);
@@ -40,7 +70,8 @@ function spawnTome(now) {
 }
 
 function spawnHat(now) {
-  const hat = Bodies.rectangle(rand(150, W - 150), -40, 28, 20, { density: 0.001, frictionAir: 0.05, label: 'hat' });
+  const spot = tomeDropSpot();
+  const hat = Bodies.rectangle(spot.x, spot.y, 28, 20, { density: 0.001, frictionAir: 0.05, label: 'hat' });
   hat.bornAt = now;
   hats.add(hat);
   Composite.add(world, hat);

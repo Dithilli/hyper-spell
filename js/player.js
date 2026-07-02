@@ -112,7 +112,12 @@ function killPlayer(p) {
 function grounded(p) {
   const { x, y } = p.body.position;
   const s = p.sizeScale || 1;
-  const below = Query.region(Composite.allBodies(world), { min: { x: x - 11 * s, y: y + 14 * s }, max: { x: x + 11 * s, y: y + 22 * s } });
+  const dir = engine.gravity.y < 0 ? -1 : 1; // support is above you when gravity flips
+  const y0 = y + 14 * s * dir, y1 = y + 22 * s * dir;
+  const below = Query.region(Composite.allBodies(world), {
+    min: { x: x - 11 * s, y: Math.min(y0, y1) },
+    max: { x: x + 11 * s, y: Math.max(y0, y1) },
+  });
   return below.some(b => b !== p.body && b.label !== 'projectile' && b.label !== 'lava' && b.label !== 'gib' && b.collisionFilter.mask !== 0);
 }
 
@@ -166,16 +171,17 @@ function updatePlayers(now) {
       Body.setVelocity(body, { x: body.velocity.x + (target - body.velocity.x) * blend, y: body.velocity.y });
 
       const heavy = now < (p.heavyUntil || 0);
-      const jumpVy = now < (p.jumpBoostUntil || 0) ? -22 : (p.sizeScale > 1.6 ? -17 : -15);
+      const gdir = engine.gravity.y < 0 ? -1 : 1; // jump away from whatever you stand on
+      const jumpVy = (now < (p.jumpBoostUntil || 0) ? -22 : (p.sizeScale > 1.6 ? -17 : -15)) * gdir;
       if (!heavy) {
-        if (c.jump && canJump && body.velocity.y > -2) {
+        if (c.jump && canJump && body.velocity.y * gdir > -2) {
           Body.setVelocity(body, { x: body.velocity.x, y: jumpVy });
           p.lastGround = 0;
           sfx.jump();
         } else if (c.jumpPressed && !canJump && p.airJumps > 0) {
           p.airJumps--;
-          Body.setVelocity(body, { x: body.velocity.x, y: now < (p.jumpBoostUntil || 0) ? -19 : -13 });
-          spawnParticles(body.position.x, body.position.y + 12, '#e8d5ff', 8, 3, 20);
+          Body.setVelocity(body, { x: body.velocity.x, y: (now < (p.jumpBoostUntil || 0) ? -19 : -13) * gdir });
+          spawnParticles(body.position.x, body.position.y + 12 * gdir, '#e8d5ff', 8, 3, 20);
           sfx.jump();
         }
       }

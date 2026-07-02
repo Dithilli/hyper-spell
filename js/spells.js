@@ -13,14 +13,16 @@ function shoot(p, { r, speed, vy = 0, color, density = 0.002, restitution = 0.6,
   fb.color = color;
   fb.gravityScale = gravityScale;
   if (expireMs) fb.expireAt = performance.now() + expireMs;
+  const gdir = engine.gravity.y < 0 ? -1 : 1; // lob against gravity, whichever way it points
   if (angle != null) Body.setVelocity(fb, { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed });
-  else Body.setVelocity(fb, { x: p.facing * speed, y: vy });
+  else Body.setVelocity(fb, { x: p.facing * speed, y: vy * gdir });
   projectiles.add(fb);
   Composite.add(world, fb);
   return fb;
 }
 
 function dropProjectile(p, x, y, { r = 10, vx = 0, vy = 12, color, density = 0.004, expireMs = 6000 }) {
+  if (engine.gravity.y < 0) { y = H - y; vy = -vy; } // "sky" is below when gravity flips
   const fb = Bodies.circle(x, y, r, { density, frictionAir: 0, label: 'projectile' });
   fb.owner = p;
   fb.color = color;
