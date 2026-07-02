@@ -582,7 +582,10 @@ function drawLobby() {
     ctx.fillText(p ? p.name + ' ✦' : 'JOIN', x, 218);
     ctx.font = '12px Georgia';
     ctx.fillStyle = '#675a7d';
-    ctx.fillText(['WASD + E', '← → ↑ + ENTER', 'GAMEPAD', 'GAMEPAD'][i], x, 238);
+    const hint = p
+      ? (p.controller instanceof GamepadController ? `GAMEPAD ${p.controller.index + 1}` : (p.controller.map === KEYMAPS[0] ? 'WASD + E' : '← → ↑ + ENTER'))
+      : 'E · ENTER · PAD';
+    ctx.fillText(hint, x, 238);
   }
   ctx.font = 'bold 20px Georgia';
   ctx.fillStyle = players.length >= 2 ? '#7bd88f' : '#675a7d';
