@@ -20,6 +20,8 @@ function loadMap(index) {
   gibs.clear();
   for (const t of tomes) Composite.remove(world, t);
   tomes.clear();
+  for (const h of hats) Composite.remove(world, h);
+  hats.clear();
   activeEffects.length = 0;
   particles.length = 0;
   if (currentMap) Composite.remove(world, currentMap.composite);
@@ -44,8 +46,10 @@ function startRound(index) {
     spawnPlayer(p, currentMap.def.spawns[p.slot]);
   }
   game.state = 'PLAY';
+  game.fightAt = performance.now() + 1100;
+  game.fightShown = false;
   scheduleTomes(performance.now());
-  setBanner(currentMap.def.name, '#e8d5ff', 1200);
+  setBanner(currentMap.def.name, '#e8d5ff', 1000);
 }
 
 game.onDeath = (p) => {
@@ -152,6 +156,7 @@ Events.on(engine, 'collisionStart', ({ pairs }) => {
         Composite.remove(world, a);
       }
       if (a.label === 'tome' && b.label === 'player') pickupTome(a, b.player);
+      if (a.label === 'hat' && b.label === 'player') pickupHat(a, b.player);
       if (a.label === 'icicle' && !a.isStatic && b.label === 'player' && !a.dmgDone) {
         a.dmgDone = true;
         damagePlayer(b.player, 60);
@@ -163,6 +168,7 @@ Events.on(engine, 'collisionStart', ({ pairs }) => {
           spawnParticles(a.position.x, (currentMap.data.lavaY ?? H - 14) + 4, '#ff5e57', 8, 4);
           projectiles.delete(a);
           tomes.delete(a);
+          hats.delete(a);
           gibs.delete(a);
           Composite.remove(world, a, true);
         }
@@ -311,7 +317,10 @@ function drawLobby() {
     ctx.strokeRect(x - 70, 185, 140, 60);
     ctx.font = 'bold 20px Georgia';
     ctx.fillStyle = p ? p.color : '#4a3f5e';
-    ctx.fillText(p ? p.name + ' ✦' : 'JOIN', x, 222);
+    ctx.fillText(p ? p.name + ' ✦' : 'JOIN', x, 218);
+    ctx.font = '12px Georgia';
+    ctx.fillStyle = '#675a7d';
+    ctx.fillText(['WASD + E', '← → ↑ + ENTER', 'GAMEPAD', 'GAMEPAD'][i], x, 238);
   }
   ctx.font = 'bold 20px Georgia';
   ctx.fillStyle = players.length >= 2 ? '#7bd88f' : '#675a7d';
@@ -383,10 +392,22 @@ function frame(now) {
   if (game.state === 'LOBBY' && players.length >= 2 && players.some(p => p.input.startPressed)) startRound(game.mapIndex);
   if (game.state === 'VICTORY' && players.some(p => p.input.castPressed)) resetMatch();
 
+  if (game.state === 'PLAY' && !game.fightShown && now > game.fightAt) {
+    game.fightShown = true;
+    setBanner('FIGHT!', '#7bd88f', 700);
+    sfx.fight();
+  }
+
   updatePlayers(now);
   if (game.state === 'PLAY') updateTomes(now);
   updateEffects(now, dt);
   currentMap.def.update?.(currentMap, now, dt);
+  // lobbed projectiles fly on reduced gravity — cancel part of it each tick
+  for (const fb of projectiles) {
+    if (fb.gravityScale < 1) {
+      Body.applyForce(fb, fb.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * fb.mass * (1 - fb.gravityScale) });
+    }
+  }
   Engine.update(engine, Math.max(dt, 0.5));
   postPhysics(now);
   updateParticles(timeScale);

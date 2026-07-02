@@ -53,6 +53,7 @@ const sfx = {
   pickup: () => { blip({ freq: 660, dur: 0.08, vol: 0.14 }); blip({ freq: 990, dur: 0.1, vol: 0.14, delay: 0.08 }); },
   blackhole: () => blip({ type: 'sine', freq: 220, freqEnd: 28, dur: 1.2, vol: 0.28 }),
   freeze: () => blip({ type: 'triangle', freq: 1200, freqEnd: 400, dur: 0.2, vol: 0.14 }),
+  fight: () => blip({ type: 'square', freq: 392, freqEnd: 784, dur: 0.15, vol: 0.2 }),
   roundWin: () => [523, 659, 784].forEach((f, i) => blip({ freq: f, dur: 0.18, vol: 0.18, delay: i * 0.12 })),
   victory: () => [523, 659, 784, 1047, 1319].forEach((f, i) => blip({ freq: f, dur: 0.25, vol: 0.2, delay: i * 0.15 })),
 };
