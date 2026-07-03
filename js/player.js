@@ -325,14 +325,33 @@ function drawWizardFigure(p, x, y, scale, now, angle = 0) {
     ctx.beginPath(); ctx.arc(p.facing * 5, -10, 2.5, 0, Math.PI * 2); ctx.fill();
   }
 
-  // below half health the hat is gone — the shame of a wizard. Healing back
-  // above half magically restores it (it IS a magic hat).
-  if ((p.hp ?? 100) >= 50) {
+  // the hat IS the health indicator: proud ≥75, knocked askew 50–74,
+  // gone below 50 (the shame), and under 25 the wizard smolders.
+  const hp = p.hp ?? 100;
+  if (hp >= 50) {
+    ctx.save();
+    if (hp < 75) {
+      ctx.translate(p.facing * 2, -14);
+      ctx.rotate(p.facing * 0.38);
+      ctx.translate(0, 14);
+    }
     ctx.fillStyle = p.hat;
     ctx.beginPath();
     ctx.moveTo(-9, -14); ctx.lineTo(9, -14);
     ctx.lineTo(2 + p.facing * 3, -30); ctx.closePath(); ctx.fill();
     ctx.fillRect(-11, -16, 22, 3);
+    ctx.restore();
+  }
+  if (hp < 25 && p.alive !== 0 && p.alive !== false) {
+    ctx.fillStyle = 'rgba(160,150,170,0.5)';
+    for (let i = 0; i < 3; i++) {
+      const t = (now * 0.05 + i * 37) % 30;
+      ctx.globalAlpha = 0.45 * (1 - t / 30);
+      ctx.beginPath();
+      ctx.arc(Math.sin(now * 0.004 + i * 2.4) * 4, -18 - t, 2 + t * 0.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   }
 
   const spell = p.spellId && SPELLS[p.spellId];
@@ -395,11 +414,5 @@ function drawWizard(p, now) {
     ctx.lineWidth = 1.5;
     ctx.strokeRect(x - 17 * s, y - 32 * s, 34 * s, 50 * s);
   }
-  if (p.hp < 100) {
-    const pct = Math.max(0, p.hp / 100);
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(x - 16, y - 42 * s, 32, 5);
-    ctx.fillStyle = pct > 0.5 ? '#7bd88f' : pct > 0.25 ? '#ffd166' : '#ff6b81';
-    ctx.fillRect(x - 16, y - 42 * s, 32 * pct, 5);
-  }
+  // no health bars — the hat tells the story (see drawWizardFigure)
 }

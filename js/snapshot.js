@@ -161,13 +161,7 @@ function drawGhostWizard(g, now) {
     ctx.lineWidth = 1.5;
     ctx.strokeRect(x - 17 * s, y - 32 * s, 34 * s, 50 * s);
   }
-  if (g.hp < 100) {
-    const pct = Math.max(0, g.hp / 100);
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(x - 16, y - 42 * s, 32, 5);
-    ctx.fillStyle = pct > 0.5 ? '#7bd88f' : pct > 0.25 ? '#ffd166' : '#ff6b81';
-    ctx.fillRect(x - 16, y - 42 * s, 32 * pct, 5);
-  }
+  // no health bars — the hat tells the story (see drawWizardFigure)
 }
 
 function drawFxLite(fxLite, now) {
