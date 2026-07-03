@@ -887,13 +887,64 @@ function controllerHint(p) {
   return 'ONLINE';
 }
 
+// 80s arcade wordmark: chrome-banded letters floating in a wave, pulsing neon
+// glow, a glint sweeping through, and star sparkles. Zero assets, pure canvas.
+function drawArcadeLogo(cx, cy, px, now, text = 'HYPERSPELL') {
+  ctx.save();
+  ctx.font = `italic 900 ${px}px Georgia, serif`;
+  ctx.textAlign = 'left';
+  const widths = [...text].map(ch => ctx.measureText(ch).width);
+  const spacing = px * 0.05;
+  const total = widths.reduce((a, b) => a + b, 0) + spacing * (text.length - 1);
+  const left = cx - total / 2;
+  const sweep = left + ((now * 0.28) % (total * 2.2)) - total * 0.6; // glint position
+  let x = left;
+  for (let i = 0; i < text.length; i++) {
+    const yy = cy + Math.sin(now * 0.0028 + i * 0.55) * px * 0.07;
+    const g = ctx.createLinearGradient(0, yy - px * 0.8, 0, yy + px * 0.18);
+    g.addColorStop(0, '#bfe8ff');   // sky chrome
+    g.addColorStop(0.44, '#e8d5ff');
+    g.addColorStop(0.5, '#5d3a8f'); // horizon band
+    g.addColorStop(0.56, '#ff6b81'); // sunset
+    g.addColorStop(1, '#ffd166');
+    ctx.shadowColor = '#a55eea';
+    ctx.shadowBlur = 16 + 9 * Math.sin(now * 0.0045);
+    ctx.fillStyle = g;
+    ctx.fillText(text[i], x, yy);
+    ctx.shadowBlur = 0;
+    const d = Math.abs(x + widths[i] / 2 - sweep);
+    if (d < px * 1.1) { // the glint catches this letter
+      ctx.globalAlpha = Math.max(0, 1 - d / (px * 1.1)) * 0.75;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(text[i], x, yy);
+      ctx.globalAlpha = 1;
+    }
+    x += widths[i] + spacing;
+  }
+  ctx.strokeStyle = '#fff'; // twinkling star crosses
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 3; i++) {
+    const tw = Math.max(0, Math.sin(now * 0.004 + i * 2.1));
+    if (tw < 0.05) continue;
+    ctx.globalAlpha = tw * 0.9;
+    const sx = left + envHash(i + 4) * total;
+    const sy = cy - px * (0.15 + 0.6 * envHash(i + 11));
+    const r = px * (0.06 + 0.05 * tw);
+    ctx.beginPath();
+    ctx.moveTo(sx - r, sy); ctx.lineTo(sx + r, sy);
+    ctx.moveTo(sx, sy - r); ctx.lineTo(sx, sy + r);
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center';
+}
+
 function drawLobby() {
   ctx.fillStyle = 'rgba(12,8,18,0.72)';
   ctx.fillRect(W / 2 - 430, 55, 860, 265);
   ctx.textAlign = 'center';
-  ctx.font = 'bold 64px Georgia';
-  ctx.fillStyle = '#e8d5ff';
-  ctx.fillText('HYPERSPELL', W / 2, 130);
+  drawArcadeLogo(W / 2, 132, 60, performance.now());
   ctx.font = '16px Georgia';
   ctx.fillStyle = '#9c8ab8';
   ctx.fillText('press E · ENTER · or any gamepad button to join — B adds a bot', W / 2, 162);

@@ -62,9 +62,30 @@
   const menu = document.createElement('div');
   menu.id = 'netmenu';
   menu.style.cssText = 'position:fixed;inset:0;display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;background:rgba(13,10,20,0.92);z-index:10;font-family:Georgia,serif;';
+  const logoLetters = [...'HYPERSPELL']
+    .map((ch, i) => `<span style="animation-delay:${(i * 0.13).toFixed(2)}s">${ch}</span>`).join('');
   menu.innerHTML = `
-    <div style="color:#e8d5ff;font-size:56px;letter-spacing:.08em;text-shadow:0 0 40px #a55eea">HYPERSPELL</div>
-    <div style="color:#9c8ab8;font-size:15px;margin-bottom:12px">wizards · physics · violence</div>
+    <style>
+      #hslogo { display:flex; font: italic 900 64px Georgia, serif; letter-spacing:.05em;
+        filter: drop-shadow(0 0 18px rgba(165,94,234,.8)); animation: hsglow 2.4s ease-in-out infinite; }
+      #hslogo span {
+        background: linear-gradient(180deg, #bfe8ff 0%, #e8d5ff 44%, #5d3a8f 50%, #ff6b81 56%, #ffd166 100%);
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+        animation: hsfloat 2.6s ease-in-out infinite;
+      }
+      @keyframes hsfloat { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-7px) } }
+      @keyframes hsglow {
+        0%,100% { filter: drop-shadow(0 0 12px rgba(165,94,234,.55)) }
+        50% { filter: drop-shadow(0 0 26px rgba(165,94,234,.95)) }
+      }
+      #hstag { color:#9ef0f0; font-size:15px; letter-spacing:.3em; margin-bottom:12px;
+        text-shadow: 0 0 10px rgba(158,240,240,.8); animation: hsflicker 3.7s linear infinite; }
+      @keyframes hsflicker {
+        0%,7%,9%,53%,56%,100% { opacity: 1 } 8%, 54.5% { opacity: .35 }
+      }
+    </style>
+    <div id="hslogo">${logoLetters}</div>
+    <div id="hstag">WIZARDS · PHYSICS · VIOLENCE</div>
     <input id="netname" maxlength="12" placeholder="YOUR WIZARD NAME" autocomplete="off"
       style="min-width:380px;padding:12px 20px;font-family:Georgia,serif;font-size:17px;text-align:center;background:transparent;border:2px solid #675a7d;color:#e8d5ff;border-radius:8px;text-transform:uppercase;outline:none;">
     <button data-mode="couch" style="${btnCss('#4ecdc4')}">COUCH — everyone on this computer</button>
@@ -436,9 +457,10 @@
     if (snap.st === 'LOBBY') {
       ctx.fillStyle = 'rgba(12,8,18,0.72)';
       ctx.fillRect(W / 2 - 430, 55, 860, 210);
-      ctx.font = 'bold 54px Georgia';
-      ctx.fillStyle = '#e8d5ff';
-      ctx.fillText('HYPERSPELL ONLINE', W / 2, 125);
+      drawArcadeLogo(W / 2, 120, 46, now);
+      ctx.font = 'bold 14px Georgia';
+      ctx.fillStyle = '#9c8ab8';
+      ctx.fillText('— O N L I N E —', W / 2, 142);
       ctx.font = '17px Georgia';
       ctx.fillStyle = joined ? '#7bd88f' : '#9c8ab8';
       ctx.fillText(joined ? `you are in as P${(mySlot ?? 0) + 1} — WASD move · SPACE/W jump · aim & fire with the mouse` : 'CLICK or press E to join', W / 2, 165);
