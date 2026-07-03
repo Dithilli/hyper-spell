@@ -108,10 +108,29 @@ function damagePlayer(p, amt) {
   }
   const n = Math.round(amt);
   if (n <= 0) return;
+  const hadHat = p.hp >= 50;
   p.hp -= n;
   p.hurtUntil = now + 130;
   if (p.hp <= 0) killPlayer(p);
-  else spawnText(p.body.position.x, p.body.position.y - 34, `-${n}`, '#ffffff');
+  else {
+    spawnText(p.body.position.x, p.body.position.y - 34, `-${n}`, '#ffffff');
+    if (hadHat && p.hp < 50) knockHatOff(p);
+  }
+}
+
+// crossing below half health knocks the wizard's hat off — the ultimate shame
+function knockHatOff(p) {
+  const { x, y } = p.body.position;
+  const s = p.sizeScale || 1;
+  const hat = Bodies.polygon(x, y - 22 * s, 3, 8, { density: 0.0008, frictionAir: 0.02, angle: -Math.PI / 2, label: 'gib' });
+  hat.color = p.hat;
+  hat.dieAt = performance.now() + 3500;
+  Body.setVelocity(hat, { x: p.body.velocity.x * 0.5 + rand(-3, 3), y: -7 * (engine.gravity.y < 0 ? -1 : 1) });
+  Body.setAngularVelocity(hat, rand(-0.4, 0.4));
+  gibs.add(hat);
+  Composite.add(world, hat);
+  spawnText(x, y - 52 * s, 'THE SHAME!', p.hat);
+  sfx.squeak();
 }
 
 function killPlayer(p) {
@@ -306,11 +325,15 @@ function drawWizardFigure(p, x, y, scale, now, angle = 0) {
     ctx.beginPath(); ctx.arc(p.facing * 5, -10, 2.5, 0, Math.PI * 2); ctx.fill();
   }
 
-  ctx.fillStyle = p.hat;
-  ctx.beginPath();
-  ctx.moveTo(-9, -14); ctx.lineTo(9, -14);
-  ctx.lineTo(2 + p.facing * 3, -30); ctx.closePath(); ctx.fill();
-  ctx.fillRect(-11, -16, 22, 3);
+  // below half health the hat is gone — the shame of a wizard. Healing back
+  // above half magically restores it (it IS a magic hat).
+  if ((p.hp ?? 100) >= 50) {
+    ctx.fillStyle = p.hat;
+    ctx.beginPath();
+    ctx.moveTo(-9, -14); ctx.lineTo(9, -14);
+    ctx.lineTo(2 + p.facing * 3, -30); ctx.closePath(); ctx.fill();
+    ctx.fillRect(-11, -16, 22, 3);
+  }
 
   const spell = p.spellId && SPELLS[p.spellId];
   if (spell && now - p.lastCast > spell.cooldown) {
