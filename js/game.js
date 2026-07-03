@@ -148,6 +148,7 @@ function resetMatch() {
 addEventListener('keydown', e => {
   if (netMode === 'client') return; // clients send these to the host instead
   if (e.code === 'Space' && game.state === 'LOBBY' && players.length >= 2) startRound(game.mapIndex);
+  if (e.code === 'KeyB' && game.state === 'LOBBY') addBot();
   if (e.code === 'KeyR') resetMatch();
   if (game.state === 'LOBBY' && /^Digit[1-9]$/.test(e.code)) {
     game.winsNeeded = +e.code.slice(5);
@@ -156,9 +157,10 @@ addEventListener('keydown', e => {
 });
 
 // ---------- joining ----------
-function joinPlayer(controller) {
+function joinPlayer(controller, name) {
   if (players.length >= MAX_PLAYERS) return;
   const p = createPlayer(players.length, controller);
+  if (name) p.name = name;
   spawnPlayer(p, spawnPointFor(p));
   sfx.pickup();
   setBanner(`${p.name} JOINED`, p.color, 900);
@@ -630,6 +632,7 @@ function drawHUD(now) {
 }
 
 function controllerHint(p) {
+  if (p.controller instanceof BotController) return 'BOT';
   if (p.controller instanceof GamepadController) return `GAMEPAD ${p.controller.index + 1}`;
   if (p.controller instanceof KeyboardController) return p.controller.map === KEYMAPS[0] ? 'WASD + MOUSE' : '← → ↑ + ENTER';
   return 'ONLINE';
@@ -644,7 +647,7 @@ function drawLobby() {
   ctx.fillText('HYPERSPELL', W / 2, 130);
   ctx.font = '16px Georgia';
   ctx.fillStyle = '#9c8ab8';
-  ctx.fillText('press E · ENTER · or any gamepad button to join', W / 2, 162);
+  ctx.fillText('press E · ENTER · or any gamepad button to join — B adds a bot', W / 2, 162);
   const slots = Math.max(4, Math.min(MAX_PLAYERS, players.length + 1));
   const slotW = Math.min(200, 840 / slots);
   for (let i = 0; i < slots; i++) {

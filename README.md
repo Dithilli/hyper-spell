@@ -4,7 +4,7 @@ wizards · physics · violence — a couch/LAN party brawler. Last wizard standi
 
 ## Play locally (couch)
 
-Open `index.html` in a browser. Press **E**, **Enter**, or any gamepad button to join; **Space** to fight; **1–9** sets the win target.
+Open `index.html` in a browser. Press **E**, **Enter**, or any gamepad button to join; **B** adds an AI bot (great for playing solo); **Space** to fight; **1–9** sets the win target.
 
 ## Play over the network
 
