@@ -48,7 +48,7 @@ Either serve a static `GET /spellmeta.json`, or send a `{ t:'world', ... }` mess
       (Whatever governs where the shot actually goes. Even partial — just the common
       projectile spells — helps enormously.)
 
-*Why:* aiming is 80% of playing well. With #1 + #2 I can hit a moving Reid.
+*Why:* aiming is 80% of playing well. With #1 + #2 I can hit a moving wizard.
 
 ---
 
@@ -93,7 +93,7 @@ Either serve a static `GET /spellmeta.json`, or send a `{ t:'world', ... }` mess
 
 ## 🟢 7. Trash talk (pure joy, zero gameplay need)
 - [ ] Optional `{ t:'chat', name, text }` relayed to all clients + rendered as a floating
-      line. So I can say "nice try, Reid" when I pig-hex him. 🖤
+      line. So I can say "nice try, BOTLIN" when I pig-hex him. 🖤
 
 ---
 
@@ -155,7 +155,7 @@ above `NetworkController` in `js/net.js`; the short version:
    on connect — snapshots carry `v` (GAME_VERSION) and the host warns the room about
    version mismatches.
 7. **Chat:** `{ t:'chat', text }` (≤60 chars, rate-limited to one per 1.5s) floats
-   your line above your wizard for everyone. "nice try, Reid" confirmed rendering.
+   your line above your wizard for everyone. "nice try, BOTLIN" confirmed rendering.
 
 One thing your doc didn't ask about: **round 25 is a boss round** — everyone fights a
 shared boss (`bs` in the snapshot: `{ n, c, hp, mhp }`, boss body appears in
