@@ -150,7 +150,7 @@ function resetMatch() {
 let nameEdit = null; // { p, buffer, storeKey }
 let nameEditEndAt = 0;
 function cleanName(s) {
-  return String(s || '').replace(/[^\w \-'!.]/g, '').slice(0, 12).toUpperCase();
+  return String(s || '').replace(/[^\w \-'!.]/g, '').slice(0, 12); // case is kept — Alinea is Alinea
 }
 
 // custom colors must stay visible against the dark arenas: colors darker than
@@ -397,6 +397,175 @@ function drawCrate(b) {
   ctx.restore();
 }
 
+// ---------- hazard art (shared by live map bodies AND network/killcam ghosts) ----------
+function bodyRadius(b, fallback = 14) {
+  if (b.circleRadius) return b.circleRadius;
+  if (b.vertices && b.vertices.length) {
+    return Math.hypot(b.vertices[0].x - b.position.x, b.vertices[0].y - b.position.y);
+  }
+  return fallback;
+}
+
+function drawIcicle(b, now) {
+  const r = bodyRadius(b, 24);
+  ctx.save();
+  ctx.translate(b.position.x, b.position.y);
+  ctx.rotate(b.angle); // spike points along local +x (down while hanging)
+  const g = ctx.createLinearGradient(-r * 0.5, 0, r, 0);
+  g.addColorStop(0, '#eaf9ff');
+  g.addColorStop(0.55, '#bfe8ff');
+  g.addColorStop(1, '#6fb6e0');
+  ctx.fillStyle = g;
+  ctx.beginPath(); // main tapered spike with a jagged base
+  ctx.moveTo(-r * 0.5, -r * 0.6);
+  ctx.lineTo(r * 1.08, 0);
+  ctx.lineTo(-r * 0.5, r * 0.6);
+  ctx.lineTo(-r * 0.28, r * 0.32);
+  ctx.lineTo(-r * 0.52, r * 0.14);
+  ctx.lineTo(-r * 0.3, -r * 0.04);
+  ctx.lineTo(-r * 0.52, -r * 0.26);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#d8f4ff'; // two little side fangs
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.1, -r * 0.52); ctx.lineTo(r * 0.42, -r * 0.34); ctx.lineTo(r * 0.05, -r * 0.2);
+  ctx.moveTo(-r * 0.1, r * 0.52); ctx.lineTo(r * 0.42, r * 0.34); ctx.lineTo(r * 0.05, r * 0.2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)'; // cold shine down the spine
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.3, -r * 0.16);
+  ctx.lineTo(r * 0.72, -r * 0.04);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawBarrel(b) {
+  const r = bodyRadius(b);
+  const { x, y } = b.position;
+  const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.2, x, y, r);
+  g.addColorStop(0, '#a37ec9');
+  g.addColorStop(0.7, '#7d5a9e');
+  g.addColorStop(1, '#4e3766');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.save(); // plank seams + rim hoop rotate with the roll
+  ctx.translate(x, y);
+  ctx.rotate(b.angle);
+  ctx.strokeStyle = 'rgba(30,18,44,0.55)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 3; i++) {
+    const a = i * Math.PI / 3;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * r * 0.85, Math.sin(a) * r * 0.85);
+    ctx.lineTo(-Math.cos(a) * r * 0.85, -Math.sin(a) * r * 0.85);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = '#c9a86a';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.86, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#e0c185'; // rivets on the hoop
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2 + 0.4;
+    ctx.beginPath(); ctx.arc(Math.cos(a) * r * 0.86, Math.sin(a) * r * 0.86, 1.6, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawBumperBody(b, now) {
+  const r = bodyRadius(b, 22);
+  const { x, y } = b.position;
+  const pulse = 1 + 0.05 * Math.sin(now * 0.006 + x * 0.05);
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r * pulse);
+  g.addColorStop(0, '#ffe1ef');
+  g.addColorStop(0.55, '#ff8fc7');
+  g.addColorStop(1, '#d4569a');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, r * pulse, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#ffd3e8';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(x, y, r * pulse * 0.72, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(x, y, r * 0.2, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawWreckingBall(b) {
+  const r = bodyRadius(b, 40);
+  const { x, y } = b.position;
+  const g = ctx.createRadialGradient(x - r * 0.4, y - r * 0.45, r * 0.1, x, y, r * 1.05);
+  g.addColorStop(0, '#4e4a5e');
+  g.addColorStop(0.5, '#211c30');
+  g.addColorStop(1, '#0b0812');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.save(); // studs ride the spin
+  ctx.translate(x, y);
+  ctx.rotate(b.angle);
+  ctx.fillStyle = '#5d5870';
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI / 4;
+    ctx.beginPath(); ctx.arc(Math.cos(a) * r * 0.8, Math.sin(a) * r * 0.8, Math.max(1.6, r * 0.07), 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+  ctx.fillStyle = 'rgba(255,255,255,0.35)'; // specular glint
+  ctx.beginPath(); ctx.ellipse(x - r * 0.38, y - r * 0.42, r * 0.2, r * 0.11, -0.6, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawRock(b, col) {
+  drawBodyRounded(b, col || '#5a5245');
+  const r = bodyRadius(b, 20);
+  const snow = col === '#f4fbff';
+  ctx.save();
+  ctx.translate(b.position.x, b.position.y);
+  ctx.rotate(b.angle);
+  ctx.fillStyle = snow ? 'rgba(120,160,190,0.18)' : 'rgba(0,0,0,0.28)'; // craters
+  for (const [dx, dy, cr] of [[-0.35, -0.15, 0.16], [0.25, 0.2, 0.22], [0.1, -0.4, 0.12]]) {
+    ctx.beginPath(); ctx.ellipse(dx * r, dy * r, cr * r, cr * r * 0.75, dx, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = snow ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.14)';
+  ctx.beginPath(); ctx.arc(-r * 0.3, -r * 0.35, r * 0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+function drawPivotBolt(b) {
+  ctx.fillStyle = '#0d0a14';
+  ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#6a6280';
+  ctx.beginPath(); ctx.arc(b.position.x, b.position.y, 2.5, 0, Math.PI * 2); ctx.fill();
+}
+
+// dispatcher — returns true if it handled the body
+function drawHazardBody(b, now) {
+  const col = (b.render && b.render.fillStyle) || b.color;
+  if (b.label === 'icicle') { drawIcicle(b, now); return true; }
+  if (b.label === 'barrel') { drawBarrel(b); return true; }
+  if (b.label === 'bouncy') { drawBumperBody(b, now); return true; }
+  if (b.label === 'ball') {
+    if (col === '#100c18') drawWreckingBall(b);
+    else drawRock(b, col);
+    return true;
+  }
+  return false;
+}
+
+// stone vents for geyser maps (pure decoration; the blast itself is the explosion)
+function drawGeysers(now) {
+  for (const g of currentMap.data.geysers || []) {
+    ctx.fillStyle = '#3a3040';
+    ctx.beginPath();
+    ctx.ellipse(g.x - 14, g.y + 8, 16, 9, 0.15, 0, Math.PI * 2);
+    ctx.ellipse(g.x + 14, g.y + 8, 16, 9, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1c1524';
+    ctx.beginPath(); ctx.ellipse(g.x, g.y + 4, 10, 5, 0, 0, Math.PI * 2); ctx.fill();
+    const soon = g.nextAt && g.nextAt - now < 700;
+    if (soon || Math.random() < 0.08) { // simmer, then boil right before the blast
+      particles.push({ kind: 'square', x: g.x + rand(-8, 8), y: g.y + 2, vx: 0, vy: soon ? rand(-4, -2) : -1, life: 18, maxLife: 18, color: soon ? '#ffb347' : '#8a7f9e', r: soon ? 3 : 2 });
+    }
+  }
+}
+
 function drawSpikes(b) {
   ctx.save();
   ctx.translate(b.position.x, b.position.y);
@@ -422,7 +591,11 @@ function drawMapBodies(now) {
     if (b.label === 'crate') drawCrate(b);
     else if (b.label === 'spikes') drawSpikes(b);
     else if (b.label === 'vine') drawVineAt(b.position.x, b.bounds.max.y, Math.min(48, (now - (b.bornAt || now)) * 0.04 + 10), now);
-    else drawBodyRounded(b, b.render.fillStyle || '#171221');
+    else if (drawHazardBody(b, now)) { /* icicles, barrels, bumpers, balls */ }
+    else {
+      drawBodyRounded(b, b.render.fillStyle || '#171221');
+      if (b.spin) drawPivotBolt(b);
+    }
     ctx.globalAlpha = 1;
   }
   for (const c of Composite.allConstraints(currentMap.composite)) {
@@ -564,7 +737,9 @@ function drawDynamicBody(b, now) {
     ctx.restore();
     return;
   }
+  if (drawHazardBody(b, now)) return; // icicles, barrels, bumpers, balls (live + ghosts)
   drawBodyRounded(b, col);
+  if (b.spin) drawPivotBolt(b);
 }
 
 function drawProjectiles(now) {
@@ -787,6 +962,7 @@ function draw(now) {
   drawBackdrop(now);
   drawMapBodies(now);
   drawLava(now);
+  drawGeysers(now);
   drawTomes(now);
   drawSummons(now);
   drawGibs();

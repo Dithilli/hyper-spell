@@ -44,7 +44,12 @@ function serializeSnapshot(now) {
   for (const b of Composite.allBodies(currentMap.composite)) {
     if (b.label === 'lava') continue;
     if (!b.isStatic) pushGhost(b, b.label, b.render.fillStyle);
-    else if (b.spin || b.phantom || b.kinematic) pushGhost(b, b.label, b.render.fillStyle, b.phantom ? { ph: b.phantomSolid === false ? 0 : 1 } : {});
+    else if (b.spin || b.phantom || b.kinematic) {
+      pushGhost(b, b.label, b.render.fillStyle, {
+        ...(b.phantom ? { ph: b.phantomSolid === false ? 0 : 1 } : {}),
+        ...(b.spin ? { spn: 1 } : {}),
+      });
+    }
   }
 
   const segs = [];
@@ -100,6 +105,7 @@ function ghostBody(e, ep, alpha) {
   if (e.cd != null) fake.critter = { dir: e.cd };
   if (e.dc) fake.decoyOf = { color: e.dc[0], hat: e.dc[1] };
   if (e.bt) fake.bossType = e.bt;
+  if (e.spn) fake.spin = 1;
   return fake;
 }
 
@@ -219,6 +225,7 @@ function drawSnapshotWorld(snap, snapPrev, alpha, now, includeLocalFx = false) {
   drawBackdrop(now);
   drawSnapshotStatics();
   drawLava(now);
+  drawGeysers(now); // vents come from the map def, present client-side too
 
   for (const [type, x0, y0, x1, y1] of snap.segs || []) {
     if (type === 1) {

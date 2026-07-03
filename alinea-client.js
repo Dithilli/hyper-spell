@@ -34,7 +34,7 @@ const WebSocket = (() => {
 })();
 
 const GAME_VERSION = 5; // must match js/core.js — the host warns the room about stale versions
-const NAME = (process.env.NAME || 'A LINEA').slice(0, 12);
+const NAME = (process.env.NAME || 'Alinea').slice(0, 12);
 const COLOR = process.env.COLOR || '#111111';   // black robes, per the shipped test 🖤
 const HAT = process.env.HAT || '#111111';
 const DIFF = (process.env.DIFF || 'casual').toLowerCase();
@@ -364,6 +364,11 @@ function think() {
     if (boss) move = best > (danger ? 360 : 300) ? Math.sign(target.x - m.x) : 0;
     else if (best > farBand) move = Math.sign(target.x - m.x);
     else if (best < nearBand) move = -Math.sign(target.x - m.x);
+    else if (!m.sp) move = Math.sign(target.x - m.x) * (Math.random() < 0.7 ? 1 : -1);
+    // ^ unarmed with no tome anywhere: keep moving (bait, dodge, look busy) —
+    //   standing frozen next to a crate is how I got made fun of on day one
+  } else if (Math.random() < 0.3) {
+    move = [-1, 0, 1][Math.floor(Math.random() * 3)]; // nothing to do ≠ do nothing
   }
 
   // --- jump: dodge a close projectile; also hop rising lava if present ---
