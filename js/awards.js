@@ -16,8 +16,10 @@ function resetMatchStats() {
   killFeedLines.length = 0;
 }
 
-// fx-wrapped like setBanner, so LAN clients replay the feed automatically
-function addKillFeed(aName, aColor, bName, bColor, self) {
+// fx-wrapped like setBanner, so LAN clients replay the feed automatically.
+// The trailing slots aren't rendered — they let headless clients (Alinea)
+// attribute kills exactly instead of guessing by proximity.
+function addKillFeed(aName, aColor, bName, bColor, self, aSlot, bSlot) {
   killFeedLines.push({ a: aName, ac: aColor, b: bName, bc: bColor, self, at: performance.now() });
   if (killFeedLines.length > 5) killFeedLines.shift();
 }
@@ -29,12 +31,12 @@ function creditKill(victim) {
   const killer = hit && performance.now() - hit.at < 4000 ? hit.player : null;
   if (killer === victim) {
     statFor(victim).selfKills++;
-    addKillFeed(victim.name, victim.color, null, null, true);
+    addKillFeed(victim.name, victim.color, null, null, true, victim.slot, victim.slot);
   } else if (killer) {
     statFor(killer).kills++;
-    addKillFeed(killer.name, killer.color, victim.name, victim.color, false);
+    addKillFeed(killer.name, killer.color, victim.name, victim.color, false, killer.slot, victim.slot);
   } else {
-    addKillFeed(null, null, victim.name, victim.color, false); // the arena did it
+    addKillFeed(null, null, victim.name, victim.color, false, null, victim.slot); // the arena did it
   }
 }
 

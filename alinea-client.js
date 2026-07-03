@@ -172,6 +172,17 @@ function handle(msg) {
       while (snapBuf.length > 2 && snapBuf[0].t < cutoff) snapBuf.shift();
       if (!joined) emit({ t: 'join', name: NAME, color: COLOR, hat: HAT });
       break;
+    case 'fx':
+      // exact kill attribution: addKillFeed carries (…, self, killerSlot, victimSlot).
+      // No more nearest-to-the-corpse guessing.
+      if (msg.f === 'addKillFeed' && Array.isArray(msg.a)) {
+        const [, , , , self, aSlot] = msg.a;
+        if (!self && aSlot != null && aSlot === mySlot) {
+          ensureRec();
+          REC.kill(lastSpellHeld);
+        }
+      }
+      break;
     case 'hostLeft': console.log('[alinea] host left.'); joined = false; break;
     case 'hostUp': if (!joined) emit({ t: 'join', name: NAME, color: COLOR, hat: HAT }); break;
   }
@@ -205,18 +216,11 @@ function learnFromSnap(s) {
   if (s.bs && s.bs.n && s.bs.n !== curBoss) { curBoss = s.bs.n; REC.bossEncounter(curBoss); }
   if (curBoss && s.ps.every(p => !p.al)) lastAllDead = true; // sticky: the wipe signal
   if (meNow && meNow.sp) lastSpellHeld = meNow.sp;
-  // enemy deaths while I'm alive & holding a spell ⇒ credit a (probable) kill.
-  // Host doesn't hand us kill attribution, so this is a heuristic: an enemy who
-  // was alive last frame is now dead, I'm alive and armed and was the nearest
-  // living threat aiming at them. Good enough for aggregate spell-usefulness.
+  // kills arrive EXACTLY via the addKillFeed fx message (handled in handle()) —
+  // the old nearest-to-the-corpse heuristic is retired. Just track alive states.
   if (meNow && meNow.al) {
     for (const p of s.ps) {
       if (p.s === mySlot) continue;
-      const was = prevAlive[p.s];
-      if (was === 1 && p.al === 0) {
-        // was I plausibly the killer? nearest-alive-to-victim heuristic
-        if (iWasNearestLivingTo(s, p)) REC.kill(meNow.sp || lastSpellHeld);
-      }
       prevAlive[p.s] = p.al;
     }
     // count a cast opportunity while armed (cheap, throttled by frames)
@@ -240,18 +244,8 @@ let lastRnLearn = null;
 let lastStLearn = null;
 let lastAllDead = false;
 let roundCounted = false;
-function iWasNearestLivingTo(s, victim) {
-  const meNow = s.ps.find(p => p.s === mySlot);
-  if (!meNow) return false;
-  let nearest = null, bd = Infinity;
-  for (const p of s.ps) {
-    if (!p.al && p.s !== victim.s) continue;
-    if (p.s === victim.s) continue;
-    const d = Math.hypot(p.x - victim.x, p.y - victim.y);
-    if (d < bd) { bd = d; nearest = p; }
-  }
-  return nearest && nearest.s === mySlot;
-}
+// (the old iWasNearestLivingTo proximity heuristic lived here — retired now
+// that the host broadcasts exact kill attribution in addKillFeed)
 
 // The snapshot we're allowed to "see" right now, given reaction delay.
 function perceivedSnap() {
