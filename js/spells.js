@@ -7,7 +7,7 @@ const summons = new Set();
 // else classic facing + lob elevation (vy), gravity-aware
 function aimDir(p, speed = 20, vy = 0) {
   if (p.aimAngle != null) return { x: Math.cos(p.aimAngle), y: Math.sin(p.aimAngle) };
-  const gdir = engine.gravity.y < 0 ? -1 : 1;
+  const gdir = gravDirFor(p);
   const len = Math.hypot(speed, vy) || 1;
   return { x: p.facing * (speed / len), y: (vy * gdir) / len };
 }

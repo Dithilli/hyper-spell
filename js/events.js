@@ -1,10 +1,10 @@
 // events.js — environmental events: rare round modifiers rolled at round start
 // and announced with a banner just after FIGHT!. All physics runs host-side;
 // visuals reach LAN clients and the killcam through the snapshot's `ev` field.
-const ENV_EVENT_CHANCE = 0.06; // rare on purpose — roughly one round in seventeen
+const ENV_EVENT_CHANCE = 0.15; // roughly one round in seven
 
 // find n platform tops spread across the map (same spirit as tomeDropSpot)
-function vineSpots(m, n) {
+function platformSpots(m, n) {
   const solids = Composite.allBodies(m.composite).filter(b =>
     b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 &&
     b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
@@ -36,7 +36,7 @@ const ENV_EVENTS = [
     id: 'overgrowth', name: 'OVERGROWTH', color: '#7bd88f',
     start(m, now) {
       m.data.vines = [];
-      for (const s of vineSpots(m, 12)) {
+      for (const s of platformSpots(m, 12)) {
         const v = Bodies.rectangle(s.x, s.y - 24, 22, 48, { isStatic: true, isSensor: true, label: 'vine' });
         v.render.fillStyle = '#4f8a3d';
         v.kinematic = true; // so the snapshot carries it to clients and the killcam

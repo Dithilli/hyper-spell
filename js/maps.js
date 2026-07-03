@@ -211,6 +211,22 @@ function updateCrateRain(m, now, cap = 26, interval = 2600) {
   }
 }
 
+// scatter a few destructible props on platform tops — cover to hide behind,
+// clutter to knock around. Runs on every map after its builder.
+function scatterProps(m) {
+  const spots = platformSpots(m, 3 + Math.floor(Math.random() * 3));
+  for (const s of spots) {
+    const roll = Math.random();
+    if (roll < 0.35) buildCrateStack(m, s.x, s.y - 14, pick([1, 2]), pick([1, 2, 3]));
+    else if (roll < 0.55) addBarrels(m, [s.x - 14, s.x + 14], s.y - 16);
+    else if (roll < 0.8) buildCrateStack(m, s.x, s.y - 14, 2, pick([3, 4])); // a wall to duck behind
+    else {
+      const big = Bodies.rectangle(s.x, s.y - 24, 42, 42, { density: 0.004, friction: 0.6, label: 'crate' });
+      addBody(m, big, '#9a7440');
+    }
+  }
+}
+
 function updateBoulders(m, now, interval = 5000) {
   if (now > (m.data.nextBoulder || (m.data.nextBoulder = now + 2500))) {
     m.data.nextBoulder = now + interval;

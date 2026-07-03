@@ -778,7 +778,10 @@ regSpell('rubberduck', {
 // ============ CHAOS & GLOBAL ============
 regSpell('gravflip', {
   name: 'Gravity Flip', color: '#c084fc', cooldown: 6000,
-  cast() {
+  cast(p) {
+    // the world flips — except the caster, who keeps their footing
+    p.gravityLockDir = engine.gravity.y < 0 ? -1 : 1;
+    p.gravityLockUntil = performance.now() + 2500;
     engine.gravity.y = -game.baseGravity;
     doFlash('#c084fc', 0.3);
     setBanner('GRAVITY!', '#c084fc', 1000);

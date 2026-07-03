@@ -120,8 +120,10 @@
         if (netMode === 'host' && game.state === 'LOBBY' && players.length >= 2) startRound(game.mapIndex);
         break;
       case 'wins':
-        if (netMode === 'host' && game.state === 'LOBBY' && msg.n >= 1 && msg.n <= 9) {
-          game.winsNeeded = msg.n;
+        if (netMode === 'host' && game.state === 'LOBBY') {
+          if (msg.n >= 1 && msg.n <= 20) game.winsNeeded = msg.n;
+          else if (msg.d) game.winsNeeded = Math.max(1, Math.min(20, game.winsNeeded + Math.sign(msg.d)));
+          else break;
           setBanner(`FIRST TO ${game.winsNeeded}`, '#e8d5ff', 900);
         }
         break;
@@ -243,6 +245,10 @@
       if (keys[`Digit${d}`] && !this[`_d${d}`]) emit({ t: 'wins', n: d });
       this[`_d${d}`] = !!keys[`Digit${d}`];
     }
+    for (const [code, d] of [['Equal', 1], ['Minus', -1]]) {
+      if (keys[code] && !this[`_${code}`]) emit({ t: 'wins', d });
+      this[`_${code}`] = !!keys[code];
+    }
   }
 
   globalThis.netClientFrame = function netClientFrame(now) {
@@ -314,16 +320,22 @@
       ctx.fillStyle = gp.c;
       ctx.fillText(gp.n + (gp.s === mySlot ? ' ◂you' : ''), x, 38);
       ctx.strokeStyle = gp.c;
-      const pipStart = x - (snap.wn - 1) * 9;
-      for (let w = 0; w < snap.wn; w++) {
-        ctx.beginPath();
-        ctx.arc(pipStart + w * 18, 54, 5.5, 0, Math.PI * 2);
-        if (w < gp.w) ctx.fill();
-        else { ctx.lineWidth = 1.5; ctx.stroke(); }
+      if (snap.wn <= 9) {
+        const pipStart = x - (snap.wn - 1) * 9;
+        for (let w = 0; w < snap.wn; w++) {
+          ctx.beginPath();
+          ctx.arc(pipStart + w * 18, 54, 5.5, 0, Math.PI * 2);
+          if (w < gp.w) ctx.fill();
+          else { ctx.lineWidth = 1.5; ctx.stroke(); }
+        }
+      } else {
+        ctx.font = 'bold 15px Georgia';
+        ctx.fillText(`${gp.w} / ${snap.wn}`, x, 58);
       }
       ctx.font = '13px Georgia';
       ctx.fillStyle = '#9c8ab8';
       ctx.fillText(gp.sp ? SPELLS[gp.sp].name : '· · ·', x, 74);
+      if (gp.sp) drawCooldownBar(x, 80, SPELLS[gp.sp], gp.cdf ?? (gp.rd ? 1 : 0), gp.mc || 0);
     });
     if (now < bannerUntil) {
       if (bannerHyper) {

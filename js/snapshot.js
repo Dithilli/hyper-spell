@@ -13,6 +13,8 @@ function serializeSnapshot(now) {
     iv: now < (p.invulnUntil || 0) ? 1 : 0, rf: now < (p.reflectUntil || 0) ? 1 : 0,
     pg: now < (p.pigUntil || 0) ? 1 : 0, hu: now < (p.hurtUntil || 0) ? 1 : 0,
     sp: p.spellId, rd: p.spellId && now - p.lastCast > SPELLS[p.spellId].cooldown ? 1 : 0,
+    cdf: p.spellId ? +Math.min(1, (now - p.lastCast) / (SPELLS[p.spellId].cooldown || 1)).toFixed(2) : 0,
+    mc: p.megaCasts || 0,
     w: p.roundWins,
   }));
 

@@ -60,6 +60,7 @@ const sfx = {
   oink: () => { blip({ type: 'sawtooth', freq: 220, freqEnd: 380, dur: 0.09, vol: 0.15 }); blip({ type: 'sawtooth', freq: 380, freqEnd: 180, dur: 0.11, vol: 0.15, delay: 0.09 }); },
   hyper: () => { [392, 523, 659, 784, 1047].forEach((f, i) => blip({ type: 'square', freq: f, dur: 0.1, vol: 0.16, delay: i * 0.05 })); boom({ dur: 0.4, from: 200, to: 2500, vol: 0.3, highpass: true }); },
   event: () => { blip({ type: 'triangle', freq: 330, freqEnd: 660, dur: 0.18, vol: 0.2 }); blip({ type: 'triangle', freq: 660, freqEnd: 495, dur: 0.24, vol: 0.18, delay: 0.16 }); },
+  thud: () => { boom({ dur: 0.12, from: 260, to: 60, vol: 0.3 }); blip({ type: 'sine', freq: 70, freqEnd: 40, dur: 0.12, vol: 0.2 }); },
   boss: () => { boom({ dur: 0.7, from: 400, to: 50, vol: 0.5 }); blip({ type: 'sawtooth', freq: 90, freqEnd: 45, dur: 0.8, vol: 0.35 }); blip({ type: 'square', freq: 110, freqEnd: 55, dur: 0.6, vol: 0.2, delay: 0.35 }); },
   roundWin: () => [523, 659, 784].forEach((f, i) => blip({ freq: f, dur: 0.18, vol: 0.18, delay: i * 0.12 })),
   victory: () => [523, 659, 784, 1047, 1319].forEach((f, i) => blip({ freq: f, dur: 0.25, vol: 0.2, delay: i * 0.15 })),

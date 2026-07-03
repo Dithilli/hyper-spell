@@ -36,6 +36,7 @@ function loadMap(index) {
     Composite.add(m.composite, wall);
   }
   def.build(m);
+  scatterProps(m);
   if (def.stars) {
     m.data.starfield = Array.from({ length: 70 }, () => ({ x: rand(0, W), y: rand(0, H - 160), r: rand(0.5, 1.8), tw: rand(0, 6.28) }));
   }
@@ -152,6 +153,10 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyR') resetMatch();
   if (game.state === 'LOBBY' && /^Digit[1-9]$/.test(e.code)) {
     game.winsNeeded = +e.code.slice(5);
+    setBanner(`FIRST TO ${game.winsNeeded}`, '#e8d5ff', 900);
+  }
+  if (game.state === 'LOBBY' && (e.code === 'Equal' || e.code === 'Minus')) {
+    game.winsNeeded = Math.max(1, Math.min(20, game.winsNeeded + (e.code === 'Equal' ? 1 : -1)));
     setBanner(`FIRST TO ${game.winsNeeded}`, '#e8d5ff', 900);
   }
 });
@@ -580,6 +585,20 @@ function drawBackdrop(now) {
   }
 }
 
+// spell recharge indicator under the spell name (all spells are infinite-use;
+// this shows when the next cast is ready)
+function drawCooldownBar(x, y, spell, frac, megaCasts) {
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(x - 22, y, 44, 4);
+  ctx.fillStyle = frac >= 1 ? spell.color : '#675a7d';
+  ctx.fillRect(x - 22, y, 44 * Math.max(0, frac), 4);
+  if (megaCasts > 0) {
+    ctx.font = 'bold 11px Georgia';
+    ctx.fillStyle = '#ffd700';
+    ctx.fillText(`★${megaCasts}`, x + 36, y + 5);
+  }
+}
+
 function drawHUD(now) {
   if (game.state === 'LOBBY' || game.state === 'VICTORY') return;
   ctx.textAlign = 'center';
@@ -599,16 +618,22 @@ function drawHUD(now) {
     ctx.fillStyle = p.color;
     ctx.fillText(p.name, x, 38);
     ctx.strokeStyle = p.color;
-    const pipStart = x - (game.winsNeeded - 1) * 9;
-    for (let w = 0; w < game.winsNeeded; w++) {
-      ctx.beginPath();
-      ctx.arc(pipStart + w * 18, 54, 5.5, 0, Math.PI * 2);
-      if (w < p.roundWins) ctx.fill();
-      else { ctx.lineWidth = 1.5; ctx.stroke(); }
+    if (game.winsNeeded <= 9) {
+      const pipStart = x - (game.winsNeeded - 1) * 9;
+      for (let w = 0; w < game.winsNeeded; w++) {
+        ctx.beginPath();
+        ctx.arc(pipStart + w * 18, 54, 5.5, 0, Math.PI * 2);
+        if (w < p.roundWins) ctx.fill();
+        else { ctx.lineWidth = 1.5; ctx.stroke(); }
+      }
+    } else {
+      ctx.font = 'bold 15px Georgia';
+      ctx.fillText(`${p.roundWins} / ${game.winsNeeded}`, x, 58);
     }
     ctx.font = '13px Georgia';
     ctx.fillStyle = '#9c8ab8';
     ctx.fillText(p.spellId ? SPELLS[p.spellId].name : '· · ·', x, 74);
+    if (p.spellId) drawCooldownBar(x, 80, SPELLS[p.spellId], Math.min(1, (now - p.lastCast) / (SPELLS[p.spellId].cooldown || 1)), p.megaCasts);
   });
   if (now < bannerUntil) {
     if (bannerHyper) {
@@ -673,7 +698,7 @@ function drawLobby() {
     W / 2, 288);
   ctx.font = '13px Georgia';
   ctx.fillStyle = '#675a7d';
-  ctx.fillText(`press 1–9 to set the win target (${game.winsNeeded})`, W / 2, 310);
+  ctx.fillText(`1–9 sets the win target · +/− tunes it up to 20 (${game.winsNeeded})`, W / 2, 310);
 }
 
 function drawVictory(now) {
