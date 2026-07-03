@@ -299,7 +299,8 @@ function slewAim(desired, dtSec) {
 }
 
 let lastThink = Date.now();
-let lastStartAsk = 0;
+let lobbyPlanAt = 0;
+let lobbyMove = 0;
 function think() {
   const s = perceivedSnap();
   const now = Date.now();
@@ -312,11 +313,20 @@ function think() {
   // Round change ⇒ reset per-round intent.
   if (s.rn != null && s.rn !== lastRn) { lastRn = s.rn; wantAirJump = false; }
 
-  // Lobby: politely nudge a start at most once every 8s — humans may still be
-  // typing their names, and force-starting the lobby at 30Hz is rude.
+  // Lobby: starting the match is the humans' call. Just jump around and chill —
+  // wander, hop, drift toward a falling tome now and then.
   if (s.st === 'LOBBY' || s.st === 'lobby') {
-    if (now - lastStartAsk > 8000) { lastStartAsk = now; emit({ t: 'start' }); }
-    return { m: 0, j: 0, c: 0, a: aimCur };
+    if (now > lobbyPlanAt) {
+      lobbyPlanAt = now + 600 + Math.random() * 1400;
+      lobbyMove = [-1, 0, 0, 1][Math.floor(Math.random() * 4)];
+    }
+    let move = lobbyMove;
+    const tome = nearest(s, m, b => b.l === 'tome');
+    if (tome && Math.random() < 0.4) move = Math.sign(tome.x - m.x);
+    if (m.x < 90) move = 1;
+    if (m.x > world.W - 90) move = -1;
+    const hop = Math.random() < 0.07 ? 1 : 0;
+    return { m: move, j: hop, c: 0, a: aimCur };
   }
   if (!m.al) return { m: 0, j: 0, c: 0, a: aimCur };   // dead — wait for respawn
 
