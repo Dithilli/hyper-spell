@@ -1,7 +1,7 @@
 // events.js — environmental events: rare round modifiers rolled at round start
 // and announced with a banner just after FIGHT!. All physics runs host-side;
 // visuals reach LAN clients and the killcam through the snapshot's `ev` field.
-const ENV_EVENT_CHANCE = 0.07; // rare on purpose — roughly one round in fourteen
+const ENV_EVENT_CHANCE = 0.05; // rare on purpose — one round in twenty
 
 // find n platform tops spread across the map (same spirit as tomeDropSpot)
 function vineSpots(m, n) {
