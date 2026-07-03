@@ -32,6 +32,7 @@ function serializeSnapshot(now) {
     const extra = {};
     if (s.critter) extra.cd = s.critter.dir;
     if (s.decoyOf) extra.dc = [s.decoyOf.color, s.decoyOf.hat];
+    if (s.bossType) extra.bt = s.bossType;
     pushGhost(s, s.label, s.render.fillStyle, extra);
   }
   for (const g of gibs) pushGhost(g, 'gib', g.color);
@@ -57,6 +58,7 @@ function serializeSnapshot(now) {
     lv: currentMap.data.lavaY != null ? Math.round(currentMap.data.lavaY) : null,
     wr: game.winner ? game.winner.slot : null,
     ev: game.envEvent?.announced ? game.envEvent.def.id : null,
+    bs: game.boss?.announced ? { n: game.boss.def.name, c: game.boss.def.color, hp: Math.max(0, Math.round(game.boss.hp)), mhp: game.boss.maxHp } : null,
     ps, bodies, segs, fxLite,
   };
 }
@@ -90,6 +92,7 @@ function ghostBody(e, ep, alpha) {
   };
   if (e.cd != null) fake.critter = { dir: e.cd };
   if (e.dc) fake.decoyOf = { color: e.dc[0], hat: e.dc[1] };
+  if (e.bt) fake.bossType = e.bt;
   return fake;
 }
 

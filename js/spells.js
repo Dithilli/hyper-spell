@@ -88,6 +88,9 @@ function explode(x, y, radius = 150, power = 22, damage = 0, owner = null) {
     const dx = body.position.x - x, dy = body.position.y - y;
     const d = Math.hypot(dx, dy);
     if (d > radius || d === 0) continue;
+    if (body.label === 'boss' && damage && owner !== 'boss') {
+      damageBoss(damage * (1 - d / (radius * 1.15)) * 1.2, body.position);
+    }
     if (body.isStatic) {
       if (body.label === 'icicle') body._blast = true;
       continue;

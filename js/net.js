@@ -306,6 +306,7 @@
         ctx.font = '12px Georgia';
       }
     }
+    if (snap.bs) drawBossBar(snap.bs.n, snap.bs.c, snap.bs.hp, snap.bs.mhp);
     const spacing = Math.min(300, (W - 220) / Math.max(snap.ps.length - 1, 1));
     snap.ps.forEach((gp, i) => {
       const x = snap.ps.length === 1 ? 150 : W / 2 + (i - (snap.ps.length - 1) / 2) * spacing;

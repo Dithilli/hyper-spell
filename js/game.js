@@ -45,10 +45,15 @@ function loadMap(index) {
   game.baseGravity = def.gravity ?? 2;
   engine.gravity.y = game.baseGravity;
   game.envEvent = null;
+  game.boss = null;
 }
 
 function startRound(index) {
   clearReplay();
+  game.totalRounds = (game.totalRounds || 0) + 1;
+  const bossTime = game.totalRounds % BOSS_EVERY === 0;
+  let tries = 0;
+  while (bossTime && MAPS[index].cozy && ++tries < 60) index = Math.floor(Math.random() * MAPS.length);
   loadMap(index);
   for (const p of players) {
     p.spellId = null;
@@ -59,8 +64,9 @@ function startRound(index) {
   game.fightAt = performance.now() + 1100;
   game.fightShown = false;
   scheduleTomes(performance.now());
-  rollEnvEvent(performance.now());
-  setBanner(currentMap.def.name, '#e8d5ff', 1000);
+  if (bossTime) spawnBoss(performance.now());
+  else rollEnvEvent(performance.now());
+  setBanner(bossTime ? 'BOSS BATTLE' : currentMap.def.name, bossTime ? '#ffd166' : '#e8d5ff', 1000);
 }
 
 game.onDeath = (p) => {
@@ -77,6 +83,21 @@ game.onDeath = (p) => {
 function checkRoundEnd() {
   if (game.state !== 'PLAY') return;
   const alive = players.filter(p => p.alive);
+  if (game.boss) {
+    // co-op boss fight: the round runs while anyone stands; a wipe wipes the score
+    if (alive.length > 0) return;
+    game.state = 'ROUND_END';
+    game.winner = null;
+    const replayMs = startReplay(performance.now());
+    for (const p of players) p.roundWins = 0;
+    setBanner(`${game.boss.def.name} PREVAILS — START OVER`, game.boss.def.color, 1800 + replayMs);
+    sfx.death();
+    slowMo(0.3, 900);
+    setTimeout(() => {
+      if (game.state === 'ROUND_END') startRound(nextMapIndex());
+    }, 1900 + replayMs);
+    return;
+  }
   if (alive.length > 1) return;
   const winner = alive[0] || null;
   game.state = 'ROUND_END';
@@ -173,6 +194,7 @@ Events.on(engine, 'collisionStart', ({ pairs }) => {
     for (const [a, b] of [[bodyA, bodyB], [bodyB, bodyA]]) {
       if (a.label === 'projectile' && b.label !== 'lava' && projectiles.has(a)) {
         if (b.label === 'vine') killVine(b);
+        if (b.label === 'boss' && a.owner) damageBoss(22, a.position);
         if (b.label === 'player' && now < (b.player.reflectUntil || 0)) {
           Body.setVelocity(a, { x: -a.velocity.x * 1.1, y: -Math.abs(a.velocity.y) * 0.5 - 2 });
           a.collisionFilter.group = b.player.group;
@@ -224,6 +246,7 @@ Events.on(engine, 'collisionStart', ({ pairs }) => {
       }
       if (b.label === 'lava') {
         if (a.label === 'player') killPlayer(a.player);
+        else if (a.label === 'boss') { if (!a.isStatic) Body.setVelocity(a, { x: a.velocity.x, y: -14 }); } // bosses shrug off lava
         else if (!a.isStatic) {
           spawnParticles(a.position.x, a.position.y, currentMap.data.acid ? '#9be15d' : '#ff5e57', 8, 4);
           projectiles.delete(a);
@@ -262,7 +285,7 @@ function postPhysics(now) {
     if (y > H + 100 || (!wrap && (x < -100 || x > W + 100))) removeProjectile(fb);
   }
   for (const b of [...summons]) {
-    if (now > b.dieAt || b.position.y > H + 140) { removeSummon(b); continue; }
+    if (b.label !== 'boss' && (now > b.dieAt || b.position.y > H + 140)) { removeSummon(b); continue; }
     if (wrap) wrapBody(b);
     if (b.critter && now > b.critter.hopAt && Math.abs(b.velocity.y) < 1) {
       b.critter.hopAt = now + rand(400, 800);
@@ -423,6 +446,7 @@ function drawDynamicBody(b, now) {
     return;
   }
   if (b.label === 'crate') { drawCrate(b); return; }
+  if (b.label === 'boss') { drawBossBody(b, now); return; }
   if (b.label === 'vine') {
     const ys = b.vertices ? b.vertices.map(v => v.y) : [b.position.y - 24, b.position.y + 24];
     drawVineAt(b.position.x, Math.max(...ys), Math.max(...ys) - Math.min(...ys), now);
@@ -565,6 +589,7 @@ function drawHUD(now) {
     ctx.fillStyle = game.envEvent.def.color;
     ctx.fillText(`⚠ ${game.envEvent.def.name}`, W / 2, H - 12);
   }
+  if (game.boss?.announced) drawBossBar(game.boss.def.name, game.boss.def.color, game.boss.hp, game.boss.maxHp);
   const spacing = Math.min(300, (W - 220) / Math.max(players.length - 1, 1));
   players.forEach((p, i) => {
     const x = players.length === 1 ? 150 : W / 2 + (i - (players.length - 1) / 2) * spacing;
@@ -739,6 +764,7 @@ function frame(now) {
   updateEffects(now, dt);
   currentMap.def.update?.(currentMap, now, dt);
   updateEnvEvent(now, dt);
+  updateBoss(now, dt);
 
   // spinners + phantom platforms
   for (const b of Composite.allBodies(currentMap.composite)) {
