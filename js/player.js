@@ -184,8 +184,9 @@ function updatePlayers(now) {
       let target = move * 7;
       if (now < (p.speedUntil || 0)) target *= 1.6;
       if (now < (p.heavyUntil || 0)) target *= 0.5;
-      if (currentMap.def.muddy) target *= 0.65;
-      const blend = onGround ? (currentMap.def.icy ? 0.09 : currentMap.def.muddy ? 0.12 : 0.25) : 0.08;
+      if (currentMap.def.muddy || now < (p.vineSlowUntil || 0)) target *= 0.65;
+      const icy = currentMap.def.icy || currentMap.data.eventIcy;
+      const blend = onGround ? (icy ? 0.09 : currentMap.def.muddy ? 0.12 : 0.25) : 0.08;
       Body.setVelocity(body, { x: body.velocity.x + (target - body.velocity.x) * blend, y: body.velocity.y });
 
       const heavy = now < (p.heavyUntil || 0);

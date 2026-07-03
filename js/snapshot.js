@@ -56,6 +56,7 @@ function serializeSnapshot(now) {
     st: game.state, mi: game.mapIndex, wn: game.winsNeeded,
     lv: currentMap.data.lavaY != null ? Math.round(currentMap.data.lavaY) : null,
     wr: game.winner ? game.winner.slot : null,
+    ev: game.envEvent?.announced ? game.envEvent.def.id : null,
     ps, bodies, segs, fxLite,
   };
 }
@@ -245,5 +246,6 @@ function drawSnapshotWorld(snap, snapPrev, alpha, now, includeLocalFx = false) {
 
   const ghosts = snap.ps.map(gp => ghostPlayer(gp, prevPs[gp.s], alpha, now));
   for (const g of ghosts) if (g.alive) drawGhostWizard(g, now);
+  if (snap.ev) drawEnvVisuals(snap.ev, now, envLightsFromSnap(snap, ghosts));
   return ghosts;
 }

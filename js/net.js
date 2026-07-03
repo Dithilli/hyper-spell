@@ -297,6 +297,15 @@
     ctx.font = '12px Georgia';
     ctx.fillStyle = '#675a7d';
     ctx.fillText(`${clientMap.def.name} · ${snap.mi + 1}/${MAPS.length}`, W / 2, 18);
+    if (snap.ev) {
+      const evDef = envEventById(snap.ev);
+      if (evDef) {
+        ctx.font = 'bold 11px Georgia';
+        ctx.fillStyle = evDef.color;
+        ctx.fillText(`⚠ ${evDef.name}`, W / 2, H - 12);
+        ctx.font = '12px Georgia';
+      }
+    }
     const spacing = Math.min(300, (W - 220) / Math.max(snap.ps.length - 1, 1));
     snap.ps.forEach((gp, i) => {
       const x = snap.ps.length === 1 ? 150 : W / 2 + (i - (snap.ps.length - 1) / 2) * spacing;

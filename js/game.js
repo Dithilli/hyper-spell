@@ -44,6 +44,7 @@ function loadMap(index) {
   game.mapIndex = index;
   game.baseGravity = def.gravity ?? 2;
   engine.gravity.y = game.baseGravity;
+  game.envEvent = null;
 }
 
 function startRound(index) {
@@ -58,6 +59,7 @@ function startRound(index) {
   game.fightAt = performance.now() + 1100;
   game.fightShown = false;
   scheduleTomes(performance.now());
+  rollEnvEvent(performance.now());
   setBanner(currentMap.def.name, '#e8d5ff', 1000);
 }
 
@@ -170,6 +172,7 @@ Events.on(engine, 'collisionStart', ({ pairs }) => {
   for (const { bodyA, bodyB } of pairs) {
     for (const [a, b] of [[bodyA, bodyB], [bodyB, bodyA]]) {
       if (a.label === 'projectile' && b.label !== 'lava' && projectiles.has(a)) {
+        if (b.label === 'vine') killVine(b);
         if (b.label === 'player' && now < (b.player.reflectUntil || 0)) {
           Body.setVelocity(a, { x: -a.velocity.x * 1.1, y: -Math.abs(a.velocity.y) * 0.5 - 2 });
           a.collisionFilter.group = b.player.group;
@@ -343,6 +346,7 @@ function drawMapBodies(now) {
     if (b.phantom) ctx.globalAlpha = b.phantomSolid === false ? 0.18 : 0.85;
     if (b.label === 'crate') drawCrate(b);
     else if (b.label === 'spikes') drawSpikes(b);
+    else if (b.label === 'vine') drawVineAt(b.position.x, b.bounds.max.y, Math.min(48, (now - (b.bornAt || now)) * 0.04 + 10), now);
     else drawBodyRounded(b, b.render.fillStyle || '#171221');
     ctx.globalAlpha = 1;
   }
@@ -419,6 +423,11 @@ function drawDynamicBody(b, now) {
     return;
   }
   if (b.label === 'crate') { drawCrate(b); return; }
+  if (b.label === 'vine') {
+    const ys = b.vertices ? b.vertices.map(v => v.y) : [b.position.y - 24, b.position.y + 24];
+    drawVineAt(b.position.x, Math.max(...ys), Math.max(...ys) - Math.min(...ys), now);
+    return;
+  }
   if (b.label === 'critter') {
     drawBodyRounded(b, col);
     const dir = b.critter ? b.critter.dir : 1;
@@ -551,6 +560,11 @@ function drawHUD(now) {
   ctx.font = '12px Georgia';
   ctx.fillStyle = '#675a7d';
   ctx.fillText(`${currentMap.def.name} · ${game.mapIndex + 1}/${MAPS.length}`, W / 2, 18);
+  if (game.envEvent?.announced) {
+    ctx.font = 'bold 11px Georgia';
+    ctx.fillStyle = game.envEvent.def.color;
+    ctx.fillText(`⚠ ${game.envEvent.def.name}`, W / 2, H - 12);
+  }
   const spacing = Math.min(300, (W - 220) / Math.max(players.length - 1, 1));
   players.forEach((p, i) => {
     const x = players.length === 1 ? 150 : W / 2 + (i - (players.length - 1) / 2) * spacing;
@@ -677,6 +691,7 @@ function draw(now) {
   drawParticles();
   for (const p of players) if (p.alive) drawWizard(p, now);
 
+  drawEnvVisualsLive(now);
   drawReticle(now);
 
   ctx.fillStyle = getVignette();
@@ -723,6 +738,7 @@ function frame(now) {
   if (game.state === 'PLAY' || game.state === 'LOBBY') updateTomes(now);
   updateEffects(now, dt);
   currentMap.def.update?.(currentMap, now, dt);
+  updateEnvEvent(now, dt);
 
   // spinners + phantom platforms
   for (const b of Composite.allBodies(currentMap.composite)) {
