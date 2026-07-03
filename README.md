@@ -8,6 +8,10 @@ Open `index.html` in a browser. Press **E**, **Enter**, or any gamepad button to
 
 ## Play over the network
 
+macOS quick start: double-click `scripts/hyperspell-launcher.command` (or a copy on
+your Desktop) — it starts the server, opens the host window, and puts a ready-to-paste
+invite on your clipboard. `scripts/hyperspell-stop.command` shuts it down. Manually:
+
 ```
 cd server && npm install && node serve.js
 ```
