@@ -89,7 +89,7 @@ function explode(x, y, radius = 150, power = 22, damage = 0, owner = null) {
     const d = Math.hypot(dx, dy);
     if (d > radius || d === 0) continue;
     if (body.label === 'boss' && damage && owner !== 'boss') {
-      damageBoss(damage * (1 - d / (radius * 1.15)) * 1.2, body.position);
+      damageBoss(damage * (1 - d / (radius * 1.15)) * 1.2, body.position, owner);
     }
     if (body.isStatic) {
       if (body.label === 'icicle') body._blast = true;
@@ -103,7 +103,7 @@ function explode(x, y, radius = 150, power = 22, damage = 0, owner = null) {
     Body.setAngularVelocity(body, body.angularVelocity + (Math.random() - 0.5) * 0.4);
     if (body.label === 'player' && damage) {
       const dmg = damage * (1 - d / (radius * 1.15));
-      damagePlayer(body.player, body.player === owner ? dmg * 0.5 : dmg);
+      damagePlayer(body.player, body.player === owner ? dmg * 0.5 : dmg, owner);
     }
   }
   for (const c of Composite.allConstraints(currentMap.composite)) {
@@ -364,6 +364,7 @@ function castSpell(p, now) {
   const hyper = Math.random() < Math.min(0.06, spell.cooldown * 0.000012);
   p.mega = (p.megaCasts > 0 ? 1.7 : 1) * (hyper ? 2.2 : 1);
   if (hyper) {
+    statFor(p).procs++;
     setBanner('✦ HYPERSPELL ✦', '#e8d5ff', 1100, true);
     doFlash('#a55eea', 0.4);
     slowMo(0.25, 380);

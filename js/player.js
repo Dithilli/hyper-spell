@@ -77,6 +77,8 @@ function spawnPlayer(p, pos) {
   p.airJumps = 1;
   p.fallPeak = 0;
   p.gravityLockUntil = 0;
+  p.ghost = null;
+  p.lastHitBy = null;
   clearStatuses(p);
   setPlayerScale(p, 1);
   p.body.frictionAir = 0.02;
@@ -99,13 +101,14 @@ function healPlayer(p, amt) {
   spawnText(p.body.position.x, p.body.position.y - 34, `+${Math.round(amt)}`, '#7bd88f');
 }
 
-function damagePlayer(p, amt) {
+function damagePlayer(p, amt, src) {
   if (!p || !p.alive) return;
   const now = performance.now();
   if (now < (p.invulnUntil || 0)) {
     spawnText(p.body.position.x, p.body.position.y - 34, 'BLOCKED', '#e8d5ff');
     return;
   }
+  if (src && src.slot !== undefined) p.lastHitBy = { player: src, at: now }; // kill credit window
   const n = Math.round(amt);
   if (n <= 0) return;
   const hadHat = p.hp >= 50;
@@ -129,6 +132,7 @@ function knockHatOff(p) {
   Body.setAngularVelocity(hat, rand(-0.4, 0.4));
   gibs.add(hat);
   Composite.add(world, hat);
+  statFor(p).hatsLost++;
   spawnText(x, y - 52 * s, 'THE SHAME!', p.hat);
   sfx.squeak();
 }
@@ -152,7 +156,73 @@ function killPlayer(p) {
     Composite.add(world, gib);
   }
   Composite.remove(world, p.body);
+  if (game.state === 'PLAY') {
+    creditKill(p);
+    p.ghost = { x, y: y - 10, nextGust: 0 }; // linger as a wisp until the round ends
+  }
   game.onDeath(p);
+}
+
+// ---------- ghosts: dead wizards drift as faint wisps and can nudge things ----------
+function updateGhosts(now) {
+  if (game.state !== 'PLAY') return;
+  for (const p of players) {
+    if (p.alive || !p.ghost) continue;
+    const c = p.input, g = p.ghost;
+    g.x = Math.max(20, Math.min(W - 20, g.x + (c.move || 0) * 3.2));
+    g.y = Math.max(30, Math.min(H - 40, g.y + (c.jump ? -2.6 : 1.0)));
+    if (c.cast && now > g.nextGust) {
+      g.nextGust = now + 2800;
+      ghostGust(g);
+    }
+  }
+}
+
+// a gentle, harmless push — enough to tip a crate or ruffle a duel, never to kill
+function ghostGust(g) {
+  spawnRing(g.x, g.y, 'rgba(232,213,255,0.6)');
+  sfx.cast();
+  for (const b of Composite.allBodies(world)) {
+    if (b.isStatic || b.isSensor || b.label === 'boss') continue;
+    const dx = b.position.x - g.x, dy = b.position.y - g.y;
+    const d = Math.hypot(dx, dy);
+    if (d > 110 || d === 0) continue;
+    const s = (1 - d / 110) * 4.5;
+    Body.setVelocity(b, { x: b.velocity.x + (dx / d) * s, y: b.velocity.y + (dy / d) * s - 1.2 * (1 - d / 110) });
+  }
+}
+
+// very subtle: a drifting mote with a fading tail — pointedly NOT a wizard
+function drawWisp(name, color, x, y, now) {
+  const seed = (name || '').length * 1.7;
+  const bob = Math.sin(now * 0.0035 + seed) * 3;
+  const yy = y + bob;
+  ctx.globalAlpha = 0.1;
+  ctx.fillStyle = color;
+  for (let i = 1; i <= 3; i++) { // tail
+    ctx.beginPath();
+    ctx.arc(x - Math.sin(now * 0.0035 + seed - i * 0.9) * 4, yy + i * 7, 4 - i, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const g = ctx.createRadialGradient(x, yy, 0, x, yy, 9);
+  g.addColorStop(0, color);
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.globalAlpha = 0.22 + 0.05 * Math.sin(now * 0.005 + seed);
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, yy, 9, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 0.16;
+  ctx.font = '9px Georgia';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = color;
+  ctx.fillText(name, x, yy - 13);
+  ctx.globalAlpha = 1;
+}
+
+function drawGhostWisps(now) {
+  if (game.state !== 'PLAY' && game.state !== 'ROUND_END') return;
+  for (const p of players) {
+    if (!p.alive && p.ghost) drawWisp(p.name, p.color, p.ghost.x, p.ghost.y, now);
+  }
 }
 
 // gravity direction as this player experiences it (Gravity Flip spares its caster)
@@ -230,6 +300,7 @@ function updatePlayers(now) {
         if (drop > FALL_SAFE_DROP && p.fallPeak > 14) {
           const dmg = Math.min(40, Math.round((drop - FALL_SAFE_DROP) * 0.12));
           if (dmg >= 3) {
+            statFor(p).fallDmg += dmg;
             damagePlayer(p, dmg);
             addShake(4);
             sfx.thud();

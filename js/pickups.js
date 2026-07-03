@@ -89,6 +89,7 @@ function spawnHat(now) {
 
 function pickupTome(tome, p) {
   if (!tomes.has(tome) || !p.alive) return;
+  if (game.state === 'PLAY') statFor(p).tomes++;
   p.spellId = tome.spell;
   p.lastCast = 0;
   sfx.pickup();

@@ -203,9 +203,10 @@ function spawnBoss(now) {
   game.boss = { def, body, hp: maxHp, maxHp, announced: false };
 }
 
-function damageBoss(dmg, at) {
+function damageBoss(dmg, at, src) {
   const bs = game.boss;
   if (!bs || game.state !== 'PLAY' || !bs.announced || bs.hp <= 0) return;
+  if (src && src.slot !== undefined) statFor(src).bossDmg += dmg;
   bs.hp -= dmg;
   bs.hurtAt = performance.now();
   if (at) spawnParticles(at.x, at.y, bs.def.color, 8, 4);

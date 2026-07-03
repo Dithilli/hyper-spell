@@ -13,6 +13,7 @@ function serializeSnapshot(now) {
     fz: now < p.frozenUntil ? 1 : 0, fl: now < (p.floatyUntil || 0) ? 1 : 0,
     iv: now < (p.invulnUntil || 0) ? 1 : 0, rf: now < (p.reflectUntil || 0) ? 1 : 0,
     pg: now < (p.pigUntil || 0) ? 1 : 0, hu: now < (p.hurtUntil || 0) ? 1 : 0,
+    ...(p.ghost && !p.alive ? { gx: Math.round(p.ghost.x), gy: Math.round(p.ghost.y) } : {}),
     sp: p.spellId, rd: p.spellId && now - p.lastCast > SPELLS[p.spellId].cooldown ? 1 : 0,
     cdf: p.spellId ? +Math.min(1, (now - p.lastCast) / (SPELLS[p.spellId].cooldown || 1)).toFixed(2) : 0,
     mc: p.megaCasts || 0,
@@ -71,6 +72,7 @@ function serializeSnapshot(now) {
     wr: (game.state === 'ROUND_END' || game.state === 'VICTORY') && game.winner ? game.winner.slot : null,
     ev: game.envEvent?.announced ? game.envEvent.def.id : null,
     bs: game.boss?.announced ? { n: game.boss.def.name, c: game.boss.def.color, hp: Math.max(0, Math.round(game.boss.hp)), mhp: game.boss.maxHp } : null,
+    aw: game.state === 'VICTORY' ? game.awards || null : null,
     ps, bodies, segs, fxLite,
   };
 }
@@ -258,6 +260,13 @@ function drawSnapshotWorld(snap, snapPrev, alpha, now, includeLocalFx = false) {
 
   const ghosts = snap.ps.map(gp => ghostPlayer(gp, prevPs[gp.s], alpha, now));
   for (const g of ghosts) if (g.alive) drawGhostWizard(g, now);
+  for (const gp of snap.ps) { // dead wizards linger as wisps
+    if (gp.al || gp.gx == null) continue;
+    const prev = prevPs[gp.s];
+    const wx = prev && prev.gx != null ? prev.gx + (gp.gx - prev.gx) * alpha : gp.gx;
+    const wy = prev && prev.gy != null ? prev.gy + (gp.gy - prev.gy) * alpha : gp.gy;
+    drawWisp(gp.n, gp.c, wx, wy, now);
+  }
   if (snap.ev) drawEnvVisuals(snap.ev, now, envLightsFromSnap(snap, ghosts));
   return ghosts;
 }

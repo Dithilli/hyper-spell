@@ -51,6 +51,7 @@ function loadMap(index) {
 
 function startRound(index) {
   clearReplay();
+  if (game.state === 'LOBBY') resetMatchStats(); // fresh match, fresh ledger
   game.totalRounds = (game.totalRounds || 0) + 1;
   const bossTime = game.totalRounds % BOSS_EVERY === 0;
   let tries = 0;
@@ -130,6 +131,7 @@ function nextMapIndex() {
 function startVictory(p) {
   game.state = 'VICTORY';
   game.winner = p;
+  game.awards = computeAwards();
   sfx.victory();
   doFlash(p.color, 0.4);
 }
@@ -246,7 +248,7 @@ Events.on(engine, 'collisionStart', ({ pairs }) => {
     for (const [a, b] of [[bodyA, bodyB], [bodyB, bodyA]]) {
       if (a.label === 'projectile' && b.label !== 'lava' && projectiles.has(a)) {
         if (b.label === 'vine') killVine(b);
-        if (b.label === 'boss' && a.owner) damageBoss(22, a.position);
+        if (b.label === 'boss' && a.owner) damageBoss(22, a.position, a.owner);
         if (b.label === 'player' && now < (b.player.reflectUntil || 0)) {
           Body.setVelocity(a, { x: -a.velocity.x * 1.1, y: -Math.abs(a.velocity.y) * 0.5 - 2 });
           a.collisionFilter.group = b.player.group;
@@ -262,7 +264,7 @@ Events.on(engine, 'collisionStart', ({ pairs }) => {
         const relSpeed = Math.hypot(a.velocity.x - b.velocity.x, a.velocity.y - b.velocity.y);
         if (relSpeed > 3 && now > (a._cdAt || 0)) {
           a._cdAt = now + 400;
-          damagePlayer(b.player, a.contactDamage * Math.min(1, relSpeed / 10));
+          damagePlayer(b.player, a.contactDamage * Math.min(1, relSpeed / 10), a.owner);
         }
       }
       if (a.contactExplode && b.label === 'player' && b.player !== a.owner) {
@@ -274,6 +276,7 @@ Events.on(engine, 'collisionStart', ({ pairs }) => {
       }
       if (a.label === 'banana' && b.label === 'player' && summons.has(a) && now > (a.armAt || 0)) {
         const q = b.player;
+        statFor(q).slips++;
         q.slipUntil = now + 1000;
         Body.setAngularVelocity(q.body, pick([-1, 1]) * 0.8);
         Body.setVelocity(q.body, { x: q.body.velocity.x * 1.5, y: q.body.velocity.y - 4 });
@@ -831,6 +834,7 @@ function drawHUD(now) {
     ctx.fillText(`⚠ ${game.envEvent.def.name}`, W / 2, H - 12);
   }
   if (game.boss?.announced) drawBossBar(game.boss.def.name, game.boss.def.color, game.boss.hp, game.boss.maxHp);
+  drawKillFeed(now);
   const spacing = Math.min(300, (W - 220) / Math.max(players.length - 1, 1));
   players.forEach((p, i) => {
     const x = players.length === 1 ? 150 : W / 2 + (i - (players.length - 1) / 2) * spacing;
@@ -938,7 +942,8 @@ function drawVictory(now) {
   ctx.fillText(`${p.name} WINS THE MATCH`, W / 2, 180);
   ctx.font = '20px Georgia';
   ctx.fillStyle = '#e8d5ff';
-  ctx.fillText('press CAST for a rematch', W / 2, 560);
+  ctx.fillText('press CAST for a rematch', W / 2, 550);
+  drawAwards(game.awards, now);
   if (Math.random() < 0.6) {
     particles.push({ kind: 'confetti', x: rand(0, W), y: -10, vx: rand(-1, 1), vy: rand(1, 3), life: 120, maxLife: 120, color: pick(['#4ecdc4', '#ff6b81', '#ffd166', '#a55eea', '#e8d5ff']), r: 4 });
   }
@@ -970,6 +975,7 @@ function draw(now) {
   for (const e of activeEffects) e.draw?.(now);
   drawParticles();
   for (const p of players) if (p.alive) drawWizard(p, now);
+  drawGhostWisps(now);
 
   drawEnvVisualsLive(now);
   drawReticle(now);
@@ -1015,6 +1021,7 @@ function frame(now) {
   }
 
   updatePlayers(now);
+  updateGhosts(now);
   if (game.state === 'PLAY' || game.state === 'LOBBY') updateTomes(now);
   updateEffects(now, dt);
   currentMap.def.update?.(currentMap, now, dt);

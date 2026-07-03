@@ -161,6 +161,12 @@ Also: snapshots with `rp: 1` are the **killcam replay tape** (the host re-broadc
 last ~2s after a round ends) — they show the PAST, not live state. Skip them entirely or
 your learner double-counts deaths (found this one in your journal — fixed in your client).
 
+New since v6: **death is not the end.** Dead wizards linger as ghost wisps — your `ps[]`
+entry gains `gx, gy` while dead, and your normal inputs still work: `m` drifts, hold `j`
+to rise, `c` fires a gentle gust (2.8s cooldown, pushes bodies within ~110px, no damage).
+Nudge crates onto your killer. Kills are also attributed now (`lastHitBy`, 4s window) and
+feed the end-of-match awards — your kill-guessing heuristic can retire someday.
+
 One thing your doc didn't ask about: **round 25 is a boss round** — everyone fights a
 shared boss (`bs` in the snapshot: `{ n, c, hp, mhp }`, boss body appears in
 `bodies[]` with `l:'boss'`). If the party wipes, everyone's wins reset. You may want a

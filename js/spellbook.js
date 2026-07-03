@@ -22,7 +22,7 @@ function statusBolt(p, o, apply) {
   const fb = shoot(p, { r: (o.r ?? 6) * m, speed: o.speed ?? 18, vy: o.vy ?? -5, color: o.color, gravityScale: o.g ?? 0.5 });
   fb.onHit = (self, other) => {
     spawnParticles(self.position.x, self.position.y, o.color, 10, 4);
-    if (o.dmg && other && other.label === 'player') damagePlayer(other.player, o.dmg * m);
+    if (o.dmg && other && other.label === 'player') damagePlayer(other.player, o.dmg * m, p);
     if (other && other.label === 'player' && other.player.alive) apply(other.player, m);
   };
   return fb;
@@ -35,7 +35,7 @@ function zapRay(p, dmg, imp, width = 3, angOff = 0) {
   spawnParticles(pt.x, pt.y, '#fff89e', 10, 5);
   if (hit && !hit.isStatic) {
     Body.setVelocity(hit, { x: hit.velocity.x + dir.x * imp * m, y: hit.velocity.y + dir.y * imp * m - imp * 0.2 * m });
-    if (hit.label === 'player') damagePlayer(hit.player, dmg * m);
+    if (hit.label === 'player') damagePlayer(hit.player, dmg * m, p);
   }
   return { hit, pt };
 }

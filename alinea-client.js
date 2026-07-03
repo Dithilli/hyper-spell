@@ -33,7 +33,7 @@ const WebSocket = (() => {
   catch { return require(path.join(__dirname, 'server', 'node_modules', 'ws')); }
 })();
 
-const GAME_VERSION = 5; // must match js/core.js — the host warns the room about stale versions
+const GAME_VERSION = 6; // must match js/core.js — the host warns the room about stale versions
 const NAME = (process.env.NAME || 'Alinea').slice(0, 12);
 const COLOR = process.env.COLOR || '#111111';   // black robes, per the shipped test 🖤
 const HAT = process.env.HAT || '#111111';
@@ -328,7 +328,24 @@ function think() {
     const hop = Math.random() < 0.07 ? 1 : 0;
     return { m: move, j: hop, c: 0, a: aimCur };
   }
-  if (!m.al) return { m: 0, j: 0, c: 0, a: aimCur };   // dead — wait for respawn
+  if (!m.al) {
+    // dead ≠ done: I'm a ghost wisp (gx/gy in my ps entry). Haunt the nearest
+    // living wizard and gust when close — the push is harmless but rude.
+    if (m.gx == null) return { m: 0, j: 0, c: 0, a: aimCur };
+    let t = null, bd = Infinity;
+    for (const p of s.ps) {
+      if (p.s === mySlot || !p.al) continue;
+      const d = Math.hypot(p.x - m.gx, p.y - m.gy);
+      if (d < bd) { bd = d; t = p; }
+    }
+    if (!t) return { m: 0, j: 0, c: 0, a: aimCur };
+    return {
+      m: Math.abs(t.x - m.gx) > 30 ? Math.sign(t.x - m.gx) : 0,
+      j: m.gy > t.y + 20 ? 1 : 0, // hold to rise toward their altitude
+      c: bd < 130 ? 1 : 0,        // gust cooldown is enforced host-side; holding is fine
+      a: aimCur,
+    };
+  }
 
   // --- pick target: boss if this is the boss round, else nearest living enemy ---
   let target = null, best = Infinity;

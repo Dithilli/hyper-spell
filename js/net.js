@@ -201,7 +201,7 @@
 
   // wrap the cosmetic globals so every visual/sound also broadcasts
   function wrapFx() {
-    const names = ['spawnParticles', 'spawnRing', 'spawnText', 'doFlash', 'addShake', 'slowMo', 'boltVisual', 'setBanner'];
+    const names = ['spawnParticles', 'spawnRing', 'spawnText', 'doFlash', 'addShake', 'slowMo', 'boltVisual', 'setBanner', 'addKillFeed'];
     for (const name of names) {
       const orig = globalThis[name];
       globalThis[name] = (...args) => { emit({ t: 'fx', f: name, a: args }); return orig(...args); };
@@ -388,6 +388,7 @@
       }
     }
     if (snap.bs) drawBossBar(snap.bs.n, snap.bs.c, snap.bs.hp, snap.bs.mhp);
+    drawKillFeed(now);
     const spacing = Math.min(300, (W - 220) / Math.max(snap.ps.length - 1, 1));
     snap.ps.forEach((gp, i) => {
       const x = snap.ps.length === 1 ? 150 : W / 2 + (i - (snap.ps.length - 1) / 2) * spacing;
@@ -464,6 +465,7 @@
         ctx.fillStyle = gw.c;
         ctx.textAlign = 'center';
         ctx.fillText(`${gw.n} WINS THE MATCH`, W / 2, 180);
+        drawAwards(snap.aw, now);
         if (Math.random() < 0.6) {
           particles.push({ kind: 'confetti', x: rand(0, W), y: -10, vx: rand(-1, 1), vy: rand(1, 3), life: 120, maxLife: 120, color: pick(['#4ecdc4', '#ff6b81', '#ffd166', '#a55eea', '#e8d5ff']), r: 4 });
         }
