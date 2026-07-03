@@ -137,8 +137,8 @@
         joinPlayer(nc, cleanName(msg.name || msg.n) || undefined);
         const p = players.find(q => q.controller === nc);
         if (p) {
-          if (/^#[0-9a-f]{6}$/i.test(msg.color || '')) p.color = msg.color;
-          if (/^#[0-9a-f]{6}$/i.test(msg.hat || '')) p.hat = msg.hat;
+          if (/^#[0-9a-f]{6}$/i.test(msg.color || '')) p.color = readableColor(msg.color);
+          if (/^#[0-9a-f]{6}$/i.test(msg.hat || '')) p.hat = readableColor(msg.hat);
           emit({ t: 'to', cid: msg.cid, msg: { t: 'you', slot: p.slot } });
           emit({ t: 'to', cid: msg.cid, msg: worldInfo() });
         }

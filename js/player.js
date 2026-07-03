@@ -323,7 +323,11 @@ function drawWizardFigure(p, x, y, scale, now, angle = 0) {
 function drawNameTag(name, color, x, y) {
   ctx.font = 'bold 11px Georgia';
   ctx.textAlign = 'center';
-  ctx.globalAlpha = 0.85;
+  ctx.globalAlpha = 0.9;
+  ctx.strokeStyle = 'rgba(10, 6, 16, 0.85)'; // halo so any color reads on any backdrop
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.strokeText(name, x, y);
   ctx.fillStyle = color;
   ctx.fillText(name, x, y);
   ctx.globalAlpha = 1;

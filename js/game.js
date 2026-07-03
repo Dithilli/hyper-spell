@@ -152,6 +152,18 @@ let nameEditEndAt = 0;
 function cleanName(s) {
   return String(s || '').replace(/[^\w \-'!.]/g, '').slice(0, 12).toUpperCase();
 }
+
+// custom colors must stay visible against the dark arenas: colors darker than
+// a floor luminance get blended toward white just enough to read (black → charcoal)
+function readableColor(hex) {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const MIN = 96;
+  if (lum >= MIN) return hex;
+  const t = (MIN - lum) / (255 - lum);
+  const up = c => Math.round(c + (255 - c) * t).toString(16).padStart(2, '0');
+  return `#${up(r)}${up(g)}${up(b)}`;
+}
 function beginNameEdit(p, storeKey) {
   nameEdit = { p, storeKey, buffer: cleanName(localStorage.getItem(storeKey) || '') };
   if (nameEdit.buffer) p.name = nameEdit.buffer; // saved name applies even if they skip
