@@ -12,7 +12,8 @@ function scheduleTomes(now) {
 }
 
 function updateTomes(now) {
-  if (now > nextTomeAt && (firstDrop || tomes.size < 3)) {
+  const tomeCap = Math.max(3, Math.ceil(players.length / 2));
+  if (now > nextTomeAt && (firstDrop || tomes.size < tomeCap)) {
     if (firstDrop) {
       // opening volley: one tome per wizard, everyone gets armed
       firstDrop = false;

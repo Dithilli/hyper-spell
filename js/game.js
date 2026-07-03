@@ -96,8 +96,10 @@ function checkRoundEnd() {
 }
 
 function nextMapIndex() {
-  let i;
-  do { i = Math.floor(Math.random() * MAPS.length); } while (i === game.mapIndex && MAPS.length > 1);
+  const crowded = players.length >= 6; // cozy maps can't hold a big lobby
+  let i, tries = 0;
+  do { i = Math.floor(Math.random() * MAPS.length); }
+  while ((i === game.mapIndex || (crowded && MAPS[i].cozy)) && ++tries < 60);
   return i;
 }
 
