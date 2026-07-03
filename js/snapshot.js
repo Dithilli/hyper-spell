@@ -56,6 +56,7 @@ function serializeSnapshot(now) {
   const fxLite = activeEffects.filter(e => e.net).map(e => e.net);
 
   return {
+    v: GAME_VERSION,
     st: game.state, mi: game.mapIndex, wn: game.winsNeeded,
     lv: currentMap.data.lavaY != null ? Math.round(currentMap.data.lavaY) : null,
     wr: game.winner ? game.winner.slot : null,

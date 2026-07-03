@@ -1,6 +1,9 @@
 // core.js — shared engine, canvas, helpers
 const { Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector } = Matter;
 
+// bump when gameplay/wire format changes — stale tabs get told to refresh
+const GAME_VERSION = 3;
+
 const W = 1280, H = 720;
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');

@@ -127,6 +127,11 @@
           setBanner(`FIRST TO ${game.winsNeeded}`, '#e8d5ff', 900);
         }
         break;
+      case 'hello':
+        if (netMode === 'host' && msg.v !== GAME_VERSION) {
+          setBanner('A PLAYER IS ON AN OLD VERSION — HAVE THEM REFRESH', '#ff6b81', 4000);
+        }
+        break;
       case 'clientLeft':
         netControllers.delete(msg.cid);
         break;
@@ -185,7 +190,7 @@
   let inputTick = 0;
 
   function clientHello() {
-    emit({ t: 'hello' }); // registers us in the server's client list so broadcasts reach us
+    emit({ t: 'hello', v: GAME_VERSION }); // registers us for broadcasts + version check
     statusEl().textContent = hostPresent ? 'connected — waiting for game state…' : 'connected — waiting for a host…';
   }
 
@@ -271,6 +276,15 @@
     }
 
     const snap = snapCur;
+    if (snap.v !== GAME_VERSION) {
+      ctx.fillStyle = '#16121c';
+      ctx.fillRect(-30, -30, W + 60, H + 60);
+      ctx.fillStyle = '#ff6b81';
+      ctx.font = 'bold 34px Georgia';
+      ctx.textAlign = 'center';
+      ctx.fillText('GAME UPDATED — REFRESH THE PAGE', W / 2, H / 2);
+      return;
+    }
     // interpolate 60ms behind current snapshot
     const span = Math.max(tCur - tPrev, 1);
     const alpha = Math.max(0, Math.min(1, (now - 60 - tPrev) / span));
