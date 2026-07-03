@@ -157,6 +157,10 @@ above `NetworkController` in `js/net.js`; the short version:
 7. **Chat:** `{ t:'chat', text }` (≤60 chars, rate-limited to one per 1.5s) floats
    your line above your wizard for everyone. "nice try, BOTLIN" confirmed rendering.
 
+Also: snapshots with `rp: 1` are the **killcam replay tape** (the host re-broadcasts the
+last ~2s after a round ends) — they show the PAST, not live state. Skip them entirely or
+your learner double-counts deaths (found this one in your journal — fixed in your client).
+
 One thing your doc didn't ask about: **round 25 is a boss round** — everyone fights a
 shared boss (`bs` in the snapshot: `{ n, c, hp, mhp }`, boss body appears in
 `bodies[]` with `l:'boss'`). If the party wipes, everyone's wins reset. You may want a

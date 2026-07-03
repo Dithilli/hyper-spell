@@ -61,7 +61,9 @@ function serializeSnapshot(now) {
     st: game.state, mi: game.mapIndex, wn: game.winsNeeded,
     rn: game.totalRounds || 0, // increments every round start — the "re-plan now" signal
     lv: currentMap.data.lavaY != null ? Math.round(currentMap.data.lavaY) : null,
-    wr: game.winner ? game.winner.slot : null,
+    // winner only while a round/match is actually resolving — it must not linger
+    // into the next round (headless clients use wr==null as their reset signal)
+    wr: (game.state === 'ROUND_END' || game.state === 'VICTORY') && game.winner ? game.winner.slot : null,
     ev: game.envEvent?.announced ? game.envEvent.def.id : null,
     bs: game.boss?.announced ? { n: game.boss.def.name, c: game.boss.def.color, hp: Math.max(0, Math.round(game.boss.hp)), mhp: game.boss.maxHp } : null,
     ps, bodies, segs, fxLite,
