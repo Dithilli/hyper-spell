@@ -146,8 +146,39 @@ function resetMatch() {
   setBanner('LOBBY', '#e8d5ff', 900);
 }
 
+// lobby name entry: keyboard joiners type a name, ENTER confirms, ESC keeps default
+let nameEdit = null; // { p, buffer, storeKey }
+let nameEditEndAt = 0;
+function cleanName(s) {
+  return String(s || '').replace(/[^\w \-'!.]/g, '').slice(0, 12).toUpperCase();
+}
+function beginNameEdit(p, storeKey) {
+  nameEdit = { p, storeKey, buffer: cleanName(localStorage.getItem(storeKey) || '') };
+  if (nameEdit.buffer) p.name = nameEdit.buffer; // saved name applies even if they skip
+}
 addEventListener('keydown', e => {
-  if (netMode === 'client') return; // clients send these to the host instead
+  if (!nameEdit) return;
+  if (game.state !== 'LOBBY') { nameEdit = null; return; }
+  e.preventDefault();
+  if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+    if (nameEdit.buffer) {
+      nameEdit.p.name = nameEdit.buffer;
+      localStorage.setItem(nameEdit.storeKey, nameEdit.buffer);
+    }
+    nameEdit = null;
+    nameEditEndAt = performance.now(); // brief join/start lockout so this keypress isn't reused
+  } else if (e.code === 'Escape') {
+    nameEdit = null;
+    nameEditEndAt = performance.now();
+  } else if (e.code === 'Backspace') {
+    nameEdit.buffer = nameEdit.buffer.slice(0, -1);
+  } else if (e.key.length === 1 && nameEdit.buffer.length < 12) {
+    nameEdit.buffer = cleanName(nameEdit.buffer + e.key);
+  }
+}, true); // capture: swallow keys before the game shortcuts below see them
+
+addEventListener('keydown', e => {
+  if (netMode === 'client' || nameEdit) return; // clients send these to the host instead
   if (e.code === 'Space' && game.state === 'LOBBY' && players.length >= 2) startRound(game.mapIndex);
   if (e.code === 'KeyB' && game.state === 'LOBBY') addBot();
   if (e.code === 'KeyR') resetMatch();
@@ -173,11 +204,13 @@ function joinPlayer(controller, name) {
 
 function scanJoins() {
   if (game.state === 'VICTORY' || players.length >= MAX_PLAYERS) return;
+  if (nameEdit || performance.now() < nameEditEndAt + 350) return; // typing a name, not joining
   for (const kc of kbControllers) {
     if (kc.assigned) continue;
     if (kc.poll().castPressed) {
       kc.assigned = true;
       joinPlayer(kc);
+      if (game.state === 'LOBBY') beginNameEdit(players[players.length - 1], `hs-name-${kc === kbControllers[0] ? 0 : 1}`);
     }
   }
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -683,10 +716,16 @@ function drawLobby() {
     ctx.strokeRect(x - slotW / 2 + 6, 185, slotW - 12, 60);
     ctx.font = 'bold 20px Georgia';
     ctx.fillStyle = p ? p.color : '#4a3f5e';
-    ctx.fillText(p ? p.name + ' ✦' : 'JOIN', x, 218);
+    const editing = nameEdit && nameEdit.p === p;
+    if (editing) {
+      const cursor = Math.floor(performance.now() / 400) % 2 ? '_' : ' ';
+      ctx.fillText((nameEdit.buffer || '') + cursor, x, 218);
+    } else {
+      ctx.fillText(p ? p.name + ' ✦' : 'JOIN', x, 218);
+    }
     ctx.font = '11px Georgia';
-    ctx.fillStyle = '#675a7d';
-    const hint = p ? controllerHint(p) : 'E · ENTER · PAD';
+    ctx.fillStyle = editing ? '#e8d5ff' : '#675a7d';
+    const hint = editing ? 'TYPE NAME · ENTER ✓' : p ? controllerHint(p) : 'E · ENTER · PAD';
     ctx.fillText(hint, x, 238);
   }
   ctx.font = 'bold 20px Georgia';
@@ -778,7 +817,7 @@ function frame(now) {
 
   scanJoins();
   for (const p of players) p.input = p.controller.poll();
-  if (game.state === 'LOBBY' && players.length >= 2 && players.some(p => p.input.startPressed)) startRound(game.mapIndex);
+  if (game.state === 'LOBBY' && players.length >= 2 && !nameEdit && now > nameEditEndAt + 350 && players.some(p => p.input.startPressed)) startRound(game.mapIndex);
   if (game.state === 'VICTORY' && players.some(p => p.input.castPressed)) resetMatch();
 
   if (game.state === 'PLAY' && !game.fightShown && now > game.fightAt) {

@@ -320,9 +320,19 @@ function drawWizardFigure(p, x, y, scale, now, angle = 0) {
   ctx.restore();
 }
 
+function drawNameTag(name, color, x, y) {
+  ctx.font = 'bold 11px Georgia';
+  ctx.textAlign = 'center';
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = color;
+  ctx.fillText(name, x, y);
+  ctx.globalAlpha = 1;
+}
+
 function drawWizard(p, now) {
   const { x, y } = p.body.position;
   const s = p.sizeScale || 1;
+  drawNameTag(p.name, p.color, x, y - 48 * s);
   if (s > 1.6) {
     ctx.shadowColor = '#ffd700';
     ctx.shadowBlur = 18;

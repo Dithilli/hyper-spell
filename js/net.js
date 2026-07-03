@@ -50,6 +50,8 @@
   menu.innerHTML = `
     <div style="color:#e8d5ff;font-size:56px;letter-spacing:.08em;text-shadow:0 0 40px #a55eea">HYPERSPELL</div>
     <div style="color:#9c8ab8;font-size:15px;margin-bottom:12px">wizards · physics · violence</div>
+    <input id="netname" maxlength="12" placeholder="YOUR WIZARD NAME" autocomplete="off"
+      style="min-width:380px;padding:12px 20px;font-family:Georgia,serif;font-size:17px;text-align:center;background:transparent;border:2px solid #675a7d;color:#e8d5ff;border-radius:8px;text-transform:uppercase;outline:none;">
     <button data-mode="couch" style="${btnCss('#4ecdc4')}">COUCH — everyone on this computer</button>
     <button data-mode="host" style="${btnCss('#ffd166')}">HOST ONLINE — this computer runs the match</button>
     <button data-mode="client" style="${btnCss('#ff6b81')}">JOIN GAME — play from this computer</button>
@@ -60,9 +62,15 @@
   document.body.appendChild(menu);
   const statusEl = () => document.getElementById('netstatus');
 
+  const nameInput = menu.querySelector('#netname');
+  nameInput.value = localStorage.getItem('hs-name-0') || '';
+  // typing here must not reach the game's shortcuts (B adds bots, digits set wins…)
+  for (const ev of ['keydown', 'keyup']) nameInput.addEventListener(ev, e => e.stopPropagation());
   menu.addEventListener('click', e => {
     const mode = e.target?.dataset?.mode;
     if (!mode) return;
+    const typed = cleanName(nameInput.value);
+    if (typed) localStorage.setItem('hs-name-0', typed);
     ensureAudio();
     if (mode === 'couch') { menu.remove(); return; }
     connect(mode);
@@ -111,7 +119,7 @@
         if (players.length >= MAX_PLAYERS) break;
         const nc = new NetworkController(msg.cid);
         netControllers.set(msg.cid, nc);
-        joinPlayer(nc);
+        joinPlayer(nc, cleanName(msg.n) || undefined);
         const p = players.find(q => q.controller === nc);
         if (p) emit({ t: 'to', cid: msg.cid, msg: { t: 'you', slot: p.slot } });
         break;
@@ -241,7 +249,7 @@
       const me = snapCur.ps.find(q => q.s === mySlot);
       if (me) aim = Math.atan2(mouse.y - me.y, mouse.x - me.x);
     }
-    if (!joined && (cast || mouse.down)) emit({ t: 'join' });
+    if (!joined && (cast || mouse.down)) emit({ t: 'join', n: localStorage.getItem('hs-name-0') || '' });
     if (joined) emit({ t: 'input', m: move, j: jump ? 1 : 0, c: cast ? 1 : 0, a: aim });
     // lobby controls forwarded to host
     if (keys['Space'] && !this._sp) emit({ t: 'start' });

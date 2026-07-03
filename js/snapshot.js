@@ -118,6 +118,7 @@ function ghostPlayer(gp, gpPrev, alpha, now) {
 
 function drawGhostWizard(g, now) {
   const s = g.sizeScale || 1;
+  drawNameTag(g.name, g.color, g._x, g._y - 48 * s);
   if (s > 1.6) { ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 18; }
   drawWizardFigure(g, g._x, g._y, s, now, g._an);
   ctx.shadowBlur = 0;
