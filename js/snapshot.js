@@ -6,7 +6,8 @@ function serializeSnapshot(now) {
   const ps = players.map(p => ({
     s: p.slot, n: p.name, c: p.color, h: p.hat,
     x: Math.round(p.body.position.x), y: Math.round(p.body.position.y),
-    vx: +p.body.velocity.x.toFixed(1), an: +(p.body.angle * 0.35).toFixed(2),
+    vx: +p.body.velocity.x.toFixed(1), vy: +p.body.velocity.y.toFixed(1),
+    an: +(p.body.angle * 0.35).toFixed(2),
     f: p.facing, wp: +p.walkPhase.toFixed(2),
     hp: Math.round(p.hp), al: p.alive ? 1 : 0, sc: +p.sizeScale.toFixed(2),
     fz: now < p.frozenUntil ? 1 : 0, fl: now < (p.floatyUntil || 0) ? 1 : 0,
@@ -58,6 +59,7 @@ function serializeSnapshot(now) {
   return {
     v: GAME_VERSION,
     st: game.state, mi: game.mapIndex, wn: game.winsNeeded,
+    rn: game.totalRounds || 0, // increments every round start — the "re-plan now" signal
     lv: currentMap.data.lavaY != null ? Math.round(currentMap.data.lavaY) : null,
     wr: game.winner ? game.winner.slot : null,
     ev: game.envEvent?.announced ? game.envEvent.def.id : null,

@@ -15,6 +15,21 @@
   const netControllers = new Map(); // cid -> NetworkController
 
   // ---------- controller for remote players (host side) ----------
+  // THE CLIENT INPUT CONTRACT — { t:'input', m, j, c, a }, sent ~30/sec:
+  //   m: move, WORLD-space: 1 = +x (screen right), -1 = left, 0 = idle. Not facing-relative.
+  //   a: aim, ABSOLUTE world radians: 0 = +x, positive = clockwise on screen (screen y grows
+  //      down, so a = Math.atan2(dy, dx) with dy downward-positive). null = no aim (falls back
+  //      to facing + lob). The host uses the LAST-KNOWN aim at the moment a cast fires, so `a`
+  //      does not need to arrive on the same frame as c:1 — but sending both together is safest.
+  //   c: cast, HOLD semantics: keep c:1 and the wizard casts every time the cooldown is ready
+  //      (auto-repeats). The castPressed edge below is only used for lobby join / rematch.
+  //   j: jump, hybrid: holding j:1 jumps whenever grounded (auto-hop); the AIR jump (double
+  //      jump) needs a fresh 0→1 edge. Send j:1 then j:0 to meter your jumps.
+  // Inputs older than 2000ms zero out (stale guard) — keep sending even when idle.
+  // Snapshots broadcast at ~20Hz. In snapshot ps[]: you are the entry with s === your slot
+  // (slots are stable for the whole session; they never reshuffle). Tomes are picked up by
+  // touching them (bodies[].l === 'tome', body is 20×24px; players are r=15 circles).
+  // A new round = the snapshot's `rn` counter increments (state also flips to 'PLAY').
   class NetworkController {
     constructor(cid) {
       this.cid = cid;
@@ -119,9 +134,27 @@
         if (players.length >= MAX_PLAYERS) break;
         const nc = new NetworkController(msg.cid);
         netControllers.set(msg.cid, nc);
-        joinPlayer(nc, cleanName(msg.n) || undefined);
+        joinPlayer(nc, cleanName(msg.name || msg.n) || undefined);
         const p = players.find(q => q.controller === nc);
-        if (p) emit({ t: 'to', cid: msg.cid, msg: { t: 'you', slot: p.slot } });
+        if (p) {
+          if (/^#[0-9a-f]{6}$/i.test(msg.color || '')) p.color = msg.color;
+          if (/^#[0-9a-f]{6}$/i.test(msg.hat || '')) p.hat = msg.hat;
+          emit({ t: 'to', cid: msg.cid, msg: { t: 'you', slot: p.slot } });
+          emit({ t: 'to', cid: msg.cid, msg: worldInfo() });
+        }
+        break;
+      }
+      case 'chat': {
+        // trash talk: floats above the sender's wizard; spawnText is fx-wrapped,
+        // so every client sees it too. Rate-limited per sender.
+        if (netMode !== 'host') break;
+        const nc = netControllers.get(msg.cid);
+        const p = nc && players.find(q => q.controller === nc);
+        if (!p || !p.alive) break;
+        if (performance.now() < (nc.nextChatAt || 0)) break;
+        nc.nextChatAt = performance.now() + 1500;
+        const text = String(msg.text || '').replace(/[^\w !?.,'"-]/g, '').slice(0, 60);
+        if (text) spawnText(p.body.position.x, p.body.position.y - 64, text, p.color);
         break;
       }
       case 'start':
@@ -177,6 +210,26 @@
       const orig = sfx[key];
       sfx[key] = (...args) => { emit({ t: 'fx', f: 'sfx', a: [key] }); return orig(...args); };
     }
+  }
+
+  // sent once to each client on join: the physics constants a headless client
+  // needs to compute firing solutions, plus per-spell cooldowns. Most bolt spells
+  // launch near defaultBolt's profile (speed ~16-23, gravityScale ~0.45-0.9).
+  function worldInfo() {
+    const spells = {};
+    for (const [id, s] of Object.entries(SPELLS)) spells[id] = { name: s.name, cooldown: s.cooldown };
+    return {
+      t: 'world',
+      world: {
+        W, H, gravity: game.baseGravity, gravityScale: engine.gravity.scale, tickMs: 16.7,
+        snapshotHz: 20, inputHz: 30, staleMs: 2000,
+        playerRadius: 15, playerFrictionAir: 0.02,
+        moveSpeed: 7, jumpVy: -15, airJumpVy: -13,
+        defaultBolt: { speed: 20, vy: -6, gravityScale: 0.45 },
+        fallSafeDropPx: FALL_SAFE_DROP,
+      },
+      spells,
+    };
   }
 
   globalThis.netHostTick = function netHostTick(now) {
