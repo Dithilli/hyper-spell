@@ -104,6 +104,15 @@
     if (p.slotCharges[0] !== null) fail('burnout left stale charge count');
     clearSpells(p);
 
+    // --- charged fusions can't be replaced by tome grabs ---
+    clearSpells(p);
+    addSpell(p, 'fireball'); addSpell(p, 'frost'); tryFuse(p); // steamburst ×3 in slot 0
+    if (addSpell(p, 'ember') !== 1) fail('tome next to charged fusion should land in slot 1');
+    if (addSpell(p, 'zapspell') !== 1) fail('second tome should replace slot 1, not the charged fusion');
+    if (p.slots[0] !== 'steamburst' || p.slotCharges[0] !== 3) fail('charged fusion was overwritten by tome grabs');
+    p.slotCharges[0] = 0; p.slots[0] = null; // simulate burnout → slot reopens
+    if (addSpell(p, 'ignite') !== 0) fail('burned-out slot did not reopen for tomes');
+
     // --- rockslide drops real falling boulders now ---
     p.slots[0] = 'rockslide'; p.casts[0] = -1e9;
     const beforeRocks = projectiles.size;

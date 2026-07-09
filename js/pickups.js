@@ -106,7 +106,8 @@ function pickupTome(tome, p) {
   Composite.remove(world, tome);
   if (tome.catalyst) { grabCatalyst(p); return; }
   if (game.state === 'PLAY') { statFor(p).tomes++; telPick(tome.spell); } // balance: spell pick count
-  addSpell(p, tome.spell); // fills an empty slot, else replaces the oldest
+  const slot = addSpell(p, tome.spell); // fills an empty slot, else replaces the oldest (never a charged fusion)
+  if (slot === -1) return; // both hands hold charged fusions — the tome fizzles ('HANDS FULL!')
   sfx.pickup();
   spawnParticles(tome.position.x, tome.position.y, SPELLS[tome.spell].color, 14, 5);
   spawnText(p.body.position.x, p.body.position.y - 48, SPELLS[tome.spell].name.toUpperCase() + '!', SPELLS[tome.spell].color);

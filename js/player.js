@@ -126,11 +126,20 @@ function healPlayer(p, amt) {
 }
 
 // put a picked-up spell into a slot: fill an empty one, else replace the oldest.
-// Returns the slot index used. Fusion (Phase 4b) hooks off the resulting pair.
+// Returns the slot index used (-1 if nothing could be replaced). Fusion (Phase 4b)
+// hooks off the resulting pair.
 function addSpell(p, id) {
   const now = performance.now();
+  // a charged fusion is precious — a stray tome grab must never overwrite it.
+  // Route the new spell to the other hand; the slot frees itself at burnout.
+  const locked = s => p.slots[s] != null && p.slotCharges[s] > 0;
   let i = p.slots[0] == null ? 0 : p.slots[1] == null ? 1
     : (p.slotFilledAt[0] <= p.slotFilledAt[1] ? 0 : 1);
+  if (locked(i)) i = 1 - i;
+  if (locked(i)) { // both hands hold charged fusions — the tome fizzles
+    spawnText(p.body.position.x, p.body.position.y - 48, 'HANDS FULL!', '#ff4df0');
+    return -1;
+  }
   p.slots[i] = id;
   p.casts[i] = 0;          // ready to cast immediately
   p.slotCharges[i] = null; // tome spells are limitless; only fusion sets charges

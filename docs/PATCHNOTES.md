@@ -3,7 +3,7 @@
 ## v7 · July 9, 2026 — "The Proving Grounds"
 
 ### ⚡ Fusion charges — hybrids burn bright, then burn out
-- Fusion hybrids are no longer limitless: they carry **1–3 charges scaled to their power** (Big Crunch gets one apocalyptic shot; Steam Burst gets three), and every hybrid cast is **boosted** — ×1.5 / ×1.35 / ×1.2 for 1- / 2- / 3-charge hybrids. The HUD shows charges left; spending the last one snuffs the fusion with a "FUSION SPENT" beat.
+- Fusion hybrids are no longer limitless: they carry **1–3 charges scaled to their power** (Big Crunch gets one apocalyptic shot; Steam Burst gets three), and every hybrid cast is **boosted** — ×1.5 / ×1.35 / ×1.2 for 1- / 2- / 3-charge hybrids. The HUD shows charges left; spending the last one snuffs the fusion with a "FUSION SPENT" beat. A charged fusion is **protected from tome grabs** — new spells route to your other hand until the fusion burns out.
 
 ### 🛡 BLOCK — the parry
 - A third action button: **S** / **↓** / **middle mouse** / gamepad **LB·LT**. Throws up a quarter-second shield that **negates damage and reflects projectiles back at the sender**, then needs ~1.4s to recharge. Time it — a whiffed parry is an opening. Bots and Alinea know how to use it too.
