@@ -2,8 +2,13 @@
 // alinea-client.js — a headless HyperSpell wizard driven by A Linea (no browser).
 //
 // Synced to the SHIPPED contract in docs/ALINEA-CLIENT.md (ANSWERS, July 3 2026)
-// and js/net.js. Key corrections vs. the old guess-build:
+// and js/net.js. Updated 2026-07-09 for v4 "The Fusion Update" (branch alinea/two-slot-client).
+// Key corrections vs. the old guess-build:
 //   - CAST IS HOLD, NOT EDGE. Keep c:1 and it auto-fires every cooldown. No pulsing.
+//   - TWO SPELL SLOTS (v4): snapshot ps[] entries now carry s0/s1 (slot spell ids) and
+//     c0/c1 (per-slot cooldown fraction, 1 = ready). Emit BOTH c (slot A) and c2 (slot B):
+//     {t:'input', m, j, c, c2, a}. Holding both when armed lets the host FUSE them into a
+//     hybrid when the two schools match. Legacy `sp` still present (active/primary slot).
 //   - a = ABSOLUTE world radians, 0 = +x, POSITIVE = CLOCKWISE (screen-y down).
 //     atan2(dy, dx) with downward-positive dy gives exactly this — no negation.
 //   - m is WORLD-space (1 = +x/right). j: hold jumps when grounded; air jump needs 0->1 edge.
@@ -299,13 +304,18 @@ function think() {
   const s = perceivedSnap();
   const now = Date.now();
   const dt = Math.min(0.1, (now - lastThink) / 1000); lastThink = now;
-  if (!s || mySlot == null) return { m: 0, j: 0, c: 0, a: aimCur };
+  if (!s || mySlot == null) return { m: 0, j: 0, c: 0, c2: 0, a: aimCur };
 
   const m = me(s);
-  if (!m) return { m: 0, j: 0, c: 0, a: aimCur };
+  if (!m) return { m: 0, j: 0, c: 0, c2: 0, a: aimCur };
 
   // Round change ⇒ reset per-round intent.
   if (s.rn != null && s.rn !== lastRn) { lastRn = s.rn; wantAirJump = false; }
+
+  // --- which slots am I holding? v4: s0/s1 are the two slot spell ids; c0/c1 ready-fracs.
+  // Fall back to legacy single `sp` if the host is pre-v4 (s0/s1 undefined).
+  const hasS0 = m.s0 != null ? !!m.s0 : !!m.sp;
+  const hasS1 = m.s1 != null ? !!m.s1 : false;
 
   // Lobby: starting the match is the humans' call. Just jump around and chill —
   // wander, hop, drift toward a falling tome now and then.
@@ -320,23 +330,24 @@ function think() {
     if (m.x < 90) move = 1;
     if (m.x > world.W - 90) move = -1;
     const hop = Math.random() < 0.07 ? 1 : 0;
-    return { m: move, j: hop, c: 0, a: aimCur };
+    return { m: move, j: hop, c: 0, c2: 0, a: aimCur };
   }
   if (!m.al) {
     // dead ≠ done: I'm a ghost wisp (gx/gy in my ps entry). Haunt the nearest
     // living wizard and gust when close — the push is harmless but rude.
-    if (m.gx == null) return { m: 0, j: 0, c: 0, a: aimCur };
+    if (m.gx == null) return { m: 0, j: 0, c: 0, c2: 0, a: aimCur };
     let t = null, bd = Infinity;
     for (const p of s.ps) {
       if (p.s === mySlot || !p.al) continue;
       const d = Math.hypot(p.x - m.gx, p.y - m.gy);
       if (d < bd) { bd = d; t = p; }
     }
-    if (!t) return { m: 0, j: 0, c: 0, a: aimCur };
+    if (!t) return { m: 0, j: 0, c: 0, c2: 0, a: aimCur };
+    const gustC = bd < 130 ? 1 : 0; // gust cooldown is enforced host-side; holding is fine
     return {
       m: Math.abs(t.x - m.gx) > 30 ? Math.sign(t.x - m.gx) : 0,
       j: m.gy > t.y + 20 ? 1 : 0, // hold to rise toward their altitude
-      c: bd < 130 ? 1 : 0,        // gust cooldown is enforced host-side; holding is fine
+      c: gustC, c2: gustC,        // haunt with both hands
       a: aimCur,
     };
   }
@@ -365,12 +376,15 @@ function think() {
   // --- movement: grab a tome if I have no spell (or a KNOWN-BAD one), else fight ---
   let move = 0;
   const tome = nearest(s, m, b => b.l === 'tome');
-  const holdingJunk = m.sp && AVOID_SPELLS.has(String(m.sp));
+  // seek a tome only if I have an OPEN slot (or my only spell is known-junk). Two full
+  // slots that could fuse are better than chasing a third tome that just replaces one.
+  const slotsFull = (m.s0 != null || m.s1 != null) ? (hasS0 && hasS1) : !!m.sp;
+  const holdingJunk = m.sp && AVOID_SPELLS.has(String(m.sp)) && !(hasS0 && hasS1);
   // learned: pad my fighting distance a little during events that keep killing me
   const danger = curEvent && DANGER_EVENTS.has(curEvent);
   const nearBand = danger ? 210 : 160;
   const farBand  = danger ? 480 : 420;
-  if ((!m.sp || holdingJunk) && tome) move = Math.sign(tome.x - m.x);
+  if ((!slotsFull || holdingJunk) && tome) move = Math.sign(tome.x - m.x);
   else if (target) {
     if (boss) move = best > (danger ? 360 : 300) ? Math.sign(target.x - m.x) : 0;
     else if (best > farBand) move = Math.sign(target.x - m.x);
@@ -398,12 +412,17 @@ function think() {
   // We do NOT gate on being perfectly aim-settled — that starved the cooldown and left me
   // never firing. On easy diffs, castChaos still randomly drops holds to waste cooldowns,
   // and the slow aim-slew + noise are what make me miss, not a fire-gate. ---
-  let cast = 0;
-  if (m.sp && target) {
-    cast = Math.random() < K.castChaos ? 0 : 1;   // hold — auto-fires every cooldown when ready
+  let cast = 0, cast2 = 0;
+  if (target) {
+    // Hold each armed slot independently. Holding BOTH when their schools match is what
+    // triggers fusion host-side. castChaos still randomly drops holds on easy diffs.
+    if (hasS0) cast  = Math.random() < K.castChaos ? 0 : 1;
+    if (hasS1) cast2 = Math.random() < K.castChaos ? 0 : 1;
+    // pre-v4 host with only legacy `sp`: keep the single-slot behavior alive
+    if (!hasS0 && !hasS1 && m.sp) cast = Math.random() < K.castChaos ? 0 : 1;
   }
 
-  return { m: move, j: jump, c: cast, a: aim };
+  return { m: move, j: jump, c: cast, c2: cast2, a: aim };
 }
 
 function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= 2*Math.PI; while (d < -Math.PI) d += 2*Math.PI; return d; }
@@ -425,7 +444,7 @@ function loop() {
   if (!alive) return;
   if (joined) {
     const s = think();
-    emit({ t: 'input', m: s.m || 0, j: s.j || 0, c: s.c || 0, a: s.a });
+    emit({ t: 'input', m: s.m || 0, j: s.j || 0, c: s.c || 0, c2: s.c2 || 0, a: s.a });
     const now = Date.now();
     if (now - lastLog > 3000 && snap) {
       const m = me(snap);
