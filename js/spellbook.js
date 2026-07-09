@@ -35,7 +35,7 @@ function zapRay(p, dmg, imp, width = 3, angOff = 0) {
   spawnParticles(pt.x, pt.y, '#fff89e', 10, 5);
   if (hit && !hit.isStatic) {
     Body.setVelocity(hit, { x: hit.velocity.x + dir.x * imp * m, y: hit.velocity.y + dir.y * imp * m - imp * 0.2 * m });
-    if (hit.label === 'player') damagePlayer(hit.player, dmg * m, p);
+    if (hit.label === 'player') zapHit(hit.player, dmg * m, p); // CONDUCTION on Wet targets
   }
   return { hit, pt };
 }
@@ -266,6 +266,9 @@ regSpell('disintegrate', {
       if (t < 0 || t > 1500) continue;
       if (Math.abs(rx * dir.y - ry * dir.x) > 26) continue; // distance from the beam line
       if (b.label === 'player') { damagePlayer(b.player, 30 * m); continue; }
+      // bosses take beam damage through the proper channel — never delete the
+      // boss body or game.boss is left dangling and the round can't be won
+      if (b.label === 'boss') { damageBoss(30 * m, b.position, p); continue; }
       spawnParticles(b.position.x, b.position.y, '#ff4df0', 8, 4);
       projectiles.delete(b); gibs.delete(b); tomes.delete(b); hats.delete(b); summons.delete(b);
       Composite.remove(world, b, true);

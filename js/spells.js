@@ -162,6 +162,27 @@ function groundYAt(x) {
   return H - 30;
 }
 
+// lightning CONDUCTION synergy: a Wet target takes amplified damage and the bolt
+// arcs on to the nearest other wizard. Used by the beam primitives (zapRay).
+function zapHit(target, dmg, src) {
+  const now = performance.now();
+  if (now < (target.wetUntil || 0)) {
+    dmg *= 1.6;
+    spawnText(target.body.position.x, target.body.position.y - 46, 'CONDUCT!', '#9ef0f0');
+    let best = null, bd = 300;
+    for (const q of players) {
+      if (!q.alive || q === target || q === src) continue;
+      const d = Math.hypot(q.body.position.x - target.body.position.x, q.body.position.y - target.body.position.y);
+      if (d < bd) { bd = d; best = q; }
+    }
+    if (best) {
+      boltVisual(target.body.position.x, target.body.position.y, best.body.position.x, best.body.position.y, '#9ef0f0', 3, 120);
+      damagePlayer(best, dmg * 0.45, src);
+    }
+  }
+  damagePlayer(target, dmg, src);
+}
+
 function skyBolt(x, dmg, owner, m = 1) {
   const hitY = groundYAt(x);
   boltVisual(x, -20, x, hitY, '#fff89e', 3 * m);
@@ -186,7 +207,7 @@ function spawnSingularity(x, y, m = 1) {
         if (d > R || d === 0) continue;
         if (d < 30) {
           if (b.label === 'player') damagePlayer(b.player, 999);
-          else {
+          else if (b.label !== 'boss') { // never consume the boss body — it would strand game.boss
             spawnParticles(b.position.x, b.position.y, '#a55eea', 6, 3);
             projectiles.delete(b); gibs.delete(b); tomes.delete(b); hats.delete(b); summons.delete(b);
             Composite.remove(world, b, true);
@@ -354,11 +375,14 @@ const SPELLS = {
   },
 };
 
-function castSpell(p, now) {
-  const spell = p.spellId && SPELLS[p.spellId];
+function castSpell(p, now, slot = 0) {
+  const id = p.slots[slot];
+  const spell = id && SPELLS[id];
   if (!spell) return;
-  if (now - p.lastCast < spell.cooldown) return;
-  p.lastCast = now;
+  if (now - p.casts[slot] < spell.cooldown) return;
+  p.casts[slot] = now;
+  p.lastCastSlot = slot; // primary slot for spellId/lastCast accessors + attribution
+  telCast(id); // balance: a confirmed cast (past the cooldown gate)
   // HYPERSPELL proc: chance scales with cooldown so spam doesn't farm rolls —
   // ~1.2% per second of cooldown, capped at 6% (rare enough to stay special)
   const hyper = Math.random() < Math.min(0.06, spell.cooldown * 0.000012);

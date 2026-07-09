@@ -1,8 +1,8 @@
-// boss.js — every 25th round (session-wide) the wizards fight a boss together.
+// boss.js — every 10th round (session-wide) the wizards fight a boss together.
 // Slay it and the match continues as normal; a full party wipe resets every
 // wizard's round wins to zero. Physics is host-side; the boss body rides the
 // summons ghost path to LAN clients, its HP bar via the snapshot's `bs` field.
-const BOSS_EVERY = 25;
+const BOSS_EVERY = 10;
 
 function bossAliveTarget(from) {
   const alive = players.filter(p => p.alive);
@@ -23,7 +23,8 @@ function bossBolt(from, target, { speed = 10, r = 8, color, spread = 0, boom = [
   fb.color = color;
   fb.gravityScale = 0.25;
   fb.expireAt = performance.now() + 5000;
-  fb.onHit = self => explode(self.position.x, self.position.y, boom[0], boom[1], boom[2], 'boss');
+  const dm = game.boss?.dmgMult || 1; // later/enraged bosses hit harder
+  fb.onHit = self => explode(self.position.x, self.position.y, boom[0], boom[1], boom[2] * dm, 'boss');
   Body.setVelocity(fb, { x: Math.cos(a) * speed, y: Math.sin(a) * speed });
   projectiles.add(fb);
   Composite.add(world, fb);
@@ -38,7 +39,7 @@ function bossTouchAll(bs, now, dmg, pad = 8) {
     const q = p.body.position;
     if (q.x > bb.min.x - pad && q.x < bb.max.x + pad && q.y > bb.min.y - pad && q.y < bb.max.y + pad) {
       p._bossHurtAt = now + 700;
-      damagePlayer(p, dmg);
+      damagePlayer(p, dmg * (bs.dmgMult || 1));
       const away = Math.sign(q.x - bs.body.position.x) || pick([-1, 1]);
       Body.setVelocity(p.body, { x: away * 8, y: -6 });
     }
@@ -194,19 +195,30 @@ function isBossRound() {
   return !!game.boss;
 }
 
+const BOSS_ROMAN = ['', '', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+
 function spawnBoss(now) {
   const def = pick(BOSSES);
   const body = def.make();
   body.bossType = def.id;
   summon(body, { life: 1e12, color: def.color });
-  const maxHp = 400 + 200 * Math.max(2, players.length);
-  game.boss = { def, body, hp: maxHp, maxHp, announced: false };
+  // scale by which boss this is in the session (round 10 = #1, round 20 = #2, ...)
+  // so round 30/40 fights are meaningfully nastier than the first.
+  const num = Math.max(1, Math.round((game.totalRounds || BOSS_EVERY) / BOSS_EVERY));
+  const maxHp = Math.round((400 + 200 * Math.max(2, players.length)) * (1 + 0.4 * (num - 1)));
+  const title = def.name + (num > 1 ? ' ' + (BOSS_ROMAN[num] || `×${num}`) : '');
+  game.boss = {
+    def, body, hp: maxHp, maxHp, announced: false,
+    num, dmgMult: 1 + 0.12 * (num - 1), title,
+    enraged: false, enrageAt: 0, nextEnrageWave: 0,
+  };
 }
 
 function damageBoss(dmg, at, src) {
   const bs = game.boss;
   if (!bs || game.state !== 'PLAY' || !bs.announced || bs.hp <= 0) return;
   if (src && src.slot !== undefined) statFor(src).bossDmg += dmg;
+  if (src && src.spellId) telBossDmg(src.spellId, dmg); // balance: boss damage per spell
   bs.hp -= dmg;
   bs.hurtAt = performance.now();
   if (at) spawnParticles(at.x, at.y, bs.def.color, 8, 4);
@@ -239,14 +251,36 @@ function updateBoss(now, dt) {
   if (!bs.announced) {
     if (now > (game.fightAt || 0) + 800) {
       bs.announced = true;
-      setBanner(`${bs.def.name} AWAKENS`, bs.def.color, 2200);
+      setBanner(`${bs.title} AWAKENS`, bs.def.color, 2200);
       doFlash(bs.def.color, 0.25);
       addShake(10);
       sfx.boss();
+      // later bosses run out of patience sooner; floor keeps it fair
+      bs.enrageAt = now + Math.max(20000, 38000 - (bs.num - 1) * 4000);
     }
     return;
   }
   bs.def.update(bs, now, dt);
+
+  // enrage: stalling a boss stops being a strategy. Fires once, then the arena
+  // takes periodic shockwaves regardless of which boss it is (no per-boss edits).
+  if (!bs.enraged && bs.enrageAt && now > bs.enrageAt) {
+    bs.enraged = true;
+    bs.dmgMult *= 1.6;
+    bs.title += ' — ENRAGED';
+    setBanner(`${bs.def.name} IS ENRAGED!`, '#ff4d4d', 2000);
+    doFlash('#ff4d4d', 0.35);
+    addShake(14);
+    sfx.boss();
+    bs.nextEnrageWave = now + 1600;
+  }
+  if (bs.enraged && now > bs.nextEnrageWave) {
+    bs.nextEnrageWave = now + 1500;
+    const { x, y } = bs.body.position;
+    explode(x, y, 210, 12, 14 * bs.dmgMult, 'boss');
+    spawnRing(x, y, '#ff4d4d');
+    addShake(8);
+  }
 }
 
 // drawn via drawDynamicBody (live, LAN ghosts, and the killcam use the same path)

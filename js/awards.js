@@ -27,6 +27,7 @@ function addKillFeed(aName, aColor, bName, bColor, self, aSlot, bSlot) {
 // called from killPlayer — resolves who gets the credit
 function creditKill(victim) {
   statFor(victim).deaths++;
+  telDeath(victim.spellId); // balance: which spell the victim was holding when they died
   const hit = victim.lastHitBy;
   const killer = hit && performance.now() - hit.at < 4000 ? hit.player : null;
   if (killer === victim) {
@@ -34,6 +35,7 @@ function creditKill(victim) {
     addKillFeed(victim.name, victim.color, null, null, true, victim.slot, victim.slot);
   } else if (killer) {
     statFor(killer).kills++;
+    telKill(killer.spellId); // balance: kill credited to the killer's spell
     addKillFeed(killer.name, killer.color, victim.name, victim.color, false, killer.slot, victim.slot);
   } else {
     addKillFeed(null, null, victim.name, victim.color, false, null, victim.slot); // the arena did it

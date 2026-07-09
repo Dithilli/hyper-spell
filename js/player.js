@@ -39,12 +39,30 @@ function createPlayer(slot, controller) {
   const p = {
     ...def, slot, controller,
     group: Body.nextGroup(true),
-    roundWins: 0, spellId: null, hp: 100,
+    roundWins: 0, hp: 100,
     alive: false, facing: slot % 2 === 0 ? 1 : -1,
-    walkPhase: 0, lastGround: 0, lastCast: 0, airJumps: 1,
+    walkPhase: 0, lastGround: 0, airJumps: 1,
     sizeScale: 1, megaCasts: 0, megaUntil: 0,
     frozenUntil: 0, wasFrozen: false, input: { ...IDLE_INPUT },
+    // two spell slots (A, B), each with its own last-cast time; lastCastSlot is
+    // the one most recently fired (drives the spellId/lastCast accessors below)
+    slots: [null, null], casts: [0, 0], slotFilledAt: [0, 0], lastCastSlot: 0,
   };
+  // spellId/lastCast are accessors over the "primary" slot so the many existing
+  // single-spell read-sites (telemetry attribution, HUD glow, mirrorcast, bots)
+  // keep working. Writing spellId = null clears BOTH slots (disarm, round reset).
+  Object.defineProperties(p, {
+    spellId: {
+      enumerable: true, configurable: true,
+      get() { return p.slots[p.lastCastSlot] ?? p.slots[0] ?? p.slots[1] ?? null; },
+      set(v) { if (v == null) { p.slots[0] = p.slots[1] = null; } else { p.slots[0] = v; } },
+    },
+    lastCast: {
+      enumerable: true, configurable: true,
+      get() { return p.casts[p.lastCastSlot] ?? 0; },
+      set(v) { p.casts[p.lastCastSlot] = v; },
+    },
+  });
   p.body = Bodies.circle(0, -100, 15, {
     density: 0.004, friction: 0.05, frictionAir: 0.02, restitution: 0.2,
     label: 'player', collisionFilter: { group: p.group },
@@ -55,7 +73,7 @@ function createPlayer(slot, controller) {
 }
 
 function clearStatuses(p) {
-  p.frozenUntil = 0; p.burnUntil = 0; p.nextBurnTick = 0;
+  p.frozenUntil = 0; p.burnUntil = 0; p.nextBurnTick = 0; p.wetUntil = 0;
   p.reversedUntil = 0; p.slipUntil = 0; p.floatyUntil = 0;
   p.heavyUntil = 0; p.speedUntil = 0; p.jumpBoostUntil = 0;
   p.invulnUntil = 0; p.reflectUntil = 0; p.shrinkUntil = 0;
@@ -101,6 +119,25 @@ function healPlayer(p, amt) {
   spawnText(p.body.position.x, p.body.position.y - 34, `+${Math.round(amt)}`, '#7bd88f');
 }
 
+// put a picked-up spell into a slot: fill an empty one, else replace the oldest.
+// Returns the slot index used. Fusion (Phase 4b) hooks off the resulting pair.
+function addSpell(p, id) {
+  const now = performance.now();
+  let i = p.slots[0] == null ? 0 : p.slots[1] == null ? 1
+    : (p.slotFilledAt[0] <= p.slotFilledAt[1] ? 0 : 1);
+  p.slots[i] = id;
+  p.casts[i] = 0;          // ready to cast immediately
+  p.slotFilledAt[i] = now;
+  return i;
+}
+
+function clearSpells(p) {
+  p.slots[0] = p.slots[1] = null;
+  p.casts[0] = p.casts[1] = 0;
+  p.slotFilledAt[0] = p.slotFilledAt[1] = 0;
+  p.lastCastSlot = 0;
+}
+
 function damagePlayer(p, amt, src) {
   if (!p || !p.alive) return;
   const now = performance.now();
@@ -109,8 +146,18 @@ function damagePlayer(p, amt, src) {
     return;
   }
   if (src && src.slot !== undefined) p.lastHitBy = { player: src, at: now }; // kill credit window
-  const n = Math.round(amt);
+  let n = Math.round(amt);
   if (n <= 0) return;
+  // SHATTER synergy: a solid blow to a frozen wizard cracks the ice for bonus
+  // damage and breaks the freeze (thawing → leaves them Wet, which conducts).
+  if (now < (p.frozenUntil || 0) && n >= 8) {
+    n += Math.max(8, Math.round(n * 0.6));
+    p.frozenUntil = 0;
+    spawnText(p.body.position.x, p.body.position.y - 48, 'SHATTER!', '#bfe8ff');
+    spawnParticles(p.body.position.x, p.body.position.y, '#bfe8ff', 16, 6);
+    sfx.freeze?.();
+  }
+  if (src && src.spellId) telDmg(src.spellId, n); // balance: damage credited to the attacker's spell
   const hadHat = p.hp >= 50;
   p.hp -= n;
   p.hurtUntil = now + 130;
@@ -274,8 +321,12 @@ function updatePlayers(now) {
     if (p.wasFrozen && !frozen) {
       body.frictionAir = 0.02;
       spawnParticles(body.position.x, body.position.y, '#9be7ff', 10, 4);
+      p.wetUntil = now + 4500; // just thawed → Wet (conducts lightning)
     }
     p.wasFrozen = frozen;
+    // standing on ice/snow keeps you Wet; a faint sheen hints at it
+    if (currentMap.def.icy || currentMap.data.eventIcy) p.wetUntil = Math.max(p.wetUntil || 0, now + 600);
+    if (now < (p.wetUntil || 0) && Math.random() < 0.04) spawnParticles(body.position.x, body.position.y + 8, '#9ec9ff', 1, 1.5, 16);
 
     const c = p.input;
     const gdir = gravDirFor(p);
@@ -323,7 +374,7 @@ function updatePlayers(now) {
       else p.aimAngle = null;
       if (p.aimAngle != null && Math.abs(Math.cos(p.aimAngle)) > 0.25) p.facing = Math.cos(p.aimAngle) > 0 ? 1 : -1;
       else if (move) p.facing = move > 0 ? 1 : -1;
-      let target = move * 7;
+      let target = move * 6;
       if (now < (p.speedUntil || 0)) target *= 1.6;
       if (now < (p.heavyUntil || 0)) target *= 0.5;
       if (currentMap.def.muddy || now < (p.vineSlowUntil || 0)) target *= 0.65;
@@ -346,7 +397,10 @@ function updatePlayers(now) {
           sfx.jump();
         }
       }
-      if (c.cast && p.spellId && !piggy && now > (game.fightAt || 0)) castSpell(p, now);
+      if (!piggy && now > (game.fightAt || 0)) {
+        if (c.cast && p.slots[0]) castSpell(p, now, 0);
+        if (c.cast2 && p.slots[1]) castSpell(p, now, 1);
+      }
     }
     // right yourself after a blow (skip while slipping on a banana)
     if (!slipped) Body.setAngle(body, body.angle * 0.88);
