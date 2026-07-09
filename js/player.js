@@ -414,77 +414,21 @@ function updatePlayers(now) {
   }
 }
 
+// the hat IS the health indicator: proud ≥75, knocked askew 50–74,
+// gone below 50 (the shame), and under 25 the wizard smolders.
+// Rendering lives in artkit.js (drawStoryWizard) so the game and the review
+// gallery share one source of truth; this adapter just supplies the state.
 function drawWizardFigure(p, x, y, scale, now, angle = 0) {
-  const piggy = now < (p.pigUntil || 0);
-  const col = piggy ? '#ff9ecb' : p.color;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.scale(scale, scale);
-  ctx.strokeStyle = col;
-  ctx.lineWidth = 4;
-  ctx.lineCap = 'round';
-
-  // legs: two segments with knee bend and foot lift, stride scales with speed
-  const f = Math.min(1, Math.abs(p.body.velocity.x) / 6);
-  ctx.beginPath();
-  for (const side of [0, Math.PI]) {
-    const ph = p.walkPhase + side;
-    const footX = Math.sin(ph) * 9 * f * p.facing + (side ? 4 : -4) * (1 - f);
-    const lift = Math.max(0, Math.cos(ph)) * 5 * f;
-    const kneeX = footX * 0.45 + p.facing * 2 * f;
-    ctx.moveTo(0, 4);
-    ctx.lineTo(kneeX, 9 - lift * 0.6);
-    ctx.lineTo(footX, 15 - lift);
-  }
-  ctx.moveTo(0, 4); ctx.lineTo(0, -6);
-  const armSwing = Math.sin(p.walkPhase) * 4 * f;
-  ctx.moveTo(0, -3); ctx.lineTo(-p.facing * (7 - armSwing), 5 - Math.abs(armSwing) * 0.4);
-  ctx.moveTo(0, -3); ctx.lineTo(p.facing * 11, -5);
-  ctx.stroke();
-
-  ctx.fillStyle = col;
-  ctx.beginPath(); ctx.arc(0, -11, 5.5, 0, Math.PI * 2); ctx.fill();
-  if (piggy) {
-    ctx.fillStyle = '#ff7eb6';
-    ctx.beginPath(); ctx.arc(p.facing * 5, -10, 2.5, 0, Math.PI * 2); ctx.fill();
-  }
-
-  // the hat IS the health indicator: proud ≥75, knocked askew 50–74,
-  // gone below 50 (the shame), and under 25 the wizard smolders.
-  const hp = p.hp ?? 100;
-  if (hp >= 50) {
-    ctx.save();
-    if (hp < 75) {
-      ctx.translate(p.facing * 2, -14);
-      ctx.rotate(p.facing * 0.38);
-      ctx.translate(0, 14);
-    }
-    ctx.fillStyle = p.hat;
-    ctx.beginPath();
-    ctx.moveTo(-9, -14); ctx.lineTo(9, -14);
-    ctx.lineTo(2 + p.facing * 3, -30); ctx.closePath(); ctx.fill();
-    ctx.fillRect(-11, -16, 22, 3);
-    ctx.restore();
-  }
-  if (hp < 25 && p.alive !== 0 && p.alive !== false) {
-    ctx.fillStyle = 'rgba(160,150,170,0.5)';
-    for (let i = 0; i < 3; i++) {
-      const t = (now * 0.05 + i * 37) % 30;
-      ctx.globalAlpha = 0.45 * (1 - t / 30);
-      ctx.beginPath();
-      ctx.arc(Math.sin(now * 0.004 + i * 2.4) * 4, -18 - t, 2 + t * 0.1, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-  }
-
   const spell = p.spellId && SPELLS[p.spellId];
-  if (spell && now - p.lastCast > spell.cooldown) {
-    ctx.fillStyle = spell.color;
-    ctx.beginPath(); ctx.arc(p.facing * 12, -6, 2.5, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.restore();
+  const ready = spell && now - p.lastCast > spell.cooldown;
+  drawStoryWizard(ctx, {
+    x, y, scale, angle, now,
+    color: p.color, hat: p.hat, hp: p.hp ?? 100,
+    facing: p.facing, walkPhase: p.walkPhase, vx: p.body.velocity.x,
+    piggy: now < (p.pigUntil || 0),
+    alive: p.alive !== 0 && p.alive !== false,
+    spellReady: ready, spellColor: ready ? spell.color : '#fff',
+  });
 }
 
 function drawNameTag(name, color, x, y) {

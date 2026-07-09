@@ -56,23 +56,5 @@ function updateParticles(ts) {
 }
 
 function drawParticles() {
-  for (const pt of particles) {
-    ctx.globalAlpha = Math.max(0, Math.min(1, pt.life / pt.maxLife));
-    ctx.fillStyle = pt.color;
-    ctx.strokeStyle = pt.color;
-    if (pt.kind === 'ring') {
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2); ctx.stroke();
-    } else if (pt.kind === 'text') {
-      ctx.font = 'bold 16px Georgia';
-      ctx.textAlign = 'center';
-      ctx.fillText(pt.str, pt.x, pt.y);
-    } else if (pt.kind === 'spark') {
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pt.x - pt.vx * 2, pt.y - pt.vy * 2); ctx.stroke();
-    } else {
-      ctx.fillRect(pt.x - pt.r / 2, pt.y - pt.r / 2, pt.r, pt.r);
-    }
-  }
-  ctx.globalAlpha = 1;
+  drawStoryParticles(ctx, particles); // storybook embers/motes/sigil rings (js/artkit.js)
 }
