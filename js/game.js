@@ -743,6 +743,34 @@ function drawDynamicBody(b, now) {
     ctx.beginPath(); ctx.arc(b.position.x, b.position.y - 6, 2.5, 0, Math.PI * 2); ctx.fill();
     return;
   }
+  if (b.label === 'anvil') {
+    ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
+    ctx.fillStyle = '#4a4a55';
+    ctx.fillRect(-22, -13, 34, 10);                                                   // top face
+    ctx.beginPath(); ctx.moveTo(12, -13); ctx.lineTo(25, -8); ctx.lineTo(12, -3); ctx.closePath(); ctx.fill(); // horn
+    ctx.fillStyle = '#3d3d47';
+    ctx.fillRect(-6, -3, 12, 6);                                                       // waist
+    ctx.beginPath(); ctx.moveTo(-16, 14); ctx.lineTo(16, 14); ctx.lineTo(10, 3); ctx.lineTo(-10, 3); ctx.closePath(); ctx.fill(); // flared base
+    ctx.strokeStyle = '#26262e'; ctx.lineWidth = 1.3; ctx.strokeRect(-22, -13, 34, 10);
+    ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fillRect(-22, -13, 34, 2.5);         // top glint
+    ctx.restore();
+    return;
+  }
+  if (b.label === 'boulderS') {
+    const r = b.circleRadius || 26;
+    ctx.save(); ctx.translate(b.position.x, b.position.y); ctx.rotate(b.angle);
+    ctx.fillStyle = '#6b6357';
+    ctx.beginPath();
+    const n = 9;
+    for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; const rr = r * (0.8 + ((i * 41) % 13) / 40); const px = Math.cos(a) * rr, py = Math.sin(a) * rr; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#3f3a32'; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.strokeStyle = '#524b40'; ctx.lineWidth = 1;                                    // cracks / facets
+    ctx.beginPath(); ctx.moveTo(-r * 0.35, -r * 0.4); ctx.lineTo(r * 0.05, 0); ctx.lineTo(-r * 0.25, r * 0.45); ctx.moveTo(r * 0.05, 0); ctx.lineTo(r * 0.5, -r * 0.15); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.beginPath(); ctx.arc(-r * 0.3, -r * 0.35, r * 0.22, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    return;
+  }
   if (b.label === 'piano') {
     drawBodyRounded(b, col);
     ctx.save();
