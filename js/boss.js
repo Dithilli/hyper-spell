@@ -191,6 +191,107 @@ const BOSSES = [
   },
 ];
 
+// SECRET BOSSES — rare, never in the normal rotation. Each has TWO modes that it
+// flips between; the mode is encoded into body.bossType so it rides the snapshot
+// to LAN clients (which draw whatever mode the host is in — no desync).
+const SECRET_BOSSES = [
+  {
+    // Conor, CEO — "THE RIZARD" (his favourite joke). Flips Rizzard <-> Tizzard.
+    id: 'rizard', name: 'THE RIZARD', color: '#ffd166', secret: true,
+    make() { return Bodies.circle(W / 2, 150, 34, { density: 0.011, frictionAir: 0.1, label: 'boss' }); },
+    update(bs, now) {
+      const b = bs.body;
+      Body.applyForce(b, b.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * b.mass });
+      const rizz = Math.floor(now / 7000) % 2 === 0;
+      b.bossType = rizz ? 'rizard_rizz' : 'rizard_tizz';
+      if (bs.lastMode !== b.bossType) {
+        bs.lastMode = b.bossType;
+        if (rizz) { setBanner('😎 RIZZARD MODE', '#ffd166', 1300); doFlash('#ffd166', 0.2); }
+        else { setBanner('😵‍💫 TIZZARD MODE', '#ff4df0', 1300); doFlash('#ff4df0', 0.25); addShake(6); }
+      }
+      if (rizz) {
+        // smooth operator: glides around, charms wizards (reverses their controls) and reels them in
+        if (!bs.wp || Math.hypot(bs.wp.x - b.position.x, bs.wp.y - b.position.y) < 60) bs.wp = { x: rand(180, W - 180), y: rand(90, 300) };
+        const dx = bs.wp.x - b.position.x, dy = bs.wp.y - b.position.y, d = Math.hypot(dx, dy) || 1;
+        Body.setVelocity(b, { x: b.velocity.x * 0.9 + (dx / d) * 1.0, y: b.velocity.y * 0.9 + (dy / d) * 1.0 });
+        if (now > (bs.nextCharm || (bs.nextCharm = now + 3200))) {
+          bs.nextCharm = now + rand(3600, 5000);
+          spawnRing(b.position.x, b.position.y, '#ff9ecb');
+          setBanner(pick(['W RIZZ', 'UNMATCHED RIZZ', "IT'S GIVING UNICORN", 'HAVE YOU SEEN OUR SERIES A?', 'LET ME PITCH YOU']), '#ffd166', 1100);
+          for (const p of players) {
+            if (!p.alive) continue;
+            if (Math.hypot(p.body.position.x - b.position.x, p.body.position.y - b.position.y) < 440) {
+              p.reversedUntil = now + 2600;
+              const pull = Math.sign(b.position.x - p.body.position.x) || 1;
+              Body.setVelocity(p.body, { x: p.body.velocity.x + pull * 5, y: -4 });
+              spawnBurst(p.body.position.x, p.body.position.y - 10, '#ff9ecb', 8, { speed: 4, up: 3, g: -0.03 });
+            }
+          }
+          sfx.cast();
+        }
+        if (now > (bs.nextDeal || (bs.nextDeal = now + 2200))) {
+          bs.nextDeal = now + rand(2000, 2800);
+          const t = bossAliveTarget(b.position);
+          if (t) { for (const off of [-0.14, 0.14]) bossBolt(b.position, t, { speed: 10, r: 8, color: '#ff9ecb', spread: off, boom: [70, 9, 12] }); sfx.cast(); }
+        }
+      } else {
+        // TIZZY: frantic, jittery, rapid scattershot in every direction
+        Body.setVelocity(b, { x: b.velocity.x * 0.8 + rand(-3, 3), y: b.velocity.y * 0.8 + rand(-2, 2) });
+        if (b.position.y < 90) Body.setVelocity(b, { x: b.velocity.x, y: 2 });
+        if (b.position.y > 340) Body.setVelocity(b, { x: b.velocity.x, y: -2 });
+        if (now > (bs.nextTizz || (bs.nextTizz = now + 600))) {
+          bs.nextTizz = now + rand(500, 800);
+          const t = bossAliveTarget(b.position);
+          if (t) for (const off of [-0.3, -0.1, 0.1, 0.3]) bossBolt(b.position, t, { speed: 11, r: 6, color: '#ff4df0', spread: off + rand(-0.1, 0.1), boom: [50, 7, 9] });
+          if (Math.random() < 0.25) setBanner(pick(["IT'S A TIZZY!", "WHERE'S THE DECK?!", 'PANIC PITCH', 'WE NEED THIS ROUND']), '#ff4df0', 900);
+          sfx.cast();
+        }
+      }
+      bossTouchAll(bs, now, rizz ? 10 : 12);
+    },
+  },
+  {
+    // Manu, CTO — lives between Germany and Mexico. Flips German <-> Mexican mode.
+    id: 'manu', name: 'MANU', color: '#b39ddb', secret: true,
+    make() { return Bodies.circle(W / 2, 150, 32, { density: 0.011, frictionAir: 0.1, label: 'boss' }); },
+    update(bs, now) {
+      const b = bs.body;
+      Body.applyForce(b, b.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * b.mass });
+      const de = Math.floor(now / 7000) % 2 === 0;
+      b.bossType = de ? 'manu_de' : 'manu_mx';
+      if (bs.lastMode !== b.bossType) {
+        bs.lastMode = b.bossType;
+        if (de) { setBanner('🇩🇪 ORDNUNG MUSS SEIN', '#d0d0d8', 1300); doFlash('#c0c0d0', 0.2); }
+        else { setBanner('🇲🇽 ¡ÓRALE!', '#6cbf5b', 1300); doFlash('#e15d5d', 0.2); }
+      }
+      Body.setVelocity(b, { x: b.velocity.x * 0.92 + Math.sin(now * 0.001) * 0.8, y: b.velocity.y * 0.9 + Math.sin(now * 0.003) * 0.3 });
+      if (b.position.y < 90) Body.setVelocity(b, { x: b.velocity.x, y: 1.5 });
+      if (b.position.y > 340) Body.setVelocity(b, { x: b.velocity.x, y: -1.5 });
+      if (de) {
+        // German: precise, punctual bolts + the occasional efficient freeze
+        if (now > (bs.nextDe || (bs.nextDe = now + 1500))) {
+          bs.nextDe = now + 1500;
+          const t = bossAliveTarget(b.position);
+          if (t) bossBolt(b.position, t, { speed: 13, r: 7, color: '#9ec9ff', boom: [55, 8, 12] });
+          if (Math.random() < 0.4) { const q = bossAliveTarget(null); if (q) { q.frozenUntil = now + 700; q.body.frictionAir = 0.001; } }
+          sfx.freeze();
+        }
+      } else {
+        // Mexican: spicy chili fireballs (burn) + fiesta particles
+        if (now > (bs.nextMx || (bs.nextMx = now + 1100))) {
+          bs.nextMx = now + rand(850, 1400);
+          const t = bossAliveTarget(b.position);
+          if (t) for (const off of [-0.18, 0.08]) bossBolt(b.position, t, { speed: 10, r: 8, color: '#ff7043', spread: off, boom: [70, 9, 12] });
+          for (const p of players) if (p.alive && Math.hypot(p.body.position.x - b.position.x, p.body.position.y - b.position.y) < 220) p.burnUntil = now + 1600;
+          if (Math.random() < 0.3) spawnParticles(b.position.x, b.position.y, pick(['#6cbf5b', '#e15d5d', '#ffd166']), 10, 5);
+          sfx.cast();
+        }
+      }
+      bossTouchAll(bs, now, de ? 9 : 12);
+    },
+  },
+];
+
 function isBossRound() {
   return !!game.boss;
 }
@@ -198,7 +299,9 @@ function isBossRound() {
 const BOSS_ROMAN = ['', '', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
 function spawnBoss(now) {
-  const def = pick(BOSSES);
+  // ~12% of boss rounds summon a rare SECRET boss instead of a regular one
+  const secret = Math.random() < 0.12;
+  const def = secret ? pick(SECRET_BOSSES) : pick(BOSSES);
   const body = def.make();
   body.bossType = def.id;
   summon(body, { life: 1e12, color: def.color });
@@ -208,7 +311,7 @@ function spawnBoss(now) {
   const maxHp = Math.round((400 + 200 * Math.max(2, players.length)) * (1 + 0.4 * (num - 1)));
   const title = def.name + (num > 1 ? ' ' + (BOSS_ROMAN[num] || `×${num}`) : '');
   game.boss = {
-    def, body, hp: maxHp, maxHp, announced: false,
+    def, body, hp: maxHp, maxHp, announced: false, secret,
     num, dmgMult: 1 + 0.12 * (num - 1), title,
     enraged: false, enrageAt: 0, nextEnrageWave: 0,
   };
@@ -237,7 +340,7 @@ function slayBoss() {
   game.state = 'ROUND_END';
   game.winner = null;
   const replayMs = startReplay(performance.now());
-  setBanner(`${bs.def.name} IS SLAIN!`, '#ffd166', 1800 + replayMs);
+  setBanner(bs.secret ? `${bs.def.name} RAGE-QUITS` : `${bs.def.name} IS SLAIN!`, '#ffd166', 1800 + replayMs);
   sfx.victory();
   slowMo(0.25, 1100);
   setTimeout(() => {
@@ -251,9 +354,13 @@ function updateBoss(now, dt) {
   if (!bs.announced) {
     if (now > (game.fightAt || 0) + 800) {
       bs.announced = true;
-      setBanner(`${bs.title} AWAKENS`, bs.def.color, 2200);
-      doFlash(bs.def.color, 0.25);
-      addShake(10);
+      if (bs.secret) {
+        setBanner(`❓ SECRET BOSS ❓  ${bs.title}`, bs.def.color, 2800, true);
+        doFlash(bs.def.color, 0.45); addShake(16);
+      } else {
+        setBanner(`${bs.title} AWAKENS`, bs.def.color, 2200);
+        doFlash(bs.def.color, 0.25); addShake(10);
+      }
       sfx.boss();
       // later bosses run out of patience sooner; floor keeps it fair
       bs.enrageAt = now + Math.max(20000, 38000 - (bs.num - 1) * 4000);
@@ -349,6 +456,46 @@ function drawBossBody(b, now) {
     ctx.beginPath(); ctx.arc(x - 15, y - 8, 8, 0, Math.PI * 2); ctx.arc(x + 15, y - 8, 8, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#16121c';
     ctx.beginPath(); ctx.arc(x - 15, y - 8, 3.5, 0, Math.PI * 2); ctx.arc(x + 15, y - 8, 3.5, 0, Math.PI * 2); ctx.fill();
+  } else if (type === 'rizard_rizz' || type === 'rizard_tizz') {
+    const tizz = type === 'rizard_tizz';
+    const jx = tizz ? Math.sin(now * 0.05) * 2 : 0, jy = tizz ? Math.cos(now * 0.06) * 2 : 0; // jitters when in a tizzy
+    ctx.fillStyle = tizz ? '#ff4df0' : '#ffd166';
+    ctx.beginPath(); ctx.arc(x + jx, y + jy, r, 0, Math.PI * 2); ctx.fill();
+    // slick wizard hat
+    ctx.fillStyle = tizz ? '#c81e8c' : '#e6b800';
+    ctx.beginPath(); ctx.moveTo(x - 20 + jx, y - r + 4 + jy); ctx.lineTo(x + 20 + jx, y - r + 4 + jy); ctx.lineTo(x + 6 + jx * 2, y - r - 30 + jy); ctx.closePath(); ctx.fill();
+    // sunglasses (the rizz), crooked when frazzled
+    ctx.save(); ctx.translate(x + jx, y - 4 + jy); ctx.rotate(tizz ? 0.22 : 0);
+    ctx.fillStyle = '#16121c';
+    ctx.fillRect(-20, -1.5, 40, 3);
+    ctx.beginPath(); ctx.ellipse(-11, 0, 9, 6, 0, 0, Math.PI * 2); ctx.ellipse(11, 0, 9, 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.55;
+    ctx.beginPath(); ctx.arc(-13, -2, 2, 0, Math.PI * 2); ctx.arc(9, -2, 2, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+    ctx.restore();
+    // mouth: smirk vs panicked "o"
+    ctx.strokeStyle = '#16121c'; ctx.lineWidth = 2;
+    if (tizz) { ctx.beginPath(); ctx.arc(x + jx, y + 12 + jy, 5, 0, Math.PI * 2); ctx.stroke(); }
+    else { ctx.beginPath(); ctx.arc(x + 2, y + 8, 8, 0.1 * Math.PI, 0.6 * Math.PI); ctx.stroke(); }
+  } else if (type === 'manu_de' || type === 'manu_mx') {
+    const de = type === 'manu_de';
+    ctx.fillStyle = de ? '#c9cdd8' : '#e3a86a';
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#16121c';
+    ctx.beginPath(); ctx.arc(x - 11, y - 6, 3.5, 0, Math.PI * 2); ctx.arc(x + 11, y - 6, 3.5, 0, Math.PI * 2); ctx.fill();
+    // signature curly mustache
+    ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x - 14, y + 8); ctx.quadraticCurveTo(x - 2, y + 14, x, y + 6); ctx.quadraticCurveTo(x + 2, y + 14, x + 14, y + 8); ctx.stroke();
+    ctx.lineCap = 'butt';
+    if (de) { // steel hat + red band + monocle
+      ctx.fillStyle = '#4a4a5a'; ctx.beginPath(); ctx.moveTo(x - 20, y - r + 4); ctx.lineTo(x + 20, y - r + 4); ctx.lineTo(x, y - r - 30); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#c0392b'; ctx.fillRect(x - 20, y - r + 1, 40, 5);
+      ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x + 11, y - 6, 8, 0, Math.PI * 2); ctx.stroke();
+    } else { // sombrero
+      ctx.fillStyle = '#8a5a2b';
+      ctx.beginPath(); ctx.ellipse(x, y - r + 2, r + 22, 9, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x, y - r - 8, 15, 13, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#6cbf5b'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x, y - r - 2, 15, 4, 0, 0, Math.PI * 2); ctx.stroke();
+    }
   } else {
     drawBodyRounded(b, b.color || '#e15d5d');
   }
