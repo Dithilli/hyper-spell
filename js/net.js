@@ -25,6 +25,9 @@
   //      (auto-repeats). The castPressed edge below is only used for lobby join / rematch.
   //   j: jump, hybrid: holding j:1 jumps whenever grounded (auto-hop); the AIR jump (double
   //      jump) needs a fresh 0→1 edge. Send j:1 then j:0 to meter your jumps.
+  //   b: block/parry, EDGE semantics: a fresh 0→1 triggers one ~240ms parry (then ~1.4s
+  //      cooldown). Holding b:1 does nothing extra — time it.
+  //   c2: cast slot B, same HOLD semantics as c.
   // Inputs older than 2000ms zero out (stale guard) — keep sending even when idle.
   // Snapshots broadcast at ~20Hz. In snapshot ps[]: you are the entry with s === your slot
   // (slots are stable for the whole session; they never reshuffle). Tomes are picked up by
@@ -34,23 +37,24 @@
     constructor(cid) {
       this.cid = cid;
       this.state = { m: 0, j: 0, c: 0, a: null };
-      this.prev = { jump: false, cast: false, start: false };
+      this.prev = { jump: false, cast: false, block: false, start: false };
       this.lastSeen = performance.now();
     }
     poll() {
       const stale = performance.now() - this.lastSeen > 2000;
-      const st = stale ? { m: 0, j: 0, c: 0, c2: 0, a: null } : this.state;
-      const jump = !!st.j, cast = !!st.c, cast2 = !!st.c2;
+      const st = stale ? { m: 0, j: 0, c: 0, c2: 0, b: 0, a: null } : this.state;
+      const jump = !!st.j, cast = !!st.c, cast2 = !!st.c2, block = !!st.b;
       const s = {
-        move: st.m || 0, jump, cast, cast2,
+        move: st.m || 0, jump, cast, cast2, block,
         jumpPressed: jump && !this.prev.jump,
         castPressed: cast && !this.prev.cast,
         cast2Pressed: cast2 && !this.prev.cast2,
+        blockPressed: block && !this.prev.block,
         startPressed: false,
         aimPoint: null, aimVec: null,
         aimAngle: st.a,
       };
-      this.prev = { jump, cast, cast2, start: false };
+      this.prev = { jump, cast, cast2, block, start: false };
       return s;
     }
   }
@@ -108,6 +112,7 @@
     if (!mode) return;
     const typed = cleanName(nameInput.value);
     if (typed) localStorage.setItem('hs-name-0', typed);
+    globalThis.nameSetViaMenu = true; // the menu was player 1's name UI — lobby must not re-open an edit
     ensureAudio();
     if (mode === 'couch') { menu.remove(); return; }
     connect(mode);
@@ -285,7 +290,7 @@
   function pushSnapshot(snap) {
     snapPrev = snapCur; tPrev = tCur;
     snapCur = snap; tCur = performance.now();
-    if (!clientMap || clientMap.index !== snap.mi) clientLoadMap(snap.mi);
+    if (!clientMap || clientMap.index !== snap.mi || (snap.msd != null && clientMap.data.seed !== snap.msd)) clientLoadMap(snap.mi, snap.msd);
     applyBrokenDestructibles(snap.bd);
   }
 
@@ -304,10 +309,13 @@
     clientMap.data._bdApplied = bd.length;
   }
 
-  function clientLoadMap(index) {
+  function clientLoadMap(index, seed) {
     const def = MAPS[index];
     const m = { def, composite: Composite.create(), data: {} };
     def.build(m);
+    // regenerate the host's seeded extras so static cover/steppers match exactly
+    // (statics never ride the snapshot; dynamics below get stripped and arrive as ghosts)
+    if (seed != null) { m.data.seed = seed; buildMapExtras(m, seed); }
     // keep only plain static scenery; everything else arrives as ghosts
     for (const b of [...Composite.allBodies(m.composite)]) {
       if (!b.isStatic || b.spin || b.phantom || b.kinematic || b.label === 'lava') Composite.remove(m.composite, b);
@@ -335,6 +343,7 @@
     const jump = !!keys['KeyW'] || !!keys['Space'] || !!keys['ArrowUp'];
     const cast = !!keys['KeyE'] || !!keys['Enter'] || mouse.down;        // slot A
     const cast2 = !!keys['KeyQ'] || !!keys['ShiftRight'] || mouse.rdown;  // slot B
+    const block = !!keys['KeyS'] || !!keys['ArrowDown'] || mouse.mdown;   // parry
     const move = (keys['KeyD'] || keys['ArrowRight'] ? 1 : 0) - (keys['KeyA'] || keys['ArrowLeft'] ? 1 : 0);
     let aim = null;
     if (mouse.present && snapCur && mySlot != null) {
@@ -342,7 +351,7 @@
       if (me) aim = Math.atan2(mouse.y - me.y, mouse.x - me.x);
     }
     if (!joined && (cast || mouse.down)) emit({ t: 'join', n: localStorage.getItem('hs-name-0') || '' });
-    if (joined) emit({ t: 'input', m: move, j: jump ? 1 : 0, c: cast ? 1 : 0, c2: cast2 ? 1 : 0, a: aim });
+    if (joined) emit({ t: 'input', m: move, j: jump ? 1 : 0, c: cast ? 1 : 0, c2: cast2 ? 1 : 0, b: block ? 1 : 0, a: aim });
     // lobby controls forwarded to host
     if (keys['Space'] && !this._sp) emit({ t: 'start' });
     this._sp = !!keys['Space'];
@@ -447,7 +456,7 @@
         ctx.font = 'bold 15px Georgia';
         ctx.fillText(`${gp.w} / ${snap.wn}`, x, 58);
       }
-      drawPlayerSpells(x, [gp.s0 ?? null, gp.s1 ?? null], [gp.c0 || 0, gp.c1 || 0], gp.mc || 0);
+      drawPlayerSpells(x, [gp.s0 ?? null, gp.s1 ?? null], [gp.c0 || 0, gp.c1 || 0], gp.mc || 0, [gp.h0 ?? null, gp.h1 ?? null]);
     });
     if (now < bannerUntil) {
       if (bannerHyper) {

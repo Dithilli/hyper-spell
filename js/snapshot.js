@@ -17,6 +17,7 @@ function serializeSnapshot(now) {
     sp: p.spellId, rd: p.spellId && now - p.lastCast > SPELLS[p.spellId].cooldown ? 1 : 0,
     // both spell slots + per-slot cooldown fraction for the two-slot HUD
     s0: p.slots[0], s1: p.slots[1],
+    h0: p.slotCharges?.[0] ?? undefined, h1: p.slotCharges?.[1] ?? undefined, // fusion charges left
     c0: p.slots[0] ? +Math.min(1, (now - p.casts[0]) / (SPELLS[p.slots[0]].cooldown || 1)).toFixed(2) : 0,
     c1: p.slots[1] ? +Math.min(1, (now - p.casts[1]) / (SPELLS[p.slots[1]].cooldown || 1)).toFixed(2) : 0,
     mc: p.megaCasts || 0,
@@ -68,6 +69,7 @@ function serializeSnapshot(now) {
   return {
     v: GAME_VERSION,
     st: game.state, mi: game.mapIndex, wn: game.winsNeeded,
+    msd: game.mapSeed, // seed for deterministic map extras (client regenerates statics)
     rn: game.totalRounds || 0, // increments every round start — the "re-plan now" signal
     lv: currentMap.data.lavaY != null ? Math.round(currentMap.data.lavaY) : null,
     // winner only while a round/match is actually resolving — it must not linger

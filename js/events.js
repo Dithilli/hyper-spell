@@ -3,14 +3,16 @@
 // visuals reach LAN clients and the killcam through the snapshot's `ev` field.
 const ENV_EVENT_CHANCE = 0.20; // one round in five
 
-// find n platform tops spread across the map (same spirit as tomeDropSpot)
-function platformSpots(m, n) {
+// find n platform tops spread across the map (same spirit as tomeDropSpot).
+// Pass a seeded rng when the result must match across host & LAN clients.
+function platformSpots(m, n, rng) {
+  const rr = rng ? (a, b) => a + rng() * (b - a) : rand;
   const solids = Composite.allBodies(m.composite).filter(b =>
     b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 &&
     b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
   const spots = [];
   for (let tries = 0; tries < n * 10 && spots.length < n; tries++) {
-    const x = rand(90, W - 90);
+    const x = rr(90, W - 90);
     const col = solids.filter(b => x > b.bounds.min.x + 8 && x < b.bounds.max.x - 8);
     if (!col.length) continue;
     const tops = col.map(b => b.bounds.min.y).filter(y => y > 150 && y < H - 60);

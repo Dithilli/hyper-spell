@@ -36,7 +36,11 @@ function loadMap(index) {
     Composite.add(m.composite, wall);
   }
   def.build(m);
-  scatterProps(m);
+  // seeded extras (gap steppers, scattered cover) — the seed rides the snapshot
+  // so LAN clients regenerate the exact same statics
+  game.mapSeed = (Math.random() * 0xffffffff) >>> 0;
+  m.data.seed = game.mapSeed;
+  buildMapExtras(m, game.mapSeed);
   if (def.stars) {
     m.data.starfield = Array.from({ length: 70 }, () => ({ x: rand(0, W), y: rand(0, H - 160), r: rand(0.5, 1.8), tw: rand(0, 6.28) }));
   }
@@ -171,7 +175,14 @@ function readableColor(hex) {
   return `#${up(r)}${up(g)}${up(b)}`;
 }
 function beginNameEdit(p, storeKey) {
-  nameEdit = { p, storeKey, buffer: cleanName(localStorage.getItem(storeKey) || '') };
+  const saved = cleanName(localStorage.getItem(storeKey) || '');
+  // the opening net menu already asked player 1 for a name — don't reopen a live
+  // edit session in the lobby, where stray keypresses silently append letters
+  if (storeKey === 'hs-name-0' && globalThis.nameSetViaMenu) {
+    if (saved) p.name = saved;
+    return;
+  }
+  nameEdit = { p, storeKey, buffer: saved };
   if (nameEdit.buffer) p.name = nameEdit.buffer; // saved name applies even if they skip
 }
 addEventListener('keydown', e => {
@@ -895,14 +906,15 @@ function drawCooldownBar(x, y, spell, frac, megaCasts) {
 
 // two spell slots stacked under a player's name — shared by host HUD and LAN client.
 // slots = [idA, idB], cdf = [fracA, fracB]; empty slots read as "· · ·".
-function drawPlayerSpells(x, slots, cdf, megaCasts) {
+function drawPlayerSpells(x, slots, cdf, megaCasts, charges) {
   ctx.textAlign = 'center';
   for (let i = 0; i < 2; i++) {
     const y = 74 + i * 22;
     const def = slots[i] && SPELLS[slots[i]]; // guards empty + any transient/unknown id
     ctx.font = '13px Georgia';
     ctx.fillStyle = def ? (tierColor(slots[i]) || '#9c8ab8') : '#4a415c';
-    ctx.fillText(def ? def.name : '· · ·', x, y);
+    const n = charges?.[i];
+    ctx.fillText(def ? def.name + (n != null ? ` ×${n}` : '') : '· · ·', x, y);
     if (def) drawCooldownBar(x, y + 6, def, cdf[i], i === 0 ? megaCasts : 0);
   }
 }
@@ -940,7 +952,7 @@ function drawHUD(now) {
       ctx.fillText(`${p.roundWins} / ${game.winsNeeded}`, x, 58);
     }
     const cdf = [0, 1].map(s => p.slots[s] ? Math.min(1, (now - p.casts[s]) / (SPELLS[p.slots[s]].cooldown || 1)) : 0);
-    drawPlayerSpells(x, p.slots, cdf, p.megaCasts);
+    drawPlayerSpells(x, p.slots, cdf, p.megaCasts, p.slotCharges);
   });
   if (now < bannerUntil) {
     if (bannerHyper) {

@@ -22,7 +22,9 @@ function addStatic(m, x, y, w, h, opts = {}) {
 
 // ---- destructibles: cover that blows apart chunk by chunk under fire ----
 // A static block with hp. Explosions and projectile hits chip it; at 0 hp it
-// bursts into debris. Great for a big tree that slowly comes apart over a match.
+// bursts into debris AND a small blast — cover is temporary, and standing next
+// to it when it finally gives is a mistake. kind ('wood'|'stone'|'ice'|'crate')
+// flavors the death: ice flash-freezes whoever is close.
 function addDestructible(m, x, y, w, h, opts = {}) {
   const b = Bodies.rectangle(x, y, w, h, { isStatic: true, friction: 0.6, label: 'destructible' });
   b.w = w; b.h = h;
@@ -30,6 +32,7 @@ function addDestructible(m, x, y, w, h, opts = {}) {
   b.hp = b.maxHp;
   b.dcolor = opts.color || '#6b4a2a';
   b.debrisN = opts.debris ?? 4;
+  b.kind = opts.kind || 'wood';
   return addBody(m, b, b.dcolor);
 }
 
@@ -54,8 +57,39 @@ function breakDestructible(b) {
     gibs.add(g);
     Composite.add(world, g);
   }
+  // the death blast: modest damage/knock so shredding someone's cover pays off
+  // without turning every hedge into a landmine. Chips neighboring segments too,
+  // so a chewed-up pillar can cascade. hp<=0 guard above keeps that finite.
+  explode(x, y, 80, 10, 9, null);
+  if (b.kind === 'ice') {
+    const now = performance.now();
+    for (const q of players) {
+      if (!q.alive) continue;
+      if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 100) { q.frozenUntil = Math.max(q.frozenUntil || 0, now + 450); q.body.frictionAir = 0.001; }
+    }
+    spawnParticles(x, y, '#eaffff', 12, 5, 30);
+    sfx.freeze?.();
+  }
   addShake(3);
   sfx.thud?.();
+}
+
+// a stack of frosty destructible blocks — frost-theme cover with a chilly death
+function addIceBlock(m, x, groundY, tall = 2) {
+  for (let i = 0; i < tall; i++) {
+    addDestructible(m, x, groundY - 23 - i * 46, 46, 44, { hp: 55, color: i % 2 ? '#9fd8f0' : '#bfe8ff', debris: 5, kind: 'ice' });
+  }
+}
+
+// theme-flavored destructible cover: what you duck behind depends on the biome.
+// kind comes from the map def (theme defaults), falling back on map flags.
+function addThemedCover(m, x, groundY, rr, pk) {
+  const kind = m.def?.cover || (m.def?.icy ? 'ice' : 'pillar');
+  if (kind === 'tree') addTree(m, x, groundY, rr(0.55, 0.75));
+  else if (kind === 'ice') addIceBlock(m, x, groundY, pk([2, 2, 3]));
+  else if (kind === 'rock') addDestructible(m, x, groundY - 24, 54, 46, { hp: 65, color: '#5a5245', debris: 6, kind: 'stone' });
+  else if (kind === 'crate') addDestructible(m, x, groundY - 24, 46, 46, { hp: 45, color: '#9a7440', debris: 5, kind: 'crate' });
+  else addCoverPillar(m, x, groundY, pk([90, 120, 130]));
 }
 
 // a big tree — hide behind the trunk or under the canopy; chip it and it slowly
@@ -96,7 +130,7 @@ function addWallGap(m, x, y0, y1, gapC, gapH = 84, wallW = 48, color) {
 function addCoverPillar(m, x, groundY, h = 120, w = 40, color = '#6b6b7a') {
   const segs = Math.max(2, Math.round(h / 40));
   const seg = h / segs;
-  for (let i = 0; i < segs; i++) addDestructible(m, x, groundY - seg / 2 - i * seg, w, seg, { hp: 50, color, debris: 4 });
+  for (let i = 0; i < segs; i++) addDestructible(m, x, groundY - seg / 2 - i * seg, w, seg, { hp: 50, color, debris: 4, kind: 'stone' });
 }
 
 function addLava(m, y = H - 22, acid = false) {
@@ -290,22 +324,100 @@ function updateCrateRain(m, now, cap = 26, interval = 2600) {
   }
 }
 
+// ---- post-build map extras ----
+// Everything below runs AFTER def.build, seeded, on host AND LAN clients alike
+// (statics never ride the snapshot, so both sides must generate the identical
+// layout from the shared per-round seed — see buildMapExtras).
+
 // scatter a few destructible props on platform tops — cover to hide behind,
 // clutter to knock around. Runs on every map after its builder.
-function scatterProps(m) {
-  const spots = platformSpots(m, 3 + Math.floor(Math.random() * 3));
+function scatterProps(m, rng) {
+  const rr = (a, b) => a + rng() * (b - a);
+  const pk = arr => arr[Math.floor(rng() * arr.length)];
+  const spots = platformSpots(m, 3 + Math.floor(rng() * 3), rng);
   for (const s of spots) {
-    const roll = Math.random();
-    if (roll < 0.3) buildCrateStack(m, s.x, s.y - 14, pick([1, 2]), pick([1, 2, 3]));
-    else if (roll < 0.46) addBarrels(m, [s.x - 14, s.x + 14], s.y - 16);
-    else if (roll < 0.62) buildCrateStack(m, s.x, s.y - 14, 2, pick([3, 4])); // a wall to duck behind
-    else if (roll < 0.78) addCoverPillar(m, s.x, s.y + 8, pick([90, 120])); // destructible cover to duck behind
-    else if (roll < 0.88) addTree(m, s.x, s.y + 8, 0.62); // a small destructible tree
+    const roll = rng();
+    if (roll < 0.26) buildCrateStack(m, s.x, s.y - 14, pk([1, 2]), pk([1, 2, 3]));
+    else if (roll < 0.4) addBarrels(m, [s.x - 14, s.x + 14], s.y - 16);
+    else if (roll < 0.54) buildCrateStack(m, s.x, s.y - 14, 2, pk([3, 4])); // a wall to duck behind
+    else if (roll < 0.9) addThemedCover(m, s.x, s.y + 8, rr, pk);           // biome cover to duck behind
     else {
       const big = Bodies.rectangle(s.x, s.y - 24, 42, 42, { density: 0.004, friction: 0.6, label: 'crate' });
       addBody(m, big, '#9a7440');
     }
   }
+}
+
+// scan the walkable profile and plant stepping platforms in any void too wide to
+// clear with a running double jump — no more expanses you simply can't cross.
+// Designed gaps in the mapbook top out around 170px; anything wider gets help.
+const GAP_MAX = 190;   // widest void we leave alone
+const GAP_STEP = 165;  // max span between inserted steppers
+function ensureTraversable(m, rng) {
+  if ((m.def.gravity ?? 2) < 0) return; // ceiling-walker maps play by their own rules
+  const rr = (a, b) => a + rng() * (b - a);
+  const walkable = Composite.allBodies(m.composite).filter(b =>
+    !b.isSensor && b.label !== 'spikes' && b.collisionFilter.mask !== 0 &&
+    (b.isStatic || b.label === 'plank') &&
+    b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
+  const deathY = (m.data.lavaY ?? H) - 24;
+  const step = 16;
+  const cols = [];
+  for (let x = 24; x <= W - 24; x += step) {
+    const tops = walkable
+      .filter(b => x > b.bounds.min.x + 2 && x < b.bounds.max.x - 2)
+      .map(b => b.bounds.min.y)
+      .filter(y => y > 90 && y < deathY);
+    cols.push({ x, y: tops.length ? Math.min(...tops) : null });
+  }
+  let i = 0;
+  while (i < cols.length) {
+    if (cols[i].y != null) { i++; continue; }
+    let j = i;
+    while (j < cols.length && cols[j].y == null) j++;
+    const leftEdge = i > 0 ? cols[i - 1] : null;
+    const rightEdge = j < cols.length ? cols[j] : null;
+    const x0 = leftEdge ? leftEdge.x : cols[i].x;
+    const x1 = rightEdge ? rightEdge.x : cols[j - 1].x;
+    const width = x1 - x0;
+    if (width > GAP_MAX) {
+      const edgeY = Math.min(leftEdge?.y ?? 560, rightEdge?.y ?? 560);
+      const n = Math.max(1, Math.ceil(width / GAP_STEP) - 1);
+      // steppers sit near the lower neighbor's height so both sides can make the hop
+      for (let k = 1; k <= n; k++) {
+        const px = Math.max(60, Math.min(W - 60, x0 + (width * k) / (n + 1)));
+        const py = Math.max(150, Math.min(deathY - 80, edgeY + rr(-40, 25)));
+        // borrow the nearest platform's palette so inserts read as native terrain
+        let color = '#171221', bd = 1e9;
+        for (const b of walkable) {
+          const d = Math.hypot(b.position.x - px, b.position.y - py);
+          if (d < bd) { bd = d; color = b.render.fillStyle || color; }
+        }
+        addStatic(m, px, py, rr(104, 148), 22, { color, friction: m.def.icy ? 0.01 : 0.6 });
+        if (rng() < 0.35) addThemedCover(m, px, py - 11, rr, arr => arr[Math.floor(rng() * arr.length)]); // an obstacle to duck behind mid-crossing
+      }
+    }
+    i = j + 1;
+  }
+}
+
+// guarantee every map has real destructible cover, whatever its builder did
+function ensureCover(m, rng) {
+  const rr = (a, b) => a + rng() * (b - a);
+  const pk = arr => arr[Math.floor(rng() * arr.length)];
+  const want = m.def.cozy ? 2 : 3;
+  const have = Composite.allBodies(m.composite).filter(b => b.label === 'destructible').length;
+  if (have >= want * 3) return; // builder already made a cover-rich map (trees are many segments)
+  const spots = platformSpots(m, want, rng);
+  for (const s of spots) addThemedCover(m, s.x, s.y + 8, rr, pk);
+}
+
+// the one entry point: seed-deterministic extras, run identically on host & client
+function buildMapExtras(m, seed) {
+  const rng = makeRng(seed);
+  ensureTraversable(m, rng);
+  scatterProps(m, rng);
+  ensureCover(m, rng);
 }
 
 function updateBoulders(m, now, interval = 5000) {

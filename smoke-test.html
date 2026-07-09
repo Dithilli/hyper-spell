@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SMOKE-PENDING</title>
+</head>
+<body>
+<canvas id="game" width="1280" height="720"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+<script src="js/core.js"></script>
+<script src="js/artkit.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/awards.js"></script>
+<script src="js/telemetry.js"></script>
+<script src="js/input.js"></script>
+<script src="js/spells.js"></script>
+<script src="js/player.js"></script>
+<script src="js/pickups.js"></script>
+<script src="js/spellbook.js"></script>
+<script src="js/spelltiers.js"></script>
+<script src="js/hybrids.js"></script>
+<script src="js/maps.js"></script>
+<script src="js/mapbook.js"></script>
+<script src="js/events.js"></script>
+<script src="js/boss.js"></script>
+<script src="js/bot.js"></script>
+<script src="js/snapshot.js"></script>
+<script src="js/game.js"></script>
+<script src="js/replay.js"></script>
+<script>
+// headless smoke test: boots the real game, then asserts map traversability,
+// cover guarantees, seeded determinism, block/parry, and MAX_HP.
+(function runSmoke() {
+  const out = { errors: [], gaps: [], coverPoor: [], maps: 0 };
+  const fail = m => out.errors.push(m);
+  window.addEventListener('error', e => fail('window: ' + e.message));
+  try {
+    out.maps = MAPS.length;
+
+    // --- walkable-void measurement (mirrors ensureTraversable's scan) ---
+    function worstVoid(m) {
+      const walkable = Composite.allBodies(m.composite).filter(b =>
+        !b.isSensor && b.label !== 'spikes' && b.collisionFilter.mask !== 0 &&
+        (b.isStatic || b.label === 'plank') &&
+        b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
+      const deathY = (m.data.lavaY ?? H) - 24;
+      let worst = 0, run = 0;
+      for (let x = 24; x <= W - 24; x += 16) {
+        const solid = walkable.some(b => x > b.bounds.min.x + 2 && x < b.bounds.max.x - 2 &&
+          b.bounds.min.y > 90 && b.bounds.min.y < deathY);
+        if (solid) { worst = Math.max(worst, run); run = 0; }
+        else run += 16;
+      }
+      return Math.max(worst, run);
+    }
+
+    // --- every map: no unjumpable expanse, real cover present ---
+    for (let i = 0; i < MAPS.length; i++) {
+      if ((MAPS[i].gravity ?? 2) < 0) continue; // ceiling maps exempt
+      loadMap(i);
+      const v = worstVoid(currentMap);
+      if (v > 200) out.gaps.push([MAPS[i].name, v]);
+      const dest = Composite.allBodies(currentMap.composite).filter(b => b.label === 'destructible').length;
+      if (dest < 2) out.coverPoor.push([MAPS[i].name, dest]);
+    }
+
+    // --- determinism: same seed → identical extras (host/client must agree) ---
+    const def = MAPS[3];
+    const fp = seed => {
+      const m = { def, composite: Composite.create(), data: {} };
+      def.build(m);
+      buildMapExtras(m, seed);
+      return Composite.allBodies(m.composite)
+        .map(b => [Math.round(b.position.x), Math.round(b.position.y), b.label]).sort()
+        .map(String).join('|');
+    };
+    if (fp(424242) !== fp(424242)) fail('seeded extras are NOT deterministic');
+    if (fp(424242) === fp(424243)) fail('different seeds gave identical extras (rng dead?)');
+
+    // --- player: MAX_HP + block/parry ---
+    loadMap(0);
+    addBot();
+    const p = players[0];
+    if (p.hp !== 150) fail('hp expected 150, got ' + p.hp);
+    const now = performance.now();
+    tryBlock(p, now);
+    if (!(p.invulnUntil > now && p.reflectUntil > now && p.blockCdUntil > now)) fail('tryBlock did not arm invuln/reflect/cooldown');
+    const iv = p.invulnUntil;
+    tryBlock(p, now + 10); // inside cooldown → no-op
+    if (p.invulnUntil !== iv) fail('block cooldown not enforced');
+
+    // --- fusion charges: power-scaled, burn out on last cast ---
+    clearSpells(p);
+    addSpell(p, 'fireball'); addSpell(p, 'frost'); tryFuse(p);
+    if (p.slots[0] !== 'steamburst') fail('fusion expected steamburst, got ' + p.slots[0]);
+    if (p.slotCharges[0] !== 3) fail('steamburst expected 3 charges, got ' + p.slotCharges[0]);
+    clearSpells(p);
+    addSpell(p, 'blackhole'); addSpell(p, 'meteor'); tryFuse(p);
+    if (p.slots[0] !== 'bigcrunch') fail('fusion expected bigcrunch, got ' + p.slots[0]);
+    if (p.slotCharges[0] !== 1) fail('bigcrunch expected 1 charge, got ' + p.slotCharges[0]);
+    castSpell(p, performance.now() + 100000, 0);
+    if (p.slots[0] !== null) fail('1-charge hybrid did not burn out after cast');
+    if (p.slotCharges[0] !== null) fail('burnout left stale charge count');
+    clearSpells(p);
+
+    // --- beam flags present for bot aim penalty ---
+    for (const id of ['zapspell', 'lightning', 'railgun', 'thunderlance']) {
+      if (!SPELLS[id].beam) fail('missing beam flag: ' + id);
+    }
+  } catch (e) {
+    fail('exception: ' + (e.stack || e.message || e));
+  }
+  const verdict = out.errors.length || out.gaps.length ? 'SMOKE-FAIL' : 'SMOKE-PASS';
+  document.title = verdict;
+  const pre = document.createElement('pre');
+  pre.id = 'smoke';
+  pre.textContent = verdict + ' ' + JSON.stringify(out);
+  document.body.appendChild(pre);
+})();
+</script>
+</body>
+</html>

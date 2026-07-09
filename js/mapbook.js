@@ -16,6 +16,7 @@ function theme(tname, defaults, variants) {
       stars: v.stars ?? defaults.stars,
       spawns: v.s ?? defaults.s ?? DEF_SPAWNS,
       cozy: v.cozy, // too tight for big lobbies; skipped when 6+ wizards fight
+      cover: v.cover ?? defaults.cover, // themed destructible cover kind (maps.js addThemedCover)
       build: v.b,
       update: v.u,
     });
@@ -23,7 +24,7 @@ function theme(tname, defaults, variants) {
 }
 
 // ============ THEME 1: BOX LAND ============
-theme('Box Land', { bg: '#28211a' }, [
+theme('Box Land', { bg: '#28211a' , cover: 'crate' }, [
   { n: 'Crate Mountain', b(m) { addStatic(m, W / 2, 650, W, 50); buildCratePyramid(m, W / 2, 600, 8); addLava(m, H - 12); } },
   { n: 'Twin Towers', b(m) { addStatic(m, 260, 620, 480, 44); addStatic(m, W - 260, 620, 480, 44); buildCrateStack(m, 260, 572, 3, 8); buildCrateStack(m, W - 260, 572, 3, 8); addLava(m); } },
   { n: 'Crate Bridge', b(m) { addStatic(m, 180, 560, 360, 40); addStatic(m, W - 180, 560, 360, 40); for (let i = 0; i < 9; i++) { const c = Bodies.rectangle(400 + i * 55, 528, 26, 26, { density: 0.0015, friction: 0.4, label: 'crate' }); addBody(m, c, '#b08948'); } addLava(m); } },
@@ -37,7 +38,7 @@ theme('Box Land', { bg: '#28211a' }, [
 ]);
 
 // ============ THEME 2: LAVA WORKS ============
-theme('Lava Works', { bg: '#2b1d22' }, [
+theme('Lava Works', { bg: '#2b1d22' , cover: 'rock' }, [
   { n: 'Stepping Stones', b(m) { for (let i = 0; i < 6; i++) addStatic(m, 130 + i * 205, 560 + (i % 2) * 60, 130, 30); addLava(m); }, s: [{ x: 130, y: 120 }, { x: W - 125, y: 120 }, { x: 540, y: 120 }, { x: 745, y: 120 }] },
   { n: 'Geyser Alley', b(m) { addStatic(m, W / 2, 640, W - 160, 40); addLava(m); m.data.geysers = [{ x: 320, y: 620 }, { x: W / 2, y: 620 }, { x: W - 320, y: 620 }]; }, u(m, now) { updateGeysers(m, now); } },
   { n: 'The Cauldron', cozy: true, b(m) { addStatic(m, 110, 460, 220, 380); addStatic(m, W - 110, 460, 220, 380); addStatic(m, W / 2, 500, 240, 32); addLava(m, H - 40); m.data.lavaBase = H - 40; }, u(m, now) { m.data.lavaY = m.data.lavaBase + Math.sin(now / 2400) * 90 - 60; Body.setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 }); }, s: [{ x: 110, y: 180 }, { x: W - 110, y: 180 }, { x: W / 2 - 80, y: 300 }, { x: W / 2 + 80, y: 300 }] },
@@ -51,7 +52,7 @@ theme('Lava Works', { bg: '#2b1d22' }, [
 ]);
 
 // ============ THEME 3: FROST FIELDS ============
-theme('Frost Fields', { bg: '#1c2531', icy: true }, [
+theme('Frost Fields', { bg: '#1c2531', icy: true , cover: 'ice' }, [
   { n: 'Frozen Lake', b(m) { addStatic(m, W / 2, 620, W - 80, 44, { friction: 0.01, color: '#3d5a73' }); addBarrels(m, [300, W - 300], 560); addLava(m); } },
   { n: 'Icicle Cave', b(m) { addStatic(m, 250, 560, 500, 40, { friction: 0.01, color: '#3d5a73' }); addStatic(m, W - 250, 560, 500, 40, { friction: 0.01, color: '#3d5a73' }); addSeesaw(m, W / 2, 590, 240); addIcicles(m, [180, 330, 480, 640, 800, 950, 1100]); addLava(m); }, u(m, now) { updateIcicles(m, now); }, s: [{ x: 150, y: 480 }, { x: W - 150, y: 480 }, { x: 420, y: 480 }, { x: W - 420, y: 480 }] },
   { n: 'Slalom', b(m) { addStatic(m, 300, 420, 560, 26, { friction: 0.01, color: '#3d5a73', angle: 0.22 }); addStatic(m, W - 300, 560, 560, 26, { friction: 0.01, color: '#3d5a73', angle: -0.22 }); addStatic(m, W / 2, 670, 300, 30, { friction: 0.01, color: '#3d5a73' }); addLava(m); }, s: [{ x: 120, y: 200 }, { x: W - 120, y: 340 }, { x: 400, y: 200 }, { x: W - 400, y: 340 }] },
@@ -65,7 +66,7 @@ theme('Frost Fields', { bg: '#1c2531', icy: true }, [
 ]);
 
 // ============ THEME 4: SKY ISLES ============
-theme('Sky Isles', { bg: '#232a40', stars: true }, [
+theme('Sky Isles', { bg: '#232a40', stars: true , cover: 'crate' }, [
   { n: 'Archipelago', b(m) { addStatic(m, 170, 560, 260, 30); addStatic(m, 490, 460, 220, 30); addStatic(m, W / 2, 620, 200, 30); addStatic(m, W - 490, 460, 220, 30); addStatic(m, W - 170, 560, 260, 30); }, s: [{ x: 170, y: 120 }, { x: W - 170, y: 120 }, { x: 490, y: 120 }, { x: W - 490, y: 120 }] },
   { n: 'Stepping Sky', b(m) { for (let i = 0; i < 8; i++) addStatic(m, 130 + i * 148, 580 - (i % 3) * 130, 90, 22); }, s: [{ x: 130, y: 120 }, { x: 130 + 7 * 148, y: 120 }, { x: 130 + 3 * 148, y: 120 }, { x: 130 + 4 * 148, y: 120 }] },
   { n: 'Rope Crossing', b(m) { addStatic(m, 170, 500, 280, 30); addStatic(m, W - 170, 500, 280, 30); buildBridge(m, 310, 610, 460); buildBridge(m, W - 310, W - 610, 460); addStatic(m, W / 2, 640, 160, 26); }, s: [{ x: 170, y: 120 }, { x: W - 170, y: 120 }, { x: 350, y: 120 }, { x: W - 350, y: 120 }] },
@@ -79,7 +80,7 @@ theme('Sky Isles', { bg: '#232a40', stars: true }, [
 ]);
 
 // ============ THEME 5: THE MACHINE ============
-theme('The Machine', { bg: '#221c2b' }, [
+theme('The Machine', { bg: '#221c2b' , cover: 'pillar' }, [
   { n: 'The Pendulum', b(m) { addStatic(m, W / 2, 645, 660, 40); addStatic(m, 110, 470, 220, 36); addStatic(m, W - 110, 470, 220, 36); buildCrateStack(m, W / 2 + 200, 611, 3, 3); addHangingPlatform(m, 330, -10, 260, 150); addHangingPlatform(m, W - 330, -10, 260, 150); addPendulumBall(m, W / 2, -80, 400); addLava(m); }, u(m) { keepPendulumsSwinging(m); }, s: [{ x: 110, y: 410 }, { x: W - 110, y: 410 }, { x: W / 2 - 240, y: 580 }, { x: W / 2 + 240, y: 580 }] },
   { n: 'Gear Works', b(m) { addStatic(m, 180, 600, 300, 36); addStatic(m, W - 180, 600, 300, 36); addSpinner(m, W / 2, 480, 260, 0.018); addSpinner(m, 400, 300, 200, -0.025); addSpinner(m, W - 400, 300, 200, 0.025); addLava(m); }, s: [{ x: 180, y: 120 }, { x: W - 180, y: 120 }, { x: 300, y: 120 }, { x: W - 300, y: 120 }] },
   { n: 'The Crusher', b(m) { addStatic(m, W / 2, 650, W - 200, 40); addMover(m, W / 2, 240, 320, 60, { ay: 200, period: 5200, color: '#0d0a14' }); addStatic(m, 160, 500, 220, 30); addStatic(m, W - 160, 500, 220, 30); addLava(m); }, u(m, now) { updateMovers(m, now); }, s: [{ x: 160, y: 120 }, { x: W - 160, y: 120 }, { x: 340, y: 120 }, { x: W - 340, y: 120 }] },
@@ -93,7 +94,7 @@ theme('The Machine', { bg: '#221c2b' }, [
 ]);
 
 // ============ THEME 6: GOO SWAMP ============
-theme('Goo Swamp', { bg: '#1e2b1e', muddy: true }, [
+theme('Goo Swamp', { bg: '#1e2b1e', muddy: true , cover: 'tree' }, [
   { n: 'Bog Standard', b(m) { addStatic(m, 280, 600, 540, 40, { color: '#2d3d2a' }); addStatic(m, W - 280, 600, 540, 40, { color: '#2d3d2a' }); addLava(m, H - 22, true); }, s: [{ x: 280, y: 120 }, { x: W - 280, y: 120 }, { x: 140, y: 120 }, { x: W - 140, y: 120 }] },
   { n: 'Bounce Marsh', b(m) { addStatic(m, W / 2, 640, W - 160, 40, { color: '#2d3d2a' }); addBumper(m, 300, 560, 26); addBumper(m, W / 2, 520, 30); addBumper(m, W - 300, 560, 26); addLava(m, H - 12, true); } },
   { n: 'Lily Hop', b(m) { for (let i = 0; i < 6; i++) addStatic(m, 140 + i * 200, 590, 110, 18, { color: '#3d5c36' }); addLava(m, H - 40, true); }, s: [{ x: 140, y: 120 }, { x: 140 + 5 * 200, y: 120 }, { x: 540, y: 120 }, { x: 740, y: 120 }] },
@@ -107,7 +108,7 @@ theme('Goo Swamp', { bg: '#1e2b1e', muddy: true }, [
 ]);
 
 // ============ THEME 7: DEEP SPACE ============
-theme('Deep Space', { bg: '#141426', stars: true }, [
+theme('Deep Space', { bg: '#141426', stars: true , cover: 'pillar' }, [
   { n: 'Moon Base', gravity: 1.1, b(m) { addStatic(m, W / 2, 640, W - 100, 44, { color: '#2a2a40' }); addStatic(m, 300, 500, 180, 26, { color: '#2a2a40' }); addStatic(m, W - 300, 500, 180, 26, { color: '#2a2a40' }); addLava(m, H - 10); } },
   { n: 'Asteroid Belt', cozy: true, gravity: 0.5, b(m) { addStatic(m, W / 2, 660, 500, 36, { color: '#2a2a40' }); for (let i = 0; i < 10; i++) { const rock = Bodies.polygon(rand(100, W - 100), rand(150, 450), pick([5, 6, 7]), rand(14, 30), { density: 0.003, frictionAir: 0.02, label: 'ball' }); addBody(m, rock, '#4a4a5f'); } }, s: [{ x: W / 2 - 180, y: 120 }, { x: W / 2 + 180, y: 120 }, { x: W / 2 - 60, y: 120 }, { x: W / 2 + 60, y: 120 }] },
   { n: 'Zero-G Arena', gravity: 0.15, b(m) { addStatic(m, W / 2, 690, W, 40, { color: '#2a2a40' }); addStatic(m, W / 2, 20, W, 40, { color: '#2a2a40' }); addStatic(m, 260, 380, 200, 24, { color: '#2a2a40' }); addStatic(m, W - 260, 380, 200, 24, { color: '#2a2a40' }); addStatic(m, W / 2, 500, 220, 24, { color: '#2a2a40' }); } },
@@ -121,7 +122,7 @@ theme('Deep Space', { bg: '#141426', stars: true }, [
 ]);
 
 // ============ THEME 8: ANCIENT RUINS ============
-theme('Ancient Ruins', { bg: '#26221c' }, [
+theme('Ancient Ruins', { bg: '#26221c' , cover: 'pillar' }, [
   { n: 'Pillar Hall', b(m) { addStatic(m, W / 2, 650, W - 80, 44, { color: '#3a3226' }); for (const x of [280, 560, 840, 1060]) { for (let i = 0; i < 4; i++) { const seg = Bodies.rectangle(x, 596 - i * 66, 36, 62, { density: 0.004, friction: 0.6, label: 'crate' }); addBody(m, seg, '#8a7a5c'); } } addLava(m, H - 10); } },
   { n: 'Collapsing Temple', b(m) { addStatic(m, 200, 620, 340, 40, { color: '#3a3226' }); addStatic(m, W - 200, 620, 340, 40, { color: '#3a3226' }); const roof = Bodies.rectangle(W / 2, 260, 460, 26, { density: 0.006, label: 'plank' }); roof.w = 460; roof.h = 26; addBody(m, roof, '#8a7a5c'); for (const side of [-1, 1]) { const rope = Constraint.create({ pointA: { x: W / 2 + side * 210, y: 40 }, bodyB: roof, pointB: { x: side * 210, y: 0 }, stiffness: 0.9, length: 200 }); rope.label = 'breakable'; Composite.add(m.composite, rope); } addLava(m); }, s: [{ x: 200, y: 120 }, { x: W - 200, y: 120 }, { x: 340, y: 120 }, { x: W - 340, y: 120 }] },
   { n: 'Boulder Run', b(m) { addStatic(m, W / 2, 640, W, 44, { color: '#3a3226' }); addStatic(m, 300, 480, 200, 26, { color: '#3a3226' }); addStatic(m, W - 300, 480, 200, 26, { color: '#3a3226' }); addLava(m, H - 10); m.data.boulderY = 80; }, u(m, now) { updateBoulders(m, now, 3800); } },
@@ -135,7 +136,7 @@ theme('Ancient Ruins', { bg: '#26221c' }, [
 ]);
 
 // ============ THEME 9: STORM PEAKS ============
-theme('Storm Peaks', { bg: '#1a2030' }, [
+theme('Storm Peaks', { bg: '#1a2030' , cover: 'pillar' }, [
   { n: 'Thunder Spire', b(m) { addStatic(m, W / 2, 660, 400, 40, { color: '#2a3242' }); addStatic(m, W / 2, 460, 160, 300, { color: '#2a3242' }); addStatic(m, 220, 540, 280, 30, { color: '#2a3242' }); addStatic(m, W - 220, 540, 280, 30, { color: '#2a3242' }); addLava(m); }, u(m, now) { updateStrikes(m, now, 3200); }, s: [{ x: 220, y: 120 }, { x: W - 220, y: 120 }, { x: W / 2 - 140, y: 200 }, { x: W / 2 + 140, y: 200 }] },
   { n: 'Gale Force', b(m) { addStatic(m, W / 2, 620, W - 200, 36, { color: '#2a3242' }); addStatic(m, 240, 450, 200, 24, { color: '#2a3242' }); addStatic(m, W - 240, 450, 200, 24, { color: '#2a3242' }); addLava(m); }, u(m, now) { applyWind(Math.sin(now / 1500) * 0.4); } },
   { n: 'Rain Slick', icy: true, b(m) { addStatic(m, W / 2, 600, W - 140, 36, { friction: 0.02, color: '#2a3242' }); addStatic(m, 300, 440, 220, 24, { friction: 0.02, color: '#2a3242' }); addStatic(m, W - 300, 440, 220, 24, { friction: 0.02, color: '#2a3242' }); addLava(m); }, u() { for (let i = 0; i < 3; i++) particles.push({ kind: 'spark', x: rand(0, W), y: rand(0, H - 120), vx: -1, vy: 11, life: 12, maxLife: 12, color: '#6a86b8', r: 1.5 }); } },
@@ -149,7 +150,7 @@ theme('Storm Peaks', { bg: '#1a2030' }, [
 ]);
 
 // ============ THEME 10: THE VOID ============
-theme('The Void', { bg: '#0d0a14', stars: true }, [
+theme('The Void', { bg: '#0d0a14', stars: true , cover: 'pillar' }, [
   { n: 'Null Island', cozy: true, b(m) { addStatic(m, W / 2, 560, 460, 40, { color: '#1f1830' }); }, s: [{ x: W / 2 - 160, y: 120 }, { x: W / 2 + 160, y: 120 }, { x: W / 2 - 60, y: 120 }, { x: W / 2 + 60, y: 120 }] },
   { n: 'Wrap Void', cozy: true, wrap: true, b(m) { addStatic(m, 220, 560, 260, 26, { color: '#1f1830' }); addStatic(m, W / 2, 430, 220, 26, { color: '#1f1830' }); addStatic(m, W - 220, 560, 260, 26, { color: '#1f1830' }); }, s: [{ x: 220, y: 120 }, { x: W - 220, y: 120 }, { x: W / 2 - 60, y: 120 }, { x: W / 2 + 60, y: 120 }] },
   { n: 'Phantom Floors', b(m) { const xs = [[220, 560], [520, 460], [820, 560], [1080, 440], [W / 2, 640]]; xs.forEach(([x, y], i) => { const b = addStatic(m, x, y, 200, 24, { color: '#3d2f5c' }); b.phantom = { speed: 0.0012, offset: i * 1.9 }; }); addStatic(m, W / 2, 690, 340, 24, { color: '#1f1830' }); }, s: [{ x: W / 2 - 120, y: 120 }, { x: W / 2 + 120, y: 120 }, { x: W / 2 - 40, y: 120 }, { x: W / 2 + 40, y: 120 }] },
@@ -163,7 +164,7 @@ theme('The Void', { bg: '#0d0a14', stars: true }, [
 ]);
 
 // ============ CLASSICS (the original four) ============
-theme('Classic', { bg: '#241d2e' }, [
+theme('Classic', { bg: '#241d2e' , cover: 'crate' }, [
   { n: 'Lava Foundry', b(m) { addStatic(m, 170, 520, 340, 40); addStatic(m, W - 170, 520, 340, 40); addStatic(m, W / 2, 660, 260, 40); buildCrateStack(m, W / 2, 612, 4, 7); buildBridge(m, 340, 570, 480); buildBridge(m, W - 340, W - 570, 480); addChandelier(m, W / 2, -10, 190, 30); addBarrels(m, [90, 130, W - 90, W - 130], 480); addLava(m); }, s: [{ x: 120, y: 440 }, { x: W - 120, y: 440 }, { x: 260, y: 440 }, { x: W - 260, y: 440 }] },
   { n: 'Frost Cavern', icy: true, bg: '#1c2531', b(m) { addStatic(m, 250, 560, 500, 40, { friction: 0.01, color: '#3d5a73' }); addStatic(m, W - 250, 560, 500, 40, { friction: 0.01, color: '#3d5a73' }); addSeesaw(m, W / 2, 590, 240); buildCrateStack(m, 250, 532, 2, 2); buildCrateStack(m, W - 250, 532, 2, 2); addIcicles(m, [180, 330, 480, 640, 800, 950, 1100]); addLava(m); }, u(m, now) { updateIcicles(m, now); }, s: [{ x: 150, y: 480 }, { x: W - 150, y: 480 }, { x: 420, y: 480 }, { x: W - 420, y: 480 }] },
   { n: 'Rising Lava', bg: '#2b1d22', b(m) { addStatic(m, W / 2, 640, 320, 36); addStatic(m, 240, 500, 240, 32); addStatic(m, W - 240, 500, 240, 32); addStatic(m, W / 2, 380, 260, 32); addStatic(m, 170, 250, 200, 32); addStatic(m, W - 170, 250, 200, 32); addStatic(m, W / 2, 140, 220, 32); buildCrateStack(m, W / 2, 358, 3, 2); addBarrels(m, [240, 280, W - 240, W - 280], 470); addHangingPlatform(m, 460, 30, 130, 130); addHangingPlatform(m, W - 460, 30, 130, 130); addLava(m); }, u(m, now, dt) { m.data.lavaY = Math.max(210, m.data.lavaY - 14 * dt / 1000); Body.setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 }); }, s: [{ x: W / 2 - 100, y: 600 }, { x: W / 2 + 100, y: 600 }, { x: 240, y: 460 }, { x: W - 240, y: 460 }] },
@@ -171,7 +172,7 @@ theme('Classic', { bg: '#241d2e' }, [
 ]);
 
 // ============ THEME: WILDWOOD (cover-rich, destructible trees) ============
-theme('Wildwood', { bg: '#182014' }, [
+theme('Wildwood', { bg: '#182014' , cover: 'tree' }, [
   { n: 'The Grove', b(m) {
     addStatic(m, W / 2, 660, W, 44, { color: '#2a3320' });
     addStatic(m, 250, 500, 300, 26, { color: '#2a3320' });
