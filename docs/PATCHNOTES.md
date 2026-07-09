@@ -1,5 +1,33 @@
 # HYPERSPELL — Patch Notes
 
+## v7 · July 9, 2026 — "The Proving Grounds"
+
+### ⚡ Fusion charges — hybrids burn bright, then burn out
+- Fusion hybrids are no longer limitless: they carry **1–3 charges scaled to their power** (Big Crunch gets one apocalyptic shot; Steam Burst gets three), and every hybrid cast is **boosted** — ×1.5 / ×1.35 / ×1.2 for 1- / 2- / 3-charge hybrids. The HUD shows charges left; spending the last one snuffs the fusion with a "FUSION SPENT" beat.
+
+### 🛡 BLOCK — the parry
+- A third action button: **S** / **↓** / **middle mouse** / gamepad **LB·LT**. Throws up a quarter-second shield that **negates damage and reflects projectiles back at the sender**, then needs ~1.4s to recharge. Time it — a whiffed parry is an opening. Bots and Alinea know how to use it too.
+
+### ❤️ Beefier wizards
+- Max HP raised **100 → 150** so rounds run long enough to grab tomes, land a fusion, and actually see the rare spells before someone dies. Hat still flies off below half.
+
+### 🗺 No more uncrossable expanses
+- Every map is scanned after it builds: any void too wide to clear with a running double-jump gets **stepping platforms** planted mid-gap (sometimes with cover on top). More obstacles, less falling to your death.
+
+### 🌳 Cover that eventually explodes
+- Every map now guarantees **themed destructible cover** — trees in the woods and swamp, stone pillars in the ruins, **ice blocks** on the frost maps, crates in Box Land. Duck behind it, chip it down, and mind the finish: breaking cover now goes off with a **small blast** (ice flash-freezes whoever's standing close).
+- LAN fix: scattered cover is now **seeded**, so remote players finally see the exact same props the host does.
+
+### 🤖 Bots got humbled
+- Bots aim like people now: wobblier at range and against fast movers, and **much** wobblier with instant beams (Zap, Lightning, Railgun…) — no more zap snipers. They also fire beams on a measured cadence, hesitate at fast targets, and occasionally **parry your projectiles**.
+
+### 📖 Spell Guide
+- New **📖 Spell Guide** button on the game page — the whole spell system explained (slots, tiers, fusion recipes with the full matrix, synergies, every spell), generated live from the game's own spellbook so it can't go stale.
+
+### 🐛 Fixes
+- Setting your name on the opening screen no longer leaves a live name-editor running in the lobby (stray keys were appending letters until you hit Enter).
+
+
 ## v4 · July 9, 2026 — "The Fusion Update"
 
 ### 🎴 Two spell slots

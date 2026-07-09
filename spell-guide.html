@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>HYPERSPELL — Spell Guide</title>
+<style>
+  :root { --ink: #d8cfe8; --dim: #8f83a6; --panel: #1d1727; --line: #362a49; --accent: #b98cff; }
+  html { background: #16121c; }
+  body { margin: 0 auto; max-width: 1080px; padding: 28px 20px 80px; color: var(--ink); font: 15px/1.55 Georgia, serif; }
+  h1 { font-size: 30px; letter-spacing: 0.12em; color: #fff; margin: 4px 0 2px; }
+  h1 .spark { color: var(--accent); }
+  .sub { color: var(--dim); margin: 0 0 22px; font-style: italic; }
+  h2 { font-size: 20px; letter-spacing: 0.08em; color: var(--accent); border-bottom: 1px solid var(--line); padding-bottom: 6px; margin: 40px 0 12px; }
+  h3 { font-size: 16px; color: #e8dcff; margin: 20px 0 6px; }
+  p { margin: 8px 0; }
+  b { color: #fff; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 16px; margin: 12px 0; }
+  .chip { display: inline-block; padding: 1px 9px; border-radius: 10px; font-size: 12.5px; margin: 2px 3px 2px 0; border: 1px solid var(--line); background: #241d31; white-space: nowrap; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: baseline; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13.5px; }
+  th, td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: #221a2f; color: #cbb8ee; font-weight: normal; letter-spacing: 0.05em; }
+  .matrix td, .matrix th { text-align: center; padding: 6px 4px; font-size: 12.5px; }
+  .matrix .amp { background: #251b33; }
+  .tierhead td { background: #221a2f; font-size: 14px; letter-spacing: 0.1em; }
+  .cd { color: var(--dim); white-space: nowrap; }
+  .schools { color: var(--dim); font-size: 12px; }
+  a.back { color: var(--accent); text-decoration: none; font-size: 13px; letter-spacing: 0.08em; }
+  a.back:hover { text-shadow: 0 0 10px rgba(185,140,255,0.6); }
+  .kbd { font-family: monospace; background: #241d31; border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; font-size: 12.5px; color: #fff; }
+  ul { margin: 6px 0 6px 20px; padding: 0; }
+  li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<a class="back" href="index.html">← back to the arena</a>
+<h1><span class="spark">✦</span> HYPERSPELL GRIMOIRE</h1>
+<p class="sub">The entire spell system, explained — generated live from the game's own spellbook, so it is always true.</p>
+
+<h2>Casting &amp; the two slots</h2>
+<div class="panel">
+<p>Every wizard carries <b>two spell slots</b>, each bound to its own cast button (keyboard 1: <span class="kbd">E</span>/<span class="kbd">Q</span> or <span class="kbd">left</span>/<span class="kbd">right</span> mouse · keyboard 2: <span class="kbd">Enter</span>/<span class="kbd">R-Shift</span> · gamepad face buttons). Aim with the mouse or stick; without one, spells fire the way you're facing.</p>
+<ul>
+<li><b>Cooldowns.</b> Each spell has its own, but nothing casts faster than the global floor of <b id="castfloor"></b> — even spammy bolts are deliberate, aimed shots.</li>
+<li><b>✦ HYPERSPELL proc.</b> Every cast has a small chance to go off <b>empowered at 2.2×</b>. The chance scales with the spell's cooldown (~1.2% per second of cooldown, capped at 6%) — slow, heavy spells roll for it; spam doesn't farm it.</li>
+<li><b>🛡 BLOCK (parry).</b> A third button (<span class="kbd">S</span> / <span class="kbd">↓</span> / <span class="kbd">middle mouse</span> / gamepad <span class="kbd">LB</span>) throws up a shield for a <b>quarter second</b>: you take no damage and <b>projectiles bounce back at the sender</b>. Then it needs ~1.4s to recharge — time it, don't turtle.</li>
+<li><b>Health.</b> Wizards carry <b>150 HP</b>. Below half, your hat gets knocked off (the shame). Below a sixth, you smolder.</li>
+</ul>
+</div>
+
+<h2>Tomes &amp; rarity</h2>
+<div class="panel">
+<p>Spell tomes rain from the sky. Grab one and it fills an empty slot — or replaces your <b>oldest</b> spell if both hands are full. Drops are weighted by rarity tier:</p>
+<p id="tierchips"></p>
+<p>Rare and legendary grabs get a fanfare. The same tome never drops twice in a row. <b>Hybrid-tier spells never drop at all</b> — they exist only through fusion (below).</p>
+<h3>🎩 The Mega Hat</h3>
+<p>Occasionally a golden hat falls instead (~12% of drops, one at a time). Claim it for a <b>full heal</b>, double size, and <b>3 casts empowered at 1.7×</b>. Lose half your health and your regular hat gets knocked off — the ultimate shame.</p>
+</div>
+
+<h2>⚡ Fusion — combining spells</h2>
+<div class="panel">
+<p>Spells belong to <b>schools</b>. Hold two spells whose schools pair up in a recipe and they <b>auto-fuse the moment you pick up the second tome</b>, collapsing into a single bespoke <b>hybrid spell</b> you can't get any other way. Two spells of the <i>same</i> school fuse into that school's <b>amplified form</b>.</p>
+<p><b>Fusion charges.</b> Hybrids are not limitless — they carry <b>1–3 charges</b> scaled to their power (the heaviest ultimates get one shot; light hybrids get three), and each cast is <b>boosted beyond normal</b>: ×1.5 on 1-charge monsters, ×1.35 on 2-charge, ×1.2 on 3-charge. Spend the last charge and the fusion is gone — back to the tomes. Your HUD shows the ×N remaining.</p>
+<p id="schoolchips"></p>
+<h3>◇ The Fusion Catalyst</h3>
+<p>A rare prism drop (~10% of tome drops) that acts as a <b>wild ingredient</b>: if your two held spells already match a recipe it fuses them on the spot; otherwise it fuses with your newest spell into its school's amplified hybrid. No school, no fusion — it fizzles.</p>
+<h3>The recipe matrix</h3>
+<div style="overflow-x:auto" id="matrix"></div>
+<h3>The hybrids</h3>
+<div id="hybrids"></div>
+</div>
+
+<h2>Elemental synergies</h2>
+<div class="panel">
+<ul>
+<li><b>❄ SHATTER.</b> A solid hit (8+ damage) on a <b>frozen</b> wizard cracks the ice: <b>+60% bonus damage</b>, the freeze breaks — and thawing leaves them <b>Wet</b> for 4.5s. Standing on ice also keeps you Wet.</li>
+<li><b>⚡ CONDUCT.</b> Lightning-family beams hitting a <b>Wet</b> wizard deal <b>1.6×</b> and <b>arc to the nearest other wizard</b> within reach for 45% damage. Freeze → shatter → zap is the classic three-move combo.</li>
+</ul>
+<h3>Status effects glossary</h3>
+<table>
+<tr><th>Status</th><th>What it does</th></tr>
+<tr><td>Frozen ❄</td><td>Can't move or cast; slides on momentum. Big hits SHATTER it.</td></tr>
+<tr><td>Wet 💧</td><td>Conducts lightning (see CONDUCT). Applied by thawing or standing on ice.</td></tr>
+<tr><td>Burning 🔥</td><td>Damage over time until it expires.</td></tr>
+<tr><td>Reversed ↔</td><td>Your controls point the wrong way.</td></tr>
+<tr><td>Floaty 🎈</td><td>Barely any gravity — a shove sends you sailing.</td></tr>
+<tr><td>Heavy ⚓</td><td>Slow, can't jump, falls like a stone.</td></tr>
+<tr><td>Shrunk / Grown</td><td>Smaller (0.6×) or bigger (1.85×) — size changes knockback and target profile.</td></tr>
+<tr><td>Pig 🐷</td><td>You are a pig. Pigs cannot cast. Oink.</td></tr>
+<tr><td>Slipping 🍌</td><td>Banana. You had to be there.</td></tr>
+<tr><td>Hasted / Springy / Ghostly</td><td>Speed, jump boost, or invulnerability from self spells.</td></tr>
+<tr><td>Reflect 🔄</td><td>Incoming projectiles bounce back (Uno Reverse).</td></tr>
+</table>
+</div>
+
+<h2>The full spell catalog</h2>
+<p class="sub">Every castable spell, grouped by rarity. Cooldowns in seconds; ⚡beam = instant hitscan.</p>
+<div id="catalog"></div>
+
+<script src="js/spells.js"></script>
+<script src="js/spellbook.js"></script>
+<script src="js/spelltiers.js"></script>
+<script src="js/hybrids.js"></script>
+<script>
+// ---- everything below renders from the live game data loaded above ----
+document.getElementById('castfloor').textContent = (CAST_FLOOR / 1000).toFixed(2).replace(/0$/, '') + 's';
+
+const SCHOOLS = [
+  ['FIRE', '🔥 Fire', F_FIRE], ['ICE', '❄️ Ice', F_ICE], ['ZAP', '⚡ Zap', F_ZAP],
+  ['AIR', '🌪 Air', F_AIR], ['EARTH', '🪨 Earth', F_EARTH], ['VOID', '🕳 Void', F_VOID],
+  ['LIFE', '💚 Life', F_LIFE], ['TRICK', '🎭 Trick', F_TRICK],
+];
+const famKey = fam => SCHOOLS.find(s => s[2] === fam)?.[0];
+const schoolsOf = id => SCHOOLS.filter(s => s[2].includes(id)).map(s => s[1].split(' ')[0]).join('');
+
+// tier chips
+document.getElementById('tierchips').innerHTML = Object.entries(TIER_WEIGHT)
+  .filter(([t]) => t !== 'hybrid')
+  .map(([t, w]) => `<span class="chip"><span class="dot" style="background:${TIER_COLOR[t]}"></span>${t} · weight ${w}</span>`)
+  .join(' ') + ` <span class="chip"><span class="dot" style="background:${TIER_COLOR.hybrid}"></span>hybrid · fusion only</span>`;
+
+// school chips with member counts
+document.getElementById('schoolchips').innerHTML = SCHOOLS
+  .map(([k, label, fam]) => `<span class="chip">${label} · ${fam.length} spells</span>`).join(' ');
+
+// recipe matrix
+const cell = {};
+for (const r of FUSIONS) {
+  const a = famKey(r.a), b = famKey(r.b);
+  cell[a + '|' + b] = cell[b + '|' + a] = r.id;
+}
+let mx = '<table class="matrix"><tr><th></th>' + SCHOOLS.map(s => `<th>${s[1]}</th>`).join('') + '</tr>';
+for (const [ka, la] of SCHOOLS) {
+  mx += `<tr><th>${la}</th>` + SCHOOLS.map(([kb]) => {
+    const id = cell[ka + '|' + kb];
+    const def = id && SPELLS[id];
+    return `<td class="${ka === kb ? 'amp' : ''}">${def ? `<span style="color:${def.color}">${def.name}</span>` : '—'}</td>`;
+  }).join('') + '</tr>';
+}
+document.getElementById('matrix').innerHTML = mx + '</table>';
+
+// hybrid roster
+document.getElementById('hybrids').innerHTML = Object.entries(SPELLS)
+  .filter(([, d]) => d.hybrid)
+  .map(([id, d]) => `<span class="chip"><span class="dot" style="background:${d.color}"></span>${d.name} <span class="cd">${(d.cooldown / 1000).toFixed(1)}s</span></span>`)
+  .join(' ');
+
+// full catalog grouped by tier
+const order = ['legendary', 'rare', 'uncommon', 'common'];
+const byTier = {};
+for (const id of Object.keys(SPELLS)) {
+  if (SPELLS[id].hybrid) continue;
+  (byTier[spellTier(id)] ??= []).push(id);
+}
+let cat = '<table>';
+for (const t of order) {
+  const ids = (byTier[t] || []).sort((a, b) => SPELLS[a].name.localeCompare(SPELLS[b].name));
+  if (!ids.length) continue;
+  cat += `<tr class="tierhead"><td colspan="3" style="color:${TIER_COLOR[t]}">${t.toUpperCase()} · ${ids.length}</td></tr>`;
+  for (const id of ids) {
+    const d = SPELLS[id];
+    cat += `<tr><td><span class="dot" style="background:${d.color}"></span><b style="color:${d.color}">${d.name}</b>${d.beam ? ' ⚡' : ''}</td>` +
+      `<td class="cd">${(Math.max(d.cooldown, CAST_FLOOR) / 1000).toFixed(1)}s</td>` +
+      `<td class="schools">${schoolsOf(id) || '·'}</td></tr>`;
+  }
+}
+document.getElementById('catalog').innerHTML = cat + '</table>';
+</script>
+</body>
+</html>
