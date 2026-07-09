@@ -179,3 +179,52 @@ Leaderboard integrity note, for honesty: with client-authoritative everything,
 the leaderboard is a gentleman's agreement. Given the audience (the company),
 that's exactly what it should be. If it ever goes customer-facing, revisit the
 original Option A — the doc above still describes it.
+
+---
+
+## Addendum (July 9): "host it somewhere so remote teammates can log in and play"
+
+David's ask: we have players who aren't in the office; get the game hosted so
+anyone can reach it and play. Cheating reaffirmed as a non-concern — internal
+only, trust everything. This addendum is the concrete, minimal v1 plan; it
+supersedes nothing above but is the current marching order.
+
+### Where we actually are today (grounding facts)
+
+- `server/serve.js` **already relays remote players** — it's how Tailscale play
+  works now. It listens on all interfaces; the client auto-picks `ws://`/`wss://`
+  from the page protocol (`js/net.js:118`). Remote reach is a *deploy + access*
+  problem, not a netcode rewrite.
+- Still host-authoritative with **no client prediction**: one browser tab clicks
+  HOST ONLINE and runs the whole sim; the server just passes messages. Own-wizard
+  input lags a round trip — fine on LAN/Tailscale-direct, mushy cross-country.
+- **No login exists.** Whoever reaches the URL and presses E grabs a slot.
+
+### v1 plan (leanest thing that gets remote teammates playing)
+
+Do these in order; step 2 first because it de-risks the only thing that could
+disappoint (does remote *feel* good?).
+
+1. **Client-authoritative own-movement.** Each client simulates its own wizard
+   locally and broadcasts position/velocity; everyone trusts it. Kills perceived
+   input latency, no prediction/reconciliation code. This is the highest-value,
+   smallest-risk change and the reason remote play feels like couch play. Prove
+   it in a two-browser cross-internet test before investing in hosting.
+2. **Deploy `serve.js` to an always-on host with TLS.** Stable public home
+   (`wss://play.hyperspell.com`) so there's no launcher and no laptop tab holding
+   the door open. Dockerfile + Fly.io / tiny EC2 / Hyperspell K8s. ~1 day.
+3. **"Log in" = minimal.** Internal + trust-everything means real auth is
+   optional. A name field (the lobby already is one) or shared room code
+   satisfies "log in and play." Google SSO on the company domain is the
+   low-effort upgrade if we want names to follow people / feed a leaderboard —
+   but v1 is not gated on it.
+
+Explicitly **out of v1 scope:** Clerk, lobby browser, leaderboards, sim-on-server.
+Those are the "if people love it" follow-on (the doc's Option A / addendum-v2).
+
+### Known limitation we're accepting for v1
+
+The sim still runs in one player's **host tab** — if the host closes the tab, the
+match ends. Acceptable for an internal easter egg. Removing that dependency means
+moving the host sim onto the server pod (same headless sim code), ~+1.5–2 weeks —
+the v2 upgrade, only if tab-dependence becomes annoying in practice.
