@@ -217,7 +217,7 @@ const SECRET_BOSSES = [
         if (now > (bs.nextCharm || (bs.nextCharm = now + 3200))) {
           bs.nextCharm = now + rand(3600, 5000);
           spawnRing(b.position.x, b.position.y, '#ff9ecb');
-          setBanner(pick(['W RIZZ', 'UNMATCHED RIZZ', "IT'S GIVING UNICORN", 'HAVE YOU SEEN OUR SERIES A?', 'LET ME PITCH YOU']), '#ffd166', 1100);
+          setBanner(pick(['LFG!', 'W RIZZ', 'UNMATCHED RIZZ', "IT'S GIVING UNICORN", 'HAVE YOU SEEN OUR SERIES A?', 'LET ME PITCH YOU']), '#ffd166', 1100);
           for (const p of players) {
             if (!p.alive) continue;
             if (Math.hypot(p.body.position.x - b.position.x, p.body.position.y - b.position.y) < 440) {
@@ -251,7 +251,7 @@ const SECRET_BOSSES = [
           if (t) {
             const lead = { body: { position: { x: t.body.position.x + (t.body.velocity.x || 0) * 8, y: t.body.position.y + (t.body.velocity.y || 0) * 8 } } };
             bossBolt(b.position, lead, { speed: 15, r: 7, color: '#3fb5ff', boom: [55, 8, 13] });
-            if (Math.random() < 0.3) setBanner(pick(['LOCKED IN', 'PATTERN RECOGNIZED', 'HYPERFOCUS', 'I SEE THE WHOLE BOARD', 'THE TIZZARD SEES ALL', 'EVERY. DETAIL.']), '#3fb5ff', 1000);
+            if (Math.random() < 0.3) setBanner(pick(['LFG!', 'LOCKED IN', 'PATTERN RECOGNIZED', 'HYPERFOCUS', 'I SEE THE WHOLE BOARD', 'THE TIZZARD SEES ALL', 'EVERY. DETAIL.']), '#3fb5ff', 1000);
           }
           sfx.cast();
         }
