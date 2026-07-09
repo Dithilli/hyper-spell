@@ -80,12 +80,14 @@ function tryFuse(p) {
   const id = hybridFor(p.slots[0], p.slots[1]);
   if (!id) return false;
   const def = SPELLS[id];
+  const charges = hybridCharges(def); // power-scaled: heavier hybrid, fewer casts
   p.slots[0] = id; p.slots[1] = null;
+  p.slotCharges[0] = charges; p.slotCharges[1] = null;
   p.casts[0] = 0; p.slotFilledAt[0] = performance.now();
   p.lastCastSlot = 0;
   const { x, y } = p.body.position;
   setBanner('⚡ FUSION! ' + def.name.toUpperCase(), def.color, 1800, true);
-  spawnText(x, y - 62, def.name.toUpperCase() + '!', def.color);
+  spawnText(x, y - 62, `${def.name.toUpperCase()}! ×${charges}`, def.color);
   spawnRing(x, y, def.color);
   spawnParticles(x, y, def.color, 28, 8);
   doFlash(def.color, 0.35);
@@ -132,7 +134,7 @@ regHybrid('absolutezero', {
   },
 });
 regHybrid('overload', {
-  name: 'Overload', color: '#fffacd', cooldown: 2400,
+  name: 'Overload', color: '#fffacd', cooldown: 2400, beam: true,
   cast(p) {
     for (const ao of [-0.28, -0.14, 0, 0.14, 0.28]) zapRay(p, 26, 14, 3, ao);
     // bespoke: a fan of crackling sparks
@@ -156,7 +158,7 @@ regHybrid('steamburst', {
   },
 });
 regHybrid('plasmalance', {
-  name: 'Plasma Lance', color: '#ff4df0', cooldown: 2000,
+  name: 'Plasma Lance', color: '#ff4df0', cooldown: 2000, beam: true,
   cast(p) {
     const m = p.mega || 1;
     zapRay(p, 52, 26, 4);
@@ -169,7 +171,7 @@ regHybrid('plasmalance', {
   },
 });
 regHybrid('superconductor', {
-  name: 'Superconductor', color: '#9ef0f0', cooldown: 2000,
+  name: 'Superconductor', color: '#9ef0f0', cooldown: 2000, beam: true,
   cast(p) {
     const m = p.mega || 1;
     zapRay(p, 38, 10, 3);
@@ -243,7 +245,7 @@ regHybrid('avalanche', {
   },
 });
 regHybrid('teslashrapnel', {
-  name: 'Tesla Shrapnel', color: '#c0c0cc', cooldown: 2200,
+  name: 'Tesla Shrapnel', color: '#c0c0cc', cooldown: 2200, beam: true,
   cast(p) {
     zapRay(p, 44, 30, 4); addShake(9);
     Body.setVelocity(p.body, { x: p.body.velocity.x - p.facing * 8, y: p.body.velocity.y - 4 });
@@ -370,7 +372,7 @@ regHybrid('ionstorm', {
   },
 });
 regHybrid('defibrillator', {
-  name: 'Defibrillator', color: '#e3f265', cooldown: 3000,
+  name: 'Defibrillator', color: '#e3f265', cooldown: 3000, beam: true,
   cast(p) {
     const m = p.mega || 1;
     healPlayer(p, 22 * m);
@@ -484,7 +486,7 @@ regHybrid('coldfeet', {
   },
 });
 regHybrid('joybuzzer', {
-  name: 'Joy Buzzer', color: '#f2e14e', cooldown: 2400,
+  name: 'Joy Buzzer', color: '#f2e14e', cooldown: 2400, beam: true,
   cast(p) {
     const m = p.mega || 1;
     zapRay(p, 30, 22, 4);

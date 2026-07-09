@@ -16,7 +16,7 @@ class BotController {
     this.prevJump = false;
     this.prevCast = false;
     this.prevCast2 = false;
-    return { move: 0, jump: false, cast: false, cast2: false, jumpPressed: false, castPressed: false, cast2Pressed: false, startPressed: false, aimPoint: null, aimVec: null, aimAngle: null };
+    return { move: 0, jump: false, cast: false, cast2: false, block: false, jumpPressed: false, castPressed: false, cast2Pressed: false, blockPressed: false, startPressed: false, aimPoint: null, aimVec: null, aimAngle: null };
   }
 
   // is stepping one pace in `dir` a walk into lava or off into a deep pit?
@@ -32,15 +32,15 @@ class BotController {
   think(p, now) {
     const me = p.body.position;
     // target: the boss during boss rounds, otherwise the nearest wizard
-    let tpos = null;
-    if (game.boss?.announced) tpos = game.boss.body.position;
+    let tpos = null, tbody = null, vsBoss = false;
+    if (game.boss?.announced) { tbody = game.boss.body; tpos = tbody.position; vsBoss = true; }
     else {
       const t = nearestEnemy(p);
-      if (t) tpos = t.body.position;
+      if (t) { tbody = t.body; tpos = tbody.position; }
       // a mirror image fools a bot half the time
       if (tpos && Math.random() < 0.5) {
         for (const s of summons) {
-          if (s.label === 'decoy' && s.decoyOf !== p && Math.hypot(s.position.x - tpos.x, s.position.y - tpos.y) < 260) { tpos = { x: s.position.x, y: s.position.y }; break; }
+          if (s.label === 'decoy' && s.decoyOf !== p && Math.hypot(s.position.x - tpos.x, s.position.y - tpos.y) < 260) { tbody = s; tpos = { x: s.position.x, y: s.position.y }; break; }
         }
       }
     }
@@ -88,7 +88,6 @@ class BotController {
     if (tpos && (p.slots[0] || p.slots[1])) {
       const d = Math.hypot(tpos.x - me.x, tpos.y - me.y);
       if (d < 620) {
-        aim = Math.atan2(tpos.y - me.y, tpos.x - me.x) + rand(-0.08, 0.08); // steadier, more considered aim
         // deliberate cadence: a bot lands a single aimed shot at a time, only
         // occasionally comboing both slots — no machine-gun spray.
         if (now - (this.lastShot || 0) > 520) {
@@ -97,11 +96,36 @@ class BotController {
           if (r0 && r1 && Math.random() < 0.22) { cast = true; cast2 = true; }   // rare two-slot combo
           else if (r0 && (!r1 || Math.random() < 0.6)) cast = true;              // usually one measured shot
           else if (r1) cast2 = true;
-          if (cast || cast2) this.lastShot = now;
         }
+        // human-ish aim: wobblier at range and against fast movers — and much
+        // wobblier with hitscan beams, which land the instant they fire. Bots
+        // were zap snipers; now a beam is a hopeful crackle, not a laser scalpel.
+        const firingId = cast ? p.slots[0] : cast2 ? p.slots[1] : (p.slots[0] || p.slots[1]);
+        const beam = !!(firingId && SPELLS[firingId]?.beam);
+        const tspd = tbody ? Math.hypot(tbody.velocity.x, tbody.velocity.y) : 0;
+        let err = 0.07 + d * 0.00012 + tspd * 0.014;
+        if (beam) {
+          err = err * 1.7 + 0.09;
+          if ((cast || cast2) && now - (this.lastBeam || 0) < 950) { cast = cast2 = false; }        // beams on a measured cadence
+          else if ((cast || cast2) && tspd > 6 && Math.random() < 0.4) { cast = cast2 = false; }    // hesitate at a fast mover
+          if (cast || cast2) this.lastBeam = now;
+        }
+        if (vsBoss) err *= 0.45; // the boss is a barn door
+        aim = Math.atan2(tpos.y - me.y, tpos.x - me.x) + rand(-Math.min(err, 0.45), Math.min(err, 0.45));
+        if (cast || cast2) this.lastShot = now;
       }
     }
-    this.plan = { move, jump, cast, cast2, aim };
+    // parry an incoming projectile sometimes — bots respect the new skill move
+    let block = false;
+    if (!vsBoss) {
+      for (const fb of projectiles) {
+        if (fb.owner === p) continue;
+        const dx = me.x - fb.position.x, dy = me.y - fb.position.y;
+        const d = Math.hypot(dx, dy);
+        if (d < 150 && (fb.velocity.x * dx + fb.velocity.y * dy) / (d || 1) > 5 && Math.random() < 0.3) { block = true; break; }
+      }
+    }
+    this.plan = { move, jump, cast, cast2, aim, block };
   }
 
   poll() {
@@ -112,12 +136,13 @@ class BotController {
       this.nextThink = now + rand(130, 280);
       this.think(p, now);
     }
-    const { move, jump, cast, cast2, aim } = this.plan;
+    const { move, jump, cast, cast2, aim, block } = this.plan;
     const s = {
-      move, jump, cast, cast2,
+      move, jump, cast, cast2, block,
       jumpPressed: jump && !this.prevJump,
       castPressed: cast && !this.prevCast,
       cast2Pressed: cast2 && !this.prevCast2,
+      blockPressed: block && !this.prevBlock,
       startPressed: false,
       aimPoint: null, aimVec: null,
       aimAngle: aim,
@@ -125,6 +150,7 @@ class BotController {
     this.prevJump = jump;
     this.prevCast = cast;
     this.prevCast2 = cast2;
+    this.prevBlock = block;
     return s;
   }
 }

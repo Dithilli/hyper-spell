@@ -216,8 +216,8 @@ regSpell('starfall', {
 });
 
 // ============ HITSCAN & BEAMS ============
-regSpell('zapspell', { name: 'Zap', color: '#fdfd96', cooldown: 350, cast(p) { zapRay(p, 18, 10, 2); sfx.lightning(); } });
-regSpell('thunderlance', { name: 'Thunder Lance', color: '#fffacd', cooldown: 1800, cast(p) { zapRay(p, 85, 40, 6); sfx.lightning(); doFlash('#ffffff', 0.4); slowMo(0.05, 90); addShake(9); } });
+regSpell('zapspell', { name: 'Zap', color: '#fdfd96', cooldown: 350, beam: true, cast(p) { zapRay(p, 18, 10, 2); sfx.lightning(); } });
+regSpell('thunderlance', { name: 'Thunder Lance', color: '#fffacd', cooldown: 1800, beam: true, cast(p) { zapRay(p, 85, 40, 6); sfx.lightning(); doFlash('#ffffff', 0.4); slowMo(0.05, 90); addShake(9); } });
 regSpell('chain', {
   name: 'Chain Lightning', color: '#e3f265', cooldown: 1500,
   cast(p) {
@@ -249,9 +249,9 @@ regSpell('skysmite', {
     skyBolt(t ? t.body.position.x : frontPos(p, 200).x, 45, p, p.mega || 1);
   },
 });
-regSpell('sweep', { name: 'Laser Sweep', color: '#ffef99', cooldown: 1300, cast(p) { for (const ao of [-0.16, 0, 0.16]) zapRay(p, 20, 12, 2, ao); sfx.lightning(); } });
+regSpell('sweep', { name: 'Laser Sweep', color: '#ffef99', cooldown: 1300, beam: true, cast(p) { for (const ao of [-0.16, 0, 0.16]) zapRay(p, 20, 12, 2, ao); sfx.lightning(); } });
 regSpell('disintegrate', {
-  name: 'Disintegrate', color: '#ff4df0', cooldown: 2400,
+  name: 'Disintegrate', color: '#ff4df0', cooldown: 2400, beam: true,
   cast(p) {
     const m = p.mega || 1;
     const { x, y } = p.body.position;
@@ -288,7 +288,7 @@ regSpell('stormcall', {
   },
 });
 regSpell('railgun', {
-  name: 'Railgun', color: '#9ef0f0', cooldown: 2000,
+  name: 'Railgun', color: '#9ef0f0', cooldown: 2000, beam: true,
   cast(p) {
     const m = p.mega || 1;
     const { x, y } = p.body.position;

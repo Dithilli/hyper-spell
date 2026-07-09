@@ -314,7 +314,7 @@ const SPELLS = {
     },
   },
   lightning: {
-    name: 'Lightning', color: '#fff89e', cooldown: 900,
+    name: 'Lightning', color: '#fff89e', cooldown: 900, beam: true,
     cast(p) {
       const m = p.mega || 1;
       const { hit, pt, from, dir } = raycastHit(p);
@@ -381,6 +381,16 @@ const SPELLS = {
 // taste: higher = more measured, lower = twitchier.
 const CAST_FLOOR = 480;
 
+// FUSION CHARGES: hybrids are no longer limitless — they burn out after a few
+// casts, scaled to their power (cooldown is the power proxy). In exchange each
+// cast hits harder: the fewer the charges, the bigger the bang.
+function hybridCharges(def) {
+  return def.charges ?? (def.cooldown >= 3400 ? 1 : def.cooldown >= 2400 ? 2 : 3);
+}
+function hybridPotency(charges) {
+  return charges <= 1 ? 1.5 : charges === 2 ? 1.35 : 1.2;
+}
+
 function castSpell(p, now, slot = 0) {
   const id = p.slots[slot];
   const spell = id && SPELLS[id];
@@ -392,7 +402,8 @@ function castSpell(p, now, slot = 0) {
   // HYPERSPELL proc: chance scales with cooldown so spam doesn't farm rolls —
   // ~1.2% per second of cooldown, capped at 6% (rare enough to stay special)
   const hyper = Math.random() < Math.min(0.06, spell.cooldown * 0.000012);
-  p.mega = (p.megaCasts > 0 ? 1.7 : 1) * (hyper ? 2.2 : 1);
+  const potency = spell.hybrid ? hybridPotency(hybridCharges(spell)) : 1;
+  p.mega = (p.megaCasts > 0 ? 1.7 : 1) * (hyper ? 2.2 : 1) * potency;
   if (hyper) {
     statFor(p).procs++;
     setBanner('✦ HYPERSPELL ✦', '#e8d5ff', 1100, true);
@@ -406,6 +417,19 @@ function castSpell(p, now, slot = 0) {
   spell.cast(p);
   // combo (hybrid) spells get a brief hitstop so you notice the big moment
   if (spell.hybrid && !hyper) { slowMo(0.28, 150); addShake(5); }
+  // burn a fusion charge; the last one snuffs the hybrid out of the slot
+  if (spell.hybrid && p.slotCharges?.[slot] != null) {
+    p.slotCharges[slot]--;
+    if (p.slotCharges[slot] <= 0) {
+      p.slots[slot] = null;
+      p.slotCharges[slot] = null;
+      spawnText(p.body.position.x, p.body.position.y - 74, 'FUSION SPENT', '#ff4df0');
+      spawnParticles(p.body.position.x, p.body.position.y - 20, '#ff4df0', 14, 4);
+      sfx.freeze?.();
+    } else {
+      spawnText(p.body.position.x, p.body.position.y - 74, `${p.slotCharges[slot]} LEFT`, spell.color);
+    }
+  }
   if (p.megaCasts > 0) {
     p.megaCasts--;
     spawnText(p.body.position.x, p.body.position.y - 60, `${p.megaCasts} LEFT`, '#ffd700');
