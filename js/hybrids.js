@@ -16,6 +16,7 @@ const F_AIR   = ['gust', 'shove', 'cyclone', 'vortexpull', 'updraft', 'tornado',
 const F_EARTH = ['cratedrop', 'anvil', 'piano', 'boulder', 'stonewall', 'bowling', 'sawblade', 'cannonball'];
 const F_VOID  = ['blackhole', 'meteor', 'bigbang', 'gravflip', 'chaostheory', 'moongrav'];
 const F_LIFE  = ['secondwind', 'vampirebolt', 'aegis', 'ghostwalk'];
+const F_TRICK = ['banana', 'pigmorph', 'swaphex', 'roulette', 'shrinkray', 'balloonhex', 'anchorhex', 'unoreverse', 'wobble', 'decoy', 'blackcat', 'rubberduck', 'confetti', 'poltergeist', 'brainfreeze', 'disarm', 'kingsdecree', 'midas', 'growthspurt', 'smokebomb', 'mirrorcast', 'timeskip', 'yoink', 'lifeswap', 'frograin', 'boomerang', 'kitchensink'];
 
 // recipes: unordered {a, b} family pair -> hybrid id. The 7 same-family entries
 // are the "amplified" pure fusions (listed first, so a WILD catalyst on any spell
@@ -29,6 +30,7 @@ const FUSIONS = [
   { id: 'rockslide',      a: F_EARTH, b: F_EARTH },
   { id: 'bigcrunch',      a: F_VOID,  b: F_VOID },
   { id: 'sanctuary',      a: F_LIFE,  b: F_LIFE },
+  { id: 'pandemonium',    a: F_TRICK, b: F_TRICK },
   // --- cross-school ---
   { id: 'steamburst',     a: F_FIRE,  b: F_ICE },
   { id: 'plasmalance',    a: F_FIRE,  b: F_ZAP },
@@ -51,6 +53,13 @@ const FUSIONS = [
   { id: 'gravitywell',    a: F_EARTH, b: F_VOID },
   { id: 'bulwark',        a: F_EARTH, b: F_LIFE },
   { id: 'soulharvest',    a: F_VOID,  b: F_LIFE },
+  { id: 'hexfire',        a: F_TRICK, b: F_FIRE },
+  { id: 'coldfeet',       a: F_TRICK, b: F_ICE },
+  { id: 'joybuzzer',      a: F_TRICK, b: F_ZAP },
+  { id: 'whirligig',      a: F_TRICK, b: F_AIR },
+  { id: 'boobytrap',      a: F_TRICK, b: F_EARTH },
+  { id: 'realityglitch',  a: F_TRICK, b: F_VOID },
+  { id: 'voodoo',         a: F_TRICK, b: F_LIFE },
 ];
 
 // resolve the hybrid id for two slotted spell ids (either order), WILD matches any
@@ -101,6 +110,8 @@ regHybrid('inferno', {
     }
     explode(p.body.position.x, p.body.position.y, 130 * m, 12 * m, 8 * m, p);
     for (const q of enemiesOf(p)) q.burnUntil = performance.now() + 2500 * m;
+    // bespoke: a ring of rising embers
+    for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; spawnBurst(p.body.position.x + Math.cos(a) * 30, p.body.position.y + Math.sin(a) * 30, i % 2 ? '#ffd166' : '#ff5e3a', 4, { dir: -Math.PI / 2, spread: 1, speed: 5, up: 4, g: 0.06, life: 46 }); }
     doFlash('#ff5e3a', 0.3); addShake(7); sfx.cast();
   },
 });
@@ -113,7 +124,9 @@ regHybrid('absolutezero', {
       q.frozenUntil = performance.now() + 1400 * m;
       q.body.frictionAir = 0.001;
       damagePlayer(q, 14 * m, p);
-      spawnParticles(q.body.position.x, q.body.position.y, '#bfe8ff', 12, 4);
+      // bespoke: a burst of jagged ice shards flung outward
+      spawnBurst(q.body.position.x, q.body.position.y, '#eaffff', 14, { kind: 'spark', speed: 9, r: 2.5 });
+      spawnBurst(q.body.position.x, q.body.position.y, '#bfe8ff', 8, { speed: 4, r: 3 });
     }
   },
 });
@@ -121,6 +134,9 @@ regHybrid('overload', {
   name: 'Overload', color: '#fffacd', cooldown: 2400,
   cast(p) {
     for (const ao of [-0.28, -0.14, 0, 0.14, 0.28]) zapRay(p, 26, 14, 3, ao);
+    // bespoke: a fan of crackling sparks
+    const d = aimDir(p, 1, 0), base = Math.atan2(d.y, d.x);
+    for (let i = 0; i < 18; i++) spawnBurst(p.body.position.x, p.body.position.y - 6, i % 2 ? '#fffacd' : '#ffffff', 2, { kind: 'spark', dir: base + rand(-0.35, 0.35), spread: 0.1, speed: 11, r: 2 });
     sfx.lightning(); doFlash('#ffffff', 0.4); addShake(9);
   },
 });
@@ -131,6 +147,10 @@ regHybrid('steamburst', {
     boomBolt(p, { color: '#d7f0ea', r: 12, vy: -5, speed: 15, radius: 180, power: 22, dmg: 36 });
     const t = nearestEnemy(p, 520);
     if (t) { t.frozenUntil = performance.now() + 700 * m; t.body.frictionAir = 0.001; }
+    // bespoke: billowing steam that rises and lingers
+    const sp = frontPos(p, 90, -6);
+    spawnBurst(sp.x, sp.y, '#eafaf6', 22, { speed: 3.5, up: 3, g: -0.08, life: 60, r: 5 });
+    spawnBurst(sp.x, sp.y, '#c8e8e0', 14, { speed: 2.2, up: 4, g: -0.06, life: 70, r: 6 });
     sfx.freeze(); doFlash('#d7f0ea', 0.15);
   },
 });
@@ -139,6 +159,9 @@ regHybrid('plasmalance', {
   cast(p) {
     const m = p.mega || 1;
     zapRay(p, 52, 26, 4);
+    // bespoke: a lance of magenta sparks fired along the aim
+    const d = aimDir(p, 1, 0);
+    for (let i = 1; i <= 8; i++) spawnBurst(p.body.position.x + d.x * i * 90, p.body.position.y - 6 + d.y * i * 90, i % 2 ? '#ff4df0' : '#ffd6fb', 3, { kind: 'spark', speed: 5, r: 2 });
     sfx.lightning(); doFlash('#ff4df0', 0.3); addShake(8);
     const t = nearestEnemy(p, 1100);
     if (t) t.burnUntil = performance.now() + 2600 * m;
@@ -236,6 +259,8 @@ regHybrid('blacksun', {
     spawnSingularity(sx, sy, m);
     explode(sx, sy, 160, 8 * m, 20 * m, p);
     for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - sx, q.body.position.y - sy) < 300) q.burnUntil = performance.now() + 2600 * m;
+    // bespoke: a corona of violet fire swirling around a black core
+    for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2; spawnBurst(sx + Math.cos(a) * 44, sy + Math.sin(a) * 44, i % 3 ? '#ff7043' : '#a55eea', 2, { dir: a + Math.PI / 2, spread: 0.3, speed: 5, g: 0, life: 44 }); }
     doFlash('#a55eea', 0.3);
   },
 });
@@ -405,9 +430,118 @@ regHybrid('soulharvest', {
       if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 420) {
         damagePlayer(q, 22 * m, p); reaped++;
         boltVisual(q.body.position.x, q.body.position.y, p.body.position.x, p.body.position.y, '#b39ddb', 2, 130);
+        spawnBurst(q.body.position.x, q.body.position.y, '#b39ddb', 8, { speed: 4, up: 3, g: -0.05, life: 46 });
       }
     }
     if (reaped) healPlayer(p, 12 * reaped * m);
     spawnParticles(p.body.position.x, p.body.position.y, '#b39ddb', 20, 5); doFlash('#b39ddb', 0.2); sfx.blackhole?.();
+  },
+});
+
+// ---- Trickster (chaos / prank) fusions ----
+const CHAOS_COLORS = ['#ff6b81', '#4ecdff', '#ffd166', '#7bd88f', '#a55eea', '#ff9ff3'];
+function chaosBurst(x, y, count = 14, o = {}) {
+  for (const c of CHAOS_COLORS) spawnBurst(x, y, c, Math.ceil(count / CHAOS_COLORS.length), o);
+}
+regHybrid('pandemonium', {
+  name: 'Pandemonium', color: '#ff9ff3', cooldown: 3600,
+  cast(p) {
+    const m = p.mega || 1, now = performance.now();
+    for (const q of enemiesOf(p)) {
+      const roll = Math.floor(Math.random() * 5);
+      if (roll === 0) q.frozenUntil = now + 1000 * m;
+      else if (roll === 1) q.reversedUntil = now + 2500 * m;
+      else if (roll === 2) q.shrinkUntil = now + 3500 * m;
+      else if (roll === 3) { q.floatyUntil = now + 2500 * m; Body.setVelocity(q.body, { x: q.body.velocity.x, y: -9 }); }
+      else q.heavyUntil = now + 2500 * m;
+      chaosBurst(q.body.position.x, q.body.position.y, 12, { speed: 5, up: 2 });
+    }
+    chaosBurst(p.body.position.x, p.body.position.y, 30, { speed: 8, up: 3 });
+    setBanner('PANDEMONIUM!', '#ff9ff3', 900, true); addShake(8); sfx.hyper?.();
+  },
+});
+regHybrid('hexfire', {
+  name: 'Hexfire', color: '#ff7ac0', cooldown: 2600,
+  cast(p) {
+    const m = p.mega || 1, now = performance.now();
+    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 460) {
+      q.burnUntil = now + 2600 * m; q.shrinkUntil = now + 3000 * m; damagePlayer(q, 12 * m, p);
+      spawnBurst(q.body.position.x, q.body.position.y, '#ff7ac0', 10, { speed: 5, up: 3, g: 0.1 });
+    }
+    doFlash('#ff7ac0', 0.2); sfx.cast();
+  },
+});
+regHybrid('coldfeet', {
+  name: 'Cold Feet', color: '#a7d8ff', cooldown: 2800,
+  cast(p) {
+    const m = p.mega || 1, now = performance.now();
+    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 420) {
+      q.frozenUntil = now + 700 * m; q.reversedUntil = now + 3000 * m; q.body.frictionAir = 0.001;
+      spawnBurst(q.body.position.x, q.body.position.y, '#a7d8ff', 12, { speed: 5, r: 2.5 });
+    }
+    sfx.freeze();
+  },
+});
+regHybrid('joybuzzer', {
+  name: 'Joy Buzzer', color: '#f2e14e', cooldown: 2400,
+  cast(p) {
+    const m = p.mega || 1;
+    zapRay(p, 30, 22, 4);
+    const t = nearestEnemy(p, 1000);
+    if (t) { t.reversedUntil = performance.now() + 2600 * m; spawnBurst(t.body.position.x, t.body.position.y, '#f2e14e', 16, { kind: 'spark', speed: 8 }); }
+    doFlash('#ffffff', 0.3); addShake(7); sfx.lightning();
+  },
+});
+regHybrid('whirligig', {
+  name: 'Whirligig', color: '#c9f7ff', cooldown: 2800,
+  cast(p) {
+    const m = p.mega || 1, now = performance.now(), { x, y } = p.body.position;
+    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 380) {
+      q.floatyUntil = now + 2600 * m; q.reversedUntil = now + 1600 * m;
+      const ang = Math.atan2(q.body.position.y - y, q.body.position.x - x) + Math.PI / 2;
+      Body.setVelocity(q.body, { x: Math.cos(ang) * 10, y: -8 });
+    }
+    for (let i = 0; i < 20; i++) { const a = (i / 20) * Math.PI * 2; spawnBurst(x + Math.cos(a) * 40, y + Math.sin(a) * 40, '#c9f7ff', 2, { dir: a + Math.PI / 2, spread: 0.4, speed: 6, up: 0 }); }
+    sfx.boing?.();
+  },
+});
+regHybrid('boobytrap', {
+  name: 'Booby Trap', color: '#d8b26a', cooldown: 3000,
+  cast(p) {
+    const m = p.mega || 1, now = performance.now();
+    const t = nearestEnemy(p);
+    const cx = t ? t.body.position.x : p.body.position.x + p.facing * 260;
+    explode(cx, t ? t.body.position.y : p.body.position.y, 170, 22 * m, 28 * m, p);
+    for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - cx) < 200) q.heavyUntil = now + 2500 * m;
+    spawnBurst(cx, p.body.position.y, '#d8b26a', 18, { speed: 9, up: 4 });
+    chaosBurst(cx, p.body.position.y - 10, 12, { speed: 6, up: 3 });
+    addShake(10); sfx.thud?.();
+  },
+});
+regHybrid('realityglitch', {
+  name: 'Reality Glitch', color: '#b06bff', cooldown: 3800,
+  cast(p) {
+    const m = p.mega || 1;
+    const dir = aimDir(p, 1, 0);
+    const sx = p.body.position.x + dir.x * 240, sy = p.body.position.y + dir.y * 240;
+    spawnSingularity(sx, sy, m);
+    for (const q of enemiesOf(p)) {
+      Body.setPosition(q.body, { x: rand(120, W - 120), y: rand(120, 360) }); // blink them somewhere random
+      chaosBurst(q.body.position.x, q.body.position.y, 12, { speed: 6 });
+    }
+    doFlash('#b06bff', 0.35); slowMo(0.4, 260); sfx.freeze();
+  },
+});
+regHybrid('voodoo', {
+  name: 'Voodoo', color: '#c65ba0', cooldown: 3600,
+  cast(p) {
+    const m = p.mega || 1, now = performance.now();
+    let drained = 0;
+    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 440) {
+      damagePlayer(q, 16 * m, p); q.shrinkUntil = now + 3500 * m; drained++;
+      boltVisual(q.body.position.x, q.body.position.y, p.body.position.x, p.body.position.y, '#c65ba0', 2, 120);
+    }
+    if (drained) healPlayer(p, 10 * drained * m);
+    spawnBurst(p.body.position.x, p.body.position.y, '#c65ba0', 20, { speed: 5, up: 2 }); doFlash('#c65ba0', 0.2); sfx.blackhole?.();
   },
 });

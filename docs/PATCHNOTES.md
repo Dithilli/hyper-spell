@@ -6,7 +6,7 @@
 - Carry **two spells at once** and cast each independently — **Slot A** = E / Left-click / gamepad X·RT, **Slot B** = Q / Right-click / gamepad B·RB (arrow player: Enter + R-Shift). Pick up a new tome and it fills an empty slot, or replaces your oldest.
 
 ### ⚗️ Fusion & hybrids
-- Hold two spells from the right **elemental schools** (Fire, Ice, Lightning, Air, Earth, Void, Life) and they **fuse into a bespoke hybrid** — **28 one-of-a-kind fusions** covering every school pairing. Fire + Ice = **Steam Burst**, two Lightning = **Overload**, Void + Air = **Event Horizon**, and 25 more.
+- Hold two spells from the right **elemental schools** (Fire, Ice, Lightning, Air, Earth, Void, Life, Trickster) and they **fuse into a bespoke hybrid** — **36 one-of-a-kind fusions** covering every school pairing, each with its own signature look. Fire + Ice = **Steam Burst**, two Lightning = **Overload**, Void + Air = **Event Horizon**, two Tricksters = **Pandemonium**, and 32 more.
 - **Fusion Catalyst** — a rare spinning magenta pickup that fuses with whatever you're holding (a wildcard), turning a lone spell into its school's amped form.
 
 ### ✨ Elemental synergies

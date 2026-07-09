@@ -223,7 +223,7 @@
 
   // wrap the cosmetic globals so every visual/sound also broadcasts
   function wrapFx() {
-    const names = ['spawnParticles', 'spawnRing', 'spawnText', 'doFlash', 'addShake', 'slowMo', 'boltVisual', 'setBanner', 'addKillFeed'];
+    const names = ['spawnParticles', 'spawnRing', 'spawnText', 'doFlash', 'addShake', 'slowMo', 'boltVisual', 'setBanner', 'addKillFeed', 'spawnBurst'];
     for (const name of names) {
       const orig = globalThis[name];
       globalThis[name] = (...args) => { emit({ t: 'fx', f: name, a: args }); return orig(...args); };
