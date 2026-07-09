@@ -2,7 +2,11 @@
 // alinea-client.js — a headless HyperSpell wizard driven by A Linea (no browser).
 //
 // Synced to the SHIPPED contract in docs/ALINEA-CLIENT.md (ANSWERS, July 3 2026)
-// and js/net.js. Updated 2026-07-09 for v4 "The Fusion Update" (branch alinea/two-slot-client).
+// and js/net.js. Updated 2026-07-09 for v4 "The Fusion Update" (branch alinea/two-slot-client),
+// then again same day for v7: BLOCK/PARRY on the wire ({... b} — EDGE semantics: a fresh
+// 0->1 fires one ~240ms parry that negates damage and reflects projectiles, then ~1.4s
+// cooldown), wizards now carry 150 HP, and maps grew seeded stepping platforms +
+// destructible cover (no client action needed — statics regenerate from the snapshot seed).
 // Key corrections vs. the old guess-build:
 //   - CAST IS HOLD, NOT EDGE. Keep c:1 and it auto-fires every cooldown. No pulsing.
 //   - TWO SPELL SLOTS (v4): snapshot ps[] entries now carry s0/s1 (slot spell ids) and
@@ -38,7 +42,7 @@ const WebSocket = (() => {
   catch { return require(path.join(__dirname, 'server', 'node_modules', 'ws')); }
 })();
 
-const GAME_VERSION = 6; // must match js/core.js — the host warns the room about stale versions
+const GAME_VERSION = 7; // must match js/core.js — the host warns the room about stale versions
 const NAME = (process.env.NAME || 'Alinea').slice(0, 12);
 const COLOR = process.env.COLOR || '#111111';   // black robes, per the shipped test 🖤
 const HAT = process.env.HAT || '#111111';
@@ -61,11 +65,12 @@ let spells = {};   // spells[id] = { name, cooldown }
 // lead:       0 = aim where target IS; 1 = full ballistic lead using vx/vy.
 // castChaos:  probability per decision of NOT holding cast even when we could (wasted cd).
 // missBias:   extra flat aim offset scale (sloppiness that doesn't average out).
+// blockSkill: probability of parrying an incoming projectile when the moment comes (v7).
 const DIFFS = {
-  beginner:  { reactionMs: 380, aimNoise: 0.22, aimSlewRps: 2.2, lead: 0.0, castChaos: 0.45, missBias: 0.10 },
-  casual:    { reactionMs: 200, aimNoise: 0.10, aimSlewRps: 5.0, lead: 0.4, castChaos: 0.18, missBias: 0.04 },
-  hard:      { reactionMs:  90, aimNoise: 0.035,aimSlewRps: 11,  lead: 0.85,castChaos: 0.05, missBias: 0.01 },
-  nightmare: { reactionMs:   0, aimNoise: 0.0,  aimSlewRps: Infinity, lead: 1.0, castChaos: 0.0, missBias: 0.0 },
+  beginner:  { reactionMs: 380, aimNoise: 0.22, aimSlewRps: 2.2, lead: 0.0, castChaos: 0.45, missBias: 0.10, blockSkill: 0.06 },
+  casual:    { reactionMs: 200, aimNoise: 0.10, aimSlewRps: 5.0, lead: 0.4, castChaos: 0.18, missBias: 0.04, blockSkill: 0.25 },
+  hard:      { reactionMs:  90, aimNoise: 0.035,aimSlewRps: 11,  lead: 0.85,castChaos: 0.05, missBias: 0.01, blockSkill: 0.6 },
+  nightmare: { reactionMs:   0, aimNoise: 0.0,  aimSlewRps: Infinity, lead: 1.0, castChaos: 0.0, missBias: 0.0, blockSkill: 0.92 },
 };
 const K = DIFFS[DIFF] || DIFFS.casual;
 
@@ -300,6 +305,7 @@ function slewAim(desired, dtSec) {
 let lastThink = Date.now();
 let lobbyPlanAt = 0;
 let lobbyMove = 0;
+let lastBlockAt = 0; // parry timing — host enforces the real ~1.4s cooldown
 function think() {
   const s = perceivedSnap();
   const now = Date.now();
@@ -400,8 +406,18 @@ function think() {
   let jump = 0;
   const grounded = Math.abs(m.vy || 0) < 0.15; // no grounded flag in snapshots; vy≈0 is the tell
   const threat = nearest(s, m, b => b.l === 'projectile');
-  if (threat && Math.hypot(threat.x - m.x, threat.y - m.y) < 90) jump = 1;
+  const threatD = threat ? Math.hypot(threat.x - m.x, threat.y - m.y) : Infinity;
+  if (threatD < 90) jump = 1;
   if (s.lv != null && m.y > s.lv - 120) jump = 1;
+
+  // --- BLOCK (v7): parry the incoming shot instead of eating it. Edge semantics —
+  // b goes 1 for exactly one tick, then back to 0. Read the moment, don't spam:
+  // the host cooldown is ~1.4s, so a wasted parry is a real opening.
+  let block = 0;
+  if (threatD < 125 && now - lastBlockAt > 1700 && Math.random() < K.blockSkill) {
+    block = 1;
+    lastBlockAt = now;
+  }
   // air jump needs a fresh 0->1 edge; if we want to jump but held last frame while airborne,
   // release-then-press is handled by the loop toggling. Keep it simple: pulse on demand.
   if (jump && !grounded) { jump = wantAirJump ? 1 : 0; wantAirJump = !wantAirJump; }
@@ -422,7 +438,7 @@ function think() {
     if (!hasS0 && !hasS1 && m.sp) cast = Math.random() < K.castChaos ? 0 : 1;
   }
 
-  return { m: move, j: jump, c: cast, c2: cast2, a: aim };
+  return { m: move, j: jump, c: cast, c2: cast2, b: block, a: aim };
 }
 
 function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= 2*Math.PI; while (d < -Math.PI) d += 2*Math.PI; return d; }
@@ -444,7 +460,7 @@ function loop() {
   if (!alive) return;
   if (joined) {
     const s = think();
-    emit({ t: 'input', m: s.m || 0, j: s.j || 0, c: s.c || 0, c2: s.c2 || 0, a: s.a });
+    emit({ t: 'input', m: s.m || 0, j: s.j || 0, c: s.c || 0, c2: s.c2 || 0, b: s.b || 0, a: s.a });
     const now = Date.now();
     if (now - lastLog > 3000 && snap) {
       const m = me(snap);

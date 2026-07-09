@@ -175,3 +175,24 @@ boss-mode behavior branch. There are also rare environmental events (`ev` field,
 
 — the other one 🤝
 
+
+
+---
+
+## v7 addendum (July 9, 2026) — BLOCK on the wire
+
+The input message grew one field: `{ t:'input', m, j, c, c2, b, a }`.
+
+- `b` — block/parry, **EDGE semantics**: a fresh 0→1 fires one ~240ms parry
+  (damage negated, projectiles reflected back at the sender), then a ~1.4s
+  host-enforced cooldown. Holding `b:1` does nothing extra — pulse it.
+- Wizards now carry **150 HP** (was 100). Recalibrate any aggression heuristics
+  keyed to absolute hp.
+- `GAME_VERSION` is **7**. Send it in `hello` or the host nags the room.
+- Map statics (stepping platforms, destructible cover) are generated from a
+  per-round seed (`msd` in the snapshot). Headless clients don't rebuild maps,
+  so nothing to do — but destructible cover means line-of-sight can open up
+  mid-round as blocks break (`bd` in the snapshot lists broken ones).
+
+alinea-client.js implements all of the above (difficulty knob `blockSkill`
+controls how reliably she parries).

@@ -34,12 +34,16 @@ function spawnPointFor(p) {
 const players = [];
 const gibs = new Set();
 
+// wizards are beefier than the classic 100 so rounds run long enough to grab a
+// few tomes, land a fusion, and actually SEE the rare spells before someone dies
+const MAX_HP = 150;
+
 function createPlayer(slot, controller) {
   const def = PLAYER_DEFS[slot];
   const p = {
     ...def, slot, controller,
     group: Body.nextGroup(true),
-    roundWins: 0, hp: 100,
+    roundWins: 0, hp: MAX_HP,
     alive: false, facing: slot % 2 === 0 ? 1 : -1,
     walkPhase: 0, lastGround: 0, airJumps: 1,
     sizeScale: 1, megaCasts: 0, megaUntil: 0,
@@ -47,6 +51,7 @@ function createPlayer(slot, controller) {
     // two spell slots (A, B), each with its own last-cast time; lastCastSlot is
     // the one most recently fired (drives the spellId/lastCast accessors below)
     slots: [null, null], casts: [0, 0], slotFilledAt: [0, 0], lastCastSlot: 0,
+    slotCharges: [null, null], // hybrid fusion charges; null = a normal, limitless spell
   };
   // spellId/lastCast are accessors over the "primary" slot so the many existing
   // single-spell read-sites (telemetry attribution, HUD glow, mirrorcast, bots)
@@ -55,7 +60,7 @@ function createPlayer(slot, controller) {
     spellId: {
       enumerable: true, configurable: true,
       get() { return p.slots[p.lastCastSlot] ?? p.slots[0] ?? p.slots[1] ?? null; },
-      set(v) { if (v == null) { p.slots[0] = p.slots[1] = null; } else { p.slots[0] = v; } },
+      set(v) { if (v == null) { p.slots[0] = p.slots[1] = null; p.slotCharges[0] = p.slotCharges[1] = null; } else { p.slots[0] = v; p.slotCharges[0] = null; } },
     },
     lastCast: {
       enumerable: true, configurable: true,
@@ -78,6 +83,7 @@ function clearStatuses(p) {
   p.heavyUntil = 0; p.speedUntil = 0; p.jumpBoostUntil = 0;
   p.invulnUntil = 0; p.reflectUntil = 0; p.shrinkUntil = 0;
   p.growUntil = 0; p.pigUntil = 0; p.megaCasts = 0; p.megaUntil = 0;
+  p.blockCdUntil = 0;
 }
 
 function setPlayerScale(p, target) {
@@ -91,7 +97,7 @@ function setPlayerScale(p, target) {
 function spawnPlayer(p, pos) {
   if (!p.alive) Composite.add(world, p.body);
   p.alive = true;
-  p.hp = 100;
+  p.hp = MAX_HP;
   p.airJumps = 1;
   p.fallPeak = 0;
   p.gravityLockUntil = 0;
@@ -115,7 +121,7 @@ function despawnPlayer(p) {
 
 function healPlayer(p, amt) {
   if (!p.alive) return;
-  p.hp = Math.min(100, p.hp + amt);
+  p.hp = Math.min(MAX_HP, p.hp + amt);
   spawnText(p.body.position.x, p.body.position.y - 34, `+${Math.round(amt)}`, '#7bd88f');
 }
 
@@ -127,6 +133,7 @@ function addSpell(p, id) {
     : (p.slotFilledAt[0] <= p.slotFilledAt[1] ? 0 : 1);
   p.slots[i] = id;
   p.casts[i] = 0;          // ready to cast immediately
+  p.slotCharges[i] = null; // tome spells are limitless; only fusion sets charges
   p.slotFilledAt[i] = now;
   return i;
 }
@@ -134,6 +141,7 @@ function addSpell(p, id) {
 function clearSpells(p) {
   p.slots[0] = p.slots[1] = null;
   p.casts[0] = p.casts[1] = 0;
+  p.slotCharges[0] = p.slotCharges[1] = null;
   p.slotFilledAt[0] = p.slotFilledAt[1] = 0;
   p.lastCastSlot = 0;
 }
@@ -158,14 +166,27 @@ function damagePlayer(p, amt, src) {
     sfx.freeze?.();
   }
   if (src && src.spellId) telDmg(src.spellId, n); // balance: damage credited to the attacker's spell
-  const hadHat = p.hp >= 50;
+  const hadHat = p.hp >= MAX_HP * 0.5;
   p.hp -= n;
   p.hurtUntil = now + 130;
   if (p.hp <= 0) killPlayer(p);
   else {
     spawnText(p.body.position.x, p.body.position.y - 34, `-${n}`, '#ffffff');
-    if (hadHat && p.hp < 50) knockHatOff(p);
+    if (hadHat && p.hp < MAX_HP * 0.5) knockHatOff(p);
   }
+}
+
+// BLOCK: a split-second parry on its own button. While it's up you take no
+// damage and projectiles bounce back at the sender (the reflect path). It's a
+// timed read, not a turtle: ~a quarter second of safety, then a real cooldown.
+const BLOCK_MS = 240, BLOCK_CD = 1400;
+function tryBlock(p, now) {
+  if (now < (p.blockCdUntil || 0) || now < (p.frozenUntil || 0)) return;
+  p.blockCdUntil = now + BLOCK_CD;
+  p.invulnUntil = Math.max(p.invulnUntil || 0, now + BLOCK_MS);
+  p.reflectUntil = Math.max(p.reflectUntil || 0, now + BLOCK_MS);
+  spawnRing(p.body.position.x, p.body.position.y, '#4ecdff');
+  sfx.clang?.();
 }
 
 // crossing below half health knocks the wizard's hat off — the ultimate shame
@@ -398,6 +419,7 @@ function updatePlayers(now) {
         }
       }
       if (!piggy && now > (game.fightAt || 0)) {
+        if (c.blockPressed) tryBlock(p, now);
         if (c.cast && p.slots[0]) castSpell(p, now, 0);
         if (c.cast2 && p.slots[1]) castSpell(p, now, 1);
       }
@@ -423,7 +445,7 @@ function drawWizardFigure(p, x, y, scale, now, angle = 0) {
   const ready = spell && now - p.lastCast > spell.cooldown;
   drawStoryWizard(ctx, {
     x, y, scale, angle, now,
-    color: p.color, hat: p.hat, hp: p.hp ?? 100,
+    color: p.color, hat: p.hat, hp: ((p.hp ?? MAX_HP) / MAX_HP) * 100,
     facing: p.facing, walkPhase: p.walkPhase, vx: p.body.velocity.x,
     piggy: now < (p.pigUntil || 0),
     alive: p.alive !== 0 && p.alive !== false,
