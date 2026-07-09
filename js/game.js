@@ -393,15 +393,7 @@ function drawBodyRounded(b, color) {
 }
 
 function drawCrate(b) {
-  drawBodyRounded(b, '#b08948');
-  ctx.save();
-  ctx.translate(b.position.x, b.position.y);
-  ctx.rotate(b.angle);
-  ctx.strokeStyle = 'rgba(90,66,30,0.55)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(-9, -9, 18, 18);
-  ctx.beginPath(); ctx.moveTo(-9, -9); ctx.lineTo(9, 9); ctx.stroke();
-  ctx.restore();
+  drawStoryCrate(ctx, { vertices: b.vertices, x: b.position.x, y: b.position.y, angle: b.angle });
 }
 
 // ---------- hazard art (shared by live map bodies AND network/killcam ghosts) ----------
@@ -574,21 +566,10 @@ function drawGeysers(now) {
 }
 
 function drawSpikes(b) {
-  ctx.save();
-  ctx.translate(b.position.x, b.position.y);
-  ctx.rotate(b.angle);
-  const w = b.w || 100, h = b.h || 20;
-  ctx.fillStyle = b.render.fillStyle || '#8a2f3d';
-  ctx.beginPath();
-  ctx.moveTo(-w / 2, h / 2);
-  const teeth = Math.max(3, Math.round(w / 18));
-  for (let i = 0; i < teeth; i++) {
-    ctx.lineTo(-w / 2 + (i + 0.5) * (w / teeth), -h / 2 - 4);
-    ctx.lineTo(-w / 2 + (i + 1) * (w / teeth), h / 2);
-  }
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
+  drawStorySpikes(ctx, {
+    x: b.position.x, y: b.position.y, angle: b.angle,
+    w: b.w || 100, h: b.h || 20, color: b.render.fillStyle || '#8a2f3d',
+  });
 }
 
 function drawMapBodies(now) {
@@ -785,31 +766,12 @@ function getVignette() {
 }
 
 function drawBackdrop(now) {
-  ctx.fillStyle = currentMap.def.bg || '#241d2e';
-  ctx.fillRect(-30, -30, W + 60, H + 60);
-  for (const [bx, by, br] of [[320, 190, 210], [950, 260, 270], [620, 520, 320]]) {
-    const g = ctx.createRadialGradient(bx, by, 0, bx, by, br);
-    g.addColorStop(0, 'rgba(255,255,255,0.05)');
-    g.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(bx - br, by - br, br * 2, br * 2);
-  }
-  const stars = currentMap.data.starfield;
-  if (stars) {
-    for (const s of stars) {
-      ctx.globalAlpha = 0.4 + 0.4 * Math.sin(now * 0.002 + s.tw);
-      ctx.fillStyle = '#e8e8ff';
-      ctx.fillRect(s.x, s.y, s.r, s.r);
-    }
-    ctx.globalAlpha = 1;
-  }
-  if (currentMap.data.voidTop) {
-    const g = ctx.createLinearGradient(0, 0, 0, 60);
-    g.addColorStop(0, 'rgba(165,94,234,0.5)');
-    g.addColorStop(1, 'rgba(165,94,234,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, 60);
-  }
+  drawStoryBackdrop(ctx, {
+    bg: currentMap.def.bg || '#241d2e', W, H, now,
+    stars: currentMap.data.starfield, voidTop: currentMap.data.voidTop,
+    icy: currentMap.def.icy || currentMap.data.eventIcy,
+    acid: currentMap.data.acid, lavaY: currentMap.data.lavaY,
+  });
 }
 
 // spell recharge indicator under the spell name (all spells are infinite-use;

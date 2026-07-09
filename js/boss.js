@@ -207,7 +207,7 @@ const SECRET_BOSSES = [
       if (bs.lastMode !== b.bossType) {
         bs.lastMode = b.bossType;
         if (rizz) { setBanner('😎 RIZZARD MODE', '#ffd166', 1300); doFlash('#ffd166', 0.2); }
-        else { setBanner('😵‍💫 TIZZARD MODE', '#ff4df0', 1300); doFlash('#ff4df0', 0.25); addShake(6); }
+        else { setBanner('🎯 TIZZARD MODE — LOCKED IN', '#3fb5ff', 1400, true); doFlash('#3fb5ff', 0.28); }
       }
       if (rizz) {
         // smooth operator: glides around, charms wizards (reverses their controls) and reels them in
@@ -235,16 +235,35 @@ const SECRET_BOSSES = [
           if (t) { for (const off of [-0.14, 0.14]) bossBolt(b.position, t, { speed: 10, r: 8, color: '#ff9ecb', spread: off, boom: [70, 9, 12] }); sfx.cast(); }
         }
       } else {
-        // TIZZY: frantic, jittery, rapid scattershot in every direction
-        Body.setVelocity(b, { x: b.velocity.x * 0.8 + rand(-3, 3), y: b.velocity.y * 0.8 + rand(-2, 2) });
-        if (b.position.y < 90) Body.setVelocity(b, { x: b.velocity.x, y: 2 });
-        if (b.position.y > 340) Body.setVelocity(b, { x: b.velocity.x, y: -2 });
-        if (now > (bs.nextTizz || (bs.nextTizz = now + 600))) {
-          bs.nextTizz = now + rand(500, 800);
+        // TIZZARD: hyperfocus & pattern mastery. Conor is autistic and proud, and
+        // "the Tizzard" is his own name for it — so this mode is his SUPERPOWER:
+        // calm, deliberate, and devastatingly precise. He glides to a commanding
+        // vantage point, locks on, leads his shots perfectly, and reads the board.
+        if (!bs.focusPt || Math.hypot(bs.focusPt.x - b.position.x, bs.focusPt.y - b.position.y) < 40) {
+          bs.focusPt = { x: rand(240, W - 240), y: rand(110, 240) };
+        }
+        const fdx = bs.focusPt.x - b.position.x, fdy = bs.focusPt.y - b.position.y, fd = Math.hypot(fdx, fdy) || 1;
+        Body.setVelocity(b, { x: b.velocity.x * 0.85 + (fdx / fd) * 0.9, y: b.velocity.y * 0.85 + (fdy / fd) * 0.9 });
+        // perfectly-led tracking shots — aims where you'll be, not where you are
+        if (now > (bs.nextTrack || (bs.nextTrack = now + 850))) {
+          bs.nextTrack = now + rand(800, 1100);
           const t = bossAliveTarget(b.position);
-          if (t) for (const off of [-0.3, -0.1, 0.1, 0.3]) bossBolt(b.position, t, { speed: 11, r: 6, color: '#ff4df0', spread: off + rand(-0.1, 0.1), boom: [50, 7, 9] });
-          if (Math.random() < 0.25) setBanner(pick(["IT'S A TIZZY!", "WHERE'S THE DECK?!", 'PANIC PITCH', 'WE NEED THIS ROUND']), '#ff4df0', 900);
+          if (t) {
+            const lead = { body: { position: { x: t.body.position.x + (t.body.velocity.x || 0) * 8, y: t.body.position.y + (t.body.velocity.y || 0) * 8 } } };
+            bossBolt(b.position, lead, { speed: 15, r: 7, color: '#3fb5ff', boom: [55, 8, 13] });
+            if (Math.random() < 0.3) setBanner(pick(['LOCKED IN', 'PATTERN RECOGNIZED', 'HYPERFOCUS', 'I SEE THE WHOLE BOARD', 'THE TIZZARD SEES ALL', 'EVERY. DETAIL.']), '#3fb5ff', 1000);
+          }
           sfx.cast();
+        }
+        // a flawless, evenly-spaced pattern volley — mastery made visible
+        if (now > (bs.nextPattern || (bs.nextPattern = now + 3400))) {
+          bs.nextPattern = now + rand(3600, 4800);
+          const t = bossAliveTarget(b.position);
+          if (t) {
+            spawnRing(b.position.x, b.position.y, '#3fb5ff');
+            for (const off of [-0.36, -0.24, -0.12, 0, 0.12, 0.24, 0.36]) bossBolt(b.position, t, { speed: 12, r: 6, color: '#7fd0ff', spread: off, boom: [48, 7, 10] });
+          }
+          sfx.lightning();
         }
       }
       bossTouchAll(bs, now, rizz ? 10 : 12);
@@ -390,98 +409,63 @@ function updateBoss(now, dt) {
   }
 }
 
+// storybook-styled orb + glowing eyes (mirrors artkit's drawStoryBoss look) so the
+// bespoke team bosses live in the same illustrated world as the canonical ones.
+function bossOrb(x, y, r, fill) {
+  glowOrb(ctx, x, y, r * 1.7, fill, 0.28); // aura
+  const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.2, x, y, r);
+  g.addColorStop(0, shade(fill, 0.28)); g.addColorStop(0.6, fill); g.addColorStop(1, shade(fill, -0.4));
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = shade(fill, -0.6); ctx.lineWidth = 1.4; ctx.stroke();
+}
+function bossEyes(x, y, dx, ey, er, glow) {
+  ctx.shadowColor = glow; ctx.shadowBlur = 10; ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(x - dx, y + ey, er, 0, Math.PI * 2); ctx.arc(x + dx, y + ey, er, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0; ctx.fillStyle = '#16121c';
+  ctx.beginPath(); ctx.arc(x - dx, y + ey, er * 0.4, 0, Math.PI * 2); ctx.arc(x + dx, y + ey, er * 0.4, 0, Math.PI * 2); ctx.fill();
+}
+
 // drawn via drawDynamicBody (live, LAN ghosts, and the killcam use the same path)
 function drawBossBody(b, now) {
   const { x, y } = b.position;
   const type = b.bossType;
   const r = b.circleRadius || 46;
-  if (type === 'dragon') {
-    const flap = Math.sin(now * 0.012) * 0.5;
-    ctx.fillStyle = '#a13d3d';
-    for (const side of [-1, 1]) {
-      ctx.beginPath();
-      ctx.moveTo(x + side * r * 0.4, y - 8);
-      ctx.lineTo(x + side * (r + 46), y - 30 - flap * 26);
-      ctx.lineTo(x + side * (r + 14), y + 16);
-      ctx.closePath(); ctx.fill();
-    }
-    ctx.fillStyle = '#e15d5d';
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#a13d3d';
-    for (const side of [-1, 1]) {
-      ctx.beginPath();
-      ctx.moveTo(x + side * 14, y - r + 6);
-      ctx.lineTo(x + side * 24, y - r - 18);
-      ctx.lineTo(x + side * 30, y - r + 12);
-      ctx.closePath(); ctx.fill();
-    }
-    ctx.fillStyle = '#ffd166';
-    ctx.beginPath(); ctx.arc(x - 14, y - 10, 5, 0, Math.PI * 2); ctx.arc(x + 14, y - 10, 5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#16121c';
-    ctx.beginPath(); ctx.arc(x - 14, y - 10, 2, 0, Math.PI * 2); ctx.arc(x + 14, y - 10, 2, 0, Math.PI * 2); ctx.fill();
-  } else if (type === 'lich') {
-    ctx.fillStyle = '#2a1d3d';
-    ctx.beginPath(); ctx.arc(x, y, r + 6, Math.PI, 0); ctx.fill(); // hood
-    ctx.fillStyle = '#c084fc';
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ffd166'; // crown
-    ctx.beginPath();
-    ctx.moveTo(x - 18, y - r - 2);
-    for (let i = 0; i < 3; i++) { ctx.lineTo(x - 12 + i * 12, y - r - 16); ctx.lineTo(x - 6 + i * 12, y - r - 2); }
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#9be15d';
-    ctx.beginPath(); ctx.arc(x - 10, y - 4, 4.5, 0, Math.PI * 2); ctx.arc(x + 10, y - 4, 4.5, 0, Math.PI * 2); ctx.fill();
-  } else if (type === 'golem') {
-    drawBodyRounded(b, '#b08948');
-    ctx.strokeStyle = 'rgba(90,66,30,0.7)';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.moveTo(x - 20, y - 30); ctx.lineTo(x - 6, y - 10); ctx.lineTo(x - 16, y + 14);
-    ctx.moveTo(x + 22, y - 20); ctx.lineTo(x + 10, y + 4);
-    ctx.stroke();
-    ctx.fillStyle = '#ff8c5a';
-    ctx.beginPath(); ctx.arc(x - 13, y - 26, 5, 0, Math.PI * 2); ctx.arc(x + 13, y - 26, 5, 0, Math.PI * 2); ctx.fill();
-  } else if (type === 'kraken') {
-    ctx.fillStyle = '#3d6a8a';
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-    for (const side of [-1, 1]) { // little idle tentacle stubs
-      ctx.strokeStyle = '#3d6a8a';
-      ctx.lineWidth = 9;
-      ctx.beginPath();
-      ctx.moveTo(x + side * r * 0.7, y + r * 0.5);
-      ctx.quadraticCurveTo(x + side * (r + 24), y + r * 0.2 + Math.sin(now * 0.004 + side) * 10, x + side * (r + 34), y + r);
-      ctx.stroke();
-    }
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(x - 15, y - 8, 8, 0, Math.PI * 2); ctx.arc(x + 15, y - 8, 8, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#16121c';
-    ctx.beginPath(); ctx.arc(x - 15, y - 8, 3.5, 0, Math.PI * 2); ctx.arc(x + 15, y - 8, 3.5, 0, Math.PI * 2); ctx.fill();
+  // canonical bosses render through the storybook toolkit; bespoke team bosses
+  // (rizard, manu) keep their hand-crafted look below.
+  if (type === 'dragon' || type === 'lich' || type === 'golem' || type === 'kraken') {
+    drawStoryBoss(ctx, { x, y, r, type, color: b.color || '#e15d5d', now });
   } else if (type === 'rizard_rizz' || type === 'rizard_tizz') {
     const tizz = type === 'rizard_tizz';
-    const jx = tizz ? Math.sin(now * 0.05) * 2 : 0, jy = tizz ? Math.cos(now * 0.06) * 2 : 0; // jitters when in a tizzy
-    ctx.fillStyle = tizz ? '#ff4df0' : '#ffd166';
-    ctx.beginPath(); ctx.arc(x + jx, y + jy, r, 0, Math.PI * 2); ctx.fill();
-    // slick wizard hat
-    ctx.fillStyle = tizz ? '#c81e8c' : '#e6b800';
-    ctx.beginPath(); ctx.moveTo(x - 20 + jx, y - r + 4 + jy); ctx.lineTo(x + 20 + jx, y - r + 4 + jy); ctx.lineTo(x + 6 + jx * 2, y - r - 30 + jy); ctx.closePath(); ctx.fill();
-    // sunglasses (the rizz), crooked when frazzled
-    ctx.save(); ctx.translate(x + jx, y - 4 + jy); ctx.rotate(tizz ? 0.22 : 0);
-    ctx.fillStyle = '#16121c';
-    ctx.fillRect(-20, -1.5, 40, 3);
-    ctx.beginPath(); ctx.ellipse(-11, 0, 9, 6, 0, 0, Math.PI * 2); ctx.ellipse(11, 0, 9, 6, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.55;
-    ctx.beginPath(); ctx.arc(-13, -2, 2, 0, Math.PI * 2); ctx.arc(9, -2, 2, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
-    ctx.restore();
-    // mouth: smirk vs panicked "o"
-    ctx.strokeStyle = '#16121c'; ctx.lineWidth = 2;
-    if (tizz) { ctx.beginPath(); ctx.arc(x + jx, y + 12 + jy, 5, 0, Math.PI * 2); ctx.stroke(); }
-    else { ctx.beginPath(); ctx.arc(x + 2, y + 8, 8, 0.1 * Math.PI, 0.6 * Math.PI); ctx.stroke(); }
+    const c = tizz ? '#3fb5ff' : '#ffd166';
+    if (tizz) runeRing(ctx, x, y, r + 16, '#3fb5ff', now, { count: 8, lw: 1.5, alpha: 0.6 }); // a locked-on targeting reticle — hyperfocus made visible
+    bossOrb(x, y, r, c);
+    // wizard hat (shaded, with a star tip — storybook)
+    ctx.fillStyle = shade(c, -0.35);
+    ctx.beginPath(); ctx.moveTo(x - 20, y - r + 4); ctx.lineTo(x + 20, y - r + 4); ctx.lineTo(x + 6, y - r - 30); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = shade(c, -0.6); ctx.lineWidth = 1.2; ctx.stroke();
+    drawStar(ctx, x + 6, y - r - 28, 4, tizz ? '#dff4ff' : '#fff3b0');
+    if (tizz) {
+      // TIZZARD: hyperfocus & pattern mastery — steady glowing eyes, calm command.
+      bossEyes(x, y, 11, -4, 5, '#eaffff');
+      ctx.strokeStyle = '#16121c'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y + 6, 7, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke(); // calm, knowing half-smile
+    } else {
+      // RIZZARD: sunglasses + smirk (the charm)
+      ctx.save(); ctx.translate(x, y - 4);
+      ctx.fillStyle = '#16121c';
+      ctx.fillRect(-20, -1.5, 40, 3);
+      ctx.beginPath(); ctx.ellipse(-11, 0, 9, 6, 0, 0, Math.PI * 2); ctx.ellipse(11, 0, 9, 6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.beginPath(); ctx.arc(-13, -2, 2, 0, Math.PI * 2); ctx.arc(9, -2, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      ctx.strokeStyle = '#16121c'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x + 2, y + 8, 8, 0.1 * Math.PI, 0.6 * Math.PI); ctx.stroke();
+    }
   } else if (type === 'manu_de' || type === 'manu_mx') {
     const de = type === 'manu_de';
-    ctx.fillStyle = de ? '#c9cdd8' : '#e3a86a';
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#16121c';
-    ctx.beginPath(); ctx.arc(x - 11, y - 6, 3.5, 0, Math.PI * 2); ctx.arc(x + 11, y - 6, 3.5, 0, Math.PI * 2); ctx.fill();
+    const c = de ? '#c9cdd8' : '#e3a86a';
+    bossOrb(x, y, r, c);
+    bossEyes(x, y, 11, -6, 4, de ? '#dfe6ff' : '#fff0d0');
     // signature curly mustache
     ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 5; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(x - 14, y + 8); ctx.quadraticCurveTo(x - 2, y + 14, x, y + 6); ctx.quadraticCurveTo(x + 2, y + 14, x + 14, y + 8); ctx.stroke();
@@ -497,7 +481,7 @@ function drawBossBody(b, now) {
       ctx.strokeStyle = '#6cbf5b'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(x, y - r - 2, 15, 4, 0, 0, Math.PI * 2); ctx.stroke();
     }
   } else {
-    drawBodyRounded(b, b.color || '#e15d5d');
+    drawStoryBoss(ctx, { x, y, r, type, color: b.color || '#e15d5d', now });
   }
 }
 

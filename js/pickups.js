@@ -166,69 +166,18 @@ function unMega(p) {
   }
 }
 
+// storybook grimoire, mega hat and catalyst all render from artkit.js
 function drawTomeAt(x, y, angle, spellColor, now, tier) {
-  // rare & legendary tomes get a pulsing rarity halo so a jackpot reads across the arena
   const rank = TIER_RANK[tier] || 0;
-  if (rank >= 2) {
-    const rc = TIER_COLOR[tier];
-    const pulse = 0.5 + 0.5 * Math.sin(now * (rank >= 3 ? 0.012 : 0.008));
-    ctx.save();
-    ctx.globalAlpha = 0.18 + 0.22 * pulse;
-    ctx.fillStyle = rc;
-    ctx.beginPath(); ctx.arc(x, y, 20 + 8 * pulse + rank * 3, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-  }
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.shadowColor = spellColor;
-  ctx.shadowBlur = 12 + 6 * Math.sin(now * 0.008);
-  ctx.fillStyle = '#3a2f4d';
-  ctx.fillRect(-10, -12, 20, 24);
-  ctx.fillStyle = spellColor;
-  ctx.fillRect(-10, -12, 4, 24);
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = spellColor;
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(-10, -12, 20, 24);
-  ctx.restore();
+  drawStoryTome(ctx, { x, y, angle, now, color: spellColor, rank, rarityColor: TIER_COLOR[tier] });
 }
 
-// the Fusion Catalyst: a spinning magenta prism with a bright rarity halo
 function drawCatalystAt(x, y, angle, now) {
-  const pulse = 0.5 + 0.5 * Math.sin(now * 0.01);
-  ctx.save();
-  ctx.globalAlpha = 0.2 + 0.25 * pulse;
-  ctx.fillStyle = '#ff4df0';
-  ctx.beginPath(); ctx.arc(x, y, 20 + 9 * pulse, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(now * 0.004);
-  ctx.shadowColor = '#ff4df0';
-  ctx.shadowBlur = 16 + 6 * pulse;
-  ctx.fillStyle = '#ff4df0';
-  ctx.beginPath(); ctx.moveTo(0, -12); ctx.lineTo(10, 0); ctx.lineTo(0, 12); ctx.lineTo(-10, 0); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#ffd6fb';
-  ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(5, 0); ctx.lineTo(0, 6); ctx.lineTo(-5, 0); ctx.closePath(); ctx.fill();
-  ctx.restore();
+  drawStoryCatalyst(ctx, { x, y, angle, now });
 }
 
 function drawHatAt(x, y, angle, now) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.shadowColor = '#ffd700';
-  ctx.shadowBlur = 16 + 8 * Math.sin(now * 0.01);
-  ctx.fillStyle = '#ffd700';
-  ctx.beginPath();
-  ctx.moveTo(-11, 6); ctx.lineTo(11, 6); ctx.lineTo(3, -14);
-  ctx.closePath(); ctx.fill();
-  ctx.fillRect(-14, 6, 28, 4);
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#fff3b0';
-  ctx.beginPath(); ctx.arc(1, -2, 2, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
+  drawStoryHat(ctx, { x, y, angle, now });
 }
 
 function drawTomes(now) {
