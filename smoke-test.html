@@ -104,6 +104,14 @@
     if (p.slotCharges[0] !== null) fail('burnout left stale charge count');
     clearSpells(p);
 
+    // --- rockslide drops real falling boulders now ---
+    p.slots[0] = 'rockslide'; p.casts[0] = -1e9;
+    const beforeRocks = projectiles.size;
+    castSpell(p, performance.now() + 200000, 0);
+    updateEffects(performance.now() + 300000);
+    if (projectiles.size - beforeRocks < 6) fail('rockslide dropped ' + (projectiles.size - beforeRocks) + ' rocks, expected 6');
+    clearSpells(p);
+
     // --- beam flags present for bot aim penalty ---
     for (const id of ['zapspell', 'lightning', 'railgun', 'thunderlance']) {
       if (!SPELLS[id].beam) fail('missing beam flag: ' + id);

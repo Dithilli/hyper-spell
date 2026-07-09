@@ -235,13 +235,28 @@ regHybrid('avalanche', {
     const m = p.mega || 1;
     const t = nearestEnemy(p);
     const tx = t ? t.body.position.x : p.body.position.x + p.facing * 300;
-    for (let i = 0; i < 3; i++) explode(tx + rand(-80, 80), 130, 120, 14 * m, 22 * m, p);
-    for (const q of enemiesOf(p)) {
-      if (Math.abs(q.body.position.x - tx) < 180) {
-        q.frozenUntil = performance.now() + 700 * m; q.heavyUntil = performance.now() + 1500 * m;
-      }
-    }
-    addShake(9); sfx.thud?.();
+    // real snowpack falls (same fix as rockslide — no more invisible air-bursts):
+    // ice chunks crash down, blast on impact, and flash-freeze whoever's close
+    const t0 = performance.now();
+    let dropped = 0;
+    activeEffects.push({
+      until: t0 + 900,
+      update(now) {
+        while (dropped < 5 && now > t0 + dropped * 150) {
+          dropped++;
+          const rx = Math.max(60, Math.min(W - 60, tx + rand(-110, 110)));
+          const chunk = dropProjectile(p, rx, -40, { r: rand(10, 15) * Math.min(m, 1.6), vy: rand(15, 19), color: dropped % 2 ? '#eaf6ff' : '#bfe8ff', density: 0.007 });
+          chunk.onHit = () => {
+            explode(chunk.position.x, chunk.position.y, 90 * m, 12 * m, 16 * m, p);
+            const nw = performance.now();
+            for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - chunk.position.x, q.body.position.y - chunk.position.y) < 120) { q.frozenUntil = Math.max(q.frozenUntil || 0, nw + 700 * m); q.body.frictionAir = 0.001; }
+            spawnBurst(chunk.position.x, chunk.position.y, '#eaffff', 10, { kind: 'spark', speed: 7 });
+          };
+        }
+      },
+    });
+    for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - tx) < 180) q.heavyUntil = performance.now() + 1500 * m;
+    addShake(9); sfx.freeze?.();
   },
 });
 regHybrid('teslashrapnel', {
@@ -311,7 +326,22 @@ regHybrid('rockslide', {
     const m = p.mega || 1;
     const t = nearestEnemy(p);
     const cx = t ? t.body.position.x : p.body.position.x + p.facing * 300;
-    for (let i = 0; i < 5; i++) explode(cx + rand(-140, 140), rand(100, 180), 110, 16 * m, 20 * m, p);
+    // the mountain actually comes down: a stagger of real boulders rains on the
+    // target's column and detonates on impact (the old version air-burst at
+    // sky height and visibly did nothing)
+    const t0 = performance.now();
+    let dropped = 0;
+    activeEffects.push({
+      until: t0 + 1100,
+      update(now) {
+        while (dropped < 6 && now > t0 + dropped * 140) {
+          dropped++;
+          const rx = Math.max(60, Math.min(W - 60, cx + rand(-150, 150)));
+          const rock = dropProjectile(p, rx, -40, { r: rand(11, 17) * Math.min(m, 1.6), vy: rand(14, 18), vx: rand(-1.5, 1.5), color: dropped % 2 ? '#8a7a5a' : '#5a5245', density: 0.008 });
+          rock.onHit = () => explode(rock.position.x, rock.position.y, 100 * m, 15 * m, 20 * m, p);
+        }
+      },
+    });
     for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - cx) < 220) q.heavyUntil = performance.now() + 1800 * m;
     addShake(11); sfx.thud?.();
   },
