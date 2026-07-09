@@ -77,7 +77,7 @@ function nearestEnemy(p, maxD = 1e9, from = p.body.position) {
   return best;
 }
 
-function explode(x, y, radius = 150, power = 22, damage = 0, owner = null) {
+function explode(x, y, radius = 150, power = 22, damage = 0, owner = null, opts = {}) {
   addShake(Math.min(14, power * 0.7));
   sfx.explosion();
   spawnRing(x, y, '#ffb347');
@@ -104,7 +104,10 @@ function explode(x, y, radius = 150, power = 22, damage = 0, owner = null) {
     Body.setAngularVelocity(body, body.angularVelocity + (Math.random() - 0.5) * 0.4);
     if (body.label === 'player' && damage) {
       const dmg = damage * (1 - d / (radius * 1.15));
-      damagePlayer(body.player, body.player === owner ? dmg * 0.5 : dmg, owner);
+      // your own blast normally costs you half damage (rocket-jumps are a gamble),
+      // but selfSafe blasts (fusion ultimates) never hurt their caster — only shove
+      if (body.player === owner) { if (!opts.selfSafe) damagePlayer(body.player, dmg * 0.5, owner); }
+      else damagePlayer(body.player, dmg, owner);
     }
   }
   for (const c of Composite.allConstraints(currentMap.composite)) {
@@ -184,15 +187,15 @@ function zapHit(target, dmg, src) {
   damagePlayer(target, dmg, src);
 }
 
-function skyBolt(x, dmg, owner, m = 1) {
+function skyBolt(x, dmg, owner, m = 1, opts) {
   const hitY = groundYAt(x);
   boltVisual(x, -20, x, hitY, '#fff89e', 3 * m);
   doFlash('#ffffff', 0.2);
   sfx.lightning();
-  explode(x, hitY, 80 * m, 12 * m, dmg * m, owner);
+  explode(x, hitY, 80 * m, 12 * m, dmg * m, owner, opts);
 }
 
-function spawnSingularity(x, y, m = 1) {
+function spawnSingularity(x, y, m = 1, owner = null, opts = {}) {
   sfx.blackhole();
   doFlash('#a55eea', 0.2);
   spawnRing(x, y, '#a55eea');
@@ -207,7 +210,7 @@ function spawnSingularity(x, y, m = 1) {
         const d = Math.hypot(dx, dy);
         if (d > R || d === 0) continue;
         if (d < 30) {
-          if (b.label === 'player') damagePlayer(b.player, 999);
+          if (b.label === 'player') { if (!(opts.selfSafe && b.player === owner)) damagePlayer(b.player, 999, owner); }
           else if (b.label !== 'boss') { // never consume the boss body — it would strand game.boss
             spawnParticles(b.position.x, b.position.y, '#a55eea', 6, 3);
             projectiles.delete(b); gibs.delete(b); tomes.delete(b); hats.delete(b); summons.delete(b);
@@ -241,7 +244,7 @@ function spawnSingularity(x, y, m = 1) {
       ctx.beginPath(); ctx.arc(x, y, 36 + 5 * Math.sin(now * 0.011), 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = 1;
     },
-    onEnd() { explode(x, y, 160, 18, 25); },
+    onEnd() { explode(x, y, 160, 18, 25, owner, opts); },
   });
 }
 
@@ -351,7 +354,7 @@ const SPELLS = {
     cast(p) {
       const m = p.mega || 1;
       const fb = shoot(p, { r: 10 * m, speed: 9, vy: -2, color: '#a55eea', restitution: 0.2, expireMs: 1600, gravityScale: 0.4 });
-      fb.onHit = () => spawnSingularity(fb.position.x, fb.position.y, m);
+      fb.onHit = () => spawnSingularity(fb.position.x, fb.position.y, m, p);
     },
   },
   meteor: {

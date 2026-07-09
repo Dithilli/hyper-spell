@@ -24,6 +24,16 @@
 ### 📖 Spell Guide
 - New **📖 Spell Guide** button on the game page — the whole spell system explained (slots, tiers, fusion recipes with the full matrix, synergies, every spell), generated live from the game's own spellbook so it can't go stale.
 
+### ⚖️ The must-land pass
+- **Fusion ultimates never hurt their caster.** Your own Inferno/Big Crunch/Rockslide still flings you around (physics is physics) but deals you zero damage — spending a precious charge should never be a self-own. Normal spells keep the classic 50% self-damage risk (rocket-jumps stay a gamble).
+- New rule enforced across the spellbook: **offensive magic has to actually hit you** — nothing auto-lands at unlimited range anymore.
+  - **Balloon Hex, Anchor Hex, Cold Snap** are now real bolts: dodge them or parry them back.
+  - **Sky Smite** telegraphs its strike point for half a second before the bolt falls.
+  - **Booby Trap** is finally a trap: an armed charge with a visible fuse at the target's feet.
+  - Hybrid riders (**Superconductor's** freeze, **Plasma Lance's** burn, **Joy Buzzer's** reverse, **Firestorm/Molten Meteor/Steam Burst's** statuses) now apply to the wizard your beam or bolt *actually hit* — not to whoever happened to be nearest. **Thunderstorm** lost its auto knock-up entirely.
+  - **Inferno's** burn is capped to the blast's reach instead of the whole map.
+- **Feather Fall** (and **Zephyr's** self-glide) no longer hurl the caster skyward — floaty's 1.5× balloon lift was being reused as a self-buff; they now use a gentle slow-fall that also forgives fall damage.
+
 ### 🐛 Fixes
 - Setting your name on the opening screen no longer leaves a live name-editor running in the lobby (stray keys were appending letters until you hit Enter).
 

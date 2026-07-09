@@ -79,7 +79,7 @@ function createPlayer(slot, controller) {
 
 function clearStatuses(p) {
   p.frozenUntil = 0; p.burnUntil = 0; p.nextBurnTick = 0; p.wetUntil = 0;
-  p.reversedUntil = 0; p.slipUntil = 0; p.floatyUntil = 0;
+  p.reversedUntil = 0; p.slipUntil = 0; p.floatyUntil = 0; p.featherUntil = 0;
   p.heavyUntil = 0; p.speedUntil = 0; p.jumpBoostUntil = 0;
   p.invulnUntil = 0; p.reflectUntil = 0; p.shrinkUntil = 0;
   p.growUntil = 0; p.pigUntil = 0; p.megaCasts = 0; p.megaUntil = 0;
@@ -343,9 +343,12 @@ function updatePlayers(now) {
       spawnParticles(body.position.x, body.position.y - 10, '#ff8c5a', 3, 3, 20);
     }
 
-    // floaty: balloon-style anti-gravity
-    if (now < (p.floatyUntil || 0)) {
-      Body.applyForce(body, body.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * body.mass * 1.5 });
+    // floaty: balloon-style anti-gravity (1.5× lift — the balloon-hexed drift UP).
+    // feather: gentle 0.72× counter-gravity — you fall slowly but never rise.
+    const lift = now < (p.floatyUntil || 0) ? 1.5 : now < (p.featherUntil || 0) ? 0.72 : 0;
+    if (lift) {
+      Body.applyForce(body, body.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * body.mass * lift });
+      if (lift < 1 && Math.random() < 0.06) spawnParticles(body.position.x + rand(-10, 10), body.position.y - 18, '#fffde7', 1, 1.2, 22);
     }
 
     if (p.wasFrozen && !frozen) {
@@ -376,7 +379,7 @@ function updatePlayers(now) {
     if (!onGround) {
       if (p.apexAlong == null || yAlong < p.apexAlong) p.apexAlong = yAlong;
     } else if (vAlong < 2) {
-      if (p.apexAlong != null && game.state === 'PLAY' && now > (game.fightAt || 0) && now > (p.floatyUntil || 0)) {
+      if (p.apexAlong != null && game.state === 'PLAY' && now > (game.fightAt || 0) && now > (p.floatyUntil || 0) && now > (p.featherUntil || 0)) {
         const drop = yAlong - p.apexAlong;
         if (drop > FALL_SAFE_DROP && p.fallPeak > 14) {
           const dmg = Math.min(40, Math.round((drop - FALL_SAFE_DROP) * 0.12));

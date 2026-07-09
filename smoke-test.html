@@ -121,6 +121,29 @@
     if (projectiles.size - beforeRocks < 6) fail('rockslide dropped ' + (projectiles.size - beforeRocks) + ' rocks, expected 6');
     clearSpells(p);
 
+    // --- must-land conversions: these fire dodgeable projectiles now ---
+    for (const id of ['coldsnap', 'balloonhex', 'anchorhex']) {
+      p.slots[0] = id; p.casts[0] = -1e9;
+      const b4 = projectiles.size;
+      castSpell(p, performance.now() + 500000, 0);
+      if (projectiles.size <= b4) fail(id + ' did not fire a dodgeable projectile');
+    }
+    clearSpells(p);
+    if (SPELLS.featherfall && String(SPELLS.featherfall.cast).includes('floatyUntil')) fail('featherfall still uses balloon-lift floaty');
+    if (String(SPELLS.zephyr.cast).includes('floatyUntil')) fail('zephyr still uses balloon-lift floaty on self');
+
+    // --- fusion ultimates never harm their caster ---
+    p.invulnUntil = 0;
+    const hp0 = p.hp;
+    p.slots[0] = 'inferno'; p.casts[0] = -1e9; p.slotCharges[0] = null;
+    castSpell(p, performance.now() + 600000, 0);
+    if (p.hp !== hp0) fail('inferno hurt its caster by ' + (hp0 - p.hp));
+    p.slots[0] = 'bigcrunch'; p.casts[0] = -1e9;
+    castSpell(p, performance.now() + 700000, 0);
+    updateEffects(performance.now() + 900000); // flush the singularity + final blast
+    if (p.hp !== hp0) fail('bigcrunch hurt its caster by ' + (hp0 - p.hp));
+    clearSpells(p);
+
     // --- beam flags present for bot aim penalty ---
     for (const id of ['zapspell', 'lightning', 'railgun', 'thunderlance']) {
       if (!SPELLS[id].beam) fail('missing beam flag: ' + id);
