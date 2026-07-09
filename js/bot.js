@@ -37,6 +37,12 @@ class BotController {
     else {
       const t = nearestEnemy(p);
       if (t) tpos = t.body.position;
+      // a mirror image fools a bot half the time
+      if (tpos && Math.random() < 0.5) {
+        for (const s of summons) {
+          if (s.label === 'decoy' && s.decoyOf !== p && Math.hypot(s.position.x - tpos.x, s.position.y - tpos.y) < 260) { tpos = { x: s.position.x, y: s.position.y }; break; }
+        }
+      }
     }
     // unarmed → chase the nearest tome instead
     let goal = tpos;

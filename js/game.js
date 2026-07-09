@@ -253,6 +253,7 @@ Events.on(engine, 'collisionStart', ({ pairs }) => {
       if (a.label === 'projectile' && b.label !== 'lava' && projectiles.has(a)) {
         if (b.label === 'vine') killVine(b);
         if (b.label === 'boss' && a.owner) damageBoss(22, a.position, a.owner);
+        if (b.label === 'decoy') { spawnParticles(b.position.x, b.position.y, '#e8d5ff', 16, 5); removeSummon(b); } // a mirror image soaks the shot, then bursts
         if (b.label === 'player' && now < (b.player.reflectUntil || 0)) {
           Body.setVelocity(a, { x: -a.velocity.x * 1.1, y: -Math.abs(a.velocity.y) * 0.5 - 2 });
           a.collisionFilter.group = b.player.group;
@@ -287,6 +288,29 @@ Events.on(engine, 'collisionStart', ({ pairs }) => {
         spawnText(q.body.position.x, q.body.position.y - 40, 'SLIP!', '#ffe135');
         removeSummon(a);
         sfx.squeak();
+      }
+      // STOMP: a grown wizard coming down onto a smaller one crushes them
+      if (a.label === 'player' && b.label === 'player') {
+        const big = a.player, small = b.player;
+        if ((big.sizeScale || 1) >= 1.6 && (big.sizeScale || 1) > (small.sizeScale || 1) + 0.3
+          && big.body.position.y < small.body.position.y - 6 && big.body.velocity.y > 2
+          && small.alive && now > (small._stompAt || 0)) {
+          small._stompAt = now + 600;
+          damagePlayer(small, 12 + Math.round(((big.sizeScale || 1) - 1) * 22), big);
+          Body.setVelocity(small.body, { x: small.body.velocity.x, y: 7 });
+          Body.setVelocity(big.body, { x: big.body.velocity.x, y: -9 }); // bounce off the landing
+          addShake(6); sfx.thud?.();
+          spawnParticles(small.body.position.x, small.body.position.y - 10, '#a7e88f', 14, 6);
+          spawnText(small.body.position.x, small.body.position.y - 44, 'STOMP!', '#a7e88f');
+        }
+      }
+      if (a.label === 'tramp' && b.label === 'player') {
+        // actively fling anyone who touches it — passive restitution alone felt dead
+        Body.setVelocity(b, { x: b.velocity.x, y: -20 });
+        b.player.airJumps = 1; // refund a mid-air jump so it feels springy
+        spawnParticles(b.position.x, b.position.y + 14, '#ff8fc7', 10, 5);
+        addShake(3);
+        sfx.boing?.();
       }
       if (a.label === 'tome' && b.label === 'player') pickupTome(a, b.player);
       if (a.label === 'hat' && b.label === 'player') pickupHat(a, b.player);
@@ -351,6 +375,13 @@ function postPhysics(now) {
       if (b.position.x < 70) b.critter.dir = 1;
       if (b.position.x > W - 70) b.critter.dir = -1;
       Body.setVelocity(b, { x: b.critter.dir * rand(2, b.critter.speed), y: -b.critter.hop });
+    }
+    if (b.label === 'saw') {
+      // a rolling ground hazard: keep it spinning across the arena, bouncing off the walls
+      if (b.position.x < 40) b.sawDir = 1;
+      if (b.position.x > W - 40) b.sawDir = -1;
+      Body.setVelocity(b, { x: (b.sawDir || 1) * 9, y: b.velocity.y });
+      Body.setAngularVelocity(b, (b.sawDir || 1) * 0.9);
     }
     if (b.label === 'mine' && b.mineBlast) {
       if (!b.armAt) b.armAt = now + 1000;

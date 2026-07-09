@@ -302,7 +302,7 @@ function updatePlayers(now) {
     const base = (p.megaCasts > 0 || now < p.megaUntil) ? 2 : 1;
     let mod = 1;
     if (now < (p.shrinkUntil || 0) || piggy) mod = 0.6;
-    else if (now < (p.growUntil || 0)) mod = 1.5;
+    else if (now < (p.growUntil || 0)) mod = 1.85; // past the 1.6 jump-boost threshold so "big" actually buffs you (bigger jump + more mass to shove/resist)
     const desired = base * mod;
     if (Math.abs(desired - p.sizeScale) > 0.01) setPlayerScale(p, desired);
 

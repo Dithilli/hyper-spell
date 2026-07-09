@@ -642,8 +642,10 @@ regSpell('cratedrop', {
   cast(p) {
     const pos = frontPos(p, 190);
     for (let i = 0; i < 3; i++) {
-      const crate = Bodies.rectangle(pos.x + (i - 1) * 34, -40 - i * 30, 26, 26, { density: 0.0015, friction: 0.4, label: 'crate' });
-      summon(crate, { life: 9000 });
+      const crate = Bodies.rectangle(pos.x + (i - 1) * 34, -40 - i * 30, 26, 26, { density: 0.003, friction: 0.4, label: 'crate' });
+      crate.owner = p;
+      summon(crate, { life: 9000, contactDamage: 14 }); // heavy enough to crush on impact
+      Body.setVelocity(crate, { x: 0, y: 9 });           // drop fast
     }
   },
 });
@@ -674,9 +676,10 @@ regSpell('bouncycastle', {
   name: 'Bouncy Castle', color: '#ffb3de', cooldown: 3000,
   cast(p) {
     for (let i = 0; i < 3; i++) {
-      const ball = Bodies.circle(p.body.position.x + p.facing * (50 + i * 30), p.body.position.y - 40 - i * 20, 13, { density: 0.001, restitution: 1.3, friction: 0.01, label: 'bouncy' });
-      summon(ball, { life: 6000, color: '#ffb3de', contactDamage: 5 });
-      Body.setVelocity(ball, { x: p.facing * rand(4, 10), y: -rand(2, 8) });
+      const ball = Bodies.circle(p.body.position.x + p.facing * (50 + i * 30), p.body.position.y - 40 - i * 20, 14, { density: 0.001, restitution: 1.35, friction: 0.01, label: 'bouncy' });
+      ball.owner = p;
+      summon(ball, { life: 6000, color: '#ffb3de', contactDamage: 13 });
+      Body.setVelocity(ball, { x: p.facing * rand(6, 12), y: -rand(3, 9) });
     }
     sfx.boing();
   },
@@ -695,7 +698,7 @@ regSpell('trampoline', {
   cast(p) {
     const pos = frontPos(p, 90);
     const gy = groundYAt(pos.x);
-    const tramp = Bodies.rectangle(pos.x, gy - 8, 90, 14, { isStatic: true, restitution: 1.6, friction: 0.1, label: 'tramp' });
+    const tramp = Bodies.rectangle(pos.x, gy - 8, 100, 14, { isStatic: true, restitution: 0.4, friction: 0.1, label: 'tramp' });
     summon(tramp, { life: 7000, color: '#ff8fc7' });
     sfx.boing();
   },
@@ -726,7 +729,7 @@ regSpell('beehive', {
           i++;
           const bee = shoot(p, { r: 2.5, speed: rand(4, 7), vy: rand(-6, -2), color: '#ffe066', gravityScale: 0, expireMs: 3000 });
           Body.setPosition(bee, { x: hive.position.x, y: hive.position.y - 10 });
-          bee.onHit = (self, other) => { if (other && other.label === 'player') damagePlayer(other.player, 4); };
+          bee.onHit = (self, other) => { if (other && other.label === 'player') damagePlayer(other.player, 7, p); };
           bee.update = (self) => {
             const t = nearestEnemy(p, 1e9, self.position);
             if (!t) return;
@@ -772,7 +775,7 @@ regSpell('blackcat', {
 regSpell('rubberduck', {
   name: 'Rubber Duck', color: '#ffd700', cooldown: 1600,
   cast(p) {
-    summonCritter(p, { color: '#ffd700', r: 9, hop: 8, speed: 5, life: 6000, rest: 0.9, dmg: 3 });
+    summonCritter(p, { color: '#ffd700', r: 9, hop: 8, speed: 5, life: 6000, rest: 0.9, dmg: 9 });
     spawnText(p.body.position.x + p.facing * 40, p.body.position.y - 30, 'QUACK', '#ffd700');
     sfx.squeak();
   },
@@ -813,14 +816,26 @@ regSpell('earthquake', {
 regSpell('poltergeist', {
   name: 'Poltergeist', color: '#b39ddb', cooldown: 3600,
   cast(p) {
-    for (const b of Composite.allBodies(world)) {
-      if (b.isStatic || b.isSensor || b.label === 'player') continue;
+    const m = p.mega || 1;
+    // gather loose props near the caster; if the arena is bare, conjure some so it always erupts
+    let loose = Composite.allBodies(world).filter(b => !b.isStatic && !b.isSensor && b.label !== 'player' && b.label !== 'boss'
+      && Math.hypot(b.position.x - p.body.position.x, b.position.y - p.body.position.y) < 520);
+    if (loose.length < 5) {
+      for (let i = 0; i < 6; i++) {
+        const junk = Bodies.polygon(p.body.position.x + rand(-70, 70), p.body.position.y - rand(20, 90), pick([3, 4, 5, 6]), rand(9, 16), { density: 0.0025, frictionAir: 0.01, label: 'ball' });
+        junk.color = '#b39ddb'; junk.owner = p;
+        summon(junk, { life: 4000, color: '#b39ddb', contactDamage: 12 * m });
+        loose.push(junk);
+      }
+    }
+    spawnRing(p.body.position.x, p.body.position.y, '#b39ddb');
+    for (const b of loose) {
       const t = nearestEnemy(p, 1e9, b.position);
       if (!t) break;
       const dx = t.body.position.x - b.position.x, dy = t.body.position.y - b.position.y;
       const d = Math.hypot(dx, dy) || 1;
-      Body.setVelocity(b, { x: (dx / d) * 16, y: (dy / d) * 16 - 2 });
-      if (Math.random() < 0.3) spawnParticles(b.position.x, b.position.y, '#b39ddb', 3, 2, 16);
+      Body.setVelocity(b, { x: (dx / d) * 18, y: (dy / d) * 18 - 3 });
+      if (Math.random() < 0.5) spawnParticles(b.position.x, b.position.y, '#b39ddb', 3, 2, 16);
     }
   },
 });
@@ -884,12 +899,22 @@ regSpell('midas', {
   name: 'Midas Touch', color: '#ffd700', cooldown: 3400,
   cast(p) {
     const m = p.mega || 1;
-    const t = nearestEnemy(p, 300);
+    const t = nearestEnemy(p, 320);
     if (!t) return;
-    t.frozenUntil = performance.now() + 2000 * m;
+    const now = performance.now(), dur = 2000 * m;
+    t.frozenUntil = now + dur;
+    t.heavyUntil = now + dur; // solid gold — heavy
     t.body.frictionAir = 0.001;
     spawnParticles(t.body.position.x, t.body.position.y, '#ffd700', 20, 5);
     spawnText(t.body.position.x, t.body.position.y - 44, 'GOLD!', '#ffd700');
+    // the golden statue shatters when it wears off, for bonus damage
+    activeEffects.push({ until: now + dur, onEnd() {
+      if (!t.alive) return;
+      damagePlayer(t, 16 * m, p);
+      spawnParticles(t.body.position.x, t.body.position.y, '#ffd700', 22, 7);
+      spawnText(t.body.position.x, t.body.position.y - 44, 'SHATTER!', '#ffd700');
+      sfx.freeze?.();
+    } });
   },
 });
 
@@ -981,7 +1006,7 @@ regSpell('pigmorph', {
   name: 'Pig Morph', color: '#ff9ecb', cooldown: 3000,
   cast(p) {
     statusBolt(p, { color: '#ff9ecb', dmg: 5 }, (q, m) => {
-      q.pigUntil = performance.now() + 2500 * m;
+      q.pigUntil = performance.now() + 3800 * m; // long enough to actually be a pig (no casting)
       spawnText(q.body.position.x, q.body.position.y - 44, 'OINK!', '#ff9ecb');
       sfx.oink();
     });
