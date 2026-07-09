@@ -61,7 +61,17 @@ function glowOrb(ctx, x, y, r, color, alpha = 1) {
 
 // ---------- the wizard: a hooded, robed storybook figure ----------
 // o: {x,y,scale,angle,now,color,hat,hp,facing,walkPhase,vx,piggy,alive,spellReady,spellColor}
+// map a player name to a bespoke avatar variant (Alinea, David "Grey", …)
+function avatarVariant(name) {
+  const n = (name || '').toLowerCase();
+  if (/a\s*linea/.test(n)) return 'alinea';
+  if (/grey|gray|gandalf|szarz/.test(n)) return 'grey';
+  return null;
+}
+
 function drawStoryWizard(ctx, o) {
+  if (o.variant === 'alinea') return drawStorySorceress(ctx, o); // Alinea gets her own avatar
+  if (o.variant === 'grey') return drawStoryGandalf(ctx, o);     // David "Grey" → the grey pilgrim
   const scale = o.scale ?? 1, now = o.now || 0, facing = o.facing || 1;
   const piggy = !!o.piggy, alive = o.alive !== false && o.alive !== 0;
   const col = piggy ? '#ff9ecb' : (o.color || '#b98cff');
@@ -235,6 +245,295 @@ function drawStar(ctx, x, y, r, color) {
     ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rr, y + Math.sin(a) * rr);
   }
   ctx.closePath(); ctx.fill();
+}
+
+// ---------- Alinea: a Boris Vallejo / Julie Bell warrior-sorceress ----------
+// Bronzed skin, black leather & bronze, oxblood cloak, torch-lit chiaroscuro.
+// Same state contract as drawStoryWizard — the bronze diadem reads HP like the hat.
+const VAL_SKIN = '#c98a5a', VAL_SKIN_SH = '#7f5231', VAL_HAIR = '#3a1e12', VAL_HAIR_HI = '#7a4a28';
+const VAL_BRONZE = '#c48a2c', VAL_GOLD = '#e6bd6a', VAL_OX = '#6e2230', VAL_RIM = '#ffcf8a';
+function drawStorySorceress(ctx, o) {
+  const scale = o.scale ?? 1, now = o.now || 0, facing = o.facing || 1;
+  const piggy = !!o.piggy, alive = o.alive !== false && o.alive !== 0;
+  const leather = piggy ? '#c86a8a' : mix('#2a1c12', o.color || '#2a1c12', 0.4); // black-brown leather, faintly tinted
+  const skin = piggy ? '#ff9ecb' : VAL_SKIN;
+  const hp = o.hp ?? 100;
+  const f = Math.min(1, Math.abs(o.vx || 0) / 6);
+  const ph = o.walkPhase || 0;
+
+  ctx.save();
+  ctx.translate(o.x, o.y);
+  ctx.rotate(o.angle || 0);
+  ctx.scale(scale, scale);
+  ctx.translate(0, Math.sin(ph) * 0.8 * f);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+
+  // warm torch backlight — a low amber glow, painterly not neon
+  if (alive) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowOrb(ctx, facing * -2, -2, 22 + Math.sin(now * 0.004) * 2, VAL_RIM, 0.09); ctx.restore(); }
+
+  // oxblood cloak billowing BEHIND, trailing away from the facing
+  const cs = Math.sin(now * 0.0035) * 2;
+  ctx.beginPath();
+  ctx.moveTo(-facing * 3, -7);
+  ctx.quadraticCurveTo(-facing * 13 + cs, -2, -facing * 12 + cs, 16);
+  ctx.quadraticCurveTo(-facing * 6, 13, -facing * 2, 14);
+  ctx.quadraticCurveTo(-facing * 4, 2, -facing * 3, -7);
+  ctx.closePath();
+  const cg = ctx.createLinearGradient(0, -7, -facing * 12, 16);
+  cg.addColorStop(0, VAL_OX); cg.addColorStop(1, shade(VAL_OX, -0.5));
+  ctx.fillStyle = cg; ctx.fill();
+  ctx.strokeStyle = rgba(VAL_RIM, 0.4); ctx.lineWidth = 1; // warm rim on the cloak edge
+  ctx.beginPath(); ctx.moveTo(-facing * 3, -7); ctx.quadraticCurveTo(-facing * 13 + cs, -2, -facing * 12 + cs, 16); ctx.stroke();
+
+  // long dark windswept hair behind the shoulders
+  const hg = ctx.createLinearGradient(0, -14, -facing * 6, 10);
+  hg.addColorStop(0, VAL_HAIR_HI); hg.addColorStop(1, VAL_HAIR);
+  ctx.strokeStyle = hg; ctx.lineWidth = 3.4;
+  for (const k of [0, 1]) { const sw = Math.sin(now * 0.004 + k) * 2; ctx.beginPath(); ctx.moveTo(-facing * 1 + k * 2, -13); ctx.quadraticCurveTo(-facing * 7 + sw, -2, -facing * 5 + sw, 8 + k * 2); ctx.stroke(); }
+
+  // tall laced leather boots, stepping
+  for (const side of [0, Math.PI]) {
+    const sp = ph + side;
+    const bx = Math.sin(sp) * 5 * f * facing + (side ? 3 : -3) * (1 - f * 0.5);
+    const lft = Math.max(0, Math.cos(sp)) * 3 * f;
+    const bg = ctx.createLinearGradient(bx - 2, 7, bx + 2, 16);
+    bg.addColorStop(0, shade(leather, 0.15)); bg.addColorStop(1, shade(leather, -0.3));
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.ellipse(bx, 15 - lft, 3, 2.4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(bx - 2, 5 - lft, 4, 10);
+    ctx.strokeStyle = rgba(VAL_BRONZE, 0.7); ctx.lineWidth = 0.5; // laces
+    for (let ly = 6; ly < 14; ly += 2.5) { ctx.beginPath(); ctx.moveTo(bx - 1.6, ly - lft); ctx.lineTo(bx + 1.6, ly - lft); ctx.stroke(); }
+  }
+
+  // curvy leather battle skirt — cinched waist flaring over full hips
+  ctx.beginPath();
+  ctx.moveTo(-3, 2);
+  ctx.quadraticCurveTo(-10, 8, -8.5, 16);   // left hip bows out
+  ctx.quadraticCurveTo(0, 18, 8.5, 16);
+  ctx.quadraticCurveTo(10, 8, 3, 2);        // right hip
+  ctx.closePath();
+  const sg = ctx.createLinearGradient(0, 2, 0, 16);
+  sg.addColorStop(0, shade(leather, 0.12)); sg.addColorStop(1, shade(leather, -0.4));
+  ctx.fillStyle = sg; ctx.fill();
+  ctx.strokeStyle = rgba(shade(leather, -0.5), 0.6); ctx.lineWidth = 0.8; // hanging strap panels
+  for (const px of [-5, -1.5, 1.5, 5]) { ctx.beginPath(); ctx.moveTo(px * 0.5, 3); ctx.lineTo(px, 15.5); ctx.stroke(); }
+  // bronze belt with a boss
+  ctx.strokeStyle = VAL_BRONZE; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(-4, 2.5); ctx.quadraticCurveTo(0, 4, 4, 2.5); ctx.stroke();
+  ctx.fillStyle = VAL_GOLD; ctx.beginPath(); ctx.arc(0, 3.2, 1.3, 0, Math.PI * 2); ctx.fill();
+
+  // bare bronzed midriff (Vallejo signature) — a sliver of lit skin at the waist
+  ctx.fillStyle = skin; ctx.fillRect(-2.6, -0.5, 5.2, 3);
+  ctx.fillStyle = rgba(VAL_SKIN_SH, 0.5); ctx.fillRect(-2.6, 1.2, 5.2, 1.3); // core shadow
+
+  // back arm (behind), bronze bracer
+  ctx.strokeStyle = shade(skin, -0.25); ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.moveTo(-facing * 2, -4); ctx.quadraticCurveTo(-facing * 7, 0, -facing * 6, 5); ctx.stroke();
+  ctx.strokeStyle = VAL_BRONZE; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(-facing * 5.4, 3); ctx.lineTo(-facing * 6.2, 5.2); ctx.stroke();
+
+  // leather bustier over a full bust — cinched to the waist (the hourglass)
+  ctx.beginPath();
+  ctx.moveTo(-4.6, -6.5);
+  ctx.quadraticCurveTo(-5.4, -2.5, -2.6, 0);   // left cup down to cinch
+  ctx.quadraticCurveTo(0, 1.4, 2.6, 0);
+  ctx.quadraticCurveTo(5.4, -2.5, 4.6, -6.5);
+  ctx.quadraticCurveTo(0, -4.2, -4.6, -6.5);   // neckline dips
+  ctx.closePath();
+  const bg2 = ctx.createLinearGradient(-5, -6, 5, 1);
+  bg2.addColorStop(0, shade(leather, 0.2)); bg2.addColorStop(0.5, leather); bg2.addColorStop(1, shade(leather, -0.35));
+  ctx.fillStyle = bg2; ctx.fill();
+  // bronzed décolletage + cleavage shadow above the neckline
+  ctx.fillStyle = skin;
+  ctx.beginPath(); ctx.moveTo(-4.4, -6.6); ctx.quadraticCurveTo(0, -4.4, 4.4, -6.6); ctx.quadraticCurveTo(0, -8.6, -4.4, -6.6); ctx.fill();
+  ctx.strokeStyle = rgba(VAL_SKIN_SH, 0.6); ctx.lineWidth = 0.7;
+  ctx.beginPath(); ctx.moveTo(0, -6.8); ctx.lineTo(0, -5.2); ctx.stroke();
+  // gold lacing + trim
+  ctx.strokeStyle = VAL_GOLD; ctx.lineWidth = 0.6;
+  for (let ly = -5.5; ly < 0; ly += 1.5) { ctx.beginPath(); ctx.moveTo(-1.4, ly); ctx.lineTo(1.4, ly + 0.6); ctx.moveTo(1.4, ly); ctx.lineTo(-1.4, ly + 0.6); ctx.stroke(); }
+  ctx.strokeStyle = VAL_BRONZE; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.arc(0, -6.5, 5, Math.PI * 1.08, Math.PI * 1.92); ctx.stroke();
+
+  // front arm raised, gripping a bronze-capped stave with an amber jewel
+  ctx.strokeStyle = skin; ctx.lineWidth = 2.4;
+  ctx.beginPath(); ctx.moveTo(facing * 2, -4); ctx.quadraticCurveTo(facing * 8, -6, facing * 10, -8); ctx.stroke();
+  ctx.strokeStyle = VAL_BRONZE; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(facing * 6.5, -6.6); ctx.lineTo(facing * 8.2, -7.4); ctx.stroke(); // bracer
+  const wood = '#4a3120';
+  ctx.strokeStyle = wood; ctx.lineWidth = 1.7; ctx.beginPath(); ctx.moveTo(facing * 10, -8); ctx.lineTo(facing * 12.5, -26); ctx.stroke();
+  ctx.strokeStyle = VAL_BRONZE; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(facing * 12, -22); ctx.lineTo(facing * 13, -28); ctx.stroke(); // bronze cap claws
+  if (alive) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowOrb(ctx, facing * 13, -28, 5, '#ffab5e', 0.85); ctx.restore(); }
+  ctx.fillStyle = '#c85a2a'; ctx.beginPath(); ctx.arc(facing * 13, -28, 1.8, 0, Math.PI * 2); ctx.fill();
+
+  // head — bronzed, strong features, chiaroscuro
+  ctx.fillStyle = skin;
+  ctx.beginPath(); ctx.arc(0, -11, 5.2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = rgba(VAL_SKIN_SH, 0.55); // shadow on the away side
+  ctx.beginPath(); ctx.arc(-facing * 1.5, -11, 5.2, Math.PI * 0.5, Math.PI * 1.5, facing < 0); ctx.fill();
+  ctx.fillStyle = hg; // hair framing / crown
+  ctx.beginPath(); ctx.arc(0, -13, 5.7, Math.PI * 1.02, Math.PI * 1.98); ctx.fill();
+  if (piggy) {
+    ctx.fillStyle = '#ff7eb6'; ctx.beginPath(); ctx.arc(facing * 4.2, -10, 2.3, 0, Math.PI * 2); ctx.fill();
+  } else {
+    ctx.fillStyle = INK; ctx.beginPath(); ctx.ellipse(facing * 2.2, -11, 1, 0.8, 0, 0, Math.PI * 2); ctx.fill(); // strong eye
+    ctx.strokeStyle = shade(VAL_HAIR, 0.1); ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(facing * 0.8, -12.6); ctx.lineTo(facing * 3.8, -12.2); ctx.stroke(); // brow
+    ctx.strokeStyle = '#7a2e28'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-1, -7.6); ctx.lineTo(1.2, -7.6); ctx.stroke(); // deep lips
+  }
+  // warm rim light down the lit edge of the face/shoulder
+  ctx.strokeStyle = rgba(VAL_RIM, 0.7); ctx.lineWidth = 0.9;
+  ctx.beginPath(); ctx.arc(0, -11, 5.2, Math.PI * (facing > 0 ? -0.45 : 1.45), Math.PI * (facing > 0 ? 0.4 : 0.55), facing < 0); ctx.stroke();
+
+  // the bronze DIADEM is her health bar (>=75 proud / 50-74 askew / gone <50)
+  if (hp >= 50) {
+    ctx.save();
+    if (hp < 75) { ctx.translate(facing * 2, -15); ctx.rotate(facing * 0.4); ctx.translate(0, 15); }
+    ctx.strokeStyle = VAL_BRONZE; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.arc(0, -12.5, 6, Math.PI * 1.12, Math.PI * 1.88); ctx.stroke();
+    ctx.fillStyle = VAL_GOLD; // side studs
+    for (const px of [-4.5, 4.5]) { ctx.beginPath(); ctx.arc(px, -14.6, 0.9, 0, Math.PI * 2); ctx.fill(); }
+    // central amber cabochon
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowOrb(ctx, 0, -16.5, 3, '#ffab5e', 0.8); ctx.restore();
+    ctx.fillStyle = '#c85a2a';
+    ctx.beginPath(); ctx.ellipse(0, -16.5, 1.6, 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = rgba('#ffd9a8', 0.9); ctx.beginPath(); ctx.arc(-0.5, -17.2, 0.5, 0, Math.PI * 2); ctx.fill();
+    if (hp >= 75 && alive) {
+      ctx.globalAlpha = 0.3 + 0.15 * Math.sin(now * 0.005);
+      runeRing(ctx, 0, -16.5, 8, rgba(VAL_RIM, 1), now, { count: 6, lw: 0.6, alpha: 1, spin: 0.0016 });
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+
+  // smolder near death — warm embers
+  if (hp < 25 && alive) {
+    for (let i = 0; i < 3; i++) {
+      const t = (now * 0.05 + i * 37) % 30;
+      ctx.globalAlpha = 0.4 * (1 - t / 30);
+      ctx.fillStyle = mix('#ffab5e', '#8a6a4a', 0.4);
+      ctx.beginPath(); ctx.arc(Math.sin(now * 0.004 + i * 2.4) * 4, -18 - t, 2 + t * 0.1, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // charged spell mote — warm ember
+  if (o.spellReady) {
+    const sc = o.spellColor || '#ffab5e';
+    glowOrb(ctx, facing * 12, -7, 4.5 + Math.sin(now * 0.008) * 0.8, sc, 0.9);
+  }
+
+  ctx.restore();
+}
+
+// ---------- David "Grey": a grey pilgrim wizard, Gandalf-ish ----------
+// Robe/beard are grey by identity; p.color only tints faintly. Broad hat = HP.
+function drawStoryGandalf(ctx, o) {
+  const scale = o.scale ?? 1, now = o.now || 0, facing = o.facing || 1;
+  const piggy = !!o.piggy, alive = o.alive !== false && o.alive !== 0;
+  const robe = piggy ? '#ff9ecb' : mix('#8c8794', o.color || '#8c8794', 0.25);
+  const beard = '#dcd9e0', hatc = '#6f6a78', wood = '#6b4f34';
+  const ink = shade(robe, -0.55), dark = shade(robe, -0.3), lift = shade(robe, 0.4);
+  const hp = o.hp ?? 100;
+  const f = Math.min(1, Math.abs(o.vx || 0) / 6);
+  const ph = o.walkPhase || 0;
+
+  ctx.save();
+  ctx.translate(o.x, o.y);
+  ctx.rotate(o.angle || 0);
+  ctx.scale(scale, scale);
+  ctx.translate(0, Math.sin(ph) * 0.7 * f);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+
+  // sandalled feet under a long travelling robe
+  ctx.fillStyle = shade(wood, 0.1);
+  for (const side of [0, Math.PI]) {
+    const sp = ph + side;
+    const bx = Math.sin(sp) * 4 * f * facing + (side ? 3 : -3) * (1 - f * 0.5);
+    ctx.beginPath(); ctx.ellipse(bx, 15, 3.2, 2, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // the robe — a long, heavy, floor-length grey travelling cloak
+  const sway = Math.sin(now * 0.003 + ph) * 1.2 + facing * f * 2;
+  ctx.beginPath();
+  ctx.moveTo(-5, -6);
+  ctx.quadraticCurveTo(-9, 4, -10 + sway * 0.3, 16);
+  ctx.quadraticCurveTo(0, 18, 10 + sway * 0.3, 16);
+  ctx.quadraticCurveTo(9, 4, 5, -6);
+  ctx.closePath();
+  const rg = ctx.createLinearGradient(0, -6, 0, 16);
+  rg.addColorStop(0, shade(robe, 0.1)); rg.addColorStop(0.55, robe); rg.addColorStop(1, dark);
+  ctx.fillStyle = rg; ctx.fill();
+  ctx.strokeStyle = rgba(shade(robe, -0.4), 0.5); ctx.lineWidth = 1; // folds
+  for (const fx of [-4, 0, 4]) { ctx.beginPath(); ctx.moveTo(fx * 0.4, -4); ctx.quadraticCurveTo(fx * 0.8, 6, fx + sway * 0.25, 15); ctx.stroke(); }
+  ctx.strokeStyle = rgba(lift, 0.6); ctx.lineWidth = 1.1; // rim light
+  ctx.beginPath(); ctx.moveTo(facing * 5, -5.5); ctx.quadraticCurveTo(facing * 8.5, 4, (facing > 0 ? 10 : -10) + sway * 0.3, 15.5); ctx.stroke();
+  ctx.strokeStyle = ink; ctx.lineWidth = 0.9;
+  ctx.beginPath(); ctx.moveTo(-5, -6); ctx.quadraticCurveTo(-9, 4, -10 + sway * 0.3, 16); ctx.quadraticCurveTo(0, 18.5, 10 + sway * 0.3, 16); ctx.quadraticCurveTo(9, 4, 5, -6); ctx.stroke();
+  // a grey shoulder mantle
+  ctx.fillStyle = shade(robe, -0.18);
+  ctx.beginPath(); ctx.moveTo(-6, -4); ctx.quadraticCurveTo(0, 2, 6, -4); ctx.quadraticCurveTo(0, -7, -6, -4); ctx.closePath(); ctx.fill();
+
+  // back arm; front hand grips a tall gnarled staff
+  ctx.strokeStyle = dark; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-facing * 2, -3); ctx.quadraticCurveTo(-facing * 7, 1, -facing * 6, 6); ctx.stroke();
+  ctx.strokeStyle = robe; ctx.lineWidth = 3.2;
+  ctx.beginPath(); ctx.moveTo(facing * 2, -3); ctx.quadraticCurveTo(facing * 8, -2, facing * 9, 0); ctx.stroke();
+  ctx.strokeStyle = wood; ctx.lineWidth = 1.8; // staff, taller than he is
+  ctx.beginPath(); ctx.moveTo(facing * 9, -18); ctx.quadraticCurveTo(facing * 10, 0, facing * 9.5, 17); ctx.stroke();
+  ctx.fillStyle = shade(wood, 0.15); // gnarled knob
+  ctx.beginPath(); ctx.arc(facing * 9, -18, 2.4, 0, Math.PI * 2); ctx.fill();
+  if (o.spellReady) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowOrb(ctx, facing * 9, -18, 6, o.spellColor || '#cfe0ff', 0.85); ctx.restore(); }
+
+  // head, then the great beard over it
+  ctx.fillStyle = PARCHMENT;
+  ctx.beginPath(); ctx.arc(0, -11, 5.2, 0, Math.PI * 2); ctx.fill();
+  // shadowed eyes under bushy brows
+  ctx.fillStyle = rgba(INK, 0.16); ctx.beginPath(); ctx.arc(0, -12.5, 5.2, Math.PI, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = INK;
+  ctx.beginPath(); ctx.arc(facing * 2.2, -11.4, 0.8, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = beard; ctx.lineWidth = 1.4; // brows
+  ctx.beginPath(); ctx.moveTo(facing * 0.6, -13.4); ctx.lineTo(facing * 4, -12.8); ctx.stroke();
+  // flowing beard
+  ctx.fillStyle = beard;
+  ctx.beginPath();
+  ctx.moveTo(-4.5, -9);
+  ctx.quadraticCurveTo(-5.5, -1, -2.5, 4);
+  ctx.quadraticCurveTo(0, 7 + Math.sin(now * 0.004) * 0.6, 2.5, 4);
+  ctx.quadraticCurveTo(5.5, -1, 4.5, -9);
+  ctx.quadraticCurveTo(0, -6, -4.5, -9);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = rgba('#b8b4c0', 0.6); ctx.lineWidth = 0.5; // beard strands
+  ctx.beginPath(); ctx.moveTo(-1.5, -6); ctx.lineTo(-1, 4); ctx.moveTo(1.5, -6); ctx.lineTo(1, 4); ctx.stroke();
+  // moustache
+  ctx.fillStyle = beard;
+  ctx.beginPath(); ctx.moveTo(-3, -8.5); ctx.quadraticCurveTo(0, -6.5, 3, -8.5); ctx.quadraticCurveTo(0, -7.2, -3, -8.5); ctx.fill();
+
+  // the broad, drooping pointed hat IS his HP (>=75 / 50-74 askew / gone <50)
+  if (hp >= 50) {
+    ctx.save();
+    if (hp < 75) { ctx.translate(facing * 2, -15); ctx.rotate(facing * 0.36); ctx.translate(0, 15); }
+    ctx.fillStyle = shade(hatc, -0.2); // wide floppy brim
+    ctx.beginPath(); ctx.ellipse(0, -15, 13, 3.6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); // tall crooked drooping cone
+    ctx.moveTo(-8, -15);
+    ctx.quadraticCurveTo(-5, -27, facing * 1, -33);
+    ctx.quadraticCurveTo(facing * 6, -35, facing * 6.5, -31);
+    ctx.quadraticCurveTo(2, -25, 8, -15);
+    ctx.closePath();
+    const hgd = ctx.createLinearGradient(-8, -15, 8, -32);
+    hgd.addColorStop(0, shade(hatc, -0.25)); hgd.addColorStop(0.5, hatc); hgd.addColorStop(1, shade(hatc, 0.2));
+    ctx.fillStyle = hgd; ctx.fill();
+    ctx.strokeStyle = shade(hatc, -0.5); ctx.lineWidth = 0.9; ctx.stroke();
+    ctx.strokeStyle = rgba(shade(hatc, -0.4), 0.7); ctx.lineWidth = 1.5; // simple cord band
+    ctx.beginPath(); ctx.moveTo(-7.5, -16); ctx.quadraticCurveTo(0, -14.5, 7.5, -16); ctx.stroke();
+    ctx.restore();
+  }
+
+  if (hp < 25 && alive) {
+    for (let i = 0; i < 3; i++) {
+      const t = (now * 0.05 + i * 37) % 30;
+      ctx.globalAlpha = 0.4 * (1 - t / 30);
+      ctx.fillStyle = '#9c96a6';
+      ctx.beginPath(); ctx.arc(Math.sin(now * 0.004 + i * 2.4) * 4, -18 - t, 2 + t * 0.1, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
 }
 
 // ---------- spell tome: a leather grimoire with a clasp & embossed sigil ----------

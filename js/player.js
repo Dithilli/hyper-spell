@@ -428,6 +428,7 @@ function drawWizardFigure(p, x, y, scale, now, angle = 0) {
     piggy: now < (p.pigUntil || 0),
     alive: p.alive !== 0 && p.alive !== false,
     spellReady: ready, spellColor: ready ? spell.color : '#fff',
+    variant: avatarVariant(p.name), // Alinea / David "Grey" get bespoke avatars
   });
 }
 
