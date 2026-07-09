@@ -74,6 +74,8 @@ function serializeSnapshot(now) {
     // into the next round (headless clients use wr==null as their reset signal)
     wr: (game.state === 'ROUND_END' || game.state === 'VICTORY') && game.winner ? game.winner.slot : null,
     ev: game.envEvent?.announced ? game.envEvent.def.id : null,
+    bd: currentMap.data.broken && currentMap.data.broken.length ? currentMap.data.broken : undefined, // broken destructibles for LAN mirroring
+
     bs: game.boss?.announced ? { n: game.boss.title || game.boss.def.name, c: game.boss.enraged ? '#ff4d4d' : game.boss.def.color, hp: Math.max(0, Math.round(game.boss.hp)), mhp: game.boss.maxHp } : null,
     aw: game.state === 'VICTORY' ? game.awards || null : null,
     sr: game.state === 'VICTORY' ? game.spellReport || null : null,
@@ -201,13 +203,13 @@ function drawFxLite(fxLite, now) {
 
 // plain static scenery only — everything dynamic is drawn from the snapshot's
 // ghost list, so live bodies never double-draw against their recorded ghosts
-function drawSnapshotStatics() {
+function drawSnapshotStatics(now) {
   for (const b of Composite.allBodies(currentMap.composite)) {
     if (b.label === 'lava') continue;
     if (!b.isStatic || b.spin || b.phantom || b.kinematic) continue;
     if (b.label === 'crate') drawCrate(b);
     else if (b.label === 'spikes') drawSpikes(b);
-    else drawBodyRounded(b, b.render.fillStyle || '#171221');
+    else drawTerrainBody(b, now || performance.now());
   }
 }
 
@@ -223,7 +225,7 @@ function drawSnapshotWorld(snap, snapPrev, alpha, now, includeLocalFx = false) {
   if (snapPrev) for (const q of snapPrev.ps) prevPs[q.s] = q;
 
   drawBackdrop(now);
-  drawSnapshotStatics();
+  drawSnapshotStatics(now);
   drawLava(now);
   drawGeysers(now); // vents come from the map def, present client-side too
 

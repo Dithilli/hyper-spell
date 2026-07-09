@@ -254,6 +254,7 @@ Events.on(engine, 'collisionStart', ({ pairs }) => {
         if (b.label === 'vine') killVine(b);
         if (b.label === 'boss' && a.owner) damageBoss(22, a.position, a.owner);
         if (b.label === 'decoy') { spawnParticles(b.position.x, b.position.y, '#e8d5ff', 16, 5); removeSummon(b); } // a mirror image soaks the shot, then bursts
+        if (b.label === 'destructible') damageDestructible(b, 12); // bolts chip cover, not just explosions
         if (b.label === 'player' && now < (b.player.reflectUntil || 0)) {
           Body.setVelocity(a, { x: -a.velocity.x * 1.1, y: -Math.abs(a.velocity.y) * 0.5 - 2 });
           a.collisionFilter.group = b.player.group;
@@ -603,16 +604,61 @@ function drawSpikes(b) {
   });
 }
 
+// a destructible block: darkens and cracks as its hp drops, before it blows apart
+function drawDestructible(b) {
+  const frac = Math.max(0, (b.hp ?? b.maxHp) / (b.maxHp || 1));
+  const w = b.w || 40, h = b.h || 40;
+  ctx.save();
+  ctx.translate(b.position.x, b.position.y);
+  ctx.rotate(b.angle || 0);
+  ctx.fillStyle = b.dcolor || '#6b4a2a';
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  if (frac < 1) { ctx.fillStyle = `rgba(0,0,0,${(1 - frac) * 0.45})`; ctx.fillRect(-w / 2, -h / 2, w, h); } // scorch
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1.5; ctx.strokeRect(-w / 2, -h / 2, w, h);
+  if (frac < 0.7) { // cracks
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-w / 2, -h / 5); ctx.lineTo(0, 0); ctx.lineTo(w / 4, -h / 3);
+    if (frac < 0.35) { ctx.moveTo(0, 0); ctx.lineTo(-w / 4, h / 3); ctx.moveTo(0, 0); ctx.lineTo(w / 2, h / 5); }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// biome of the current arena → which animated crust the terrain grows
+function mapCrustKind() {
+  const d = currentMap.data, def = currentMap.def;
+  if (def.icy || d.eventIcy) return 'snow';
+  if (d.lavaY != null || d.acid) return 'char';
+  if (d.starfield || d.voidTop) return 'crystal';
+  return 'grass';
+}
+
+// structural terrain (platforms, walls, moving/rotating bars) gets the storybook
+// stone-and-crust treatment; loose dynamic debris keeps the plain rounded look.
+function drawTerrainBody(b, now) {
+  if (b.isStatic || b.kinematic || b.spin) {
+    drawStoryTerrain(ctx, {
+      vertices: b.vertices, bounds: b.bounds, angle: b.angle, now,
+      color: b.render.fillStyle || '#2a2336', crust: mapCrustKind(),
+      flip: engine.gravity.y < 0,
+    });
+  } else {
+    drawBodyRounded(b, b.render.fillStyle || '#171221');
+  }
+}
+
 function drawMapBodies(now) {
   for (const b of Composite.allBodies(currentMap.composite)) {
     if (b.label === 'lava') continue;
     if (b.phantom) ctx.globalAlpha = b.phantomSolid === false ? 0.18 : 0.85;
     if (b.label === 'crate') drawCrate(b);
+    else if (b.label === 'destructible') drawDestructible(b);
     else if (b.label === 'spikes') drawSpikes(b);
     else if (b.label === 'vine') drawVineAt(b.position.x, b.bounds.max.y, Math.min(48, (now - (b.bornAt || now)) * 0.04 + 10), now);
     else if (drawHazardBody(b, now)) { /* icicles, barrels, bumpers, balls */ }
     else {
-      drawBodyRounded(b, b.render.fillStyle || '#171221');
+      drawTerrainBody(b, now);
       if (b.spin) drawPivotBolt(b);
     }
     ctx.globalAlpha = 1;

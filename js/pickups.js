@@ -145,6 +145,7 @@ function pickupHat(hat, p) {
   hats.delete(hat);
   Composite.remove(world, hat);
   p.megaCasts = 3;
+  p.hp = 100; // the mega hat restores you to full
   if ((p.sizeScale || 1) === 1) {
     Body.scale(p.body, 2, 2);
     p.sizeScale = 2;

@@ -93,6 +93,7 @@ function explode(x, y, radius = 150, power = 22, damage = 0, owner = null) {
     }
     if (body.isStatic) {
       if (body.label === 'icicle') body._blast = true;
+      if (body.label === 'destructible' && damage) damageDestructible(body, damage * (1 - d / (radius * 1.1)));
       continue;
     }
     const s = 1 - d / radius;

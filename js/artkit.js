@@ -807,6 +807,94 @@ function drawStoryBackdrop(ctx, o) {
   }
 }
 
+// ---------- terrain: storybook stone with an animated, biome-aware crust ----------
+function _thash(n) { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
+// o: {vertices, bounds, angle, color, now, crust:'grass'|'snow'|'char'|'crystal', flip}
+function drawStoryTerrain(ctx, o) {
+  const v = o.vertices, b = o.bounds, now = o.now || 0, base = o.color || '#2a2336';
+  const top = b.min.y, bot = b.max.y, left = b.min.x, right = b.max.x;
+  const flip = !!o.flip, crustY = flip ? bot : top, dir = flip ? 1 : -1;
+  const aligned = Math.abs(Math.sin(o.angle || 0)) < 0.15;
+
+  const trace = () => { ctx.beginPath(); ctx.moveTo(v[0].x, v[0].y); for (let i = 1; i < v.length; i++) ctx.lineTo(v[i].x, v[i].y); ctx.closePath(); };
+
+  // stone body — vertical gradient, lit toward the crust side
+  trace();
+  const g = ctx.createLinearGradient(0, top, 0, bot);
+  g.addColorStop(0, shade(base, flip ? -0.4 : 0.14));
+  g.addColorStop(0.5, base);
+  g.addColorStop(1, shade(base, flip ? 0.14 : -0.4));
+  ctx.fillStyle = g; ctx.fill();
+
+  // texture + soil band, clipped to the body
+  ctx.save(); trace(); ctx.clip();
+  ctx.strokeStyle = rgba(shade(base, -0.45), 0.5); ctx.lineWidth = 1; // cracks
+  for (let i = 0; i < 5; i++) {
+    const hx = left + (right - left) * _thash(i * 9.1 + left), hy = top + (bot - top) * _thash(i * 4.7 + top);
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + 4 + _thash(i) * 4, hy + 6 + _thash(i + 1) * 5); ctx.stroke();
+  }
+  ctx.fillStyle = rgba(shade(base, 0.3), 0.28); // mineral speckles
+  for (let i = 0; i < 9; i++) { const hx = left + (right - left) * _thash(i * 13.3 + left + 5), hy = top + (bot - top) * _thash(i * 7.7 + bot); ctx.beginPath(); ctx.arc(hx, hy, 0.7, 0, Math.PI * 2); ctx.fill(); }
+  if (aligned) { // soil/crust band just under the top edge
+    const cc = _crustColors(o.crust, base);
+    const bandH = 6;
+    const bg = ctx.createLinearGradient(0, crustY, 0, crustY - dir * bandH);
+    bg.addColorStop(0, rgba(cc.soil, 0)); bg.addColorStop(1, cc.soil);
+    ctx.fillStyle = bg; ctx.fillRect(left, Math.min(crustY, crustY - dir * bandH), right - left, bandH);
+  }
+  ctx.restore();
+
+  // ink outline
+  ctx.strokeStyle = shade(base, -0.6); ctx.lineWidth = 1.5; ctx.lineJoin = 'round'; trace(); ctx.stroke();
+
+  // rim light along the crust edge
+  if (aligned) { ctx.strokeStyle = rgba(_crustColors(o.crust, base).rim, 0.55); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(left + 1, crustY + dir * 0.5); ctx.lineTo(right - 1, crustY + dir * 0.5); ctx.stroke(); }
+
+  // the animated crust — tufts/mounds/embers/crystals overhanging the edge
+  if (aligned) _crustTufts(ctx, o.crust, left, right, crustY, dir, now, base);
+}
+
+function _crustColors(kind, base) {
+  if (kind === 'snow') return { soil: '#dfefff', rim: '#ffffff', a: '#eaf6ff', b: '#bcd8f0' };
+  if (kind === 'char') return { soil: '#241014', rim: '#ff8c5a', a: '#3a1c18', b: '#ffab5e' };
+  if (kind === 'crystal') return { soil: '#2a1d44', rim: '#c8b8ff', a: '#8a6de0', b: '#d8c8ff' };
+  return { soil: '#3a6a2e', rim: '#8fe6a2', a: '#4f8a3d', b: '#8fe6a2' }; // grass
+}
+
+function _crustTufts(ctx, kind, x0, x1, cy, dir, now, base) {
+  const cc = _crustColors(kind, base), step = 7, w = x1 - x0;
+  for (let x = x0 + 4; x < x1 - 2; x += step) {
+    const s = _thash(Math.round(x) * 3.3), sway = Math.sin(now * 0.003 + x * 0.12) * 2;
+    if (kind === 'grass') {
+      const gr = ctx.createLinearGradient(x, cy, x, cy + dir * 8);
+      gr.addColorStop(0, cc.a); gr.addColorStop(1, cc.b);
+      ctx.strokeStyle = gr; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+      for (const off of [-2, 0, 2]) { ctx.beginPath(); ctx.moveTo(x + off, cy); ctx.quadraticCurveTo(x + off + sway * 0.5, cy + dir * 4, x + off + sway + off * 0.4, cy + dir * (6 + s * 3)); ctx.stroke(); }
+      if (s > 0.86) { ctx.fillStyle = ['#ffd166', '#ff8fc7', '#e8d5ff'][Math.floor(s * 20) % 3]; ctx.beginPath(); ctx.arc(x + sway, cy + dir * (7 + s * 3), 1.4, 0, Math.PI * 2); ctx.fill(); }
+    } else if (kind === 'snow') {
+      ctx.fillStyle = cc.a;
+      ctx.beginPath(); ctx.ellipse(x, cy, 4 + s * 2, 2.6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(x - 1, cy - dir * 0.5, 2 + s, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+      const tw = 0.5 + 0.5 * Math.sin(now * 0.005 + x); if (s > 0.7) { ctx.globalAlpha = tw; ctx.fillStyle = '#eaf6ff'; ctx.fillRect(x + 2, cy + dir * (3 + s * 3), 1, 1); ctx.globalAlpha = 1; }
+    } else if (kind === 'char') {
+      ctx.fillStyle = shade(base, -0.5);
+      ctx.beginPath(); ctx.moveTo(x - 2.5, cy); ctx.lineTo(x + sway * 0.4, cy + dir * (5 + s * 4)); ctx.lineTo(x + 2.5, cy); ctx.closePath(); ctx.fill();
+      const flick = 0.4 + 0.6 * Math.abs(Math.sin(now * 0.008 + x * 0.5));
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = flick * (0.5 + s * 0.5);
+      ctx.fillStyle = cc.b; ctx.beginPath(); ctx.arc(x + sway * 0.3, cy + dir * (5 + s * 4), 1.1, 0, Math.PI * 2); ctx.fill(); ctx.restore(); ctx.globalAlpha = 1;
+    } else { // crystal
+      const pulse = 0.5 + 0.5 * Math.sin(now * 0.004 + x * 0.3);
+      const h = 5 + s * 5;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; glowOrb(ctx, x, cy + dir * h * 0.5, 4, cc.b, 0.25 + pulse * 0.25); ctx.restore();
+      const cg = ctx.createLinearGradient(x, cy, x, cy + dir * h);
+      cg.addColorStop(0, cc.a); cg.addColorStop(1, rgba(cc.b, 0.9));
+      ctx.fillStyle = cg;
+      ctx.beginPath(); ctx.moveTo(x - 2, cy); ctx.lineTo(x + (s - 0.5) * 2, cy + dir * h); ctx.lineTo(x + 2, cy); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = rgba('#fff', 0.4 + pulse * 0.3); ctx.lineWidth = 0.5; ctx.beginPath(); ctx.moveTo(x, cy); ctx.lineTo(x + (s - 0.5) * 2, cy + dir * h); ctx.stroke();
+    }
+  }
+}
+
 // ---------- iron spikes: lit teeth with a cruel glint ----------
 // o: {x,y,angle,w,h,color}
 function drawStorySpikes(ctx, o) {

@@ -20,6 +20,85 @@ function addStatic(m, x, y, w, h, opts = {}) {
   return addBody(m, b, opts.color || '#171221');
 }
 
+// ---- destructibles: cover that blows apart chunk by chunk under fire ----
+// A static block with hp. Explosions and projectile hits chip it; at 0 hp it
+// bursts into debris. Great for a big tree that slowly comes apart over a match.
+function addDestructible(m, x, y, w, h, opts = {}) {
+  const b = Bodies.rectangle(x, y, w, h, { isStatic: true, friction: 0.6, label: 'destructible' });
+  b.w = w; b.h = h;
+  b.maxHp = opts.hp ?? 45;
+  b.hp = b.maxHp;
+  b.dcolor = opts.color || '#6b4a2a';
+  b.debrisN = opts.debris ?? 4;
+  return addBody(m, b, b.dcolor);
+}
+
+function damageDestructible(b, dmg) {
+  if (b.hp == null || b.hp <= 0) return;
+  b.hp -= dmg;
+  spawnParticles(b.position.x + rand(-b.w / 2, b.w / 2), b.position.y + rand(-b.h / 2, b.h / 2), b.dcolor, 3, 3, 20);
+  if (b.hp <= 0) breakDestructible(b);
+}
+
+function breakDestructible(b) {
+  const { x, y } = b.position;
+  Composite.remove(currentMap.composite, b);
+  (currentMap.data.broken ||= []).push([Math.round(x), Math.round(y)]); // for LAN clients to mirror
+  spawnParticles(x, y, b.dcolor, 16, 6, 40);
+  for (let i = 0; i < (b.debrisN || 4); i++) {
+    const g = Bodies.rectangle(x + rand(-b.w / 3, b.w / 3), y + rand(-b.h / 3, b.h / 3), rand(6, 13), rand(6, 13), { density: 0.001, frictionAir: 0.02, label: 'gib' });
+    g.color = b.dcolor;
+    g.dieAt = performance.now() + 2600;
+    Body.setVelocity(g, { x: rand(-6, 6), y: rand(-9, -2) });
+    Body.setAngularVelocity(g, rand(-0.5, 0.5));
+    gibs.add(g);
+    Composite.add(world, g);
+  }
+  addShake(3);
+  sfx.thud?.();
+}
+
+// a big tree — hide behind the trunk or under the canopy; chip it and it slowly
+// blows apart. scale ~1 is a normal tree, 1.4 a giant.
+function addTree(m, x, groundY, scale = 1) {
+  const trunkW = 34 * scale, seg = 42 * scale, segs = 4;
+  for (let i = 0; i < segs; i++) {
+    addDestructible(m, x, groundY - seg / 2 - i * seg, trunkW, seg, { hp: 60, color: i % 2 ? '#5a3d22' : '#6b4a2a', debris: 5 });
+  }
+  const cy = groundY - segs * seg;
+  for (const [dx, dy, w, h, c] of [
+    [0, -26 * scale, 130 * scale, 62 * scale, '#3f7d3a'],
+    [-72 * scale, 8 * scale, 84 * scale, 58 * scale, '#356b33'],
+    [72 * scale, 8 * scale, 84 * scale, 58 * scale, '#356b33'],
+    [-34 * scale, -68 * scale, 96 * scale, 56 * scale, '#4a8f42'],
+    [42 * scale, -64 * scale, 88 * scale, 54 * scale, '#4a8f42'],
+  ]) {
+    addDestructible(m, x + dx, cy + dy, w, h, { hp: 40, color: c, debris: 6 });
+  }
+}
+
+// a covered nook you can tuck into — floor + back wall + roof, open on one side
+function addAlcove(m, x, floorY, w = 160, h = 96, side = 1, color) {
+  addStatic(m, x, floorY, w, 20, { color });
+  addStatic(m, x + side * (w / 2 - 12), floorY - h / 2, 24, h, { color });
+  addStatic(m, x, floorY - h + 10, w, 20, { color });
+}
+
+// a vertical wall with a crawl-through gap (a tunnel) centered at gapC
+function addWallGap(m, x, y0, y1, gapC, gapH = 84, wallW = 48, color) {
+  const topH = (gapC - gapH / 2) - y0;
+  const botH = y1 - (gapC + gapH / 2);
+  if (topH > 8) addStatic(m, x, y0 + topH / 2, wallW, topH, { color });
+  if (botH > 8) addStatic(m, x, (gapC + gapH / 2) + botH / 2, wallW, botH, { color });
+}
+
+// a destructible pillar of cover you can duck behind
+function addCoverPillar(m, x, groundY, h = 120, w = 40, color = '#6b6b7a') {
+  const segs = Math.max(2, Math.round(h / 40));
+  const seg = h / segs;
+  for (let i = 0; i < segs; i++) addDestructible(m, x, groundY - seg / 2 - i * seg, w, seg, { hp: 50, color, debris: 4 });
+}
+
 function addLava(m, y = H - 22, acid = false) {
   m.data.lavaY = y;
   m.data.acid = acid;
@@ -217,9 +296,11 @@ function scatterProps(m) {
   const spots = platformSpots(m, 3 + Math.floor(Math.random() * 3));
   for (const s of spots) {
     const roll = Math.random();
-    if (roll < 0.35) buildCrateStack(m, s.x, s.y - 14, pick([1, 2]), pick([1, 2, 3]));
-    else if (roll < 0.55) addBarrels(m, [s.x - 14, s.x + 14], s.y - 16);
-    else if (roll < 0.8) buildCrateStack(m, s.x, s.y - 14, 2, pick([3, 4])); // a wall to duck behind
+    if (roll < 0.3) buildCrateStack(m, s.x, s.y - 14, pick([1, 2]), pick([1, 2, 3]));
+    else if (roll < 0.46) addBarrels(m, [s.x - 14, s.x + 14], s.y - 16);
+    else if (roll < 0.62) buildCrateStack(m, s.x, s.y - 14, 2, pick([3, 4])); // a wall to duck behind
+    else if (roll < 0.78) addCoverPillar(m, s.x, s.y + 8, pick([90, 120])); // destructible cover to duck behind
+    else if (roll < 0.88) addTree(m, s.x, s.y + 8, 0.62); // a small destructible tree
     else {
       const big = Bodies.rectangle(s.x, s.y - 24, 42, 42, { density: 0.004, friction: 0.6, label: 'crate' });
       addBody(m, big, '#9a7440');

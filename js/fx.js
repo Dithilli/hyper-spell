@@ -5,7 +5,7 @@ let flashColor = '#fff', flashAlpha = 0;
 let timeScale = 1, slowUntil = 0;
 // master game pace: 1 = original, <1 = calmer & more readable so the spectacle
 // (combos, fusions, big spells) registers instead of flashing by. Tune to taste.
-const BASE_PACE = 0.9;
+const BASE_PACE = 0.85;
 
 function addShake(v) { shake = Math.min(shake + v, 26); }
 function doFlash(color, alpha = 0.4) { flashColor = color; flashAlpha = Math.max(flashAlpha, alpha); }

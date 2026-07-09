@@ -286,6 +286,22 @@
     snapPrev = snapCur; tPrev = tCur;
     snapCur = snap; tCur = performance.now();
     if (!clientMap || clientMap.index !== snap.mi) clientLoadMap(snap.mi);
+    applyBrokenDestructibles(snap.bd);
+  }
+
+  // mirror the host's blown-apart cover by removing the matching local blocks
+  function applyBrokenDestructibles(bd) {
+    if (!bd || !clientMap) return;
+    const applied = clientMap.data._bdApplied || 0;
+    if (bd.length <= applied) return;
+    const dests = Composite.allBodies(clientMap.composite).filter(b => b.label === 'destructible');
+    for (let i = applied; i < bd.length; i++) {
+      const [bx, by] = bd[i];
+      let best = null, bdst = 3600; // within 60px
+      for (const d of dests) { const dd = (d.position.x - bx) ** 2 + (d.position.y - by) ** 2; if (dd < bdst) { bdst = dd; best = d; } }
+      if (best) { spawnParticles(best.position.x, best.position.y, best.dcolor || '#6b4a2a', 14, 6, 40); Composite.remove(clientMap.composite, best); }
+    }
+    clientMap.data._bdApplied = bd.length;
   }
 
   function clientLoadMap(index) {

@@ -136,6 +136,15 @@
   </section>
 
   <section>
+    <p class="kicker">Terrain</p>
+    <h2>Stone that lives</h2>
+    <p class="sub">Platforms were flat single-colour slabs. Now they're carved stone with a cracked, speckled face,
+      an ink silhouette, and an <b>animated crust that reads the biome</b> — grass sways, snow sparkles, embers
+      flicker, crystal pulses. A wizard stands on each for scale.</p>
+    <div class="grid" id="terrain"></div>
+  </section>
+
+  <section>
     <p class="kicker">Random environmental effects</p>
     <h2>The weather, rolled once in five rounds</h2>
     <p class="sub">These fire at random, so you rarely see them back-to-back. Here they all are, live — each over a
@@ -359,6 +368,25 @@ function galleryEnv(ctx,id,W,H,now,lights){
   else if(id==='nightfall'){ galleryNightfall(ctx,W,H,lights); }
 }
 function drawStorySpikes(ctx,o){ const w=o.w||100,h=o.h||20,base=o.color||'#8a2f3d'; ctx.save(); ctx.translate(o.x,o.y); ctx.rotate(o.angle||0); const teeth=Math.max(3,Math.round(w/18)),tw=w/teeth; ctx.fillStyle=shade(base,-0.45); ctx.fillRect(-w/2,h/2-5,w,6); for(let i=0;i<teeth;i++){ const x0=-w/2+i*tw,xm=x0+tw/2,x1=x0+tw; ctx.beginPath(); ctx.moveTo(x0,h/2); ctx.lineTo(xm,-h/2-4); ctx.lineTo(x1,h/2); ctx.closePath(); const g=ctx.createLinearGradient(x0,0,x1,0); g.addColorStop(0,shade(base,-0.3)); g.addColorStop(0.45,mix(base,'#e8e8f0',0.35)); g.addColorStop(0.5,'#f4f4ff'); g.addColorStop(0.55,mix(base,'#e8e8f0',0.35)); g.addColorStop(1,shade(base,-0.4)); ctx.fillStyle=g; ctx.fill(); ctx.strokeStyle=shade(base,-0.6); ctx.lineWidth=0.8; ctx.stroke(); ctx.strokeStyle='rgba(255,255,255,0.8)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(xm-1,-h/2+1); ctx.lineTo(xm,-h/2-4); ctx.stroke(); } ctx.restore(); }
+function _thash(n){ const x=Math.sin(n*127.1+311.7)*43758.5453; return x-Math.floor(x); }
+function _crustColors(kind,base){ if(kind==='snow')return{soil:'#dfefff',rim:'#ffffff',a:'#eaf6ff',b:'#bcd8f0'}; if(kind==='char')return{soil:'#241014',rim:'#ff8c5a',a:'#3a1c18',b:'#ffab5e'}; if(kind==='crystal')return{soil:'#2a1d44',rim:'#c8b8ff',a:'#8a6de0',b:'#d8c8ff'}; return{soil:'#3a6a2e',rim:'#8fe6a2',a:'#4f8a3d',b:'#8fe6a2'}; }
+function _crustTufts(ctx,kind,x0,x1,cy,dir,now,base){ const cc=_crustColors(kind,base),step=7; for(let x=x0+4;x<x1-2;x+=step){ const s=_thash(Math.round(x)*3.3),sway=Math.sin(now*0.003+x*0.12)*2;
+  if(kind==='grass'){ const gr=ctx.createLinearGradient(x,cy,x,cy+dir*8); gr.addColorStop(0,cc.a); gr.addColorStop(1,cc.b); ctx.strokeStyle=gr; ctx.lineWidth=1.3; ctx.lineCap='round'; for(const off of [-2,0,2]){ ctx.beginPath(); ctx.moveTo(x+off,cy); ctx.quadraticCurveTo(x+off+sway*0.5,cy+dir*4,x+off+sway+off*0.4,cy+dir*(6+s*3)); ctx.stroke(); } if(s>0.86){ ctx.fillStyle=['#ffd166','#ff8fc7','#e8d5ff'][Math.floor(s*20)%3]; ctx.beginPath(); ctx.arc(x+sway,cy+dir*(7+s*3),1.4,0,Math.PI*2); ctx.fill(); } }
+  else if(kind==='snow'){ ctx.fillStyle=cc.a; ctx.beginPath(); ctx.ellipse(x,cy,4+s*2,2.6,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.ellipse(x-1,cy-dir*0.5,2+s,1.2,0,0,Math.PI*2); ctx.fill(); const tw=0.5+0.5*Math.sin(now*0.005+x); if(s>0.7){ ctx.globalAlpha=tw; ctx.fillStyle='#eaf6ff'; ctx.fillRect(x+2,cy+dir*(3+s*3),1,1); ctx.globalAlpha=1; } }
+  else if(kind==='char'){ ctx.fillStyle=shade(base,-0.5); ctx.beginPath(); ctx.moveTo(x-2.5,cy); ctx.lineTo(x+sway*0.4,cy+dir*(5+s*4)); ctx.lineTo(x+2.5,cy); ctx.closePath(); ctx.fill(); const flick=0.4+0.6*Math.abs(Math.sin(now*0.008+x*0.5)); ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=flick*(0.5+s*0.5); ctx.fillStyle=cc.b; ctx.beginPath(); ctx.arc(x+sway*0.3,cy+dir*(5+s*4),1.1,0,Math.PI*2); ctx.fill(); ctx.restore(); ctx.globalAlpha=1; }
+  else { const pulse=0.5+0.5*Math.sin(now*0.004+x*0.3),h=5+s*5; ctx.save(); ctx.globalCompositeOperation='lighter'; glowOrb(ctx,x,cy+dir*h*0.5,4,cc.b,0.25+pulse*0.25); ctx.restore(); const cg=ctx.createLinearGradient(x,cy,x,cy+dir*h); cg.addColorStop(0,cc.a); cg.addColorStop(1,rgba(cc.b,0.9)); ctx.fillStyle=cg; ctx.beginPath(); ctx.moveTo(x-2,cy); ctx.lineTo(x+(s-0.5)*2,cy+dir*h); ctx.lineTo(x+2,cy); ctx.closePath(); ctx.fill(); ctx.strokeStyle=rgba('#fff',0.4+pulse*0.3); ctx.lineWidth=0.5; ctx.beginPath(); ctx.moveTo(x,cy); ctx.lineTo(x+(s-0.5)*2,cy+dir*h); ctx.stroke(); } } }
+function drawStoryTerrain(ctx,o){ const v=o.vertices,b=o.bounds,now=o.now||0,base=o.color||'#2a2336'; const top=b.min.y,bot=b.max.y,left=b.min.x,right=b.max.x; const flip=!!o.flip,crustY=flip?bot:top,dir=flip?1:-1; const aligned=Math.abs(Math.sin(o.angle||0))<0.15;
+  const trace=()=>{ ctx.beginPath(); ctx.moveTo(v[0].x,v[0].y); for(let i=1;i<v.length;i++)ctx.lineTo(v[i].x,v[i].y); ctx.closePath(); };
+  trace(); const g=ctx.createLinearGradient(0,top,0,bot); g.addColorStop(0,shade(base,flip?-0.4:0.14)); g.addColorStop(0.5,base); g.addColorStop(1,shade(base,flip?0.14:-0.4)); ctx.fillStyle=g; ctx.fill();
+  ctx.save(); trace(); ctx.clip();
+  ctx.strokeStyle=rgba(shade(base,-0.45),0.5); ctx.lineWidth=1; for(let i=0;i<5;i++){ const hx=left+(right-left)*_thash(i*9.1+left),hy=top+(bot-top)*_thash(i*4.7+top); ctx.beginPath(); ctx.moveTo(hx,hy); ctx.lineTo(hx+4+_thash(i)*4,hy+6+_thash(i+1)*5); ctx.stroke(); }
+  ctx.fillStyle=rgba(shade(base,0.3),0.28); for(let i=0;i<9;i++){ const hx=left+(right-left)*_thash(i*13.3+left+5),hy=top+(bot-top)*_thash(i*7.7+bot); ctx.beginPath(); ctx.arc(hx,hy,0.7,0,Math.PI*2); ctx.fill(); }
+  if(aligned){ const cc=_crustColors(o.crust,base),bandH=6; const bg=ctx.createLinearGradient(0,crustY,0,crustY-dir*bandH); bg.addColorStop(0,rgba(cc.soil,0)); bg.addColorStop(1,cc.soil); ctx.fillStyle=bg; ctx.fillRect(left,Math.min(crustY,crustY-dir*bandH),right-left,bandH); }
+  ctx.restore();
+  ctx.strokeStyle=shade(base,-0.6); ctx.lineWidth=1.5; ctx.lineJoin='round'; trace(); ctx.stroke();
+  if(aligned){ ctx.strokeStyle=rgba(_crustColors(o.crust,base).rim,0.55); ctx.lineWidth=1.2; ctx.beginPath(); ctx.moveTo(left+1,crustY+dir*0.5); ctx.lineTo(right-1,crustY+dir*0.5); ctx.stroke(); }
+  if(aligned)_crustTufts(ctx,o.crust,left,right,crustY,dir,now,base);
+}
 function drawStoryBoss(ctx,o){ const {x,y,now=0}=o,r=o.r||46,type=o.type,color=o.color||'#e15d5d'; glowOrb(ctx,x,y,r*1.7,color,0.28);
   const bodyOrb=(fill)=>{ const g=ctx.createRadialGradient(x-r*0.35,y-r*0.4,r*0.2,x,y,r); g.addColorStop(0,shade(fill,0.28)); g.addColorStop(0.6,fill); g.addColorStop(1,shade(fill,-0.4)); ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.strokeStyle=shade(fill,-0.6); ctx.lineWidth=1.4; ctx.stroke(); ctx.strokeStyle=rgba(shade(fill,0.5),0.6); ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(x,y,r-2,Math.PI*1.05,Math.PI*1.6); ctx.stroke(); };
   const eyes=(dx,ey,er,glow)=>{ ctx.shadowColor=glow; ctx.shadowBlur=10; ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(x-dx,y+ey,er,0,Math.PI*2); ctx.arc(x+dx,y+ey,er,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0; ctx.fillStyle='#16121c'; ctx.beginPath(); ctx.arc(x-dx,y+ey,er*0.4,0,Math.PI*2); ctx.arc(x+dx,y+ey,er*0.4,0,Math.PI*2); ctx.fill(); };
@@ -477,6 +505,15 @@ const effects=[
   {id:'surge', label:'Arcane surge', tag:'rising sigils'},
   {id:'nightfall', label:'Nightfall', tag:'candlelight'},
 ].map(e=>({...e, ctx:showcaseCard('effects', e.label, e.tag)}));
+// terrain showcase — a platform + a wizard per biome crust
+const terr=[
+  {crust:'grass', label:'Grassland', tag:'grass', bg:'#241d2e', opt:{}},
+  {crust:'snow', label:'Frostreach', tag:'snow', bg:'#1a2436', opt:{icy:true}},
+  {crust:'char', label:'The Molten Deep', tag:'ember', bg:'#2a1418', opt:{lavaY:999}},
+  {crust:'crystal', label:'The Void', tag:'crystal', bg:'#0e0a1e', opt:{voidTop:true}},
+].map(t=>({...t, ctx:showcaseCard('terrain', t.label, t.tag)}));
+function terrRect(cx,cy,hw,hh){ const pts=[{x:cx-hw,y:cy-hh},{x:cx+hw,y:cy-hh},{x:cx+hw,y:cy+hh},{x:cx-hw,y:cy+hh}]; return {vertices:pts, bounds:{min:{x:cx-hw,y:cy-hh},max:{x:cx+hw,y:cy+hh}}, angle:0}; }
+function renderTerr(t,now){ const c=t.ctx; c.clearRect(0,0,BW,BH); drawStoryBackdrop(c,{bg:t.bg,...t.opt,W:BW,H:BH,now}); const plat=terrRect(BW/2,BH-26,BW*0.42,16); drawStoryTerrain(c,{...plat,color:'#2a2336',now,crust:t.crust,flip:false}); drawStoryWizard(c,{x:BW/2-30,y:BH-42,scale:1.9,angle:0,now,color:'#7fb0ff',hat:'#4a7bd6',hp:100,facing:1,walkPhase:now*0.011,vx:4,spellReady:true,spellColor:'#ffe08a'}); }
 // named champions — their own avatars
 const CHW=300, CHH=214;
 function championCard(title,tag,note){ const el=document.createElement('div'); el.className='card'; el.innerHTML=`<h3>${title} <span class="tag">${tag}</span></h3><figure class="after"><canvas></canvas></figure><p class="note">${note}</p>`; document.getElementById('champs').appendChild(el); return fit(el.querySelector('canvas'),CHW,CHH); }
@@ -561,6 +598,7 @@ function frame(t){
   for(const b of biomes) renderBiome(b,now);
   for(const e of effects) renderEffect(e,now);
   for(const c of champs) renderChamp(c,now);
+  for(const t of terr) renderTerr(t,now);
   if(!reduce) requestAnimationFrame(frame);
 }
 if(reduce) frame(1200); else requestAnimationFrame(frame);

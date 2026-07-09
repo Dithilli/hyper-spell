@@ -169,3 +169,52 @@ theme('Classic', { bg: '#241d2e' }, [
   { n: 'Rising Lava', bg: '#2b1d22', b(m) { addStatic(m, W / 2, 640, 320, 36); addStatic(m, 240, 500, 240, 32); addStatic(m, W - 240, 500, 240, 32); addStatic(m, W / 2, 380, 260, 32); addStatic(m, 170, 250, 200, 32); addStatic(m, W - 170, 250, 200, 32); addStatic(m, W / 2, 140, 220, 32); buildCrateStack(m, W / 2, 358, 3, 2); addBarrels(m, [240, 280, W - 240, W - 280], 470); addHangingPlatform(m, 460, 30, 130, 130); addHangingPlatform(m, W - 460, 30, 130, 130); addLava(m); }, u(m, now, dt) { m.data.lavaY = Math.max(210, m.data.lavaY - 14 * dt / 1000); Body.setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 }); }, s: [{ x: W / 2 - 100, y: 600 }, { x: W / 2 + 100, y: 600 }, { x: 240, y: 460 }, { x: W - 240, y: 460 }] },
   { n: 'Pendulum Prime', bg: '#221c2b', b(m) { addStatic(m, W / 2, 645, 660, 40); addStatic(m, 110, 470, 220, 36); addStatic(m, W - 110, 470, 220, 36); buildCrateStack(m, W / 2 + 200, 611, 3, 3); addBarrels(m, [W / 2 - 180, W / 2 - 220], 600); addPendulumBall(m, W / 2, -80, 400); addLava(m); }, u(m) { keepPendulumsSwinging(m); }, s: [{ x: 110, y: 410 }, { x: W - 110, y: 410 }, { x: W / 2 - 240, y: 580 }, { x: W / 2 + 240, y: 580 }] },
 ]);
+
+// ============ THEME: WILDWOOD (cover-rich, destructible trees) ============
+theme('Wildwood', { bg: '#182014' }, [
+  { n: 'The Grove', b(m) {
+    addStatic(m, W / 2, 660, W, 44, { color: '#2a3320' });
+    addStatic(m, 250, 500, 300, 26, { color: '#2a3320' });
+    addStatic(m, W - 250, 500, 300, 26, { color: '#2a3320' });
+    addStatic(m, W / 2, 380, 280, 26, { color: '#2a3320' });
+    addTree(m, 430, 638, 0.9); addTree(m, W - 430, 638, 0.9); addTree(m, W / 2, 638, 1.15);
+    addAlcove(m, 150, 638, 170, 100, 1, '#2a3320'); addAlcove(m, W - 150, 638, 170, 100, -1, '#2a3320');
+  }, s: [{ x: 250, y: 430 }, { x: W - 250, y: 430 }, { x: W / 2, y: 300 }, { x: 150, y: 120 }] },
+
+  { n: 'Thicket', cozy: true, b(m) {
+    addStatic(m, W / 2, 660, W, 44, { color: '#2a3320' });
+    addStatic(m, 210, 520, 260, 26, { color: '#2a3320' }); addStatic(m, W - 210, 520, 260, 26, { color: '#2a3320' });
+    for (const x of [300, 560, W - 560, W - 300]) addTree(m, x, 638, 0.7);
+    for (const x of [430, W / 2, W - 430]) addCoverPillar(m, x, 638, 130);
+  }, s: [{ x: 210, y: 460 }, { x: W - 210, y: 460 }, { x: 120, y: 120 }, { x: W - 120, y: 120 }] },
+
+  { n: 'Hollow Log', b(m) {
+    addStatic(m, W / 2, 660, W, 44, { color: '#2a3320' });
+    addStatic(m, W / 2, 470, 540, 60, { color: '#4a3420' });
+    addWallGap(m, 375, 380, 640, 560, 92, 44, '#4a3420'); addWallGap(m, W - 375, 380, 640, 560, 92, 44, '#4a3420');
+    addTree(m, 190, 638, 0.9); addTree(m, W - 190, 638, 0.9);
+    addAlcove(m, W / 2, 638, 210, 92, 1, '#2a3320');
+  }, s: [{ x: 190, y: 120 }, { x: W - 190, y: 120 }, { x: W / 2 - 130, y: 120 }, { x: W / 2 + 130, y: 120 }] },
+
+  { n: 'Ancient Oak', b(m) {
+    addStatic(m, W / 2, 660, W, 44, { color: '#2a3320' });
+    addStatic(m, 220, 470, 240, 26, { color: '#2a3320' }); addStatic(m, W - 220, 470, 240, 26, { color: '#2a3320' });
+    addTree(m, W / 2, 638, 1.7);
+    addCoverPillar(m, 430, 638, 100); addCoverPillar(m, W - 430, 638, 100);
+  }, s: [{ x: 220, y: 410 }, { x: W - 220, y: 410 }, { x: 120, y: 120 }, { x: W - 120, y: 120 }] },
+
+  { n: 'Treetops', b(m) {
+    addStatic(m, 200, 560, 300, 26, { color: '#2a3320' }); addStatic(m, W - 200, 560, 300, 26, { color: '#2a3320' });
+    addStatic(m, W / 2, 440, 260, 26, { color: '#2a3320' });
+    addTree(m, 200, 547, 0.85); addTree(m, W - 200, 547, 0.85); addTree(m, W / 2, 427, 0.8);
+    addLava(m, H - 6);
+  }, s: [{ x: 200, y: 500 }, { x: W - 200, y: 500 }, { x: W / 2, y: 380 }, { x: W / 2, y: 120 }] },
+
+  { n: 'Root Cellar', cozy: true, b(m) {
+    addStatic(m, W / 2, 660, W, 44, { color: '#2a2418' });
+    addStatic(m, W / 2, 380, 720, 26, { color: '#2a2418' });
+    addWallGap(m, 340, 405, 660, 585, 94, 46, '#3a2f20'); addWallGap(m, W - 340, 405, 660, 585, 94, 46, '#3a2f20');
+    addAlcove(m, 150, 638, 160, 96, 1, '#2a2418'); addAlcove(m, W - 150, 638, 160, 96, -1, '#2a2418');
+    addCoverPillar(m, W / 2, 638, 90);
+  }, s: [{ x: 200, y: 330 }, { x: W - 200, y: 330 }, { x: W / 2 - 150, y: 120 }, { x: W / 2 + 150, y: 120 }] },
+]);
