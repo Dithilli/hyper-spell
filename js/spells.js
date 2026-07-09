@@ -375,11 +375,16 @@ const SPELLS = {
   },
 };
 
+// no spell fires faster than this, no matter how low its own cooldown — turns the
+// spammy bolts (ember/zap/ice shard/...) into deliberate, aimed shots. Tune to
+// taste: higher = more measured, lower = twitchier.
+const CAST_FLOOR = 480;
+
 function castSpell(p, now, slot = 0) {
   const id = p.slots[slot];
   const spell = id && SPELLS[id];
   if (!spell) return;
-  if (now - p.casts[slot] < spell.cooldown) return;
+  if (now - p.casts[slot] < Math.max(spell.cooldown, CAST_FLOOR)) return;
   p.casts[slot] = now;
   p.lastCastSlot = slot; // primary slot for spellId/lastCast accessors + attribution
   telCast(id); // balance: a confirmed cast (past the cooldown gate)
