@@ -1,9 +1,31 @@
 # HYPERSPELL — Patch Notes
 
+## v4 · July 9, 2026 — "The Fusion Update"
+
+### 🎴 Two spell slots
+- Carry **two spells at once** and cast each independently — **Slot A** = E / Left-click / gamepad X·RT, **Slot B** = Q / Right-click / gamepad B·RB (arrow player: Enter + R-Shift). Pick up a new tome and it fills an empty slot, or replaces your oldest.
+
+### ⚗️ Fusion & hybrids
+- Hold two spells from the right **elemental schools** (Fire, Ice, Lightning, Air, Earth, Void, Life, Trickster) and they **fuse into a bespoke hybrid** — **36 one-of-a-kind fusions** covering every school pairing, each with its own signature look. Fire + Ice = **Steam Burst**, two Lightning = **Overload**, Void + Air = **Event Horizon**, two Tricksters = **Pandemonium**, and 32 more.
+- **Fusion Catalyst** — a rare spinning magenta pickup that fuses with whatever you're holding (a wildcard), turning a lone spell into its school's amped form.
+
+### ✨ Elemental synergies
+- **SHATTER** — a solid hit on a **frozen** wizard cracks the ice for bonus damage.
+- **CONDUCT** — **Wet** wizards (just-thawed, or standing on ice/snow) take amplified lightning that **arcs** to a neighbor.
+
+### 🎲 Rarity tiers
+- Spells now drop by **rarity** (common → legendary): the strong ones are rarer, and finding a **★ LEGENDARY ★** is a jackpot. Rare+ tomes glow.
+
+### 🐉 Boss scaling
+- Bosses now scale each time they appear (**THE LICH III** hits harder and tankier than the first) and **ENRAGE** if you stall too long — sooner for later bosses.
+
+### 📖 End-of-match report
+- The victory screen now shows a **Spellbook Report**: the match's deadliest spells by kills and damage.
+
 ## v3 · July 3, 2026 — "The Boss Update"
 
 ### ⚔️ Boss Battles
-- Every **25th round**, the arena goes quiet and a boss awakens. Fight it **together**.
+- Every **10th round**, the arena goes quiet and a boss awakens. Fight it **together**.
 - Four classics, picked at random: **THE DRAGON** (swooping fireball fans, meteor volleys), **THE LICH** (teleports, snipes a random wizard, raises skeletons), **THE GOLEM** (stalks you on foot, leap-slams with an explosive shockwave), **THE KRAKEN** (lurks below, erupts tentacles under your feet — watch for the warning bubbles).
 - Boss HP scales with the head count. **Slay it** → the match continues, scores intact. **Party wipe** → everyone's round wins reset to ZERO. Start over.
 - Yes, friendly fire is still on during boss rounds. Choose your meteors wisely.

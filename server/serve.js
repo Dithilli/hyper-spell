@@ -19,8 +19,30 @@ const MIME = {
   '.json': 'application/json', '.md': 'text/markdown',
 };
 
+// balance telemetry: the host POSTs one JSON record per round; we append it as a
+// line to telemetry/rounds.jsonl for offline analysis (see scripts/balance-report.js).
+const TEL_DIR = path.join(__dirname, 'telemetry');
+const TEL_FILE = path.join(TEL_DIR, 'rounds.jsonl');
+function appendTelemetry(body, res) {
+  let json;
+  try { json = JSON.parse(body); } catch { res.writeHead(400); res.end('bad json'); return; }
+  fs.mkdir(TEL_DIR, { recursive: true }, (mkErr) => {
+    if (mkErr) { res.writeHead(500); res.end('mkdir failed'); return; }
+    fs.appendFile(TEL_FILE, JSON.stringify(json) + '\n', (err) => {
+      if (err) { res.writeHead(500); res.end('write failed'); return; }
+      res.writeHead(204); res.end();
+    });
+  });
+}
+
 const server = http.createServer((req, res) => {
   let urlPath = decodeURIComponent(req.url.split('?')[0]);
+  if (req.method === 'POST' && urlPath === '/telemetry') {
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 1e6) req.destroy(); }); // cap at ~1MB
+    req.on('end', () => appendTelemetry(body, res));
+    return;
+  }
   if (urlPath === '/') urlPath = '/index.html';
   const file = path.normalize(path.join(ROOT, urlPath));
   if (!file.startsWith(ROOT)) { res.writeHead(403); res.end(); return; }

@@ -15,7 +15,10 @@ function serializeSnapshot(now) {
     pg: now < (p.pigUntil || 0) ? 1 : 0, hu: now < (p.hurtUntil || 0) ? 1 : 0,
     ...(p.ghost && !p.alive ? { gx: Math.round(p.ghost.x), gy: Math.round(p.ghost.y) } : {}),
     sp: p.spellId, rd: p.spellId && now - p.lastCast > SPELLS[p.spellId].cooldown ? 1 : 0,
-    cdf: p.spellId ? +Math.min(1, (now - p.lastCast) / (SPELLS[p.spellId].cooldown || 1)).toFixed(2) : 0,
+    // both spell slots + per-slot cooldown fraction for the two-slot HUD
+    s0: p.slots[0], s1: p.slots[1],
+    c0: p.slots[0] ? +Math.min(1, (now - p.casts[0]) / (SPELLS[p.slots[0]].cooldown || 1)).toFixed(2) : 0,
+    c1: p.slots[1] ? +Math.min(1, (now - p.casts[1]) / (SPELLS[p.slots[1]].cooldown || 1)).toFixed(2) : 0,
     mc: p.megaCasts || 0,
     w: p.roundWins,
   }));
@@ -71,8 +74,9 @@ function serializeSnapshot(now) {
     // into the next round (headless clients use wr==null as their reset signal)
     wr: (game.state === 'ROUND_END' || game.state === 'VICTORY') && game.winner ? game.winner.slot : null,
     ev: game.envEvent?.announced ? game.envEvent.def.id : null,
-    bs: game.boss?.announced ? { n: game.boss.def.name, c: game.boss.def.color, hp: Math.max(0, Math.round(game.boss.hp)), mhp: game.boss.maxHp } : null,
+    bs: game.boss?.announced ? { n: game.boss.title || game.boss.def.name, c: game.boss.enraged ? '#ff4d4d' : game.boss.def.color, hp: Math.max(0, Math.round(game.boss.hp)), mhp: game.boss.maxHp } : null,
     aw: game.state === 'VICTORY' ? game.awards || null : null,
+    sr: game.state === 'VICTORY' ? game.spellReport || null : null,
     ps, bodies, segs, fxLite,
   };
 }

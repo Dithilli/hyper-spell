@@ -39,17 +39,18 @@
     }
     poll() {
       const stale = performance.now() - this.lastSeen > 2000;
-      const st = stale ? { m: 0, j: 0, c: 0, a: null } : this.state;
-      const jump = !!st.j, cast = !!st.c;
+      const st = stale ? { m: 0, j: 0, c: 0, c2: 0, a: null } : this.state;
+      const jump = !!st.j, cast = !!st.c, cast2 = !!st.c2;
       const s = {
-        move: st.m || 0, jump, cast,
+        move: st.m || 0, jump, cast, cast2,
         jumpPressed: jump && !this.prev.jump,
         castPressed: cast && !this.prev.cast,
+        cast2Pressed: cast2 && !this.prev.cast2,
         startPressed: false,
         aimPoint: null, aimVec: null,
         aimAngle: st.a,
       };
-      this.prev = { jump, cast, start: false };
+      this.prev = { jump, cast, cast2, start: false };
       return s;
     }
   }
@@ -222,7 +223,7 @@
 
   // wrap the cosmetic globals so every visual/sound also broadcasts
   function wrapFx() {
-    const names = ['spawnParticles', 'spawnRing', 'spawnText', 'doFlash', 'addShake', 'slowMo', 'boltVisual', 'setBanner', 'addKillFeed'];
+    const names = ['spawnParticles', 'spawnRing', 'spawnText', 'doFlash', 'addShake', 'slowMo', 'boltVisual', 'setBanner', 'addKillFeed', 'spawnBurst'];
     for (const name of names) {
       const orig = globalThis[name];
       globalThis[name] = (...args) => { emit({ t: 'fx', f: name, a: args }); return orig(...args); };
@@ -316,7 +317,8 @@
     inputTick++;
     if (inputTick % 2 !== 0) return; // ~30Hz
     const jump = !!keys['KeyW'] || !!keys['Space'] || !!keys['ArrowUp'];
-    const cast = !!keys['KeyE'] || !!keys['Enter'] || mouse.down;
+    const cast = !!keys['KeyE'] || !!keys['Enter'] || mouse.down;        // slot A
+    const cast2 = !!keys['KeyQ'] || !!keys['ShiftRight'] || mouse.rdown;  // slot B
     const move = (keys['KeyD'] || keys['ArrowRight'] ? 1 : 0) - (keys['KeyA'] || keys['ArrowLeft'] ? 1 : 0);
     let aim = null;
     if (mouse.present && snapCur && mySlot != null) {
@@ -324,7 +326,7 @@
       if (me) aim = Math.atan2(mouse.y - me.y, mouse.x - me.x);
     }
     if (!joined && (cast || mouse.down)) emit({ t: 'join', n: localStorage.getItem('hs-name-0') || '' });
-    if (joined) emit({ t: 'input', m: move, j: jump ? 1 : 0, c: cast ? 1 : 0, a: aim });
+    if (joined) emit({ t: 'input', m: move, j: jump ? 1 : 0, c: cast ? 1 : 0, c2: cast2 ? 1 : 0, a: aim });
     // lobby controls forwarded to host
     if (keys['Space'] && !this._sp) emit({ t: 'start' });
     this._sp = !!keys['Space'];
@@ -429,10 +431,7 @@
         ctx.font = 'bold 15px Georgia';
         ctx.fillText(`${gp.w} / ${snap.wn}`, x, 58);
       }
-      ctx.font = '13px Georgia';
-      ctx.fillStyle = '#9c8ab8';
-      ctx.fillText(gp.sp ? SPELLS[gp.sp].name : '· · ·', x, 74);
-      if (gp.sp) drawCooldownBar(x, 80, SPELLS[gp.sp], gp.cdf ?? (gp.rd ? 1 : 0), gp.mc || 0);
+      drawPlayerSpells(x, [gp.s0 ?? null, gp.s1 ?? null], [gp.c0 || 0, gp.c1 || 0], gp.mc || 0);
     });
     if (now < bannerUntil) {
       if (bannerHyper) {
@@ -488,6 +487,7 @@
         ctx.textAlign = 'center';
         ctx.fillText(`${gw.n} WINS THE MATCH`, W / 2, 180);
         drawAwards(snap.aw, now);
+        drawSpellReport(snap.sr, now);
         if (Math.random() < 0.6) {
           particles.push({ kind: 'confetti', x: rand(0, W), y: -10, vx: rand(-1, 1), vy: rand(1, 3), life: 120, maxLife: 120, color: pick(['#4ecdc4', '#ff6b81', '#ffd166', '#a55eea', '#e8d5ff']), r: 4 });
         }

@@ -51,14 +51,15 @@ function loadMap(index) {
 
 function startRound(index) {
   clearReplay();
-  if (game.state === 'LOBBY') resetMatchStats(); // fresh match, fresh ledger
+  if (game.state === 'LOBBY') { resetMatchStats(); resetMatchTelemetry(); } // fresh match, fresh ledger
   game.totalRounds = (game.totalRounds || 0) + 1;
+  resetTelemetry(); // fresh per-round balance tally
   const bossTime = game.totalRounds % BOSS_EVERY === 0;
   let tries = 0;
   while (bossTime && MAPS[index].cozy && ++tries < 60) index = Math.floor(Math.random() * MAPS.length);
   loadMap(index);
   for (const p of players) {
-    p.spellId = null;
+    clearSpells(p);
     despawnPlayer(p);
     spawnPlayer(p, spawnPointFor(p));
   }
@@ -90,6 +91,7 @@ function checkRoundEnd() {
     if (alive.length > 0) return;
     game.state = 'ROUND_END';
     game.winner = null;
+    flushRoundTelemetry();
     const replayMs = startReplay(performance.now());
     for (const p of players) p.roundWins = 0;
     setBanner(`${game.boss.def.name} PREVAILS — START OVER`, game.boss.def.color, 1800 + replayMs);
@@ -104,6 +106,7 @@ function checkRoundEnd() {
   const winner = alive[0] || null;
   game.state = 'ROUND_END';
   game.winner = winner;
+  flushRoundTelemetry();
   const replayMs = startReplay(performance.now()); // 0 if the round was too short
   if (winner) {
     winner.roundWins++;
@@ -132,6 +135,7 @@ function startVictory(p) {
   game.state = 'VICTORY';
   game.winner = p;
   game.awards = computeAwards();
+  game.spellReport = computeSpellReport();
   sfx.victory();
   doFlash(p.color, 0.4);
 }
@@ -822,6 +826,20 @@ function drawCooldownBar(x, y, spell, frac, megaCasts) {
   }
 }
 
+// two spell slots stacked under a player's name — shared by host HUD and LAN client.
+// slots = [idA, idB], cdf = [fracA, fracB]; empty slots read as "· · ·".
+function drawPlayerSpells(x, slots, cdf, megaCasts) {
+  ctx.textAlign = 'center';
+  for (let i = 0; i < 2; i++) {
+    const y = 74 + i * 22;
+    const def = slots[i] && SPELLS[slots[i]]; // guards empty + any transient/unknown id
+    ctx.font = '13px Georgia';
+    ctx.fillStyle = def ? (tierColor(slots[i]) || '#9c8ab8') : '#4a415c';
+    ctx.fillText(def ? def.name : '· · ·', x, y);
+    if (def) drawCooldownBar(x, y + 6, def, cdf[i], i === 0 ? megaCasts : 0);
+  }
+}
+
 function drawHUD(now) {
   if (game.state === 'LOBBY' || game.state === 'VICTORY') return;
   ctx.textAlign = 'center';
@@ -833,7 +851,7 @@ function drawHUD(now) {
     ctx.fillStyle = game.envEvent.def.color;
     ctx.fillText(`⚠ ${game.envEvent.def.name}`, W / 2, H - 12);
   }
-  if (game.boss?.announced) drawBossBar(game.boss.def.name, game.boss.def.color, game.boss.hp, game.boss.maxHp);
+  if (game.boss?.announced) drawBossBar(game.boss.title || game.boss.def.name, game.boss.enraged ? '#ff4d4d' : game.boss.def.color, game.boss.hp, game.boss.maxHp);
   drawKillFeed(now);
   const spacing = Math.min(300, (W - 220) / Math.max(players.length - 1, 1));
   players.forEach((p, i) => {
@@ -854,10 +872,8 @@ function drawHUD(now) {
       ctx.font = 'bold 15px Georgia';
       ctx.fillText(`${p.roundWins} / ${game.winsNeeded}`, x, 58);
     }
-    ctx.font = '13px Georgia';
-    ctx.fillStyle = '#9c8ab8';
-    ctx.fillText(p.spellId ? SPELLS[p.spellId].name : '· · ·', x, 74);
-    if (p.spellId) drawCooldownBar(x, 80, SPELLS[p.spellId], Math.min(1, (now - p.lastCast) / (SPELLS[p.spellId].cooldown || 1)), p.megaCasts);
+    const cdf = [0, 1].map(s => p.slots[s] ? Math.min(1, (now - p.casts[s]) / (SPELLS[p.slots[s]].cooldown || 1)) : 0);
+    drawPlayerSpells(x, p.slots, cdf, p.megaCasts);
   });
   if (now < bannerUntil) {
     if (bannerHyper) {
@@ -995,6 +1011,7 @@ function drawVictory(now) {
   ctx.fillStyle = '#e8d5ff';
   ctx.fillText('press CAST for a rematch', W / 2, 550);
   drawAwards(game.awards, now);
+  drawSpellReport(game.spellReport, now);
   if (Math.random() < 0.6) {
     particles.push({ kind: 'confetti', x: rand(0, W), y: -10, vx: rand(-1, 1), vy: rand(1, 3), life: 120, maxLife: 120, color: pick(['#4ecdc4', '#ff6b81', '#ffd166', '#a55eea', '#e8d5ff']), r: 4 });
   }

@@ -15,7 +15,8 @@ class BotController {
   idle() {
     this.prevJump = false;
     this.prevCast = false;
-    return { move: 0, jump: false, cast: false, jumpPressed: false, castPressed: false, startPressed: false, aimPoint: null, aimVec: null, aimAngle: null };
+    this.prevCast2 = false;
+    return { move: 0, jump: false, cast: false, cast2: false, jumpPressed: false, castPressed: false, cast2Pressed: false, startPressed: false, aimPoint: null, aimVec: null, aimAngle: null };
   }
 
   think(p, now) {
@@ -55,16 +56,17 @@ class BotController {
     if (goal && goal.y < me.y - 60 && Math.random() < 0.35) jump = true;                // goal is above
     if (Math.random() < 0.06) jump = true;                                              // nervous hop
 
-    let cast = false, aim = null;
-    if (p.spellId && tpos) {
+    let cast = false, cast2 = false, aim = null;
+    if (tpos && (p.slots[0] || p.slots[1])) {
       const d = Math.hypot(tpos.x - me.x, tpos.y - me.y);
-      const ready = now - p.lastCast > (SPELLS[p.spellId].cooldown || 0);
-      if (ready && d < 640 && Math.random() < 0.75) {
-        cast = true;
+      if (d < 640) {
         aim = Math.atan2(tpos.y - me.y, tpos.x - me.x) + rand(-0.14, 0.14); // wobbly aim on purpose
+        const ready = (s) => p.slots[s] && now - p.casts[s] > (SPELLS[p.slots[s]].cooldown || 0);
+        if (ready(0) && Math.random() < 0.75) cast = true;
+        if (ready(1) && Math.random() < 0.7) cast2 = true; // fire the other slot too
       }
     }
-    this.plan = { move, jump, cast, aim };
+    this.plan = { move, jump, cast, cast2, aim };
   }
 
   poll() {
@@ -75,17 +77,19 @@ class BotController {
       this.nextThink = now + rand(130, 280);
       this.think(p, now);
     }
-    const { move, jump, cast, aim } = this.plan;
+    const { move, jump, cast, cast2, aim } = this.plan;
     const s = {
-      move, jump, cast,
+      move, jump, cast, cast2,
       jumpPressed: jump && !this.prevJump,
       castPressed: cast && !this.prevCast,
+      cast2Pressed: cast2 && !this.prevCast2,
       startPressed: false,
       aimPoint: null, aimVec: null,
       aimAngle: aim,
     };
     this.prevJump = jump;
     this.prevCast = cast;
+    this.prevCast2 = cast2;
     return s;
   }
 }

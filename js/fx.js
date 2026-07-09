@@ -23,6 +23,20 @@ function spawnRing(x, y, color) {
   particles.push({ kind: 'ring', x, y, r: 12, life: 16, maxLife: 16, color });
 }
 
+// flexible bespoke burst — kind/shape/spread/drift/gravity all tunable. Powers
+// per-hybrid signature VFX; broadcast to LAN like the other cosmetic emitters.
+//   dir: aim (rad, 0 = right)   spread: cone width   up: initial lift
+//   g: per-particle gravity (negative = rises, e.g. steam/smoke)
+function spawnBurst(x, y, color, count = 12, o = {}) {
+  const kind = o.kind || 'square', speed = o.speed ?? 5, spread = o.spread ?? Math.PI * 2;
+  const dir = o.dir ?? 0, up = o.up ?? 0, life = o.life ?? 40, g = o.g ?? 0.25, r = o.r ?? 3;
+  for (let i = 0; i < count; i++) {
+    const a = dir + (Math.random() - 0.5) * spread;
+    const v = speed * (0.4 + Math.random() * 0.9);
+    particles.push({ kind, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - up, life: life + Math.random() * 15, maxLife: life, color, r: r * (0.6 + Math.random() * 0.8), g });
+  }
+}
+
 function spawnText(x, y, str, color) {
   particles.push({ kind: 'text', str, x, y, vx: 0, vy: -1.2, life: 50, maxLife: 50, color, r: 16 });
 }
@@ -37,7 +51,7 @@ function updateParticles(ts) {
     pt.x += pt.vx * ts;
     pt.y += pt.vy * ts;
     if (pt.kind === 'confetti') { pt.vy += 0.06 * ts; pt.x += Math.sin(pt.life * 0.25) * 0.8; }
-    else pt.vy += 0.25 * ts;
+    else pt.vy += (pt.g ?? 0.25) * ts; // per-particle gravity (spawnBurst can set g<0 to rise)
   }
 }
 
