@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>shot</title></head>
+<body>
+<canvas id="game" width="1280" height="720"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+<script src="js/core.js"></script>
+<script src="js/artkit.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/awards.js"></script>
+<script src="js/telemetry.js"></script>
+<script src="js/input.js"></script>
+<script src="js/spells.js"></script>
+<script src="js/player.js"></script>
+<script src="js/pickups.js"></script>
+<script src="js/spellbook.js"></script>
+<script src="js/spelltiers.js"></script>
+<script src="js/hybrids.js"></script>
+<script src="js/maps.js"></script>
+<script src="js/mapbook.js"></script>
+<script src="js/events.js"></script>
+<script src="js/boss.js"></script>
+<script src="js/bot.js"></script>
+<script src="js/snapshot.js"></script>
+<script src="js/game.js"></script>
+<script src="js/replay.js"></script>
+<script>
+// temp visual harness: ?map=<name substring>&piece=<spire|fang|shroom|arch|crystal|tree>
+const q = new URLSearchParams(location.search);
+const idx = Math.max(0, MAPS.findIndex(m => m.name.includes((q.get('map') || 'FROZEN LAKE').toUpperCase())));
+loadMap(idx);
+const px = 620, py = groundYAt(px);
+const piece = q.get('piece') || 'spire';
+if (piece === 'spire') { addGlacierSpire(currentMap, 480, groundYAt(480), 1); addIceBlock(currentMap, 760, groundYAt(760), 3); }
+if (piece === 'fang') { addObsidianFang(currentMap, 480, groundYAt(480), 1); addObsidianFang(currentMap, 820, groundYAt(820), 0.7); }
+if (piece === 'shroom') { addGiantMushroom(currentMap, 480, groundYAt(480), 1); addGiantMushroom(currentMap, 850, groundYAt(850), 0.7); }
+if (piece === 'arch') addStoneArch(currentMap, px, py, 1);
+if (piece === 'crystal') addCrystalCluster(currentMap, px, py, 1);
+if (piece === 'tree') addTree(currentMap, px, py, 1.1);
+// chip a couple blocks so damage states show
+setTimeout(() => {
+  const dests = Composite.allBodies(currentMap.composite).filter(b => b.label === 'destructible');
+  if (dests[0]) damageDestructible(dests[0], 30);
+  if (dests[1]) damageDestructible(dests[1], 45);
+}, 400);
+</script>
+</body>
+</html>

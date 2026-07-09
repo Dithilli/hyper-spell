@@ -210,6 +210,7 @@ function drawSnapshotStatics(now) {
     if (b.label === 'lava') continue;
     if (!b.isStatic || b.spin || b.phantom || b.kinematic) continue;
     if (b.label === 'crate') drawCrate(b);
+    else if (b.label === 'destructible') drawDestructible(b, now || performance.now());
     else if (b.label === 'spikes') drawSpikes(b);
     else drawTerrainBody(b, now || performance.now());
   }

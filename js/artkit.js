@@ -1011,6 +1011,192 @@ function drawStoryBoss(ctx, o) {
   }
 }
 
+// ---------- destructible cover: per-kind storybook materials ----------
+// Deterministic per-block detail (knots, moss, glints) keyed off the block's
+// position, so patterns hold still frame-to-frame and match on LAN clients.
+function _detSeed(x, y) {
+  let a = (Math.round(x) * 73856093) ^ (Math.round(y) * 19349663);
+  return () => {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// One destructible block. kind: wood | ice | stone | crate | obsidian | shroom.
+// frac = hp fraction; damage reads differently per material (scorch, glow, chips).
+function drawStoryDestructible(ctx, { x, y, w, h, angle = 0, kind = 'wood', frac = 1, color = '#6b4a2a', now = 0 }) {
+  const rnd = _detSeed(x, y);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  const hw = w / 2, hh = h / 2;
+
+  if (kind === 'ice') {
+    // translucent slab with inner glints and a frost cap
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = color;
+    ctx.fillRect(-hw, -hh, w, h);
+    ctx.globalAlpha = 0.3;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 2; i++) { // frozen-in shimmer streaks
+      const gx = -hw + w * (0.25 + rnd() * 0.5), gy = -hh + h * (0.2 + rnd() * 0.5);
+      const shim = 0.5 + 0.5 * Math.sin(now * 0.002 + gx);
+      ctx.globalAlpha = 0.18 + 0.2 * shim;
+      ctx.beginPath(); ctx.moveTo(gx - 5, gy + 7); ctx.lineTo(gx + 5, gy - 7); ctx.stroke();
+    }
+    ctx.globalAlpha = 0.8;
+    ctx.strokeStyle = shade(color, 0.6);
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(-hw + 2, -hh + 1.5); ctx.lineTo(hw - 2, -hh + 1.5); ctx.stroke(); // frost cap
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = rgba(color, 0.9);
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-hw, -hh, w, h);
+  } else if (kind === 'obsidian') {
+    // volcanic glass: near-black, one glassy highlight — and its cracks GLOW
+    // hotter as hp drops (the block telegraphs its own death)
+    ctx.fillStyle = mix(color, '#120c18', 0.55);
+    ctx.fillRect(-hw, -hh, w, h);
+    ctx.globalAlpha = 0.14;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(-hw * 0.5, -hh); ctx.lineTo(-hw * 0.1, hh); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-hw, -hh, w, h);
+  } else if (kind === 'stone') {
+    // chiselled masonry with moss creeping up from the base
+    ctx.fillStyle = color;
+    ctx.fillRect(-hw, -hh, w, h);
+    ctx.strokeStyle = shade(color, -0.35);
+    ctx.lineWidth = 1.2;
+    const rows = Math.max(1, Math.round(h / 22));
+    for (let r = 1; r < rows; r++) {
+      const yy = -hh + (h * r) / rows;
+      ctx.beginPath(); ctx.moveTo(-hw, yy); ctx.lineTo(hw, yy); ctx.stroke();
+      const off = -hw + w * (0.3 + 0.4 * rnd());
+      ctx.beginPath(); ctx.moveTo(off, yy); ctx.lineTo(off, yy - h / rows); ctx.stroke();
+    }
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#4a6b3a';
+    for (let i = 0; i < 2; i++) { // moss tufts
+      const mx = -hw + w * rnd(), my = hh - h * 0.18 * rnd();
+      ctx.beginPath(); ctx.ellipse(mx, my, 4 + rnd() * 5, 3, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-hw, -hh, w, h);
+  } else if (kind === 'crate') {
+    // planked crate with cross-brace and nail heads
+    ctx.fillStyle = color;
+    ctx.fillRect(-hw, -hh, w, h);
+    ctx.strokeStyle = shade(color, -0.3);
+    ctx.lineWidth = 1.5;
+    for (let i = 1; i < 3; i++) { const yy = -hh + (h * i) / 3; ctx.beginPath(); ctx.moveTo(-hw, yy); ctx.lineTo(hw, yy); ctx.stroke(); }
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath(); ctx.moveTo(-hw + 2, -hh + 2); ctx.lineTo(hw - 2, hh - 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = shade(color, -0.45);
+    for (const [nx, ny] of [[-hw + 4, -hh + 4], [hw - 4, -hh + 4], [-hw + 4, hh - 4], [hw - 4, hh - 4]]) {
+      ctx.beginPath(); ctx.arc(nx, ny, 1.6, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.strokeRect(-hw, -hh, w, h);
+  } else if (kind === 'shroom') {
+    // mushroom flesh: soft rounded fill with cream speckles
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') ctx.roundRect(-hw, -hh, w, h, Math.min(10, h / 3));
+    else ctx.rect(-hw, -hh, w, h);
+    ctx.fill();
+    ctx.fillStyle = '#f2e8d4';
+    for (let i = 0; i < Math.max(2, Math.round(w / 26)); i++) {
+      const sx = -hw + w * (0.12 + 0.76 * rnd()), sy = -hh + h * (0.2 + 0.5 * rnd());
+      ctx.beginPath(); ctx.ellipse(sx, sy, 3.5 + rnd() * 3, 2.5 + rnd() * 2, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  } else if (kind === 'wood' && _hx(color).g > _hx(color).r + 20) {
+    // leafy canopy block: billowing scalloped foliage, not planks
+    ctx.fillStyle = color;
+    ctx.fillRect(-hw, -hh + 4, w, h - 4);
+    const lobes = Math.max(3, Math.round(w / 18));
+    for (let i = 0; i <= lobes; i++) {
+      const lx = -hw + (w * i) / lobes;
+      const lr = 7 + rnd() * 6;
+      ctx.beginPath(); ctx.arc(lx, -hh + 4, lr, 0, Math.PI * 2); ctx.fill();
+      if (rnd() < 0.4) { ctx.fillStyle = shade(color, 0.18); ctx.beginPath(); ctx.arc(lx - 3, -hh + 1, lr * 0.5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = color; }
+    }
+    ctx.fillStyle = shade(color, -0.22); // under-shadow gives the mass depth
+    ctx.fillRect(-hw, hh - 5, w, 5);
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = shade(color, -0.3);
+    ctx.lineWidth = 1;
+    for (let i = 0; i < Math.max(2, Math.round(w / 30)); i++) { // leaf-vein ticks
+      const vx = -hw + w * (0.2 + 0.6 * rnd()), vy = -hh + h * (0.3 + 0.4 * rnd());
+      ctx.beginPath(); ctx.moveTo(vx - 3, vy + 3); ctx.lineTo(vx + 3, vy - 3); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  } else { // wood: bark grain and a knot
+    ctx.fillStyle = color;
+    ctx.fillRect(-hw, -hh, w, h);
+    ctx.strokeStyle = shade(color, -0.28);
+    ctx.lineWidth = 1.4;
+    for (let i = 0; i < Math.max(2, Math.round(w / 14)); i++) {
+      const gx = -hw + w * (0.12 + 0.76 * rnd());
+      ctx.beginPath();
+      ctx.moveTo(gx, -hh + 2);
+      ctx.quadraticCurveTo(gx + (rnd() - 0.5) * 6, 0, gx, hh - 2);
+      ctx.stroke();
+    }
+    if (rnd() < 0.6) { // a knot
+      const kx = -hw + w * (0.25 + 0.5 * rnd()), ky = -hh + h * (0.3 + 0.4 * rnd());
+      ctx.strokeStyle = shade(color, -0.4);
+      ctx.beginPath(); ctx.ellipse(kx, ky, 3.5, 2.5, 0.3, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.strokeStyle = shade(color, 0.12);
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-hw + 1, -hh + 1); ctx.lineTo(hw - 1, -hh + 1); ctx.stroke(); // lit top edge
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-hw, -hh, w, h);
+  }
+
+  // damage: obsidian cracks glow hot; everything else scorches & cracks dark
+  if (frac < 1) {
+    if (kind === 'obsidian') {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = (1 - frac) * 0.95;
+      ctx.strokeStyle = '#ff7043';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(-hw, -h / 5); ctx.lineTo(0, 0); ctx.lineTo(w / 4, -h / 3);
+      if (frac < 0.5) { ctx.moveTo(0, 0); ctx.lineTo(-w / 4, h / 3); ctx.moveTo(0, 0); ctx.lineTo(hw, h / 5); }
+      ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+    } else {
+      ctx.fillStyle = `rgba(0,0,0,${(1 - frac) * (kind === 'ice' ? 0.22 : 0.4)})`;
+      ctx.fillRect(-hw, -hh, w, h);
+      if (frac < 0.7) {
+        ctx.strokeStyle = kind === 'ice' ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.55)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-hw, -h / 5); ctx.lineTo(0, 0); ctx.lineTo(w / 4, -h / 3);
+        if (frac < 0.35) { ctx.moveTo(0, 0); ctx.lineTo(-w / 4, h / 3); ctx.moveTo(0, 0); ctx.lineTo(hw, h / 5); }
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
+}
+
 // ---------- particles: glowing storybook embers, motes & sigil rings ----------
 function drawStoryParticles(ctx, particles) {
   ctx.save();
@@ -1036,6 +1222,41 @@ function drawStoryParticles(ctx, particles) {
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = a; ctx.strokeStyle = pt.color; ctx.lineWidth = 2; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pt.x - pt.vx * 2, pt.y - pt.vy * 2); ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+    } else if (pt.kind === 'bird') {
+      // a tiny flapping silhouette — two arcs beating with the particle's life
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = Math.min(1, a * 1.6);
+      ctx.strokeStyle = pt.color;
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = 'round';
+      const flap = Math.sin(pt.life * 0.55) * 4;
+      ctx.beginPath();
+      ctx.moveTo(pt.x - 5, pt.y - flap);
+      ctx.quadraticCurveTo(pt.x - 2, pt.y + 1, pt.x, pt.y);
+      ctx.quadraticCurveTo(pt.x + 2, pt.y + 1, pt.x + 5, pt.y - flap);
+      ctx.stroke();
+    } else if (pt.kind === 'leaf') {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = a;
+      ctx.fillStyle = pt.color;
+      ctx.save();
+      ctx.translate(pt.x, pt.y);
+      ctx.rotate(Math.sin(pt.life * 0.12) * 0.9);
+      ctx.beginPath(); ctx.ellipse(0, 0, pt.r * 1.2, pt.r * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    } else if (pt.kind === 'glint') {
+      // a stationary twinkle: a four-point star that swells and fades
+      ctx.globalCompositeOperation = 'lighter';
+      const tw = Math.sin((1 - a) * Math.PI); // 0→1→0 over its life
+      ctx.globalAlpha = tw * 0.9;
+      ctx.strokeStyle = pt.color;
+      ctx.lineWidth = 1.2;
+      const rr = pt.r * (0.6 + tw);
+      ctx.beginPath();
+      ctx.moveTo(pt.x - rr, pt.y); ctx.lineTo(pt.x + rr, pt.y);
+      ctx.moveTo(pt.x, pt.y - rr); ctx.lineTo(pt.x, pt.y + rr);
+      ctx.stroke();
       ctx.globalCompositeOperation = 'source-over';
     } else if (pt.kind === 'confetti') {
       ctx.globalCompositeOperation = 'source-over';

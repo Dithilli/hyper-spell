@@ -14,6 +14,11 @@
 ### 🗺 No more uncrossable expanses
 - Every map is scanned after it builds: any void too wide to clear with a running double-jump gets **stepping platforms** planted mid-gap (sometimes with cover on top). More obstacles, less falling to your death.
 
+### 🎨 Storybook materials & ambient life
+- Destructible cover is no longer a colored block with cracks — every kind has real material art: **knotted bark and billowing leaf canopies** on trees, **translucent ice with frozen-in glints**, **mossy chiselled masonry**, **planked crates with nail heads**, **speckled mushroom flesh**, and **volcanic glass whose cracks glow hotter** as it nears breaking. LAN clients finally see damage states too (they were drawing cover as plain terrain).
+- The world breathes: leaves drift from canopies, ice sheds snow and twinkles, obsidian bleeds embers, dust falls from old stone — and the **first hit on an untouched tree startles a few birds out of it**.
+- **Biome landmarks**: most arenas now grow one big set-piece matched to their world — **glacier spires** on the frost maps, **obsidian fangs** in the lava works, **giant bouncy-capped mushrooms** in the swamp, **ruined stone arches** you can fight on top of, and **leaning void crystals** under the stars. All destructible, all part of the fight.
+
 ### 🌳 Cover that eventually explodes
 - Every map now guarantees **themed destructible cover** — trees in the woods and swamp, stone pillars in the ruins, **ice blocks** on the frost maps, crates in Box Land. Duck behind it, chip it down, and mind the finish: breaking cover now goes off with a **small blast** (ice flash-freezes whoever's standing close).
 - LAN fix: scattered cover is now **seeded**, so remote players finally see the exact same props the host does.

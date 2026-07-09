@@ -26,7 +26,7 @@ function addStatic(m, x, y, w, h, opts = {}) {
 // to it when it finally gives is a mistake. kind ('wood'|'stone'|'ice'|'crate')
 // flavors the death: ice flash-freezes whoever is close.
 function addDestructible(m, x, y, w, h, opts = {}) {
-  const b = Bodies.rectangle(x, y, w, h, { isStatic: true, friction: 0.6, label: 'destructible' });
+  const b = Bodies.rectangle(x, y, w, h, { isStatic: true, friction: 0.6, restitution: opts.rest ?? 0, angle: opts.angle ?? 0, label: 'destructible' });
   b.w = w; b.h = h;
   b.maxHp = opts.hp ?? 45;
   b.hp = b.maxHp;
@@ -38,6 +38,10 @@ function addDestructible(m, x, y, w, h, opts = {}) {
 
 function damageDestructible(b, dmg) {
   if (b.hp == null || b.hp <= 0) return;
+  // ambient life: the FIRST hit on an untouched canopy startles a few birds out
+  if (b.hp === b.maxHp && b.kind === 'wood' && isLeafy(b.dcolor) && Math.random() < 0.75) {
+    spawnBurst(b.position.x, b.position.y - 10, '#2c2438', 3, { kind: 'bird', dir: -Math.PI / 2, spread: 1.8, speed: 2.5, up: 3, g: -0.02, life: 85, r: 3 });
+  }
   b.hp -= dmg;
   spawnParticles(b.position.x + rand(-b.w / 2, b.w / 2), b.position.y + rand(-b.h / 2, b.h / 2), b.dcolor, 3, 3, 20);
   if (b.hp <= 0) breakDestructible(b);
@@ -81,12 +85,78 @@ function addIceBlock(m, x, groundY, tall = 2) {
   }
 }
 
+// ---- biome set-pieces: one big storybook landmark per arena ----
+// All built from stacked destructibles (the addTree recipe): a real silhouette
+// that fights back, comes apart gradually, and explodes at the end.
+
+// a tapering glacier spire — wide frosty base to a jagged translucent tip
+function addGlacierSpire(m, x, groundY, s = 1) {
+  const widths = [66, 50, 36, 24];
+  let y = groundY;
+  for (let i = 0; i < widths.length; i++) {
+    const h = (i === widths.length - 1 ? 56 : 42) * s;
+    addDestructible(m, x + (i % 2 ? 3 : -2) * s, y - h / 2, widths[i] * s, h, { hp: 55, color: i % 2 ? '#9fd8f0' : '#bfe8ff', debris: 5, kind: 'ice' });
+    y -= h;
+  }
+}
+
+// a fang of volcanic glass — its cracks glow hotter as it nears the end
+function addObsidianFang(m, x, groundY, s = 1) {
+  const widths = [58, 42, 28, 16];
+  let y = groundY;
+  for (let i = 0; i < widths.length; i++) {
+    const h = (i === widths.length - 1 ? 48 : 40) * s;
+    addDestructible(m, x + (i % 2 ? -3 : 2) * s, y - h / 2, widths[i] * s, h, { hp: 70, color: i % 2 ? '#241a2e' : '#2e2238', debris: 5, kind: 'obsidian' });
+    y -= h;
+  }
+}
+
+// a giant swamp mushroom: choppable cream stalk, bouncy speckled cap
+function addGiantMushroom(m, x, groundY, s = 1) {
+  const stalkH = 44 * s;
+  for (let i = 0; i < 2; i++) addDestructible(m, x, groundY - stalkH / 2 - i * stalkH, 28 * s, stalkH, { hp: 45, color: i % 2 ? '#ded2b4' : '#e8dcc0', debris: 4, kind: 'shroom' });
+  addDestructible(m, x, groundY - 2 * stalkH - 15 * s, 116 * s, 30 * s, { hp: 60, color: '#c75e54', debris: 7, kind: 'shroom', rest: 1.1 });
+}
+
+// a ruined arch: two mossy pillars carrying a lintel you can fight on top of
+function addStoneArch(m, x, groundY, s = 1) {
+  for (const side of [-1, 1]) addCoverPillar(m, x + side * 70 * s, groundY, 130 * s, 34 * s, '#8a7a5c');
+  addDestructible(m, x, groundY - 130 * s - 12 * s, 190 * s, 24 * s, { hp: 60, color: '#9a8a68', debris: 6, kind: 'stone' });
+}
+
+// a cluster of leaning void crystals, glinting in the dark
+function addCrystalCluster(m, x, groundY, s = 1) {
+  for (const [dx, ang, w, h, c] of [
+    [-26, -0.32, 24, 88, '#8a6de0'],
+    [4, 0.08, 30, 120, '#a88df0'],
+    [32, 0.38, 20, 70, '#c8b8ff'],
+  ]) {
+    addDestructible(m, x + dx * s, groundY - (h / 2) * s + 4, w * s, h * s, { hp: 55, color: c, debris: 5, kind: 'ice', angle: ang });
+  }
+}
+
+// one landmark per arena, matched to the biome — skipped on cozy duel maps
+function ensureSetPiece(m, rng) {
+  if (m.def.cozy || rng() < 0.25) return; // usually present, never guaranteed — maps stay varied
+  const spots = platformSpots(m, 3, rng);
+  if (!spots.length) return;
+  const spot = spots[Math.floor(rng() * spots.length)];
+  const x = Math.max(120, Math.min(W - 120, spot.x)), y = spot.y + 8;
+  const c = m.def.cover;
+  const s = 0.85 + rng() * 0.4;
+  if (c === 'ice') addGlacierSpire(m, x, y, s);
+  else if (c === 'rock') addObsidianFang(m, x, y, s);
+  else if (c === 'tree') { if (m.def.muddy) addGiantMushroom(m, x, y, s); else addTree(m, x, y, 1.1 * s); }
+  else if (c === 'pillar') { if (m.def.stars) addCrystalCluster(m, x, y, s); else addStoneArch(m, x, y, Math.min(s, 1)); }
+  // crate biomes keep their crate identity — no landmark needed
+}
+
 // theme-flavored destructible cover: what you duck behind depends on the biome.
 // kind comes from the map def (theme defaults), falling back on map flags.
 function addThemedCover(m, x, groundY, rr, pk) {
   const kind = m.def?.cover || (m.def?.icy ? 'ice' : 'pillar');
   if (kind === 'tree') addTree(m, x, groundY, rr(0.55, 0.75));
-  else if (kind === 'ice') addIceBlock(m, x, groundY, pk([2, 2, 3]));
+  else if (kind === 'ice') { if (rr(0, 1) < 0.3) addGlacierSpire(m, x, groundY, rr(0.55, 0.75)); else addIceBlock(m, x, groundY, pk([2, 2, 3])); }
   else if (kind === 'rock') addDestructible(m, x, groundY - 24, 54, 46, { hp: 65, color: '#5a5245', debris: 6, kind: 'stone' });
   else if (kind === 'crate') addDestructible(m, x, groundY - 24, 46, 46, { hp: 45, color: '#9a7440', debris: 5, kind: 'crate' });
   else addCoverPillar(m, x, groundY, pk([90, 120, 130]));
@@ -418,6 +488,7 @@ function buildMapExtras(m, seed) {
   ensureTraversable(m, rng);
   scatterProps(m, rng);
   ensureCover(m, rng);
+  ensureSetPiece(m, rng);
 }
 
 function updateBoulders(m, now, interval = 5000) {

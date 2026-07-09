@@ -615,25 +615,36 @@ function drawSpikes(b) {
   });
 }
 
-// a destructible block: darkens and cracks as its hp drops, before it blows apart
-function drawDestructible(b) {
+// a destructible block: per-kind storybook material (artkit), plus a whisper of
+// ambient life. The particles here are pushed LOCALLY — host and LAN clients
+// each run this draw over their own (identical, seeded) blocks, so the ambience
+// costs zero net traffic.
+function drawDestructible(b, now = performance.now()) {
   const frac = Math.max(0, (b.hp ?? b.maxHp) / (b.maxHp || 1));
+  drawStoryDestructible(ctx, {
+    x: b.position.x, y: b.position.y, w: b.w || 40, h: b.h || 40,
+    angle: b.angle || 0, kind: b.kind || 'wood', frac, color: b.dcolor || '#6b4a2a', now,
+  });
+  const { x, y } = b.position;
   const w = b.w || 40, h = b.h || 40;
-  ctx.save();
-  ctx.translate(b.position.x, b.position.y);
-  ctx.rotate(b.angle || 0);
-  ctx.fillStyle = b.dcolor || '#6b4a2a';
-  ctx.fillRect(-w / 2, -h / 2, w, h);
-  if (frac < 1) { ctx.fillStyle = `rgba(0,0,0,${(1 - frac) * 0.45})`; ctx.fillRect(-w / 2, -h / 2, w, h); } // scorch
-  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1.5; ctx.strokeRect(-w / 2, -h / 2, w, h);
-  if (frac < 0.7) { // cracks
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(-w / 2, -h / 5); ctx.lineTo(0, 0); ctx.lineTo(w / 4, -h / 3);
-    if (frac < 0.35) { ctx.moveTo(0, 0); ctx.lineTo(-w / 4, h / 3); ctx.moveTo(0, 0); ctx.lineTo(w / 2, h / 5); }
-    ctx.stroke();
+  const k = b.kind;
+  if (k === 'ice') {
+    if (Math.random() < 0.006) particles.push({ kind: 'glint', x: x + rand(-w / 2, w / 2), y: y + rand(-h / 2, h / 2), vx: 0, vy: 0, life: 34, maxLife: 34, color: '#eaffff', r: 3 });
+    if (Math.random() < 0.003) particles.push({ kind: 'square', x: x + rand(-w / 2, w / 2), y: y - h / 2, vx: rand(-0.3, 0.3), vy: 0.4, life: 40, maxLife: 40, color: '#ffffff', r: 1.5, g: 0.02 });
+  } else if (k === 'obsidian') {
+    if (Math.random() < 0.01) particles.push({ x: x + rand(-w / 2, w / 2), y: y - h / 2, vx: rand(-0.2, 0.2), vy: -rand(0.4, 1), life: 36, maxLife: 36, color: '#ff7043', r: 1.6, g: -0.02 });
+  } else if (k === 'wood' && isLeafy(b.dcolor)) {
+    if (Math.random() < 0.004) particles.push({ kind: 'leaf', x: x + rand(-w / 2, w / 2), y: y + h / 2 - 4, vx: rand(-0.4, 0.4), vy: 0.3, life: 70, maxLife: 70, color: b.dcolor, r: 2.6 });
+  } else if (k === 'stone') {
+    if (Math.random() < 0.0015) particles.push({ kind: 'square', x: x + rand(-w / 2, w / 2), y: y + rand(0, h / 2), vx: 0, vy: 0.5, life: 26, maxLife: 26, color: '#9a8f7a', r: 1.3, g: 0.04 });
   }
-  ctx.restore();
+}
+
+// canopy blocks are greener than they are red — those are the ones that shed
+// leaves (and startle birds); trunks stay quiet
+function isLeafy(hex) {
+  if (typeof hex !== 'string' || hex[0] !== '#') return false;
+  return parseInt(hex.slice(3, 5), 16) > parseInt(hex.slice(1, 3), 16) + 20;
 }
 
 // biome of the current arena → which animated crust the terrain grows
@@ -664,7 +675,7 @@ function drawMapBodies(now) {
     if (b.label === 'lava') continue;
     if (b.phantom) ctx.globalAlpha = b.phantomSolid === false ? 0.18 : 0.85;
     if (b.label === 'crate') drawCrate(b);
-    else if (b.label === 'destructible') drawDestructible(b);
+    else if (b.label === 'destructible') drawDestructible(b, now);
     else if (b.label === 'spikes') drawSpikes(b);
     else if (b.label === 'vine') drawVineAt(b.position.x, b.bounds.max.y, Math.min(48, (now - (b.bornAt || now)) * 0.04 + 10), now);
     else if (drawHazardBody(b, now)) { /* icicles, barrels, bumpers, balls */ }
