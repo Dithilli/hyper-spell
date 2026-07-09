@@ -403,6 +403,8 @@ function castSpell(p, now, slot = 0) {
   }
   sfx.cast();
   spell.cast(p);
+  // combo (hybrid) spells get a brief hitstop so you notice the big moment
+  if (spell.hybrid && !hyper) { slowMo(0.28, 150); addShake(5); }
   if (p.megaCasts > 0) {
     p.megaCasts--;
     spawnText(p.body.position.x, p.body.position.y - 60, `${p.megaCasts} LEFT`, '#ffd700');

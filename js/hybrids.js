@@ -84,12 +84,13 @@ function tryFuse(p) {
   p.casts[0] = 0; p.slotFilledAt[0] = performance.now();
   p.lastCastSlot = 0;
   const { x, y } = p.body.position;
-  setBanner('⚡ FUSION! ' + def.name.toUpperCase(), def.color, 1500, true);
+  setBanner('⚡ FUSION! ' + def.name.toUpperCase(), def.color, 1800, true);
   spawnText(x, y - 62, def.name.toUpperCase() + '!', def.color);
   spawnRing(x, y, def.color);
   spawnParticles(x, y, def.color, 28, 8);
-  doFlash(def.color, 0.3);
+  doFlash(def.color, 0.35);
   addShake(9);
+  slowMo(0.32, 700); // a dramatic beat so the fusion actually lands on the eye
   sfx.hyper?.();
   if (game.state === 'PLAY') telPick(id); // count the hybrid for the report card
   return true;

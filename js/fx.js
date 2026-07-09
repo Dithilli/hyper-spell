@@ -3,13 +3,16 @@ const particles = [];
 let shake = 0;
 let flashColor = '#fff', flashAlpha = 0;
 let timeScale = 1, slowUntil = 0;
+// master game pace: 1 = original, <1 = calmer & more readable so the spectacle
+// (combos, fusions, big spells) registers instead of flashing by. Tune to taste.
+const BASE_PACE = 0.9;
 
 function addShake(v) { shake = Math.min(shake + v, 26); }
 function doFlash(color, alpha = 0.4) { flashColor = color; flashAlpha = Math.max(flashAlpha, alpha); }
 function slowMo(scale, ms) { timeScale = scale; slowUntil = performance.now() + ms; }
 
 function updateTimeScale(now) {
-  if (now > slowUntil) timeScale += (1 - timeScale) * 0.08;
+  if (now > slowUntil) timeScale += (BASE_PACE - timeScale) * 0.08; // ease back to the base pace, not full speed
 }
 
 function spawnParticles(x, y, color, count, speed, life = 40) {
