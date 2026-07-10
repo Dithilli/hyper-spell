@@ -2,6 +2,7 @@
 const kbControllers = [new KeyboardController(KEYMAPS[0], true), new KeyboardController(KEYMAPS[1])];
 const assignedPads = new Set();
 const padPrev = {};
+const padBtnPrev = {}; // padIndex -> Set of button indices held last frame (lobby nav edges)
 
 const game = { state: 'LOBBY', winsNeeded: 5, winner: null, mapIndex: 0, baseGravity: 2 };
 let currentMap = null;
@@ -185,6 +186,27 @@ function beginNameEdit(p, storeKey) {
   nameEdit = { p, storeKey, buffer: saved };
   if (nameEdit.buffer) p.name = nameEdit.buffer; // saved name applies even if they skip
 }
+
+// gamepad players have no keyboard, so they name their wizard with an on-screen
+// letter ribbon: ◀ ▶ pick a letter, A appends it, B deletes, START confirms.
+const PAD_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -!';
+function beginPadNameEdit(p, padIndex) {
+  const storeKey = `hs-name-pad-${padIndex}`;
+  const saved = cleanName(localStorage.getItem(storeKey) || '');
+  nameEdit = { p, storeKey, buffer: saved, pad: padIndex, letter: 0 };
+}
+// drive the letter ribbon from a joined pad's edge-triggered buttons
+function padWheelInput(edge) {
+  if (edge(14)) nameEdit.letter = (nameEdit.letter + PAD_ALPHABET.length - 1) % PAD_ALPHABET.length; // ◀
+  if (edge(15)) nameEdit.letter = (nameEdit.letter + 1) % PAD_ALPHABET.length;                       // ▶
+  if (edge(0) && nameEdit.buffer.length < 12) nameEdit.buffer = cleanName(nameEdit.buffer + PAD_ALPHABET[nameEdit.letter]); // A: append
+  if (edge(1)) nameEdit.buffer = nameEdit.buffer.slice(0, -1); // B: backspace
+  if (edge(9) || edge(3)) { // START / Y: confirm
+    if (nameEdit.buffer) { nameEdit.p.name = nameEdit.buffer; localStorage.setItem(nameEdit.storeKey, nameEdit.buffer); }
+    nameEdit = null;
+    nameEditEndAt = performance.now(); // brief lockout so the confirm press isn't reused to start
+  }
+}
 addEventListener('keydown', e => {
   if (!nameEdit) return;
   if (game.state !== 'LOBBY') { nameEdit = null; return; }
@@ -206,19 +228,17 @@ addEventListener('keydown', e => {
   }
 }, true); // capture: swallow keys before the game shortcuts below see them
 
+function setWins(n) {
+  game.winsNeeded = Math.max(1, Math.min(20, n));
+  setBanner(`FIRST TO ${game.winsNeeded}`, '#e8d5ff', 900);
+}
 addEventListener('keydown', e => {
   if (netMode === 'client' || nameEdit) return; // clients send these to the host instead
   if (e.code === 'Space' && game.state === 'LOBBY' && players.length >= 2) startRound(game.mapIndex);
   if (e.code === 'KeyB' && game.state === 'LOBBY') addBot();
   if (e.code === 'KeyR') resetMatch();
-  if (game.state === 'LOBBY' && /^Digit[1-9]$/.test(e.code)) {
-    game.winsNeeded = +e.code.slice(5);
-    setBanner(`FIRST TO ${game.winsNeeded}`, '#e8d5ff', 900);
-  }
-  if (game.state === 'LOBBY' && (e.code === 'Equal' || e.code === 'Minus')) {
-    game.winsNeeded = Math.max(1, Math.min(20, game.winsNeeded + (e.code === 'Equal' ? 1 : -1)));
-    setBanner(`FIRST TO ${game.winsNeeded}`, '#e8d5ff', 900);
-  }
+  if (game.state === 'LOBBY' && /^Digit[1-9]$/.test(e.code)) setWins(+e.code.slice(5));
+  if (game.state === 'LOBBY' && (e.code === 'Equal' || e.code === 'Minus')) setWins(game.winsNeeded + (e.code === 'Equal' ? 1 : -1));
 });
 
 // ---------- joining ----------
@@ -251,8 +271,33 @@ function scanJoins() {
     if (pressed && !prev) {
       ensureAudio();
       assignedPads.add(pad.index);
+      // seed the button-edge memory with the joining press so it isn't re-read
+      // this frame as a lobby action (add-bot, name, etc.)
+      padBtnPrev[pad.index] = new Set(pad.buttons.flatMap((b, i) => b.pressed ? [i] : []));
       joinPlayer(new GamepadController(pad.index));
     }
+  }
+}
+
+// lobby navigation for already-joined pads, so a controller-only couch never
+// needs the keyboard: Y names your wizard, BACK adds a bot, d-pad ± the win target.
+function scanLobbyPads() {
+  if (game.state !== 'LOBBY') return;
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for (const pad of pads) {
+    if (!pad || !assignedPads.has(pad.index)) continue; // only joined pads navigate
+    const prev = padBtnPrev[pad.index] || new Set();
+    const edge = b => !!pad.buttons[b]?.pressed && !prev.has(b);
+    if (nameEdit && nameEdit.pad === pad.index) {
+      padWheelInput(edge);
+    } else if (!nameEdit) { // one name editor at a time; other pads wait their turn
+      const owner = players.find(p => p.controller instanceof GamepadController && p.controller.index === pad.index);
+      if (edge(3) && owner) beginPadNameEdit(owner, pad.index); // Y → name your wizard
+      if (edge(8)) addBot();                                    // BACK → add a bot
+      if (edge(12)) setWins(game.winsNeeded + 1);               // d-pad up → win target +
+      if (edge(13)) setWins(game.winsNeeded - 1);               // d-pad down → win target -
+    }
+    padBtnPrev[pad.index] = new Set(pad.buttons.flatMap((b, i) => b.pressed ? [i] : []));
   }
 }
 
@@ -1053,7 +1098,7 @@ function drawLobby() {
   drawArcadeLogo(W / 2, 132, 60, performance.now());
   ctx.font = '16px Georgia';
   ctx.fillStyle = '#9c8ab8';
-  ctx.fillText('press E · ENTER · or any gamepad button to join — B adds a bot', W / 2, 162);
+  ctx.fillText('press E · ENTER · or any gamepad button to join — B / BACK adds a bot', W / 2, 162);
   const slots = Math.max(4, Math.min(MAX_PLAYERS, players.length + 1));
   const slotW = Math.min(200, 840 / slots);
   for (let i = 0; i < slots; i++) {
@@ -1065,7 +1110,12 @@ function drawLobby() {
     ctx.font = 'bold 20px Georgia';
     ctx.fillStyle = p ? p.color : '#4a3f5e';
     const editing = nameEdit && nameEdit.p === p;
-    if (editing) {
+    const padEditing = editing && nameEdit.pad != null;
+    if (padEditing) {
+      // buffer in the player's color, the pickable letter bracketed and bright
+      const blink = Math.floor(performance.now() / 350) % 2;
+      ctx.fillText(`${nameEdit.buffer}${blink ? `[${PAD_ALPHABET[nameEdit.letter]}]` : '   '}`, x, 218);
+    } else if (editing) {
       const cursor = Math.floor(performance.now() / 400) % 2 ? '_' : ' ';
       ctx.fillText((nameEdit.buffer || '') + cursor, x, 218);
     } else {
@@ -1073,7 +1123,9 @@ function drawLobby() {
     }
     ctx.font = '11px Georgia';
     ctx.fillStyle = editing ? '#e8d5ff' : '#675a7d';
-    const hint = editing ? 'TYPE NAME · ENTER ✓' : p ? controllerHint(p) : 'E · ENTER · PAD';
+    const hint = padEditing ? '◀▶ letter · A add · B del · START ✓'
+      : editing ? 'TYPE NAME · ENTER ✓'
+      : p ? controllerHint(p) : 'E · ENTER · PAD';
     ctx.fillText(hint, x, 238);
   }
   ctx.font = 'bold 20px Georgia';
@@ -1085,7 +1137,7 @@ function drawLobby() {
     W / 2, 288);
   ctx.font = '13px Georgia';
   ctx.fillStyle = '#675a7d';
-  ctx.fillText(`1–9 sets the win target · +/− tunes it up to 20 (${game.winsNeeded})`, W / 2, 310);
+  ctx.fillText(`1–9 or d-pad ↑↓ sets the win target · +/− tunes it up to 20 (${game.winsNeeded}) · Y names your wizard`, W / 2, 310);
 }
 
 function drawVictory(now) {
@@ -1168,6 +1220,7 @@ function frame(now) {
   const dt = rawDt * timeScale;
 
   scanJoins();
+  scanLobbyPads();
   for (const p of players) p.input = p.controller.poll();
   if (game.state === 'LOBBY' && players.length >= 2 && !nameEdit && now > nameEditEndAt + 350 && players.some(p => p.input.startPressed)) startRound(game.mapIndex);
   if (game.state === 'VICTORY' && players.some(p => p.input.castPressed)) resetMatch();

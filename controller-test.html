@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CTRL-PENDING</title>
+</head>
+<body>
+<canvas id="game" width="1280" height="720"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+<script src="js/core.js"></script>
+<script src="js/artkit.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/awards.js"></script>
+<script src="js/telemetry.js"></script>
+<script src="js/input.js"></script>
+<script src="js/spells.js"></script>
+<script src="js/player.js"></script>
+<script src="js/pickups.js"></script>
+<script src="js/spellbook.js"></script>
+<script src="js/spelltiers.js"></script>
+<script src="js/hybrids.js"></script>
+<script src="js/maps.js"></script>
+<script src="js/mapbook.js"></script>
+<script src="js/events.js"></script>
+<script src="js/boss.js"></script>
+<script src="js/bot.js"></script>
+<script src="js/snapshot.js"></script>
+<!-- freeze the auto game loop so the lobby-input units run deterministically -->
+<script>window.requestAnimationFrame = () => 0;</script>
+<script src="js/game.js"></script>
+<script>
+// Controller-parity verification: drives the REAL lobby input paths
+// (scanJoins + scanLobbyPads + the pad name wheel) with a mocked Gamepad API,
+// so a keyboard-free couch session is proven end-to-end — pads join, name their
+// wizard, add bots, and set the win target with no keyboard.
+(function runCtrl() {
+  const R = { errors: [], steps: [] };
+  const fail = m => R.errors.push(m);
+  const ok = m => R.steps.push(m);
+  window.addEventListener('error', e => fail('window: ' + e.message));
+  try {
+    // --- mock 8 standard gamepads ---
+    const N = 8;
+    const PADS = Array.from({ length: N }, (_, i) => ({
+      index: i, connected: true, mapping: 'standard', axes: [0, 0, 0, 0],
+      buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })),
+    }));
+    Object.defineProperty(navigator, 'getGamepads', { value: () => PADS, configurable: true });
+    const set = (pad, b, v) => { PADS[pad].buttons[b].pressed = v; PADS[pad].buttons[b].value = v ? 1 : 0; };
+    // one lobby frame in the real order
+    const tick = () => { scanJoins(); scanLobbyPads(); };
+    // a clean edge-triggered tap of button b on a pad: press-frame then release-frame
+    const tap = (pad, b) => { set(pad, b, true); tick(); set(pad, b, false); tick(); };
+    const padPlayer = i => players.find(p => p.controller instanceof GamepadController && p.controller.index === i);
+
+    if (game.state !== 'LOBBY') fail('expected LOBBY at boot, got ' + game.state);
+    // headless virtual time can report performance.now() < 350ms at boot, which
+    // would trip scanJoins' name-edit join lockout. Real play is always well past
+    // it — neutralize it so joins aren't spuriously blocked.
+    nameEditEndAt = -1e9;
+
+    // --- 1) two pads join on a button press (rising edge) ---
+    tick();                                   // baseline: no buttons held
+    set(0, 0, true); set(1, 0, true); tick(); // A pressed → both join
+    set(0, 0, false); set(1, 0, false); tick();
+    if (players.length !== 2) fail('expected 2 players after 2 pads joined, got ' + players.length);
+    if (!players.every(p => p.controller instanceof GamepadController)) fail('a joined player is not gamepad-controlled');
+    else ok('2 pads joined');
+
+    // --- 2) BACK (btn 8) adds a bot, and it is edge-triggered (no spam while held) ---
+    const b0 = players.length;
+    set(0, 8, true); tick();          // rising edge → +1 bot
+    tick(); tick();                   // still held → must NOT add more
+    set(0, 8, false); tick();
+    if (players.length !== b0 + 1) fail('BACK should add exactly one bot while held, added ' + (players.length - b0));
+    else ok('BACK adds one bot (edge-triggered)');
+    tap(0, 8);                        // second discrete press → another bot
+    if (players.length !== b0 + 2) fail('second BACK press did not add a bot');
+    else ok('second BACK press adds another bot');
+
+    // --- 3) d-pad up/down (btn 12/13) tune the win target, clamped 1..20 ---
+    const w0 = game.winsNeeded;
+    tap(0, 12);
+    if (game.winsNeeded !== Math.min(20, w0 + 1)) fail('d-pad up did not raise win target');
+    tap(0, 13);
+    if (game.winsNeeded !== w0) fail('d-pad down did not restore win target');
+    else ok('d-pad tunes win target');
+    game.winsNeeded = 1; tap(0, 13);
+    if (game.winsNeeded !== 1) fail('win target went below 1 (clamp failed)');
+    game.winsNeeded = 20; tap(0, 12);
+    if (game.winsNeeded !== 20) fail('win target went above 20 (clamp failed)');
+    else ok('win target clamps 1..20');
+    game.winsNeeded = 5;
+
+    // --- 4) name wheel: Y opens it, ◀▶ pick, A append, B delete, START confirm ---
+    tap(0, 3);                                   // Y → open name edit for pad 0
+    if (!(nameEdit && nameEdit.pad === 0)) fail('Y did not open pad name edit');
+    else ok('Y opens the name wheel');
+    tap(0, 0);                                   // append 'A' (letter starts at index 0)
+    tap(0, 15); tap(0, 15);                      // ▶ ▶ → 'C'
+    tap(0, 0);                                   // append 'C' → "AC"
+    if (nameEdit.buffer !== 'AC') fail('wheel buffer expected "AC", got "' + nameEdit.buffer + '"');
+    tap(0, 1);                                   // B → backspace → "A"
+    if (nameEdit.buffer !== 'A') fail('backspace expected "A", got "' + nameEdit.buffer + '"');
+    tap(0, 0);                                   // re-append 'C' → "AC"
+    const owner0 = padPlayer(0);
+    tap(0, 9);                                   // START → confirm
+    if (nameEdit) fail('START did not close the name wheel');
+    if (owner0.name !== 'AC') fail('confirmed name expected "AC", got "' + owner0.name + '"');
+    else ok('name wheel builds & confirms a name');
+
+    // wheel edit blocks joins/other actions while open, then releases:
+    tap(0, 3);                                   // reopen
+    const padsBefore = players.length;
+    set(2, 0, true); tick(); set(2, 0, false); tick(); // pad 2 tries to join while a name is open
+    if (players.length !== padsBefore) fail('a pad joined while a name wheel was open');
+    else ok('joins are held while naming');
+    tap(0, 9);                                   // close (buffer 'AC' already saved as name)
+
+    // --- 5) remaining pads fill to the 8 cap; extra join is refused ---
+    // (clear the post-name-edit join lockout again: the wheel confirm in step 4
+    //  re-armed it; real play elapses >350ms before the next join)
+    nameEditEndAt = -1e9;
+    for (let i = 2; i < N; i++) { set(i, 0, true); tick(); set(i, 0, false); tick(); }
+    // players now = 8 humans? we also added 2 bots earlier, so cap should hold at 8 total
+    if (players.length !== 8) fail('expected MAX_PLAYERS=8 total, got ' + players.length);
+    else ok('roster caps at 8');
+
+    // --- 6) pad Start produces startPressed (the begin-match path) ---
+    const anyPad = players.find(p => p.controller instanceof GamepadController);
+    set(anyPad.controller.index, 9, true);
+    if (!anyPad.controller.poll().startPressed) fail('pad Start did not produce startPressed');
+    else ok('pad Start is wired to begin the match');
+    set(anyPad.controller.index, 9, false);
+
+  } catch (e) {
+    fail('exception: ' + (e.stack || e.message || e));
+  }
+  const verdict = R.errors.length ? 'CTRL-FAIL' : 'CTRL-PASS';
+  document.title = verdict;
+  const pre = document.createElement('pre');
+  pre.id = 'ctrl';
+  pre.textContent = verdict + ' ' + JSON.stringify(R, null, 2);
+  document.body.appendChild(pre);
+})();
+</script>
+</body>
+</html>
