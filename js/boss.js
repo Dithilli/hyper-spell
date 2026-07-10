@@ -31,6 +31,10 @@ function bossBolt(from, target, { speed = 10, r = 8, color, spread = 0, boom = [
   return fb;
 }
 
+// later/enraged bosses run their attack timers hotter: a higher bs.rate shrinks
+// the interval, so tier-3 fights fire noticeably faster than the first boss.
+const bcd = (bs, min, max) => rand(min, max) / (bs.rate || 1);
+
 // hurt wizards who press against the boss's body
 function bossTouchAll(bs, now, dmg, pad = 8) {
   const bb = bs.body.bounds;
@@ -61,18 +65,20 @@ const BOSSES = [
       const dx = bs.wp.x - b.position.x, dy = bs.wp.y - b.position.y, d = Math.hypot(dx, dy) || 1;
       Body.setVelocity(b, { x: b.velocity.x * 0.92 + (dx / d) * 1.1, y: b.velocity.y * 0.92 + (dy / d) * 1.1 });
       if (now > (bs.nextSpit || (bs.nextSpit = now + 1800))) {
-        bs.nextSpit = now + rand(2300, 3300);
+        bs.nextSpit = now + bcd(bs, 2300, 3300);
         const t = bossAliveTarget(b.position);
         if (t) {
-          for (const off of [-0.18, 0, 0.18]) bossBolt(b.position, t, { speed: 9.5, r: 9, color: '#ff8c5a', spread: off });
+          // higher-tier dragons spit a wider 5-bolt fan instead of 3
+          const fan = bs.num >= 3 ? [-0.32, -0.16, 0, 0.16, 0.32] : [-0.18, 0, 0.18];
+          for (const off of fan) bossBolt(b.position, t, { speed: 9.5, r: 9, color: '#ff8c5a', spread: off });
           sfx.cast();
         }
       }
       if (now > (bs.nextVolley || (bs.nextVolley = now + 7000))) {
-        bs.nextVolley = now + rand(8500, 12000);
+        bs.nextVolley = now + bcd(bs, 8500, 12000);
         for (let i = 0; i < 4; i++) {
           const fb = dropProjectile(null, rand(80, W - 80), -30, { r: 10, vx: rand(-2, 2), vy: 9, color: '#ff8c5a', density: 0.006, expireMs: 9000 });
-          fb.onHit = self => explode(self.position.x, self.position.y, 85, 13, 13, 'boss');
+          fb.onHit = self => explode(self.position.x, self.position.y, 85, 13, 13 * bs.dmgMult, 'boss');
         }
       }
       bossTouchAll(bs, now, 10);
@@ -88,23 +94,23 @@ const BOSSES = [
       Body.applyForce(b, b.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * b.mass });
       Body.setVelocity(b, { x: b.velocity.x * 0.9, y: b.velocity.y * 0.9 + Math.sin(now * 0.003) * 0.25 });
       if (now > (bs.nextBlink || (bs.nextBlink = now + 3000))) {
-        bs.nextBlink = now + rand(3200, 4400);
+        bs.nextBlink = now + bcd(bs, 3200, 4400);
         spawnParticles(b.position.x, b.position.y, '#c084fc', 16, 5);
         Body.setPosition(b, { x: rand(140, W - 140), y: rand(100, 340) });
         spawnParticles(b.position.x, b.position.y, '#c084fc', 16, 5);
         sfx.freeze();
       }
       if (now > (bs.nextBolt || (bs.nextBolt = now + 2200))) {
-        bs.nextBolt = now + rand(1700, 2500);
+        bs.nextBolt = now + bcd(bs, 1700, 2500);
         const t = bossAliveTarget(null); // torments a random wizard, not the closest
         if (t) { bossBolt(b.position, t, { speed: 11, r: 7, color: '#c084fc', boom: [55, 8, 10] }); sfx.cast(); }
       }
       if (now > (bs.nextRaise || (bs.nextRaise = now + 7000))) {
-        bs.nextRaise = now + rand(8000, 11000);
+        bs.nextRaise = now + bcd(bs, 8000, 11000);
         for (const side of [-1, 1]) {
           const sk = Bodies.circle(b.position.x + side * 30, b.position.y + 20, 9, { density: 0.002, friction: 0.5, restitution: 0.4, label: 'critter' });
           sk.critter = { hopAt: 0, dir: side, hop: 6, speed: 4 };
-          summon(sk, { life: 16000, color: '#e8e8dc', contactDamage: 6 });
+          summon(sk, { life: 16000, color: '#e8e8dc', contactDamage: 6 * bs.dmgMult });
         }
         spawnText(b.position.x, b.position.y - 50, 'RISE!', '#c084fc');
       }
@@ -131,7 +137,7 @@ const BOSSES = [
         Body.setVelocity(b, { x: b.velocity.x * 0.8 + dir * 0.9, y: b.velocity.y });
       }
       if (t && now > (bs.nextLeap || (bs.nextLeap = now + 3500)) && Math.abs(b.velocity.y) < 1) {
-        bs.nextLeap = now + rand(4500, 6500);
+        bs.nextLeap = now + bcd(bs, 4500, 6500);
         bs.airborne = true;
         const dir = Math.sign(t.body.position.x - b.position.x) || 1;
         Body.setVelocity(b, { x: dir * rand(6, 10), y: -16 });
@@ -139,7 +145,7 @@ const BOSSES = [
       }
       if (bs.airborne && b.velocity.y >= 0 && Math.abs(b.velocity.y) < 0.8) {
         bs.airborne = false;
-        explode(b.position.x, b.position.y + 30, 140, 20, 16, 'boss');
+        explode(b.position.x, b.position.y + 30, 140, 20, 16 * bs.dmgMult, 'boss');
         addShake(14);
       }
       bossTouchAll(bs, now, 12);
@@ -157,7 +163,7 @@ const BOSSES = [
       bs.pending ??= [];
       bs.tentacles ??= [];
       if (now > (bs.nextTent || (bs.nextTent = now + 2500))) {
-        bs.nextTent = now + rand(2600, 3800);
+        bs.nextTent = now + bcd(bs, 2600, 3800);
         const t = bossAliveTarget(null);
         if (t) bs.pending.push({ x: t.body.position.x, at: now + 650 });
       }
@@ -180,7 +186,7 @@ const BOSSES = [
           const q = p.body.position;
           if (Math.abs(q.x - tn.x) < 26 && q.y > tn.b.bounds.min.y - 12) {
             tn.hit.add(p);
-            damagePlayer(p, 14);
+            damagePlayer(p, 14 * bs.dmgMult);
             Body.setVelocity(p.body, { x: Math.sign(q.x - tn.x || 1) * 7, y: -13 });
           }
         }
@@ -215,7 +221,7 @@ const SECRET_BOSSES = [
         const dx = bs.wp.x - b.position.x, dy = bs.wp.y - b.position.y, d = Math.hypot(dx, dy) || 1;
         Body.setVelocity(b, { x: b.velocity.x * 0.9 + (dx / d) * 1.0, y: b.velocity.y * 0.9 + (dy / d) * 1.0 });
         if (now > (bs.nextCharm || (bs.nextCharm = now + 3200))) {
-          bs.nextCharm = now + rand(3600, 5000);
+          bs.nextCharm = now + bcd(bs, 3600, 5000);
           spawnRing(b.position.x, b.position.y, '#ff9ecb');
           setBanner(pick(['LFG!', 'W RIZZ', 'UNMATCHED RIZZ', "IT'S GIVING UNICORN", 'HAVE YOU SEEN OUR SERIES A?', 'LET ME PITCH YOU']), '#ffd166', 1100);
           for (const p of players) {
@@ -230,7 +236,7 @@ const SECRET_BOSSES = [
           sfx.cast();
         }
         if (now > (bs.nextDeal || (bs.nextDeal = now + 2200))) {
-          bs.nextDeal = now + rand(2000, 2800);
+          bs.nextDeal = now + bcd(bs, 2000, 2800);
           const t = bossAliveTarget(b.position);
           if (t) { for (const off of [-0.14, 0.14]) bossBolt(b.position, t, { speed: 10, r: 8, color: '#ff9ecb', spread: off, boom: [70, 9, 12] }); sfx.cast(); }
         }
@@ -246,7 +252,7 @@ const SECRET_BOSSES = [
         Body.setVelocity(b, { x: b.velocity.x * 0.85 + (fdx / fd) * 0.9, y: b.velocity.y * 0.85 + (fdy / fd) * 0.9 });
         // perfectly-led tracking shots — aims where you'll be, not where you are
         if (now > (bs.nextTrack || (bs.nextTrack = now + 850))) {
-          bs.nextTrack = now + rand(800, 1100);
+          bs.nextTrack = now + bcd(bs, 800, 1100);
           const t = bossAliveTarget(b.position);
           if (t) {
             const lead = { body: { position: { x: t.body.position.x + (t.body.velocity.x || 0) * 8, y: t.body.position.y + (t.body.velocity.y || 0) * 8 } } };
@@ -257,7 +263,7 @@ const SECRET_BOSSES = [
         }
         // a flawless, evenly-spaced pattern volley — mastery made visible
         if (now > (bs.nextPattern || (bs.nextPattern = now + 3400))) {
-          bs.nextPattern = now + rand(3600, 4800);
+          bs.nextPattern = now + bcd(bs, 3600, 4800);
           const t = bossAliveTarget(b.position);
           if (t) {
             spawnRing(b.position.x, b.position.y, '#3fb5ff');
@@ -289,7 +295,7 @@ const SECRET_BOSSES = [
       if (de) {
         // German: precise, punctual bolts + the occasional efficient freeze
         if (now > (bs.nextDe || (bs.nextDe = now + 1500))) {
-          bs.nextDe = now + 1500;
+          bs.nextDe = now + bcd(bs, 1500, 1500);
           const t = bossAliveTarget(b.position);
           if (t) bossBolt(b.position, t, { speed: 13, r: 7, color: '#9ec9ff', boom: [55, 8, 12] });
           if (Math.random() < 0.4) { const q = bossAliveTarget(null); if (q) { q.frozenUntil = now + 700; q.body.frictionAir = 0.001; } }
@@ -298,7 +304,7 @@ const SECRET_BOSSES = [
       } else {
         // Mexican: spicy chili fireballs (burn) + fiesta particles
         if (now > (bs.nextMx || (bs.nextMx = now + 1100))) {
-          bs.nextMx = now + rand(850, 1400);
+          bs.nextMx = now + bcd(bs, 850, 1400);
           const t = bossAliveTarget(b.position);
           if (t) for (const off of [-0.18, 0.08]) bossBolt(b.position, t, { speed: 10, r: 8, color: '#ff7043', spread: off, boom: [70, 9, 12] });
           for (const p of players) if (p.alive && Math.hypot(p.body.position.x - b.position.x, p.body.position.y - b.position.y) < 220) p.burnUntil = now + 1600;
@@ -317,23 +323,28 @@ function isBossRound() {
 
 const BOSS_ROMAN = ['', '', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
-function spawnBoss(now) {
-  // ~12% of boss rounds summon a rare SECRET boss instead of a regular one
-  const secret = Math.random() < 0.12;
-  const def = secret ? pick(SECRET_BOSSES) : pick(BOSSES);
+function spawnBoss(now, opts = {}) {
+  // ~12% of boss rounds summon a rare SECRET boss instead of a regular one.
+  // Wave mode can force a specific boss by id (opts.bossId) and difficulty tier.
+  const secret = opts.bossId ? false : Math.random() < 0.12;
+  const pool = secret ? SECRET_BOSSES : BOSSES;
+  const def = opts.bossId ? (pool.find(d => d.id === opts.bossId) || pick(pool)) : pick(pool);
   const body = def.make();
   body.bossType = def.id;
   summon(body, { life: 1e12, color: def.color });
-  // scale by which boss this is in the session (round 10 = #1, round 20 = #2, ...)
-  // so round 30/40 fights are meaningfully nastier than the first.
-  const num = Math.max(1, Math.round((game.totalRounds || BOSS_EVERY) / BOSS_EVERY));
+  // scale by which boss this is: versus mode uses the session round (round 10 = #1,
+  // round 20 = #2, ...) so round 30/40 fights are nastier; wave mode passes opts.tier.
+  const num = opts.tier != null
+    ? Math.max(1, Math.round(opts.tier))
+    : Math.max(1, Math.round((game.totalRounds || BOSS_EVERY) / BOSS_EVERY));
   const maxHp = Math.round((400 + 200 * Math.max(2, players.length)) * (1 + 0.4 * (num - 1)));
   const title = def.name + (num > 1 ? ' ' + (BOSS_ROMAN[num] || `×${num}`) : '');
   game.boss = {
     def, body, hp: maxHp, maxHp, announced: false, secret,
-    num, dmgMult: 1 + 0.12 * (num - 1), title,
+    num, dmgMult: 1 + 0.12 * (num - 1), rate: 1 + 0.10 * (num - 1), title,
     enraged: false, enrageAt: 0, nextEnrageWave: 0,
   };
+  return game.boss;
 }
 
 function damageBoss(dmg, at, src) {
@@ -356,6 +367,14 @@ function slayBoss() {
   explode(pos.x, pos.y, 220, 26, 0, 'boss');
   spawnParticles(pos.x, pos.y, bs.def.color, 40, 10, 70);
   spawnRing(pos.x, pos.y, '#ffd166');
+  // wave mode: the boss is just a capstone wave — don't end a versus round.
+  // Clearing it lets updateWaveMode roll into the intermission → next wave.
+  if (game.mode === 'wave') {
+    setBanner(bs.secret ? `${bs.def.name} RAGE-QUITS` : `${bs.def.name} IS SLAIN!`, '#ffd166', 1600);
+    sfx.victory();
+    slowMo(0.25, 900);
+    return;
+  }
   game.state = 'ROUND_END';
   game.winner = null;
   const replayMs = startReplay(performance.now());

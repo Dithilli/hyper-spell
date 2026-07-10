@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WAVEPLAY-PENDING</title>
+<style>html,body{margin:0;background:#16121c}</style>
+</head>
+<body>
+<canvas id="game" width="1280" height="720"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+<script src="js/core.js"></script>
+<script src="js/artkit.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/awards.js"></script>
+<script src="js/telemetry.js"></script>
+<script src="js/input.js"></script>
+<script src="js/spells.js"></script>
+<script src="js/player.js"></script>
+<script src="js/pickups.js"></script>
+<script src="js/spellbook.js"></script>
+<script src="js/spelltiers.js"></script>
+<script src="js/hybrids.js"></script>
+<script src="js/maps.js"></script>
+<script src="js/mapbook.js"></script>
+<script src="js/events.js"></script>
+<script src="js/boss.js"></script>
+<script src="js/enemies.js"></script>
+<script src="js/bot.js"></script>
+<script src="js/snapshot.js"></script>
+<!-- freeze auto rAF: we drive frame() synchronously off a mocked clock so the run
+     completes instantly (headless Chrome can't drain a timer-driven loop for a shot) -->
+<script>window.requestAnimationFrame = () => 0;</script>
+<script src="js/game.js"></script>
+<script src="js/replay.js"></script>
+<script>
+// Real-play harness: boots the full game, drops in armed bots, starts a wave run,
+// and drives the ACTUAL frame loop (physics + enemy AI + collisions + rendering)
+// synchronously for ~10s of virtual time. Confirms enemies spawn, get fought, and
+// die for real. The final canvas is left rendered for a --screenshot capture.
+(function runPlay() {
+  const R = { maxEnemies: 0, spawned: 0, killed: 0, wave: 0, aliveAtEnd: 0, frames: 0 };
+  try {
+    let T = 100000;
+    performance.now = () => T;
+    for (let i = 0; i < 3; i++) addBot();
+    startRun();
+    const _spawn = spawnEnemy, _kill = killEnemy;
+    spawnEnemy = function (...a) { const e = _spawn.apply(this, a); if (e) R.spawned++; return e; };
+    killEnemy = function (...a) { R.killed++; return _kill.apply(this, a); };
+    for (const p of players) { p.slots[0] = 'fireball'; p.casts[0] = -1e9; } // arm the bots
+
+    for (let i = 0; i < 300; i++) {           // ~10s at 33ms/frame, fully synchronous
+      T += 33;
+      frame(T);
+      R.frames++;
+      R.maxEnemies = Math.max(R.maxEnemies, enemies.size);
+      R.wave = Math.max(R.wave, game.wave);
+      if (game.state === 'RUN_OVER') break;
+    }
+    spawnEnemy = _spawn; killEnemy = _kill;
+    R.aliveAtEnd = players.filter(p => p.alive).length;
+
+    // sample the canvas to prove rendering actually produced pixels (not blank)
+    frame(T);
+    const cv = document.getElementById('game');
+    const px = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let lit = 0; for (let i = 0; i < px.length; i += 4 * 137) if (px[i] + px[i + 1] + px[i + 2] > 40) lit++;
+    R.litPixelPct = Math.round(100 * lit / (px.length / (4 * 137)));
+
+    const good = R.spawned >= 2 && R.maxEnemies >= 1 && R.killed >= 1 && game.mode === 'wave' && R.litPixelPct > 20;
+    const verdict = good ? 'WAVEPLAY-PASS' : 'WAVEPLAY-FAIL';
+    document.title = verdict;
+    const pre = document.createElement('pre');
+    pre.id = 'play'; pre.style.color = '#fff';
+    pre.textContent = verdict + ' ' + JSON.stringify(R);
+    document.body.appendChild(pre);
+    frame(T); // final render for the screenshot
+  } catch (e) {
+    document.title = 'WAVEPLAY-FAIL';
+    const pre = document.createElement('pre'); pre.id = 'play'; pre.style.color = '#f88';
+    pre.textContent = 'WAVEPLAY-FAIL exception: ' + (e.stack || e.message || e);
+    document.body.appendChild(pre);
+  }
+})();
+</script>
+</body>
+</html>

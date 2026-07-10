@@ -4,7 +4,11 @@ const assignedPads = new Set();
 const padPrev = {};
 const padBtnPrev = {}; // padIndex -> Set of button indices held last frame (lobby nav edges)
 
-const game = { state: 'LOBBY', winsNeeded: 5, winner: null, mapIndex: 0, baseGravity: 2 };
+// mode: 'versus' (last-wizard-standing match) | 'wave' (co-op/solo PvE survival, js/enemies.js)
+const game = { state: 'LOBBY', winsNeeded: 5, winner: null, mapIndex: 0, baseGravity: 2, mode: 'versus', wave: 0, waveState: 'active' };
+
+// wave mode is playable solo; versus needs an opponent
+function minPlayers() { return game.mode === 'wave' ? 1 : 2; }
 let currentMap = null;
 let banner = '', bannerColor = '#fff', bannerUntil = 0, bannerHyper = false;
 
@@ -91,6 +95,12 @@ game.onDeath = (p) => {
 function checkRoundEnd() {
   if (game.state !== 'PLAY') return;
   const alive = players.filter(p => p.alive);
+  if (game.mode === 'wave') {
+    // PvE survival: the run ends only on a full-party wipe. The fallen stay down
+    // until the next wave's intermission revives them (see updateWaveMode).
+    if (alive.length === 0) endRun();
+    return;
+  }
   if (game.boss) {
     // co-op boss fight: the round runs while anyone stands; a wipe wipes the score
     if (alive.length > 0) return;
@@ -232,10 +242,22 @@ function setWins(n) {
   game.winsNeeded = Math.max(1, Math.min(20, n));
   setBanner(`FIRST TO ${game.winsNeeded}`, '#e8d5ff', 900);
 }
+// start from the lobby into whichever mode is selected
+function beginFromLobby() {
+  if (game.state !== 'LOBBY' || players.length < minPlayers()) return;
+  if (game.mode === 'wave') startRun();
+  else startRound(game.mapIndex);
+}
+function toggleMode() {
+  if (game.state !== 'LOBBY') return;
+  game.mode = game.mode === 'wave' ? 'versus' : 'wave';
+  setBanner(game.mode === 'wave' ? 'WAVE SURVIVAL' : 'VERSUS', '#ffd166', 1100);
+}
 addEventListener('keydown', e => {
   if (netMode === 'client' || nameEdit) return; // clients send these to the host instead
-  if (e.code === 'Space' && game.state === 'LOBBY' && players.length >= 2) startRound(game.mapIndex);
+  if (e.code === 'Space' && game.state === 'LOBBY' && players.length >= minPlayers()) beginFromLobby();
   if (e.code === 'KeyB' && game.state === 'LOBBY') addBot();
+  if (e.code === 'KeyM' && game.state === 'LOBBY') toggleMode();
   if (e.code === 'KeyR') resetMatch();
   if (game.state === 'LOBBY' && /^Digit[1-9]$/.test(e.code)) setWins(+e.code.slice(5));
   if (game.state === 'LOBBY' && (e.code === 'Equal' || e.code === 'Minus')) setWins(game.winsNeeded + (e.code === 'Equal' ? 1 : -1));
@@ -252,7 +274,7 @@ function joinPlayer(controller, name) {
 }
 
 function scanJoins() {
-  if (game.state === 'VICTORY' || players.length >= MAX_PLAYERS) return;
+  if (game.state === 'VICTORY' || game.state === 'RUN_OVER' || players.length >= MAX_PLAYERS) return;
   if (nameEdit || performance.now() < nameEditEndAt + 350) return; // typing a name, not joining
   for (const kc of kbControllers) {
     if (kc.assigned) continue;
@@ -294,6 +316,7 @@ function scanLobbyPads() {
       const owner = players.find(p => p.controller instanceof GamepadController && p.controller.index === pad.index);
       if (edge(3) && owner) beginPadNameEdit(owner, pad.index); // Y → name your wizard
       if (edge(8)) addBot();                                    // BACK → add a bot
+      if (edge(2)) toggleMode();                                // X → versus / wave survival
       if (edge(12)) setWins(game.winsNeeded + 1);               // d-pad up → win target +
       if (edge(13)) setWins(game.winsNeeded - 1);               // d-pad down → win target -
     }
@@ -309,6 +332,7 @@ Events.on(engine, 'collisionStart', ({ pairs }) => {
       if (a.label === 'projectile' && b.label !== 'lava' && projectiles.has(a)) {
         if (b.label === 'vine') killVine(b);
         if (b.label === 'boss' && a.owner) damageBoss(22, a.position, a.owner);
+        if (b.label === 'enemy' && a.owner && a.owner !== 'boss') damageEnemy(b.enemy, 22, a.position, a.owner);
         if (b.label === 'decoy') { spawnParticles(b.position.x, b.position.y, '#e8d5ff', 16, 5); removeSummon(b); } // a mirror image soaks the shot, then bursts
         if (b.label === 'destructible') damageDestructible(b, 12); // bolts chip cover, not just explosions
         if (b.label === 'player' && now < (b.player.reflectUntil || 0)) {
@@ -788,6 +812,51 @@ function drawGibs() {
   for (const gib of gibs) drawBodyRounded(gib, gib.color);
 }
 
+// wave-mode enemies: a labelled silhouette + type-specific detail, with a hurt
+// flash and a shrinking HP bar so hits read clearly on the couch TV.
+function drawEnemy(b, now) {
+  const e = b.enemy;
+  if (!e) { drawBodyRounded(b, b.color || '#c98a4a'); return; }
+  const x = b.position.x, y = b.position.y;
+  const dir = Math.abs(b.velocity.x) > 0.2 ? Math.sign(b.velocity.x) : (b._face || 1);
+  b._face = dir;
+  const hurt = now - (e.hurtAt || 0) < 110;
+  drawBodyRounded(b, hurt ? '#ffffff' : e.color);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(dir, 1);
+  ctx.lineJoin = 'round';
+  if (e.type === 'swordsman') {
+    ctx.strokeStyle = '#e8eefc'; ctx.lineWidth = 3;                     // blade
+    ctx.beginPath(); ctx.moveTo(10, 2); ctx.lineTo(30, -14); ctx.stroke();
+    ctx.strokeStyle = '#6b5330'; ctx.lineWidth = 4;                     // hilt
+    ctx.beginPath(); ctx.moveTo(6, 6); ctx.lineTo(12, 0); ctx.stroke();
+  } else if (e.type === 'archer') {
+    ctx.strokeStyle = '#5a3d22'; ctx.lineWidth = 3;                     // bow
+    ctx.beginPath(); ctx.arc(12, 0, 14, -1.1, 1.1); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1;       // string
+    ctx.beginPath(); ctx.moveTo(12 + 14 * Math.cos(-1.1), 14 * Math.sin(-1.1)); ctx.lineTo(12 + 14 * Math.cos(1.1), 14 * Math.sin(1.1)); ctx.stroke();
+  } else if (e.type === 'bug') {
+    ctx.strokeStyle = e.color; ctx.lineWidth = 2;                       // scuttling legs
+    for (const s of [-1, 1]) for (const o of [-4, 0, 4]) { ctx.beginPath(); ctx.moveTo(s * 6, o); ctx.lineTo(s * 13, o + Math.sin(now * 0.02 + o) * 3); ctx.stroke(); }
+  } else if (e.type === 'ogre') {
+    ctx.fillStyle = '#7a5a33';                                         // club
+    ctx.save(); ctx.translate(20, -6); ctx.rotate(-0.5); ctx.fillRect(-4, -4, 8, 34); ctx.beginPath(); ctx.arc(0, 30, 9, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  }
+  // eyes (glowing, angrier for the heavy)
+  ctx.fillStyle = e.type === 'ogre' ? '#ff5555' : '#fff';
+  const ey = e.type === 'bug' ? -3 : -6, er = e.type === 'ogre' ? 3 : 2;
+  ctx.beginPath(); ctx.arc(3, ey, er, 0, Math.PI * 2); ctx.arc(9, ey, er, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  // HP bar (only once damaged)
+  if (e.hp < e.maxHp) {
+    const w = Math.max(20, (b.bounds.max.x - b.bounds.min.x));
+    const top = b.bounds.min.y - 8;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(x - w / 2, top, w, 4);
+    ctx.fillStyle = '#ff5e57'; ctx.fillRect(x - w / 2, top, w * Math.max(0, e.hp / e.maxHp), 4);
+  }
+}
+
 // draws any dynamic body (real or network ghost) by label
 function drawDynamicBody(b, now) {
   const col = (b.render && b.render.fillStyle) || b.color || '#c0c0cc';
@@ -818,6 +887,7 @@ function drawDynamicBody(b, now) {
     ctx.beginPath(); ctx.arc(b.position.x + dir * 4.8, b.position.y - 3, 1, 0, Math.PI * 2); ctx.fill();
     return;
   }
+  if (b.label === 'enemy') { drawEnemy(b, now); return; }
   if (b.label === 'decoy') {
     const p = b.decoyOf;
     ctx.globalAlpha = 0.55;
@@ -980,7 +1050,14 @@ function drawHUD(now) {
   ctx.textAlign = 'center';
   ctx.font = '12px Georgia';
   ctx.fillStyle = '#675a7d';
-  ctx.fillText(`${currentMap.def.name} · ${game.mapIndex + 1}/${MAPS.length}`, W / 2, 18);
+  if (game.mode === 'wave') {
+    ctx.font = 'bold 16px Georgia';
+    ctx.fillStyle = '#ffd166';
+    const left = enemies.size + (game.boss ? 1 : 0);
+    ctx.fillText(game.waveState === 'intermission' ? `WAVE ${game.wave} CLEARED — NEXT INCOMING` : `WAVE ${game.wave} · ${left} LEFT`, W / 2, 18);
+  } else {
+    ctx.fillText(`${currentMap.def.name} · ${game.mapIndex + 1}/${MAPS.length}`, W / 2, 18);
+  }
   if (game.envEvent?.announced) {
     ctx.font = 'bold 11px Georgia';
     ctx.fillStyle = game.envEvent.def.color;
@@ -995,7 +1072,17 @@ function drawHUD(now) {
     ctx.fillStyle = p.color;
     ctx.fillText(p.name, x, 38);
     ctx.strokeStyle = p.color;
-    if (game.winsNeeded <= 9) {
+    if (game.mode === 'wave') {
+      // wave mode has no round wins — show a health bar (or DOWN when fallen)
+      if (p.alive) {
+        ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(x - 30, 48, 60, 6);
+        ctx.fillStyle = p.hp > MAX_HP * 0.3 ? '#7bd88f' : '#ff5e57';
+        ctx.fillRect(x - 30, 48, 60 * Math.max(0, p.hp / MAX_HP), 6);
+      } else {
+        ctx.font = 'bold 13px Georgia'; ctx.fillStyle = '#675a7d';
+        ctx.fillText('DOWN', x, 54);
+      }
+    } else if (game.winsNeeded <= 9) {
       const pipStart = x - (game.winsNeeded - 1) * 9;
       for (let w = 0; w < game.winsNeeded; w++) {
         ctx.beginPath();
@@ -1128,16 +1215,22 @@ function drawLobby() {
       : p ? controllerHint(p) : 'E · ENTER · PAD';
     ctx.fillText(hint, x, 238);
   }
+  const wave = game.mode === 'wave';
+  const ready = players.length >= minPlayers();
   ctx.font = 'bold 20px Georgia';
-  ctx.fillStyle = players.length >= 2 ? '#7bd88f' : '#675a7d';
+  ctx.fillStyle = ready ? (wave ? '#ffd166' : '#7bd88f') : '#675a7d';
   ctx.fillText(
-    players.length >= 2
-      ? `SPACE / START TO FIGHT — FIRST TO ${game.winsNeeded} WINS`
-      : 'NEED AT LEAST 2 WIZARDS',
+    !ready ? (wave ? 'NEED AT LEAST 1 WIZARD' : 'NEED AT LEAST 2 WIZARDS')
+      : wave ? `SPACE / START — WAVE SURVIVAL${game.bestWave ? `  (BEST: WAVE ${game.bestWave})` : ''}`
+      : `SPACE / START TO FIGHT — FIRST TO ${game.winsNeeded} WINS`,
     W / 2, 288);
   ctx.font = '13px Georgia';
   ctx.fillStyle = '#675a7d';
-  ctx.fillText(`1–9 or d-pad ↑↓ sets the win target · +/− tunes it up to 20 (${game.winsNeeded}) · Y names your wizard`, W / 2, 310);
+  ctx.fillText(
+    wave
+      ? 'M / pad-X switches back to VERSUS · co-op: everyone fights the waves together · Y names your wizard'
+      : `M / pad-X = WAVE SURVIVAL · 1–9 or d-pad ↑↓ sets win target (${game.winsNeeded}) · Y names your wizard`,
+    W / 2, 310);
 }
 
 function drawVictory(now) {
@@ -1204,6 +1297,27 @@ function draw(now) {
   drawHUD(now);
   if (game.state === 'LOBBY') drawLobby();
   if (game.state === 'VICTORY') drawVictory(now);
+  if (game.state === 'RUN_OVER') drawRunOver(now);
+}
+
+function drawRunOver(now) {
+  ctx.fillStyle = 'rgba(10,6,16,0.68)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 54px Georgia';
+  ctx.fillStyle = '#ff6b6b';
+  ctx.fillText('OVERRUN', W / 2, 210);
+  ctx.font = 'bold 40px Georgia';
+  ctx.fillStyle = '#ffd166';
+  ctx.fillText(`REACHED WAVE ${game.runScore || game.wave}`, W / 2, 290);
+  ctx.font = '22px Georgia';
+  ctx.fillStyle = '#e8d5ff';
+  const best = game.bestWave || 0;
+  const isBest = (game.runScore || game.wave) >= best && best > 0;
+  ctx.fillText(isBest ? '★ NEW BEST ★' : `best: wave ${best}`, W / 2, 340);
+  ctx.font = '20px Georgia';
+  ctx.fillStyle = '#9c8ab8';
+  ctx.fillText('press CAST for the lobby', W / 2, 430);
 }
 
 // ---------- main loop ----------
@@ -1222,8 +1336,8 @@ function frame(now) {
   scanJoins();
   scanLobbyPads();
   for (const p of players) p.input = p.controller.poll();
-  if (game.state === 'LOBBY' && players.length >= 2 && !nameEdit && now > nameEditEndAt + 350 && players.some(p => p.input.startPressed)) startRound(game.mapIndex);
-  if (game.state === 'VICTORY' && players.some(p => p.input.castPressed)) resetMatch();
+  if (game.state === 'LOBBY' && players.length >= minPlayers() && !nameEdit && now > nameEditEndAt + 350 && players.some(p => p.input.startPressed)) beginFromLobby();
+  if ((game.state === 'VICTORY' || game.state === 'RUN_OVER') && players.some(p => p.input.castPressed)) resetMatch();
 
   if (game.state === 'PLAY' && !game.fightShown && now > game.fightAt) {
     game.fightShown = true;
@@ -1238,6 +1352,8 @@ function frame(now) {
   currentMap.def.update?.(currentMap, now, dt);
   updateEnvEvent(now, dt);
   updateBoss(now, dt);
+  updateEnemies(now, dt);
+  updateWaveMode(now);
 
   // spinners + phantom platforms
   for (const b of Composite.allBodies(currentMap.composite)) {

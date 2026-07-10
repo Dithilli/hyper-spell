@@ -109,6 +109,10 @@ function explode(x, y, radius = 150, power = 22, damage = 0, owner = null, opts 
       if (body.player === owner) { if (!opts.selfSafe) damagePlayer(body.player, dmg * 0.5, owner); }
       else damagePlayer(body.player, dmg, owner);
     }
+    // wizard AoE hurts wave-mode enemies too; owner 'boss' is a hostile blast (no friendly fire)
+    if (body.label === 'enemy' && damage && owner !== 'boss') {
+      damageEnemy(body.enemy, damage * (1 - d / (radius * 1.15)), body.position, owner);
+    }
   }
   for (const c of Composite.allConstraints(currentMap.composite)) {
     if (c.label !== 'breakable') continue;

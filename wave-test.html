@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WAVE-PENDING</title>
+</head>
+<body>
+<canvas id="game" width="1280" height="720"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+<script src="js/core.js"></script>
+<script src="js/artkit.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/awards.js"></script>
+<script src="js/telemetry.js"></script>
+<script src="js/input.js"></script>
+<script src="js/spells.js"></script>
+<script src="js/player.js"></script>
+<script src="js/pickups.js"></script>
+<script src="js/spellbook.js"></script>
+<script src="js/spelltiers.js"></script>
+<script src="js/hybrids.js"></script>
+<script src="js/maps.js"></script>
+<script src="js/mapbook.js"></script>
+<script src="js/events.js"></script>
+<script src="js/boss.js"></script>
+<script src="js/enemies.js"></script>
+<script src="js/bot.js"></script>
+<script src="js/snapshot.js"></script>
+<!-- freeze the auto game loop so wave logic runs deterministically off a fake clock -->
+<script>window.requestAnimationFrame = () => 0;</script>
+<script src="js/game.js"></script>
+<script src="js/replay.js"></script>
+<script>
+// Wave-mode + boss-scaling verification. Drives the REAL wave manager, enemy
+// system, and boss scaler with a controllable clock (performance.now is mocked)
+// so staggered spawns / intermissions advance deterministically.
+(function runWave() {
+  const R = { errors: [], steps: [] };
+  const fail = m => R.errors.push(m);
+  const ok = m => R.steps.push(m);
+  window.addEventListener('error', e => fail('window: ' + e.message));
+
+  // --- controllable clock ---
+  let T = 100000;
+  performance.now = () => T;
+  const advance = ms => { T += ms; };
+
+  try {
+    // two players → exercises co-op (and the wipe path). Bots count as players.
+    while (players.length < 2) addBot();
+    if (players.length < 2) fail('could not seed 2 players');
+
+    // --- 1) startRun enters wave mode and launches wave 1 ---
+    startRun();
+    if (game.mode !== 'wave') fail('mode not wave after startRun: ' + game.mode);
+    if (game.state !== 'PLAY') fail('state not PLAY after startRun: ' + game.state);
+    if (game.wave !== 1) fail('wave not 1 after startRun: ' + game.wave);
+    if (!pendingSpawns.length) fail('no enemies queued for wave 1');
+    else ok('startRun launches wave 1');
+
+    // --- 2) staggered spawns flush over time ---
+    const expected1 = waveComposition(1).length; // 2 swordsmen
+    for (let i = 0; i < 20 && enemies.size < expected1; i++) { advance(400); updateWaveMode(T); }
+    if (enemies.size !== expected1) fail(`wave 1 spawned ${enemies.size}, expected ${expected1}`);
+    else ok(`wave 1 spawned ${enemies.size} enemies`);
+
+    // --- 3) damageEnemy kills and decrements the live count ---
+    const victim = [...enemies][0];
+    const before = enemies.size;
+    damageEnemy(victim.enemy, 9999, victim.position, players[0]);
+    if (enemies.size !== before - 1) fail('killing an enemy did not decrement the count');
+    else ok('damageEnemy kills and decrements');
+
+    // --- 4) clearing the wave advances to an intermission, then the next wave ---
+    for (const b of [...enemies]) damageEnemy(b.enemy, 9999, b.position, players[0]);
+    if (enemies.size !== 0) fail('enemies remain after clearing: ' + enemies.size);
+    // downing a player first, to prove intermission revives the fallen
+    players[1].alive = false;
+    advance(50); updateWaveMode(T);
+    if (game.waveState !== 'intermission') fail('did not enter intermission after clear');
+    if (!players[1].alive) fail('intermission did not revive the fallen player');
+    else ok('wave clear → intermission revives the fallen');
+    advance(4000); updateWaveMode(T);
+    if (game.wave !== 2) fail('did not advance to wave 2, wave=' + game.wave);
+    else ok('intermission → next wave');
+
+    // --- 5) a boss wave spawns a scaled boss capstone ---
+    // fast-forward to just before wave 5 and start it
+    clearEnemies(); game.boss = null;
+    startWave(5);
+    if (!game.boss) fail('wave 5 did not spawn a boss');
+    else ok('5th wave spawns a boss capstone');
+    // clean up that boss before the scaling comparison
+    if (game.boss) { removeSummon(game.boss.body); game.boss = null; }
+    clearEnemies();
+
+    // --- 6) boss scaling: tier 3 is meaningfully nastier than tier 1 ---
+    const b1 = spawnBoss(T, { tier: 1, bossId: 'golem' });
+    const hp1 = b1.maxHp, dm1 = b1.dmgMult, rt1 = b1.rate;
+    removeSummon(b1.body); game.boss = null;
+    const b3 = spawnBoss(T, { tier: 3, bossId: 'golem' });
+    if (!(b3.maxHp > hp1)) fail(`tier3 HP ${b3.maxHp} not > tier1 ${hp1}`);
+    if (!(b3.dmgMult > dm1)) fail(`tier3 dmgMult ${b3.dmgMult} not > tier1 ${dm1}`);
+    if (!(b3.rate > rt1)) fail(`tier3 rate ${b3.rate} not > tier1 ${rt1}`);
+    if (b1.dmgMult === 1 && b3.dmgMult > 1 && b3.rate > 1 && b3.maxHp > hp1) ok(`boss scales: hp ${hp1}→${b3.maxHp}, dmg×${dm1.toFixed(2)}→${b3.dmgMult.toFixed(2)}, rate×${rt1.toFixed(2)}→${b3.rate.toFixed(2)}`);
+    removeSummon(b3.body); game.boss = null;
+
+    // --- 6b) drive a live boss so the scaled cadence (bcd) + dmgMult damage paths
+    // actually run without throwing, and the boss really attacks ---
+    for (const p of players) { p.alive = true; p.hp = 150; }
+    game.state = 'PLAY';
+    game.fightAt = T - 5000; // already past the announce gate
+    const liveBoss = spawnBoss(T, { tier: 2, bossId: 'dragon' });
+    const projBefore = projectiles.size;
+    let fired = false;
+    for (let i = 0; i < 200; i++) { T += 33; updateBoss(T, 33); if (projectiles.size > projBefore) fired = true; }
+    if (!liveBoss.announced) fail('boss never announced across 200 frames');
+    if (!fired) fail('scaled boss never fired a projectile (cadence path broken?)');
+    else ok('live boss runs scaled cadence + fires attacks');
+    removeSummon(liveBoss.body); game.boss = null;
+    for (const fb of [...projectiles]) { projectiles.delete(fb); }
+
+    // --- 7) full-party wipe ends the run ---
+    clearEnemies();
+    game.state = 'PLAY';
+    for (const p of players) p.alive = false;
+    checkRoundEnd();
+    if (game.state !== 'RUN_OVER') fail('full wipe did not end the run, state=' + game.state);
+    if (typeof game.runScore !== 'number') fail('endRun did not record a score');
+    else ok('full-party wipe → RUN_OVER with score ' + game.runScore);
+
+  } catch (e) {
+    fail('exception: ' + (e.stack || e.message || e));
+  }
+  const verdict = R.errors.length ? 'WAVE-FAIL' : 'WAVE-PASS';
+  document.title = verdict;
+  const pre = document.createElement('pre');
+  pre.id = 'wave';
+  pre.textContent = verdict + ' ' + JSON.stringify(R, null, 2);
+  document.body.appendChild(pre);
+})();
+</script>
+</body>
+</html>
