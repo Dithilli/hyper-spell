@@ -196,3 +196,30 @@ The input message grew one field: `{ t:'input', m, j, c, c2, b, a }`.
 
 alinea-client.js implements all of the above (difficulty knob `blockSkill`
 controls how reliably she parries).
+
+---
+
+## Spectating Alinea in Wave Survival (July 10, 2026)
+
+Alinea is headless, so to *watch* her you run a browser **host** — it simulates the
+game and renders every connected player (Alinea included) at full fidelity. You watch
+the host window; Alinea plays over the wire.
+
+Wave Survival enemies ride the normal snapshot (they're `summon()` bodies, so they
+appear in `bodies[]` as `l:'enemy'`). Her target logic picks **boss → nearest `l:'enemy'`
+→ nearest wizard**, so she fights the waves and the every-5th-wave bosses.
+
+Recipe (solo Alinea, you spectate):
+
+1. `cd server && npm install && node serve.js`  — HTTP + WS relay on :8787.
+2. Open `http://localhost:8787` → **HOST ONLINE**. This window is your spectator view;
+   it joins no local player (host is a pure sim-runner/renderer).
+3. `node alinea-client.js ws://localhost:8787/ws`  (e.g. `NAME="Alinea" DIFF=hard node …`).
+4. On the host window press **M** (→ WAVE SURVIVAL), then **Space** to start. Wave mode
+   needs only 1 player, and there's no network start message, so the run is begun from
+   the host keyboard.
+
+Notes: enemies draw as plain colored blobs on *client* screens (the ghost doesn't carry
+the enemy subtype) but render fully on the host — which is what you're watching. A normal
+networked versus game is unaffected; the enemy-targeting branch only fires when `l:'enemy'`
+bodies exist.

@@ -364,15 +364,21 @@ function think() {
     };
   }
 
-  // --- pick target: boss if this is the boss round, else nearest living enemy ---
+  // --- pick target: boss first, then wave-mode enemies, then other wizards ---
   let target = null, best = Infinity;
   const boss = s.bs && s.bs.hp > 0 ? (s.bodies && s.bodies.find(b => b.l === 'boss')) : null;
   if (boss) { target = { x: boss.x, y: boss.y, vx: boss.vx || 0, vy: boss.vy || 0 }; best = Math.hypot(boss.x - m.x, boss.y - m.y); }
   else {
-    for (const p of s.ps) {
-      if (p.s === mySlot || !p.al) continue;
-      const d = Math.hypot(p.x - m.x, p.y - m.y);
-      if (d < best) { best = d; target = p; }
+    // Wave Survival: hostile 'enemy' bodies ride the same ghost path as everything
+    // else, so chase the nearest one. Falls through to PvP targeting when there are none.
+    const foe = nearest(s, m, b => b.l === 'enemy');
+    if (foe) { target = { x: foe.x, y: foe.y, vx: foe.vx || 0, vy: foe.vy || 0 }; best = Math.hypot(foe.x - m.x, foe.y - m.y); }
+    else {
+      for (const p of s.ps) {
+        if (p.s === mySlot || !p.al) continue;
+        const d = Math.hypot(p.x - m.x, p.y - m.y);
+        if (d < best) { best = d; target = p; }
+      }
     }
   }
 

@@ -4,8 +4,13 @@
 // cleanup for free. Loaded after boss.js (uses bossAliveTarget/spawnBoss/summon)
 // and before game.js, which calls updateEnemies/updateWaveMode/startRun/endRun.
 //
-// Enemies are couch-local only (not synced to LAN clients) — wave mode runs in
-// netMode 'couch'.
+// Wave mode is designed for couch play, but enemies DO ride the wire: spawnEnemy
+// routes through summon(), and serializeSnapshot emits every summons body, so a LAN
+// host broadcasts enemies to clients (they render as plain colored blobs client-side
+// unless the ghost carries the type; the host draws them fully). What's genuinely
+// couch-only is *starting* a wave run — there's no network start message, so the host
+// begins one from its own keyboard (M then Space). This lets a spectator host render
+// a networked Alinea fighting the waves.
 
 const enemies = new Set();      // live enemy bodies (for wave-clear counting)
 let pendingSpawns = [];         // staggered spawn queue: { type, tier, at, x, y }
