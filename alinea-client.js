@@ -9,10 +9,16 @@
 // destructible cover (no client action needed — statics regenerate from the snapshot seed).
 // Key corrections vs. the old guess-build:
 //   - CAST IS HOLD, NOT EDGE. Keep c:1 and it auto-fires every cooldown. No pulsing.
+//     (VERIFIED against the host: player.js casts on `c.cast` — the HELD flag — gated by
+//     castSpell's internal cooldown. `castPressed`/the edge is ONLY for lobby-join & rematch.
+//     A 2026-07-09 branch "fixed" this into an edge-pulse; that was a misread and roughly
+//     HALVES the real fire rate. Do not reintroduce pulsing.)
 //   - TWO SPELL SLOTS (v4): snapshot ps[] entries now carry s0/s1 (slot spell ids) and
 //     c0/c1 (per-slot cooldown fraction, 1 = ready). Emit BOTH c (slot A) and c2 (slot B):
-//     {t:'input', m, j, c, c2, a}. Holding both when armed lets the host FUSE them into a
-//     hybrid when the two schools match. Legacy `sp` still present (active/primary slot).
+//     {t:'input', m, j, c, c2, a}. Hold both to keep both slots firing. FUSION IS NOT
+//     CAST-TRIGGERED — the host fuses on TOME PICKUP (pickups.js tryFuse), automatically,
+//     the instant you hold two spells whose schools match. Casting has nothing to do with
+//     it. Legacy `sp` still present (active/primary slot).
 //   - a = ABSOLUTE world radians, 0 = +x, POSITIVE = CLOCKWISE (screen-y down).
 //     atan2(dy, dx) with downward-positive dy gives exactly this — no negation.
 //   - m is WORLD-space (1 = +x/right). j: hold jumps when grounded; air jump needs 0->1 edge.
@@ -408,7 +414,13 @@ function think() {
   const threat = nearest(s, m, b => b.l === 'projectile');
   const threatD = threat ? Math.hypot(threat.x - m.x, threat.y - m.y) : Infinity;
   if (threatD < 90) jump = 1;
-  if (s.lv != null && m.y > s.lv - 120) jump = 1;
+  const overLava = s.lv != null && m.y > s.lv - 140;
+  if (s.lv != null && m.y > s.lv - 120) jump = 1; // bail up off the lava line
+  // CLIMB: hop toward whatever I'm walking to when it sits on a ledge above me — else I
+  // pace back and forth underneath it and never reach the spell. Mirrors the native bot's
+  // goal.y < me.y - 70 hop. Suppressed over lava so it's never a launch into the soup.
+  const climbGoal = (!slotsFull && tome) ? tome : (target && !boss ? target : null);
+  if (move !== 0 && grounded && !overLava && climbGoal && climbGoal.y < m.y - 60) jump = 1;
 
   // --- BLOCK (v7): parry the incoming shot instead of eating it. Edge semantics —
   // b goes 1 for exactly one tick, then back to 0. Read the moment, don't spam:
@@ -430,8 +442,10 @@ function think() {
   // and the slow aim-slew + noise are what make me miss, not a fire-gate. ---
   let cast = 0, cast2 = 0;
   if (target) {
-    // Hold each armed slot independently. Holding BOTH when their schools match is what
-    // triggers fusion host-side. castChaos still randomly drops holds on easy diffs.
+    // Hold each armed slot independently; castSpell's cooldown gate host-side turns a
+    // steady hold into one shot per cooldown. (Fusion is pickup-triggered, NOT cast —
+    // see the header note; holding both just keeps both slots firing.) castChaos still
+    // randomly drops holds on easy diffs so weaker Alineas waste some cooldowns.
     if (hasS0) cast  = Math.random() < K.castChaos ? 0 : 1;
     if (hasS1) cast2 = Math.random() < K.castChaos ? 0 : 1;
     // pre-v4 host with only legacy `sp`: keep the single-slot behavior alive
@@ -456,15 +470,29 @@ function nearest(s, m, pred) {
 
 // ---- loop @ inputHz ----
 let alive = true;
+let holdA = 0, holdB = 0, jumps = 0, moves = 0; // rolling per-window request counters
 function loop() {
   if (!alive) return;
   if (joined) {
     const s = think();
     emit({ t: 'input', m: s.m || 0, j: s.j || 0, c: s.c || 0, c2: s.c2 || 0, b: s.b || 0, a: s.a });
+    if (s.c) holdA++;
+    if (s.c2) holdB++;
+    if (s.j) jumps++;
+    if (s.m) moves++;
     const now = Date.now();
     if (now - lastLog > 3000 && snap) {
       const m = me(snap);
-      if (m) console.log(`[alinea] slot ${mySlot} | hp ${m.hp} | spell ${m.sp || '—'} | ready ${m.rd} | rn ${snap.rn} | state ${snap.st}${snap.bs ? ' | BOSS' : ''}`);
+      if (m) {
+        // hold semantics: the host fires each slot when its cooldown is ready while we
+        // hold c:1, so these are what we're REQUESTING (frames/s) + each slot's readiness
+        // (✓) — NOT a raw shot count. If a slot shows armed (✓) but hold is ~0, that's a
+        // real "not fighting" bug; if hold is high and it still feels weak, look at aim.
+        const per = n => (n / 3).toFixed(1);
+        const ready = (c, rd) => ((c != null ? c : rd) >= 1 ? '✓' : ' ');
+        console.log(`[alinea] slot ${mySlot} | hp ${m.hp} | A:${m.s0 || m.sp || '—'}${ready(m.c0, m.rd)} B:${m.s1 || '—'}${ready(m.c1, 0)} | hold A ${per(holdA)}/s B ${per(holdB)}/s | jump ${per(jumps)}/s move ${per(moves)}/s | rn ${snap.rn} | ${snap.st}${snap.bs ? ' | BOSS' : ''}`);
+      }
+      holdA = holdB = jumps = moves = 0;
       lastLog = now;
     }
   }
