@@ -28,6 +28,7 @@
 <script>
 // temp visual harness: ?map=<name substring>&piece=<spire|fang|shroom|arch|crystal|tree>
 const q = new URLSearchParams(location.search);
+if (q.get('clean')) { globalThis.drawLobby = () => {}; } // hide the join panel for beauty shots
 const idx = Math.max(0, MAPS.findIndex(m => m.name.includes((q.get('map') || 'FROZEN LAKE').toUpperCase())));
 loadMap(idx);
 const px = 620, py = groundYAt(px);
@@ -38,6 +39,14 @@ if (piece === 'shroom') { addGiantMushroom(currentMap, 480, groundYAt(480), 1); 
 if (piece === 'arch') addStoneArch(currentMap, px, py, 1);
 if (piece === 'crystal') addCrystalCluster(currentMap, px, py, 1);
 if (piece === 'tree') addTree(currentMap, px, py, 1.1);
+// a wizard for scale/life on beauty shots
+if (q.get('wiz')) {
+  addBot();
+  const b = players[0];
+  const wx = +q.get('wiz') || 320;
+  Body.setPosition(b.body, { x: wx, y: groundYAt(wx) - 16 });
+  Body.setVelocity(b.body, { x: 0, y: 0 });
+}
 // chip a couple blocks so damage states show
 setTimeout(() => {
   const dests = Composite.allBodies(currentMap.composite).filter(b => b.label === 'destructible');

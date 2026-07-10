@@ -20,8 +20,9 @@ class BotController {
   }
 
   // is stepping one pace in `dir` a walk into lava or off into a deep pit?
-  fallDanger(me, dir) {
-    const aheadX = Math.max(20, Math.min(W - 20, me.x + dir * 42));
+  // lookahead scales with current speed — a sprinting bot needs to brake sooner
+  fallDanger(me, dir, vx = 0) {
+    const aheadX = Math.max(20, Math.min(W - 20, me.x + dir * (42 + Math.abs(vx) * 10)));
     const gAhead = groundYAt(aheadX);
     const lava = currentMap.data.lavaY;
     if (lava != null && gAhead > lava - 24) return true; // ground ahead sits under lava → you'd land in it
@@ -29,8 +30,35 @@ class BotController {
     return gAhead - me.y > 300;                          // a long drop onto real ground
   }
 
+  // nearest direction with real footing within reach (used mid-air over death)
+  safeGroundDir(me, lavaY) {
+    for (let d = 60; d <= 380; d += 64) {
+      for (const dir of [-1, 1]) {
+        const x = me.x + dir * d;
+        if (x < 30 || x > W - 30) continue;
+        const g = groundYAt(x);
+        if (g < H - 31 && (lavaY == null || g < lavaY - 24) && g - me.y < 300) return dir;
+      }
+    }
+    return 0;
+  }
+
   think(p, now) {
     const me = p.body.position;
+    // LAVA PANIC: airborne over certain death (lava or open void below) — drop
+    // the plan, steer hard for the nearest safe column, burn the air jump while
+    // sinking, and re-think fast. Bots used to sail into the soup with no
+    // recovery at all between their slow think ticks.
+    const lavaY = currentMap.data.lavaY;
+    if (now - (p.lastGround || 0) >= 220) {
+      const gBelow = groundYAt(me.x);
+      if ((lavaY != null && gBelow > lavaY - 24) || gBelow >= H - 31) {
+        const dir = this.safeGroundDir(me, lavaY) || (me.x > W / 2 ? -1 : 1);
+        this.plan = { move: dir, jump: p.body.velocity.y > 2 && p.airJumps > 0, cast: false, cast2: false, aim: null, block: false };
+        this.nextThink = now + 70; // panic reflexes
+        return;
+      }
+    }
     // target: the boss during boss rounds, otherwise the nearest wizard
     let tpos = null, tbody = null, vsBoss = false;
     if (game.boss?.announced) { tbody = game.boss.body; tpos = tbody.position; vsBoss = true; }
@@ -72,7 +100,7 @@ class BotController {
 
     // LEDGE SAFETY: don't stroll off a cliff into lava or a pit. If the goal is
     // that way, only leap when a safe landing is within jump range; else hold up.
-    if (move && this.fallDanger(me, move)) {
+    if (move && this.fallDanger(me, move, p.body.velocity.x)) {
       const landX = Math.max(24, Math.min(W - 24, me.x + move * 135));
       const gLand = groundYAt(landX);
       const lava = currentMap.data.lavaY;
@@ -91,8 +119,11 @@ class BotController {
         // deliberate cadence: a bot lands a single aimed shot at a time, only
         // occasionally comboing both slots — no machine-gun spray.
         if (now - (this.lastShot || 0) > 520) {
-          const r0 = p.slots[0] && now - p.casts[0] > (SPELLS[p.slots[0]].cooldown || 0);
-          const r1 = p.slots[1] && now - p.casts[1] > (SPELLS[p.slots[1]].cooldown || 0);
+          // self-movement spells (dash/leap/blink) hurl the caster toward the
+          // aim — over lava that's a suicide button, so bots shelve them there
+          const risky = id => currentMap.data.lavaY != null && SPELLS[id]?.selfMove;
+          const r0 = p.slots[0] && !risky(p.slots[0]) && now - p.casts[0] > (SPELLS[p.slots[0]].cooldown || 0);
+          const r1 = p.slots[1] && !risky(p.slots[1]) && now - p.casts[1] > (SPELLS[p.slots[1]].cooldown || 0);
           if (r0 && r1 && Math.random() < 0.22) { cast = true; cast2 = true; }   // rare two-slot combo
           else if (r0 && (!r1 || Math.random() < 0.6)) cast = true;              // usually one measured shot
           else if (r1) cast2 = true;

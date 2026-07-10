@@ -568,7 +568,7 @@ regSpell('napalm', {
   },
 });
 regSpell('phoenixdash', {
-  name: 'Phoenix Dash', color: '#ffb347', cooldown: 2000,
+  name: 'Phoenix Dash', color: '#ffb347', cooldown: 2000, selfMove: true,
   cast(p) {
     const dir = aimDir(p, 25, 4);
     Body.setVelocity(p.body, { x: dir.x * 25, y: dir.y * 25 - 2 });
@@ -613,7 +613,7 @@ regSpell('fireflies', {
 
 // ============ MOVEMENT & SELF ============
 regSpell('blink', {
-  name: 'Blink', color: '#c3b1e1', cooldown: 1300,
+  name: 'Blink', color: '#c3b1e1', cooldown: 1300, selfMove: true,
   cast(p) {
     spawnParticles(p.body.position.x, p.body.position.y, '#c3b1e1', 14, 5);
     const dir = aimDir(p, 1, 0);
@@ -626,7 +626,7 @@ regSpell('blink', {
   },
 });
 regSpell('rocketleap', {
-  name: 'Rocket Leap', color: '#ffab76', cooldown: 2000,
+  name: 'Rocket Leap', color: '#ffab76', cooldown: 2000, selfMove: true,
   cast(p) {
     const m = p.mega || 1;
     explode(p.body.position.x, p.body.position.y + 16, 120 * m, 18 * m, 15 * m, p);
@@ -651,7 +651,7 @@ regSpell('swaphex', {
 });
 regSpell('timeskip', { name: 'Time Skip', color: '#b0e0e6', cooldown: 5000, cast(p) { slowMo(0.35, 1300); p.speedUntil = performance.now() + 1300; doFlash('#b0e0e6', 0.2); } });
 regSpell('smokebomb', {
-  name: 'Smoke Bomb', color: '#9a9ab0', cooldown: 1800,
+  name: 'Smoke Bomb', color: '#9a9ab0', cooldown: 1800, selfMove: true,
   cast(p) {
     spawnParticles(p.body.position.x, p.body.position.y, '#9a9ab0', 30, 5, 60);
     const nx = Math.max(30, Math.min(W - 30, p.body.position.x - p.facing * 170));

@@ -155,8 +155,52 @@
   document.title = verdict;
   const pre = document.createElement('pre');
   pre.id = 'smoke';
-  pre.textContent = verdict + ' ' + JSON.stringify(out);
+  pre.textContent = verdict + ' ' + JSON.stringify(out) + ' nav:pending';
   document.body.appendChild(pre);
+
+  // ---- phase 2 (async): unarmed-bot lava-survival trial on a gappy lava map.
+  // 4 bots navigate LILY HOP for 14s with casting disabled — every lava death
+  // is a pure pathing failure. Needs --virtual-time-budget >= 26000.
+  try {
+    const idx = MAPS.findIndex(mm => mm.name.includes('LILY HOP'));
+    while (players.length < 4) addBot();
+    game.winsNeeded = 99;
+    for (const q of players) { clearSpells(q); q.roundWins = 0; }
+    out.lavaDeaths = 0;
+    const _kill = killPlayer;
+    killPlayer = function (q) {
+      out.allDeaths = (out.allDeaths || 0) + 1;
+      const lv = currentMap.data.lavaY;
+      if (lv != null && q.body.position.y > lv - 40) out.lavaDeaths++;
+      return _kill(q);
+    };
+    startRound(idx >= 0 ? idx : 0);
+    // headless rAF barely ticks under virtual time — drive the game loop from
+    // the (virtual) timer clock instead so physics actually simulates
+    const stepper = setInterval(() => frame(performance.now()), 33);
+    // battle conditions: everyone armed with SELF-MOVEMENT spells (the classic
+    // bot suicide buttons) and blast-grade shoves — survival = both the air
+    // recovery reflex and the don't-dash-into-lava judgment work
+    setTimeout(() => { for (const q of players) { q.slots[0] = 'phoenixdash'; q.slots[1] = 'rocketleap'; q.slotCharges[0] = q.slotCharges[1] = null; } }, 2000);
+    const shover = setInterval(() => {
+      const alive = players.filter(q => q.alive);
+      if (!alive.length) return;
+      const q = alive[Math.floor(Math.random() * alive.length)];
+      Body.setVelocity(q.body, { x: (Math.random() < 0.5 ? -1 : 1) * (12 + Math.random() * 12), y: -(4 + Math.random() * 8) });
+    }, 700);
+    setTimeout(() => {
+      clearInterval(stepper);
+      clearInterval(shover);
+      killPlayer = _kill;
+      out.navDebug = { st: game.state, deaths: out.allDeaths || 0, rounds: game.totalRounds, ps: players.map(q => [Math.round(q.body.position.x), Math.round(q.body.position.y), q.alive ? 1 : 0, q.slots[0]]) };
+      if (out.lavaDeaths > 2) out.errors.push('bots drowned in lava ' + out.lavaDeaths + 'x in 14s');
+      const v2 = out.errors.length || out.gaps.length ? 'SMOKE-FAIL' : 'SMOKE-PASS';
+      document.title = v2;
+      pre.textContent = v2 + ' ' + JSON.stringify(out);
+    }, 14000);
+  } catch (e) {
+    pre.textContent += ' navERR:' + (e.message || e);
+  }
 })();
 </script>
 </body>
