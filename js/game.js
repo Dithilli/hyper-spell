@@ -821,16 +821,75 @@ function drawEnemy(b, now) {
   const dir = Math.abs(b.velocity.x) > 0.2 ? Math.sign(b.velocity.x) : (b._face || 1);
   b._face = dir;
   const hurt = now - (e.hurtAt || 0) < 110;
-  drawBodyRounded(b, hurt ? '#ffffff' : e.color);
+  // the swordsman paints its OWN hooded-rogue silhouette (no plain body box) —
+  // everything else keeps the rounded-blob base + a detail pass on top
+  if (e.type !== 'swordsman') drawBodyRounded(b, hurt ? '#ffffff' : e.color);
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(dir, 1);
   ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
   if (e.type === 'swordsman') {
-    ctx.strokeStyle = '#e8eefc'; ctx.lineWidth = 3;                     // blade
-    ctx.beginPath(); ctx.moveTo(10, 2); ctx.lineTo(30, -14); ctx.stroke();
-    ctx.strokeStyle = '#6b5330'; ctx.lineWidth = 4;                     // hilt
-    ctx.beginPath(); ctx.moveTo(6, 6); ctx.lineTo(12, 0); ctx.stroke();
+    // a sneaky rogue: hunched, hooded cloak + a short reverse-grip dagger. The
+    // cloak fully hides the collision box, so no "terrible square" reads through.
+    const cloak = hurt ? '#ffffff' : e.color;
+    const bob = Math.sin(now * 0.008 + x * 0.05) * 1.2; // subtle skulking sway
+    // --- cloak body: narrow hunched shoulders flaring to a ragged hem ---
+    ctx.fillStyle = hurt ? '#ffffff' : shade(cloak, -0.28);
+    ctx.beginPath();
+    ctx.moveTo(-9, -8);                       // back shoulder (hunched high)
+    ctx.quadraticCurveTo(-15, 8, -13, 21);    // back drape
+    ctx.lineTo(-8, 17); ctx.lineTo(-3, 22);   // ragged hem tips
+    ctx.lineTo(3, 17); ctx.lineTo(9, 22);
+    ctx.lineTo(12, 15);
+    ctx.quadraticCurveTo(11, 0, 6, -9);       // front lean (leaning forward = sneaking)
+    ctx.closePath(); ctx.fill();
+    // lit front fold so the silhouette has depth
+    ctx.fillStyle = hurt ? '#ffffff' : cloak;
+    ctx.beginPath();
+    ctx.moveTo(6, -9); ctx.quadraticCurveTo(10, 4, 9, 20);
+    ctx.lineTo(3, 17); ctx.lineTo(0, 21); ctx.quadraticCurveTo(2, 4, 2, -8);
+    ctx.closePath(); ctx.fill();
+    // --- hood: a pointed cowl tilted forward over a shadowed face ---
+    ctx.fillStyle = hurt ? '#ffffff' : shade(cloak, -0.42);
+    ctx.beginPath();
+    ctx.moveTo(-8, -6 + bob);
+    ctx.quadraticCurveTo(-7, -22 + bob, 7, -22 + bob);   // peak leans forward
+    ctx.quadraticCurveTo(13, -18 + bob, 12, -6 + bob);   // brow juts out
+    ctx.quadraticCurveTo(2, -3 + bob, -8, -6 + bob);
+    ctx.closePath(); ctx.fill();
+    // face void + a glint of eyes peering from the dark
+    ctx.fillStyle = 'rgba(8,6,14,0.92)';
+    ctx.beginPath(); ctx.ellipse(4, -11 + bob, 6, 4.5, -0.15, 0, Math.PI * 2); ctx.fill();
+    if (!hurt) {
+      ctx.fillStyle = '#bfe8ff';
+      ctx.beginPath(); ctx.arc(5, -11 + bob, 1.5, 0, Math.PI * 2); ctx.arc(9, -11.5 + bob, 1.3, 0, Math.PI * 2); ctx.fill();
+    }
+    // --- dagger: short blade, low reverse grip in the leading hand ---
+    ctx.save();
+    ctx.translate(9, 9);
+    ctx.rotate(0.5);
+    ctx.strokeStyle = '#3a2c1c'; ctx.lineWidth = 3;                     // wrapped grip
+    ctx.beginPath(); ctx.moveTo(-3, -4); ctx.lineTo(1, 3); ctx.stroke();
+    ctx.strokeStyle = '#8a6a3a'; ctx.lineWidth = 3;                     // crossguard
+    ctx.beginPath(); ctx.moveTo(-4, 1); ctx.lineTo(4, -1); ctx.stroke();
+    ctx.fillStyle = hurt ? '#ffffff' : '#cfd8e8';                      // broad short dagger
+    ctx.beginPath();
+    ctx.moveTo(-2, -2); ctx.lineTo(3, 2);                              // back of the blade off the guard
+    ctx.lineTo(13, 6); ctx.lineTo(3, 4); ctx.closePath();             // belly + point
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1;      // spine glint
+    ctx.beginPath(); ctx.moveTo(0, -0.5); ctx.lineTo(12, 5.5); ctx.stroke();
+    ctx.restore();
+    ctx.restore();
+    // HP bar handled below; skip the shared eyes/blob detail for the rogue
+    if (e.hp < e.maxHp) {
+      const w = Math.max(20, (b.bounds.max.x - b.bounds.min.x));
+      const top = b.bounds.min.y - 8;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(x - w / 2, top, w, 4);
+      ctx.fillStyle = '#ff5e57'; ctx.fillRect(x - w / 2, top, w * Math.max(0, e.hp / e.maxHp), 4);
+    }
+    return;
   } else if (e.type === 'archer') {
     ctx.strokeStyle = '#5a3d22'; ctx.lineWidth = 3;                     // bow
     ctx.beginPath(); ctx.arc(12, 0, 14, -1.1, 1.1); ctx.stroke();

@@ -71,7 +71,7 @@ function enemyChase(b, now, { speed = 1.1, jump = true } = {}) {
 const ENEMY_TYPES = {
   // grunt: marches in and swings a blade
   swordsman: {
-    color: '#c9d1e0', hp: 40, dmg: 12,
+    color: '#5b5470', hp: 40, dmg: 12,
     make(x, y) { return Bodies.rectangle(x, y, 26, 44, { density: 0.012, friction: 0.6, frictionAir: 0.02, restitution: 0, label: 'enemy', chamfer: { radius: 6 } }); },
     ai(e, b, now) { enemyChase(b, now, { speed: 1.15 }); enemyStrike(b, e, now, 36); },
   },
