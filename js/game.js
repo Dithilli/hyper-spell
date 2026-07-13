@@ -253,8 +253,34 @@ function toggleMode() {
   game.mode = game.mode === 'wave' ? 'versus' : 'wave';
   setBanner(game.mode === 'wave' ? 'WAVE SURVIVAL' : 'VERSUS', '#ffd166', 1100);
 }
+
+// DEMO: drop straight into a solo fight against a named secret boss (T = THE
+// RIZARD, Y = MANU). Made for showing Conor & Manu — joins you if the lobby's empty.
+function fightSecretBoss(id) {
+  if (netMode === 'client') return;
+  nameEdit = null;
+  if (players.length === 0) { kbControllers[0].assigned = true; joinPlayer(kbControllers[0]); } // WASD + mouse
+  game.mode = 'versus';
+  game.totalRounds = 0;
+  clearReplay();
+  resetMatchStats(); resetMatchTelemetry(); resetTelemetry();
+  for (const p of players) p.roundWins = 0;
+  let idx = 0, tries = 0;
+  do { idx = Math.floor(Math.random() * MAPS.length); } while (MAPS[idx].cozy && ++tries < 60); // open arena
+  loadMap(idx);
+  for (const p of players) { clearSpells(p); despawnPlayer(p); spawnPlayer(p, spawnPointFor(p)); }
+  game.state = 'PLAY';
+  game.fightAt = performance.now() + 900;
+  game.fightShown = false;
+  scheduleTomes(performance.now());
+  const bs = spawnBoss(performance.now(), { bossId: id });
+  setBanner('⚔  ' + (bs && bs.def ? bs.def.name : 'SECRET BOSS') + '  ⚔', bs && bs.def ? bs.def.color : '#ffd166', 1500, true);
+}
+
 addEventListener('keydown', e => {
   if (netMode === 'client' || nameEdit) return; // clients send these to the host instead
+  if (e.code === 'KeyT') { fightSecretBoss('rizard'); return; } // demo: instant THE RIZARD fight
+  if (e.code === 'KeyN') { fightSecretBoss('manu'); return; }   // demo: instant MANU fight (Y is reserved for naming)
   if (e.code === 'Space' && game.state === 'LOBBY' && players.length >= minPlayers()) beginFromLobby();
   if (e.code === 'KeyB' && game.state === 'LOBBY') addBot();
   if (e.code === 'KeyM' && game.state === 'LOBBY') toggleMode();

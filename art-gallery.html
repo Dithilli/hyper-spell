@@ -517,9 +517,64 @@ function renderTerr(t,now){ const c=t.ctx; c.clearRect(0,0,BW,BH); drawStoryBack
 // named champions — their own avatars
 const CHW=300, CHH=214;
 function championCard(title,tag,note){ const el=document.createElement('div'); el.className='card'; el.innerHTML=`<h3>${title} <span class="tag">${tag}</span></h3><figure class="after"><canvas></canvas></figure><p class="note">${note}</p>`; document.getElementById('champs').appendChild(el); return fit(el.querySelector('canvas'),CHW,CHH); }
+// ---- the secret team bosses, drawn as pretentious Bay-Area founders ----
+function drawFounder(ctx,x,y,r,o){
+  glowOrb(ctx,x,y,r*1.8,o.aura,0.26);
+  const hr=r*0.6, hy=y-r*0.58, shoY=y-r*0.05, hemY=y+r*1.4, shoW=r*1.8, hemW=r*1.55;
+  ctx.fillStyle=o.inner||'#d3d8de';
+  ctx.beginPath(); ctx.moveTo(x-shoW*0.45,shoY); ctx.lineTo(x+shoW*0.45,shoY); ctx.lineTo(x+hemW*0.45,hemY); ctx.lineTo(x-hemW*0.45,hemY); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=o.jacket;
+  ctx.beginPath(); ctx.moveTo(x-shoW/2,shoY); ctx.lineTo(x+shoW/2,shoY); ctx.lineTo(x+hemW/2,hemY); ctx.lineTo(x-hemW/2,hemY); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle=shade(o.jacket,-0.5); ctx.lineWidth=1.3; ctx.stroke();
+  ctx.fillStyle=o.inner||'#d3d8de';
+  ctx.beginPath(); ctx.moveTo(x-r*0.3,shoY); ctx.lineTo(x+r*0.3,shoY); ctx.lineTo(x,shoY+r*0.55); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle=shade(o.jacket,-0.6); ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(x,shoY+r*0.55); ctx.lineTo(x,hemY); ctx.stroke();
+  const ps=r*0.36, px=x-r*0.5, py=y+r*0.5;
+  ctx.fillStyle=o.accent; ctx.fillRect(px-ps/2,py-ps/2,ps,ps);
+  ctx.fillStyle='#fff'; ctx.font=`bold ${Math.round(ps*0.85)}px Georgia`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('Y',px,py+1); ctx.textBaseline='alphabetic';
+  ctx.fillStyle=o.skin; ctx.fillRect(x-r*0.15,hy+hr*0.55,r*0.3,r*0.5);
+  ctx.beginPath(); ctx.arc(x,hy,hr,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle=shade(o.skin,-0.4); ctx.lineWidth=1; ctx.stroke();
+  ctx.fillStyle='#f6f8fa';
+  for(const sd of [-1,1]){ ctx.fillRect(x+sd*hr*0.85-1.5,hy,3,hr*0.5); ctx.beginPath(); ctx.arc(x+sd*hr*0.85,hy-2,2.7,0,Math.PI*2); ctx.fill(); }
+  return {hy,hr};
+}
+function drawRizardArt(ctx,o){
+  const r=(o.scale||3.6)*10, x=o.x, y=o.y, now=o.now||0, tizz=Math.floor(now/2600)%2===1;
+  if(tizz) runeRing(ctx,x,y-r*0.5,r*0.9,'#3fb5ff',now,{count:8,lw:1.5,alpha:0.6});
+  const {hy,hr}=drawFounder(ctx,x,y,r,{aura:tizz?'#3fb5ff':'#ffd166',jacket:'#1c2b4a',accent:'#ff6a00',skin:'#e8b98a',inner:'#e6eaee'});
+  ctx.fillStyle='#2a2018';
+  ctx.beginPath(); ctx.arc(x,hy-hr*0.3,hr,Math.PI*1.05,Math.PI*1.95); ctx.lineTo(x+hr*0.7,hy-hr*0.1); ctx.quadraticCurveTo(x,hy-hr*1.1,x-hr*0.9,hy-hr*0.1); ctx.closePath(); ctx.fill();
+  if(tizz){
+    ctx.shadowColor='#eaffff'; ctx.shadowBlur=10; ctx.fillStyle='#eaffff';
+    ctx.beginPath(); ctx.arc(x-hr*0.42,hy+hr*0.05,hr*0.2,0,Math.PI*2); ctx.arc(x+hr*0.42,hy+hr*0.05,hr*0.2,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0; ctx.fillStyle='#16121c';
+    ctx.beginPath(); ctx.arc(x-hr*0.42,hy+hr*0.05,hr*0.08,0,Math.PI*2); ctx.arc(x+hr*0.42,hy+hr*0.05,hr*0.08,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#5a3a24'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(x,hy+hr*0.45,hr*0.35,0.15*Math.PI,0.85*Math.PI); ctx.stroke();
+  } else {
+    ctx.fillStyle='#16121c'; ctx.fillRect(x-hr*0.75,hy-hr*0.12,hr*1.5,2.5);
+    ctx.beginPath(); ctx.ellipse(x-hr*0.42,hy,hr*0.34,hr*0.24,0,0,Math.PI*2); ctx.ellipse(x+hr*0.42,hy,hr*0.34,hr*0.24,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.beginPath(); ctx.arc(x-hr*0.5,hy-hr*0.08,2,0,Math.PI*2); ctx.arc(x+hr*0.34,hy-hr*0.08,2,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#5a3a24'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(x+hr*0.12,hy+hr*0.5,hr*0.4,0.1*Math.PI,0.55*Math.PI); ctx.stroke();
+  }
+}
+function drawManuArt(ctx,o){
+  const r=(o.scale||3.6)*10, x=o.x, y=o.y, now=o.now||0, de=Math.floor(now/2600)%2===0;
+  const {hy,hr}=drawFounder(ctx,x,y,r,{aura:de?'#c9cdd8':'#e3a86a',jacket:de?'#3d4450':'#4a4f57',accent:de?'#c0392b':'#2e8b57',skin:'#d69a6a',inner:de?'#cfd6e0':'#e8dcc0'});
+  ctx.fillStyle='#2a2018'; ctx.beginPath(); ctx.arc(x,hy-hr*0.18,hr*0.98,Math.PI*1.08,Math.PI*1.92); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#20242c'; ctx.lineWidth=2.2;
+  ctx.beginPath(); ctx.arc(x-hr*0.42,hy,hr*0.3,0,Math.PI*2); ctx.moveTo(x+hr*0.72,hy); ctx.arc(x+hr*0.42,hy,hr*0.3,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x-hr*0.12,hy); ctx.lineTo(x+hr*0.12,hy); ctx.stroke();
+  ctx.strokeStyle='#3a2a1a'; ctx.lineWidth=4.5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x-hr*0.5,hy+hr*0.58); ctx.quadraticCurveTo(x-hr*0.06,hy+hr*0.9,x,hy+hr*0.5); ctx.quadraticCurveTo(x+hr*0.06,hy+hr*0.9,x+hr*0.5,hy+hr*0.58); ctx.stroke(); ctx.lineCap='butt';
+  if(de){ ctx.fillStyle='#2b2f38'; ctx.beginPath(); ctx.arc(x,hy-hr*0.12,hr*1.02,Math.PI*1.02,Math.PI*1.98); ctx.closePath(); ctx.fill(); ctx.fillStyle='#c0392b'; ctx.fillRect(x-hr*0.95,hy-hr*0.6,hr*1.9,4); }
+  else { ctx.fillStyle='#8a5a2b'; ctx.beginPath(); ctx.ellipse(x,hy-hr*0.7,hr*1.5,hr*0.3,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(x,hy-hr*1.02,hr*0.55,hr*0.5,0,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='#2e8b57'; ctx.lineWidth=2.5; ctx.beginPath(); ctx.ellipse(x,hy-hr*0.82,hr*0.55,hr*0.16,0,0,Math.PI*2); ctx.stroke(); }
+}
 const champs=[
   {label:'Alinea', tag:'the sorceress', fn:drawStorySorceress, color:'#1a1420', note:'A Boris Vallejo / Julie Bell warrior-sorceress — bronzed skin, black leather &amp; bronze, oxblood cloak, jewelled stave, torch-lit chiaroscuro. Her <b>bronze diadem is her health bar</b>.'},
   {label:'David Grey', tag:'the grey pilgrim', fn:drawStoryGandalf, color:'#8c8794', note:'Szarzynski means <em>Grey</em> — so, Gandalf the Grey: great beard, broad drooping hat, tall gnarled staff. The <b>hat reads HP</b>.'},
+  {label:'THE RIZARD', tag:'secret boss · Conor', fn:drawRizardArt, color:'#ffd166', note:'The CEO as a YC-vested, AirPod-wearing founder. Flips <b>Rizzard</b> (charm, shades) ↔ <b>Tizzard</b> (hyperfocus, locked-on reticle) — Conor\'s own joke, played as a superpower.'},
+  {label:'MANU', tag:'secret boss · CTO', fn:drawManuArt, color:'#c9cdd8', note:'The CTO founder — round glasses, signature mustache, YC vest. Flips 🇩🇪 <b>German</b> (beanie, precise) ↔ 🇲🇽 <b>Mexican</b> (sombrero, spicy), the two countries he splits his time between.'},
 ].map(c=>({...c, ctx:championCard(c.label, c.tag, c.note)}));
 function renderChamp(c,now){ c.ctx.clearRect(0,0,CHW,CHH); drawStoryBackdrop(c.ctx,{bg:'#241d2e',W:CHW,H:CHH,now}); c.ctx.fillStyle='rgba(0,0,0,0.25)'; c.ctx.fillRect(0,CHH-16,CHW,16); const face=Math.sin(now*0.0004)>0?1:-1; c.fn(c.ctx,{x:CHW/2,y:CHH-50,scale:3.6,angle:0,now,color:c.color,hat:'#6c4bd6',hp:100,facing:face,walkPhase:now*0.011,vx:4,spellReady:true,spellColor:'#ffe08a'}); }
 function renderBiome(b, now){ b.ctx.clearRect(0,0,BW,BH); drawStoryBackdrop(b.ctx, {...b.opt, W:BW, H:BH, now}); }
