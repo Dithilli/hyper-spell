@@ -7,6 +7,21 @@
 - Snapshot and input cadence are now **time-based** instead of every-Nth-frame — a struggling machine no longer silently starves the connection (a 40fps client used to drop to 20Hz inputs; a slow host starved everyone to 13Hz snapshots).
 - Draw path benchmarked while investigating (~6.6ms/frame full draw on the heavy maps — comfortably inside budget); the grass crust no longer allocates a gradient per tuft.
 
+### 🤖 Bots have temperaments now
+- Every bot gets one of five personalities, dealt round-robin so a bot lobby is never uniform. Same brain, different appetites:
+  - **Berserker** (CRUSHER, MAULBOT…) — picks on the *weakest* wizard, presses in close, fires ~40% faster, rarely blocks.
+  - **Skirmisher** (SKITTER, DODGEREL…) — kites at arm's length, parries well, runs when badly hurt.
+  - **Alchemist** (BREWBOT, FUSEY…) — plays the long game: a catalyst or a tome that fuses with what's in hand outranks any fight.
+  - **Trickster** (JESTER, WOBBLES…) — wild aim, wandering feet, hops for no reason.
+  - **Balanced** (BOTLIN, CLANKY…) — the classic all-rounder, unchanged.
+- The name tells you who you're dealing with — each temperament has its own name pool.
+
+### 👻 Dead wizards have more to do
+- Ghost wisps can now **poltergeist-carry**: hold cast near a loose crate, barrel, boulder, or plank to float it around; release to toss it (softly — the dead inconvenience, they don't kill). Cast in the open still gusts.
+- **Haunt marker** (cast B): drop a glowing sigil in your color that everyone sees for a few seconds — point at tomes, ambushes, or nothing, out of spite.
+- **Wail** (parry button): nearby wizards shiver-slow for a beat and bots drop their plan and scurry.
+- **Chill touch**: drifting through a living wizard leaves frost in their joints — a half-second shiver, per-victim cooldown.
+
 ### 🧭 Launched? Everyone can see where you'll land
 - When a wizard gets knocked offscreen (usually straight up), a **color-coded chevron rides the screen edge** at their position, pointing along their flight — the moment it tips downward it's marking the column they're about to crash back into. Works on the host, every LAN client, and the killcam.
 

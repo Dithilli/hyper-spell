@@ -176,8 +176,12 @@
       return _kill(q);
     };
     startRound(idx >= 0 ? idx : 0);
-    // headless rAF barely ticks under virtual time — drive the game loop from
-    // the (virtual) timer clock instead so physics actually simulates
+    // drive the game loop from the (virtual) timer clock so physics actually
+    // simulates. frame() self-schedules via rAF, so neuter rAF first: on current
+    // headless Chrome rAF DOES tick under virtual time, and without this every
+    // interval tick spawns another live rAF chain — frames multiply until the
+    // whole run hangs (older headless barely ticked rAF, which hid this).
+    requestAnimationFrame = () => 0;
     const stepper = setInterval(() => frame(performance.now()), 33);
     // battle conditions: everyone armed with SELF-MOVEMENT spells (the classic
     // bot suicide buttons) and blast-grade shoves — survival = both the air
