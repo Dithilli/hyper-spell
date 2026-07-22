@@ -173,31 +173,66 @@ regHybrid('plasmalance', {
   },
 });
 regHybrid('superconductor', {
-  name: 'Superconductor', color: '#9ef0f0', cooldown: 2000, beam: true,
+  name: 'Superconductor', color: '#9ef0f0', cooldown: 2400, beam: true,
   cast(p) {
     const m = p.mega || 1;
-    // the freeze rides the beam now — it only lands if the ray actually hits
-    const { hit } = zapRay(p, 38, 10, 3);
+    // the freeze rides the beam — and the flash-frozen air crystallizes into a
+    // REAL ice pillar at the impact point: instant cover, a wall to trap a foe
+    // against, or a rude slippery platform. Summons ride the snapshot, so LAN
+    // clients see the pillar too.
+    const { hit, pt } = zapRay(p, 38, 10, 3);
     if (hit && hit.label === 'player') {
       hit.player.frozenUntil = performance.now() + 1000 * m;
       hit.player.body.frictionAir = 0.001;
     }
-    sfx.freeze();
+    const d = aimDir(p, 1, 0);
+    const px = Math.max(30, Math.min(W - 30, pt.x - d.x * 16));
+    const pillar = Bodies.rectangle(px, pt.y - 42, 26 * Math.min(m, 1.5), 110 * Math.min(m, 1.5), { isStatic: true, friction: 0.01, label: 'wall' });
+    summon(pillar, { life: 3500, color: '#bfe8ff' });
+    spawnBurst(pt.x, pt.y, '#eaffff', 14, { kind: 'spark', speed: 8, r: 2 });
+    spawnBurst(px, pt.y - 70, '#9ef0f0', 10, { speed: 3, up: 2, g: 0.04, life: 40 });
+    doFlash('#9ef0f0', 0.2); addShake(5); sfx.lightning(); sfx.freeze();
   },
 });
 regHybrid('firestorm', {
-  name: 'Firestorm', color: '#ff7043', cooldown: 2200,
+  name: 'Firestorm', color: '#ff7043', cooldown: 2600,
   cast(p) {
     const m = p.mega || 1;
-    for (let i = 0; i < 3; i++) {
-      const fb = boomBolt(p, { selfSafe: true, color: '#ff7043', r: 6, vy: rand(-10, -2), speed: rand(13, 20), radius: 100, power: 16, dmg: 18 });
-      const base = fb.onHit;
-      fb.onHit = (self, other) => {
-        base?.(self, other);
-        if (other?.label === 'player' && other.player.alive) { other.player.burnUntil = performance.now() + 2000 * m; Body.setVelocity(other.player.body, { x: other.player.body.velocity.x, y: -9 }); }
-      };
-    }
-    sfx.cast();
+    // a living fire tornado sweeps the arena: it lifts wizards and loose junk
+    // into the air and sets whoever it swallows alight. Rides the fxLite 'tor'
+    // channel (tinted) so LAN clients watch the same funnel roam.
+    const start = frontPos(p, 70);
+    const e = {
+      until: performance.now() + 2400,
+      x: start.x, vx: p.facing * 3.2,
+      net: { k: 'tor', x: start.x, c: '#ff7043' },
+      update(now) {
+        e.x += e.vx;
+        e.net.x = e.x;
+        if (e.x < 50 || e.x > W - 50) e.vx = -e.vx;
+        for (const b of Composite.allBodies(world)) {
+          if (b.isStatic || b.isSensor) continue;
+          if (b.label === 'player' && b.player === p) continue; // never eats the caster
+          const dx = b.position.x - e.x;
+          if (Math.abs(dx) > 110 * m) continue;
+          Body.setVelocity(b, { x: b.velocity.x - Math.sign(dx || 1) * 0.8 + rand(-0.5, 0.5), y: b.velocity.y - 1.6 * m });
+          if (b.label === 'player' && b.player.alive) b.player.burnUntil = Math.max(b.player.burnUntil || 0, now + 900 * m);
+        }
+      },
+      draw(now) {
+        ctx.lineWidth = 3;
+        for (let i = 0; i < 5; i++) {
+          const yy = H - 80 - i * 90, w = 24 + i * 20;
+          ctx.strokeStyle = `rgba(255, ${100 + i * 26}, 60, 0.6)`;
+          ctx.beginPath();
+          ctx.ellipse(e.x + Math.sin(now * 0.013 + i) * 9, yy, w, 12, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      },
+    };
+    activeEffects.push(e);
+    spawnBurst(start.x, p.body.position.y, '#ff7043', 16, { dir: -Math.PI / 2, spread: 1.2, speed: 6, up: 3, g: -0.03, life: 40 });
+    doFlash('#ff7043', 0.2); addShake(6); sfx.cast();
   },
 });
 regHybrid('howlingblizzard', {
@@ -228,9 +263,23 @@ regHybrid('moltenmeteor', {
   name: 'Molten Meteor', color: '#ff5e57', cooldown: 2600,
   cast(p) {
     const m = p.mega || 1;
-    const fb = boomBolt(p, { selfSafe: true, color: '#ff5e57', r: 14, vy: -12, speed: 12, g: 0.9, radius: 200, power: 30, dmg: 48 });
+    // cluster payload: the impact hurls out molten shards that arc away and pop
+    // where they land, so even a near-miss turns the ground into a firework.
+    // Shards are real projectiles — they ride the snapshot to LAN clients.
+    const fb = boomBolt(p, { selfSafe: true, color: '#ff5e57', r: 14, vy: -12, speed: 12, g: 0.9, radius: 180, power: 26, dmg: 40 });
     const base = fb.onHit;
-    fb.onHit = (self, other) => { base?.(self, other); if (other?.label === 'player' && other.player.alive) other.player.burnUntil = performance.now() + 2200 * m; };
+    fb.onHit = (self, other) => {
+      base?.(self, other);
+      if (other?.label === 'player' && other.player.alive) other.player.burnUntil = performance.now() + 2200 * m;
+      for (let i = 0; i < 4; i++) {
+        const blob = dropProjectile(p, self.position.x + rand(-14, 14), self.position.y - 24, { r: 6, vx: rand(-9, 9), vy: rand(-10, -5), color: i % 2 ? '#ff8c5a' : '#ff5e57', density: 0.003, expireMs: 2600 });
+        blob.onHit = (bSelf, bOther) => {
+          explode(blob.position.x, blob.position.y, 70 * m, 9 * m, 12 * m, p, { selfSafe: true });
+          if (bOther?.label === 'player' && bOther.player.alive) bOther.player.burnUntil = performance.now() + 1400 * m;
+        };
+      }
+      spawnBurst(self.position.x, self.position.y, '#ffd166', 14, { dir: -Math.PI / 2, spread: 2, speed: 8, up: 4, g: 0.12, life: 40 });
+    };
     addShake(6);
   },
 });
@@ -388,10 +437,17 @@ regHybrid('frozenstar', {
 regHybrid('frostward', {
   name: 'Frost Ward', color: '#aee4ff', cooldown: 3000,
   cast(p) {
-    const m = p.mega || 1;
-    healPlayer(p, 24 * m);
-    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 260) { q.frozenUntil = performance.now() + 900 * m; q.body.frictionAir = 0.001; }
-    spawnRing(p.body.position.x, p.body.position.y, '#aee4ff'); sfx.freeze();
+    const m = p.mega || 1, now = performance.now();
+    // a true ward now: heal + a mirror of ice that flings incoming spells back
+    // at the sender (the parry reflect, held longer), while anyone who presses
+    // in close locks up solid. The reflect shimmer is netted (rf flag).
+    healPlayer(p, 22 * m);
+    p.reflectUntil = Math.max(p.reflectUntil || 0, now + 1900 * m);
+    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 260) { q.frozenUntil = now + 900 * m; q.body.frictionAir = 0.001; }
+    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; spawnBurst(p.body.position.x + Math.cos(a) * 34, p.body.position.y - 8 + Math.sin(a) * 34, '#eaffff', 2, { kind: 'spark', dir: a, spread: 0.2, speed: 1.5, g: 0, life: 50, r: 2 }); }
+    spawnRing(p.body.position.x, p.body.position.y, '#aee4ff');
+    spawnText(p.body.position.x, p.body.position.y - 50, 'FROST WARD', '#aee4ff');
+    sfx.freeze();
   },
 });
 regHybrid('ionstorm', {

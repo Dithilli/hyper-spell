@@ -703,6 +703,37 @@ function drawGeysers(now) {
   }
 }
 
+// swamp gas vents (Goo Swamp · Gas Vents): mossy nozzles + an ever-rising gas
+// shimmer so the lift columns read on EVERY screen. Clients rebuild the map
+// locally, so this draws straight from map data — zero net traffic. The strong
+// eruption puffs ride the fx channel from the host's map update (spawnBurst).
+function drawGasVents(now) {
+  for (const v of currentMap.data.vents || []) {
+    // mossy mound with a glowing slit
+    ctx.fillStyle = '#25331f';
+    ctx.beginPath();
+    ctx.ellipse(v.x - 13, v.y + 8, 15, 8, 0.12, 0, Math.PI * 2);
+    ctx.ellipse(v.x + 13, v.y + 8, 15, 8, -0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#141d10';
+    ctx.beginPath(); ctx.ellipse(v.x, v.y + 4, 9, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.35 + 0.25 * Math.sin(now / 300 + v.x);
+    ctx.fillStyle = '#aef05a';
+    ctx.beginPath(); ctx.ellipse(v.x, v.y + 3, 6, 2.6, 0, 0, Math.PI * 2); ctx.fill();
+    // stateless rising marsh gas — deterministic per screen, identical intent
+    for (let i = 0; i < 10; i++) {
+      const ph = envHash(Math.round(v.x) + i * 31);
+      const yy = v.y - ((now * (0.045 + ph * 0.03) + ph * 500) % 260);
+      const t = (v.y - yy) / 260;
+      const sway = Math.sin(now * 0.003 + i * 2.1 + v.x) * (8 + ph * 10) * t;
+      ctx.globalAlpha = 0.3 * (1 - t);
+      ctx.fillStyle = i % 3 ? '#aef05a' : '#7bd88f';
+      ctx.beginPath(); ctx.arc(v.x + sway, yy, 2 + ph * 2.5 + t * 3, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
 function drawSpikes(b) {
   drawStorySpikes(ctx, {
     x: b.position.x, y: b.position.y, angle: b.angle,
@@ -753,6 +784,9 @@ function mapCrustKind() {
 
 // structural terrain (platforms, walls, moving/rotating bars) gets the storybook
 // stone-and-crust treatment; loose dynamic debris keeps the plain rounded look.
+// (An offscreen pre-render of the static stone was tried here and benchmarked
+// slower on the GPU path than just drawing the vectors — full frame is ~6.6ms
+// either way, so the simple per-frame draw stays.)
 function drawTerrainBody(b, now) {
   if (b.isStatic || b.kinematic || b.spin) {
     drawStoryTerrain(ctx, {
@@ -1356,6 +1390,7 @@ function draw(now) {
   drawMapBodies(now);
   drawLava(now);
   drawGeysers(now);
+  drawGasVents(now);
   drawTomes(now);
   drawSummons(now);
   drawGibs();

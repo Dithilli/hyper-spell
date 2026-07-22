@@ -28,7 +28,7 @@
 //   - Tomes: touch to pick up (they're bodies l:'tome', ~20x24; we're r=15).
 //   - Round 25 = shared boss (bs:{n,c,hp,mhp}, body l:'boss'). Party wipe resets wins.
 //   - join: { t:'join', name(<=12), color '#rrggbb', hat '#rrggbb' }. Also send hello.
-//   - Cadence: inputs ~30Hz; keep sending while idle (stale at 2000ms).
+//   - Cadence: inputs ~60Hz; keep sending while idle (stale at 2000ms).
 //
 // World constants come from the {t:'world'} message on join — we read them live and
 // only fall back to these defaults if it's missing.
@@ -57,7 +57,7 @@ const DIFF = (process.env.DIFF || 'casual').toLowerCase();
 // ---- world defaults (overwritten by {t:'world'}) ----
 const world = {
   W: 1280, H: 720, gravity: 0.6, gravityScale: 1, tickMs: 16.7,
-  snapshotHz: 20, inputHz: 30, staleMs: 2000, playerRadius: 15,
+  snapshotHz: 30, inputHz: 60, staleMs: 2000, playerRadius: 15,
   moveSpeed: 7, jumpVy: -15, airJumpVy: -13,
   defaultBolt: { speed: 20, vy: -6, gravityScale: 0.45 },
   fallSafeDropPx: 440,

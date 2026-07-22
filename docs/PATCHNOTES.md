@@ -1,5 +1,21 @@
 # HYPERSPELL — Patch Notes
 
+## v8 · July 21, 2026 — "The Smooth Update"
+
+### 🚀 Remote play feels like local again
+- Faster wire, tighter interp: snapshots **20→30Hz**, client inputs **30→60Hz**, client interpolation delay **60ms → ~42ms adaptive** — about **40–45ms less input-to-screen latency** for every remote player.
+- Snapshot and input cadence are now **time-based** instead of every-Nth-frame — a struggling machine no longer silently starves the connection (a 40fps client used to drop to 20Hz inputs; a slow host starved everyone to 13Hz snapshots).
+- Draw path benchmarked while investigating (~6.6ms/frame full draw on the heavy maps — comfortably inside budget); the grass crust no longer allocates a gradient per tuft.
+
+### 🟢 Gas Vents you can actually see
+- The Goo Swamp vent columns only existed as host-side particles — remote players got shoved skyward by pure poltergeist. Vents now have **mossy glowing nozzles and a rising gas shimmer on every screen** (host, clients, killcam), and the eruption puffs broadcast over LAN like every other effect.
+
+### ⚗️ Four flat hybrids got an identity
+- **Superconductor** (ICE+ZAP): the beam's freeze now **crystallizes an ice pillar at the impact point** — instant cover, a wall to trap a wizard against, or a rude slippery platform. (2 charges now, was 3.)
+- **Firestorm** (FIRE+AIR): no more "three orange bolts" — casts a **living fire tornado** that sweeps the arena, lifting wizards and loose junk and setting whoever it swallows alight.
+- **Molten Meteor** (FIRE+EARTH): the impact now bursts into **molten shards that arc away and pop where they land** — a near-miss still turns the ground into a firework.
+- **Frost Ward** (ICE+LIFE): a true ward — heal, the nearby freeze, and now a **mirror of ice that reflects incoming spells** back at the sender for ~2s.
+
 ## v7 · July 9, 2026 — "The Proving Grounds"
 
 ### ⚡ Fusion charges — hybrids burn bright, then burn out

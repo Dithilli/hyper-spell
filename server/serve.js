@@ -80,9 +80,17 @@ function send(ws, msg) {
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
 }
 
+// a slow client's socket must never queue unboundedly — past this, droppable
+// traffic (snapshots, fx) skips that client until its buffer drains. Snapshots
+// are full-state, so the next one supersedes anything dropped: a lagging player
+// gets a lower snapshot rate instead of seconds of accumulating delay.
+const DROP_AT = 64 * 1024;
+
 wss.on('connection', (ws) => {
   const cid = nextCid++;
   ws.cid = cid;
+  // game traffic is many small packets — Nagle batching just adds latency
+  ws._socket.setNoDelay(true);
   send(ws, { t: 'welcome', cid, hostPresent: !!host });
 
   ws.on('message', (raw) => {
@@ -103,7 +111,14 @@ wss.on('connection', (ws) => {
       if (msg.t === 'to') {
         send(clients.get(msg.cid), msg.msg);
       } else {
-        for (const c of clients.values()) send(c, msg);
+        // serialize once (was per client) and respect per-client backpressure
+        const text = raw.toString();
+        const droppable = msg.t === 'snap' || msg.t === 'fx';
+        for (const c of clients.values()) {
+          if (c.readyState !== 1) continue;
+          if (droppable && c.bufferedAmount > DROP_AT) continue;
+          c.send(text);
+        }
       }
     } else {
       // client -> host, stamped with sender id

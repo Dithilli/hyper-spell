@@ -2,7 +2,7 @@
 // snapshots, then re-render them in slow motion on the round-end screen.
 const REPLAY = {
   BUF_MS: 3400,   // ring buffer horizon
-  HZ_DIV: 3,      // record every 3rd frame (~20Hz, matches netHostTick)
+  HZ_DIV: 3,      // record every 3rd frame (~20Hz — plenty for the slow-mo killcam)
   TAIL_MS: 2200,  // portion of buffer actually replayed (the kill)
   SPEED: 0.45,    // slow-mo playback rate
   LEAD_MS: 500,   // beat of frozen frame before playback starts

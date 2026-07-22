@@ -11,11 +11,10 @@
   let mySlot = null;
   let joined = false;
   let hostPresent = false;
-  let frameCount = 0;
   const netControllers = new Map(); // cid -> NetworkController
 
   // ---------- controller for remote players (host side) ----------
-  // THE CLIENT INPUT CONTRACT — { t:'input', m, j, c, a }, sent ~30/sec:
+  // THE CLIENT INPUT CONTRACT — { t:'input', m, j, c, a }, sent ~60/sec:
   //   m: move, WORLD-space: 1 = +x (screen right), -1 = left, 0 = idle. Not facing-relative.
   //   a: aim, ABSOLUTE world radians: 0 = +x, positive = clockwise on screen (screen y grows
   //      down, so a = Math.atan2(dy, dx) with dy downward-positive). null = no aim (falls back
@@ -29,7 +28,7 @@
   //      cooldown). Holding b:1 does nothing extra — time it.
   //   c2: cast slot B, same HOLD semantics as c.
   // Inputs older than 2000ms zero out (stale guard) — keep sending even when idle.
-  // Snapshots broadcast at ~20Hz. In snapshot ps[]: you are the entry with s === your slot
+  // Snapshots broadcast at ~30Hz. In snapshot ps[]: you are the entry with s === your slot
   // (slots are stable for the whole session; they never reshuffle). Tomes are picked up by
   // touching them (bodies[].l === 'tome', body is 20×24px; players are r=15 circles).
   // A new round = the snapshot's `rn` counter increments (state also flips to 'PLAY').
@@ -249,7 +248,7 @@
       t: 'world',
       world: {
         W, H, gravity: game.baseGravity, gravityScale: engine.gravity.scale, tickMs: 16.7,
-        snapshotHz: 20, inputHz: 30, staleMs: 2000,
+        snapshotHz: 30, inputHz: 60, staleMs: 2000,
         playerRadius: 15, playerFrictionAir: 0.02,
         moveSpeed: 7, jumpVy: -15, airJumpVy: -13,
         defaultBolt: { speed: 20, vy: -6, gravityScale: 0.45 },
@@ -259,9 +258,12 @@
     };
   }
 
+  // time-based cadence (~30Hz): the old every-3rd-frame gate meant a struggling
+  // host silently starved its clients — 40fps host ⇒ 13Hz snapshots
+  let lastSnapAt = 0;
   globalThis.netHostTick = function netHostTick(now) {
-    frameCount++;
-    if (frameCount % 3 !== 0) return; // ~20Hz
+    if (now - lastSnapAt < 32) return;
+    lastSnapAt = now;
     if (game.replay) {
       // killcam: re-broadcast the buffered tape; clients replay it through
       // their normal interpolation with no extra logic
@@ -274,8 +276,8 @@
 
   // ================= CLIENT =================
   let snapPrev = null, snapCur = null, tPrev = 0, tCur = 0;
+  let snapGapMs = 40; // smoothed inter-snapshot gap → drives the interp delay
   let clientMap = null; // {def, composite, data}
-  let inputTick = 0;
 
   function clientHello() {
     emit({ t: 'hello', v: GAME_VERSION }); // registers us for broadcasts + version check
@@ -288,8 +290,10 @@
   }
 
   function pushSnapshot(snap) {
+    const tNow = performance.now();
+    if (tCur) snapGapMs += (Math.min(tNow - tCur, 200) - snapGapMs) * 0.12;
     snapPrev = snapCur; tPrev = tCur;
-    snapCur = snap; tCur = performance.now();
+    snapCur = snap; tCur = tNow;
     if (!clientMap || clientMap.index !== snap.mi || (snap.msd != null && clientMap.data.seed !== snap.msd)) clientLoadMap(snap.mi, snap.msd);
     applyBrokenDestructibles(snap.bd);
   }
@@ -337,9 +341,9 @@
     if (typeof fn === 'function') fn(...msg.a);
   }
 
+  // once per rendered frame (~60Hz) — halving it was cheap on paper, but on a
+  // struggling client it compounded: 40fps ⇒ 20Hz inputs ⇒ mushy casts/jumps
   function sendInput(now) {
-    inputTick++;
-    if (inputTick % 2 !== 0) return; // ~30Hz
     const jump = !!keys['KeyW'] || !!keys['Space'] || !!keys['ArrowUp'];
     const cast = !!keys['KeyE'] || !!keys['Enter'] || mouse.down;        // slot A
     const cast2 = !!keys['KeyQ'] || !!keys['ShiftRight'] || mouse.rdown;  // slot B
@@ -394,9 +398,12 @@
       ctx.fillText('GAME UPDATED — REFRESH THE PAGE', W / 2, H / 2);
       return;
     }
-    // interpolate 60ms behind current snapshot
+    // interpolate just behind the snapshot stream — the delay tracks the real
+    // arrival gap (~42ms at 30Hz) instead of a fixed 60ms, and stretches
+    // gracefully if the connection degrades
+    const delay = Math.min(90, Math.max(36, snapGapMs * 1.25));
     const span = Math.max(tCur - tPrev, 1);
-    const alpha = Math.max(0, Math.min(1, (now - 60 - tPrev) / span));
+    const alpha = Math.max(0, Math.min(1, (now - delay - tPrev) / span));
     const ghosts = drawSnapshotWorld(snap, snapPrev, alpha, now, true);
 
     // reticle

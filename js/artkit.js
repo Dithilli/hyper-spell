@@ -863,12 +863,18 @@ function _crustColors(kind, base) {
 
 function _crustTufts(ctx, kind, x0, x1, cy, dir, now, base) {
   const cc = _crustColors(kind, base), step = 7, w = x1 - x0;
+  // one vertical gradient serves every grass blade on the edge (the axis is
+  // vertical, so the paint is x-independent) — allocating per tuft was the
+  // single hottest path in the whole frame on wide platforms
+  let grassGrad = null;
+  if (kind === 'grass') {
+    grassGrad = ctx.createLinearGradient(x0, cy, x0, cy + dir * 8);
+    grassGrad.addColorStop(0, cc.a); grassGrad.addColorStop(1, cc.b);
+  }
   for (let x = x0 + 4; x < x1 - 2; x += step) {
     const s = _thash(Math.round(x) * 3.3), sway = Math.sin(now * 0.003 + x * 0.12) * 2;
     if (kind === 'grass') {
-      const gr = ctx.createLinearGradient(x, cy, x, cy + dir * 8);
-      gr.addColorStop(0, cc.a); gr.addColorStop(1, cc.b);
-      ctx.strokeStyle = gr; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+      ctx.strokeStyle = grassGrad; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
       for (const off of [-2, 0, 2]) { ctx.beginPath(); ctx.moveTo(x + off, cy); ctx.quadraticCurveTo(x + off + sway * 0.5, cy + dir * 4, x + off + sway + off * 0.4, cy + dir * (6 + s * 3)); ctx.stroke(); }
       if (s > 0.86) { ctx.fillStyle = ['#ffd166', '#ff8fc7', '#e8d5ff'][Math.floor(s * 20) % 3]; ctx.beginPath(); ctx.arc(x + sway, cy + dir * (7 + s * 3), 1.4, 0, Math.PI * 2); ctx.fill(); }
     } else if (kind === 'snow') {

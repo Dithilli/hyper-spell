@@ -62,10 +62,10 @@ All clients simulate; only inputs cross the wire.
 ## Recommended design (Option A, concretely)
 
 ```
-┌────────────┐  WSS (inputs @30Hz)   ┌─────────────────────────┐
+┌────────────┐  WSS (inputs @60Hz)   ┌─────────────────────────┐
 │ Browser    │ ────────────────────► │ Game server pod (Node)  │
 │ client     │ ◄──────────────────── │ · rooms: N sims @60Hz   │
-│ (render +  │  snapshots @20-30Hz   │ · Matter.js headless    │
+│ (render +  │  snapshots @30Hz      │ · Matter.js headless    │
 │ interp)    │                       │ · validates Clerk JWT   │
 └────────────┘                       └───────────┬─────────────┘
       │ auth (Clerk JWT)                         │ results

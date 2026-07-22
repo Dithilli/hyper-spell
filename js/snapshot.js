@@ -190,7 +190,8 @@ function drawFxLite(fxLite, now) {
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
     } else if (e.k === 'tor') {
-      ctx.strokeStyle = 'rgba(207,232,232,0.55)';
+      // e.c tints the funnel (Firestorm's fire tornado); default is the air one
+      ctx.strokeStyle = e.c ? rgba(e.c, 0.6) : 'rgba(207,232,232,0.55)';
       ctx.lineWidth = 3;
       for (let i = 0; i < 5; i++) {
         const yy = H - 80 - i * 90;
@@ -230,7 +231,8 @@ function drawSnapshotWorld(snap, snapPrev, alpha, now, includeLocalFx = false) {
   drawBackdrop(now);
   drawSnapshotStatics(now);
   drawLava(now);
-  drawGeysers(now); // vents come from the map def, present client-side too
+  drawGeysers(now); // geysers & gas vents come from the map def, present client-side too
+  drawGasVents(now);
 
   for (const [type, x0, y0, x1, y1] of snap.segs || []) {
     if (type === 1) {

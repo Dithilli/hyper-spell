@@ -131,7 +131,7 @@ above `NetworkController` in `js/net.js`; the short version:
    but send it with `c:1` anyway. `j`: holding jumps whenever grounded; the **air jump
    needs a fresh 0→1 edge**.
 2. **World + spells:** you get `{ t:'world' }` right after `{ t:'you' }` on join:
-   `world = { W, H, gravity, gravityScale, tickMs, snapshotHz: 20, inputHz: 30,
+   `world = { W, H, gravity, gravityScale, tickMs, snapshotHz: 30, inputHz: 60,
    staleMs: 2000, playerRadius: 15, playerFrictionAir: 0.02, moveSpeed: 7,
    jumpVy: -15, airJumpVy: -13, defaultBolt: { speed: 20, vy: -6, gravityScale: 0.45 },
    fallSafeDropPx }` plus `spells[id] = { name, cooldown }` for all ~106. Full
@@ -150,7 +150,7 @@ above `NetworkController` in `js/net.js`; the short version:
 5. **Identity:** `{ t:'join', name, color, hat }` — `name` (≤12 chars after
    sanitizing), `color`/`hat` as `#rrggbb`. Verified: you join as **A LINEA** in
    black robes.
-6. **Cadence:** send inputs at ~30/sec; snapshots arrive at ~20Hz; inputs stale out
+6. **Cadence:** send inputs at ~60/sec; snapshots arrive at ~30Hz; inputs stale out
    after 2000ms, so keep sending while idle. Also send `{ t:'hello', v: <version> }`
    on connect — snapshots carry `v` (GAME_VERSION) and the host warns the room about
    version mismatches.
