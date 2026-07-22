@@ -269,6 +269,41 @@ function ghostGust(g) {
   }
 }
 
+// edge pointers for wizards knocked offscreen (usually skyward). A color-coded
+// chevron rides the screen edge at the wizard's clamped position and points
+// along their velocity — while they're soaring it aims up/away; the moment it
+// tips downward it's marking the column they're about to land in. Shared by
+// the live draw, LAN clients, and the killcam. list: [{x, y, vx, vy, color}]
+function drawOffscreenPointers(list, now) {
+  const INSET = 22;
+  for (const w of list) {
+    if (w.x > -18 && w.x < W + 18 && w.y > -18 && w.y < H + 18) continue;
+    const ax = Math.max(INSET, Math.min(W - INSET, w.x));
+    const ay = Math.max(INSET, Math.min(H - INSET, w.y));
+    const speed = Math.hypot(w.vx || 0, w.vy || 0);
+    // point along travel; a near-still wizard (frozen mid-air) points at them
+    const ang = speed > 0.8 ? Math.atan2(w.vy, w.vx) : Math.atan2(w.y - ay, w.x - ax);
+    const dist = Math.hypot(w.x - ax, w.y - ay);
+    const s = Math.max(9, 15 - dist * 0.012) * (1 + 0.12 * Math.sin(now * 0.012));
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(ang);
+    ctx.fillStyle = w.color;
+    ctx.strokeStyle = 'rgba(13,10,20,0.9)';
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(s, 0);
+    ctx.lineTo(-s * 0.7, s * 0.62);
+    ctx.lineTo(-s * 0.35, 0);
+    ctx.lineTo(-s * 0.7, -s * 0.62);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
 // very subtle: a drifting mote with a fading tail — pointedly NOT a wizard
 function drawWisp(name, color, x, y, now) {
   const seed = (name || '').length * 1.7;

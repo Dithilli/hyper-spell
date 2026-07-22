@@ -1398,6 +1398,10 @@ function draw(now) {
   for (const e of activeEffects) e.draw?.(now);
   drawParticles();
   for (const p of players) if (p.alive) drawWizard(p, now);
+  drawOffscreenPointers(players.filter(p => p.alive).map(p => ({
+    x: p.body.position.x, y: p.body.position.y,
+    vx: p.body.velocity.x, vy: p.body.velocity.y, color: p.color,
+  })), now);
   drawGhostWisps(now);
 
   drawEnvVisualsLive(now);

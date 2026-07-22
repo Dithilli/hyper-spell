@@ -7,6 +7,9 @@
 - Snapshot and input cadence are now **time-based** instead of every-Nth-frame — a struggling machine no longer silently starves the connection (a 40fps client used to drop to 20Hz inputs; a slow host starved everyone to 13Hz snapshots).
 - Draw path benchmarked while investigating (~6.6ms/frame full draw on the heavy maps — comfortably inside budget); the grass crust no longer allocates a gradient per tuft.
 
+### 🧭 Launched? Everyone can see where you'll land
+- When a wizard gets knocked offscreen (usually straight up), a **color-coded chevron rides the screen edge** at their position, pointing along their flight — the moment it tips downward it's marking the column they're about to crash back into. Works on the host, every LAN client, and the killcam.
+
 ### 🟢 Gas Vents you can actually see
 - The Goo Swamp vent columns only existed as host-side particles — remote players got shoved skyward by pure poltergeist. Vents now have **mossy glowing nozzles and a rising gas shimmer on every screen** (host, clients, killcam), and the eruption puffs broadcast over LAN like every other effect.
 

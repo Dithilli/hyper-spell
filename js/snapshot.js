@@ -128,7 +128,7 @@ function ghostPlayer(gp, gpPrev, alpha, now) {
     facing: gp.f, walkPhase: gp.wp, spellId: gp.sp,
     lastCast: gp.rd ? -1e9 : now,
     pigUntil: gp.pg ? now + 1000 : 0,
-    body: { position: { x, y }, velocity: { x: gp.vx, y: 0 } },
+    body: { position: { x, y }, velocity: { x: gp.vx, y: gp.vy ?? 0 } },
     _x: x, _y: y, _an: gp.an,
     hp: gp.hp, alive: gp.al, sizeScale: gp.sc,
     frozen: gp.fz, floaty: gp.fl, invuln: gp.iv, reflect: gp.rf, hurt: gp.hu,
@@ -271,6 +271,9 @@ function drawSnapshotWorld(snap, snapPrev, alpha, now, includeLocalFx = false) {
 
   const ghosts = snap.ps.map(gp => ghostPlayer(gp, prevPs[gp.s], alpha, now));
   for (const g of ghosts) if (g.alive) drawGhostWizard(g, now);
+  drawOffscreenPointers(ghosts.filter(g => g.alive).map(g => ({
+    x: g._x, y: g._y, vx: g.body.velocity.x, vy: g.body.velocity.y, color: g.color,
+  })), now);
   for (const gp of snap.ps) { // dead wizards linger as wisps
     if (gp.al || gp.gx == null) continue;
     const prev = prevPs[gp.s];
