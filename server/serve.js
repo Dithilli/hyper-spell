@@ -10,12 +10,15 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { WebSocketServer } = require('ws');
+const { isPublicRealPath, resolveStaticPath } = require('./static-path');
 
 const PORT = process.env.PORT || 8787;
 const ROOT = path.join(__dirname, '..');
+const ROOT_REAL = fs.realpathSync(ROOT);
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp',
+  '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
   '.json': 'application/json', '.md': 'text/markdown',
 };
 
@@ -36,20 +39,34 @@ function appendTelemetry(body, res) {
 }
 
 const server = http.createServer((req, res) => {
-  let urlPath = decodeURIComponent(req.url.split('?')[0]);
+  let urlPath;
+  try { urlPath = decodeURIComponent(req.url.split('?')[0]); }
+  catch { res.writeHead(400); res.end('bad url'); return; }
   if (req.method === 'POST' && urlPath === '/telemetry') {
     let body = '';
     req.on('data', (c) => { body += c; if (body.length > 1e6) req.destroy(); }); // cap at ~1MB
     req.on('end', () => appendTelemetry(body, res));
     return;
   }
-  if (urlPath === '/') urlPath = '/index.html';
-  const file = path.normalize(path.join(ROOT, urlPath));
-  if (!file.startsWith(ROOT)) { res.writeHead(403); res.end(); return; }
-  fs.readFile(file, (err, data) => {
-    if (err) { res.writeHead(404); res.end('not found'); return; }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
-    res.end(data);
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    res.writeHead(405, { Allow: 'GET, HEAD' }); res.end(); return;
+  }
+  const resolved = resolveStaticPath(ROOT, req.url);
+  if (resolved.status !== 200) {
+    res.writeHead(resolved.status); res.end(resolved.status === 400 ? 'bad url' : 'forbidden'); return;
+  }
+  fs.realpath(resolved.file, (realErr, file) => {
+    if (realErr) { res.writeHead(404); res.end('not found'); return; }
+    if (!isPublicRealPath(ROOT_REAL, file)) { res.writeHead(403); res.end('forbidden'); return; }
+    fs.readFile(file, (readErr, data) => {
+      if (readErr) { res.writeHead(404); res.end('not found'); return; }
+      res.writeHead(200, {
+        'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      res.end(req.method === 'HEAD' ? undefined : data);
+    });
   });
 });
 

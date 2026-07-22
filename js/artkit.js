@@ -61,7 +61,7 @@ function glowOrb(ctx, x, y, r, color, alpha = 1) {
 
 // ---------- the wizard: a hooded, robed storybook figure ----------
 // o: {x,y,scale,angle,now,color,hat,hp,facing,walkPhase,vx,piggy,alive,spellReady,spellColor}
-// map a player name to a bespoke avatar variant (Alinea, David "Grey", …)
+// map longstanding public character names to bespoke avatar variants
 function avatarVariant(name) {
   const n = (name || '').toLowerCase();
   if (/a\s*linea/.test(n)) return 'alinea';
@@ -204,8 +204,8 @@ function drawStoryWizard(ctx, o) {
     ctx.strokeStyle = shade(hatc, 0.4); ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(-8, -16); ctx.quadraticCurveTo(0, -14.5, 8, -16); ctx.stroke();
     drawStar(ctx, facing * 1, -16, 2.1, mix(hatc, '#fff6c8', 0.7));
-    // faint sigil aura when at full health
-    if (hp >= 75 && alive) {
+    // faint hat-tip sparkle when at full health (not on pig — reads as a bullseye on the snout)
+    if (hp >= 75 && alive && !piggy) {
       ctx.globalAlpha = 0.35 + 0.15 * Math.sin(now * 0.004);
       runeRing(ctx, facing * 2, -20, 9, rgba(mix(hatc, '#fff', 0.4), 1), now, { count: 5, lw: 0.6, alpha: 1 });
       ctx.globalAlpha = 1;
@@ -392,7 +392,7 @@ function drawStorySorceress(ctx, o) {
     ctx.fillStyle = '#c85a2a';
     ctx.beginPath(); ctx.ellipse(0, -16.5, 1.6, 2, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = rgba('#ffd9a8', 0.9); ctx.beginPath(); ctx.arc(-0.5, -17.2, 0.5, 0, Math.PI * 2); ctx.fill();
-    if (hp >= 75 && alive) {
+    if (hp >= 75 && alive && !piggy) {
       ctx.globalAlpha = 0.3 + 0.15 * Math.sin(now * 0.005);
       runeRing(ctx, 0, -16.5, 8, rgba(VAL_RIM, 1), now, { count: 6, lw: 0.6, alpha: 1, spin: 0.0016 });
       ctx.globalAlpha = 1;
@@ -929,8 +929,97 @@ function drawStorySpikes(ctx, o) {
 
 // ---------- bosses: hooded, horned, luminous — the same four silhouettes, lit ----------
 // o: {x,y,r,type,color,now}
+// Rare team bosses — shared by the live boss fight and private local art review.
+// type: rizard_rizz | rizard_tizz | manu_de | manu_mx
+function drawSecretBoss(ctx, o) {
+  const { x, y, now = 0 } = o;
+  const r = o.r || 46;
+  const type = o.type || 'rizard_rizz';
+  const founder = (opts) => {
+    glowOrb(ctx, x, y, r * 1.8, opts.aura, 0.26);
+    const hr = r * 0.6, hy = y - r * 0.58;
+    const shoulderY = y - r * 0.05, hemY = y + r * 1.4;
+    const shoulderW = r * 1.8, hemW = r * 1.55;
+    ctx.fillStyle = opts.inner || '#d3d8de';
+    ctx.beginPath(); ctx.moveTo(x - shoulderW * 0.45, shoulderY); ctx.lineTo(x + shoulderW * 0.45, shoulderY); ctx.lineTo(x + hemW * 0.45, hemY); ctx.lineTo(x - hemW * 0.45, hemY); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = opts.jacket;
+    ctx.beginPath(); ctx.moveTo(x - shoulderW / 2, shoulderY); ctx.lineTo(x + shoulderW / 2, shoulderY); ctx.lineTo(x + hemW / 2, hemY); ctx.lineTo(x - hemW / 2, hemY); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = shade(opts.jacket, -0.5); ctx.lineWidth = 1.3; ctx.stroke();
+    ctx.fillStyle = opts.inner || '#d3d8de';
+    ctx.beginPath(); ctx.moveTo(x - r * 0.3, shoulderY); ctx.lineTo(x + r * 0.3, shoulderY); ctx.lineTo(x, shoulderY + r * 0.55); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = shade(opts.jacket, -0.6); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x, shoulderY + r * 0.55); ctx.lineTo(x, hemY); ctx.stroke();
+    const patchSize = r * 0.36, patchX = x - r * 0.5, patchY = y + r * 0.5;
+    ctx.fillStyle = opts.accent; ctx.fillRect(patchX - patchSize / 2, patchY - patchSize / 2, patchSize, patchSize);
+    ctx.fillStyle = '#fff'; ctx.font = `bold ${Math.round(patchSize * 0.85)}px Georgia`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Y', patchX, patchY + 1); ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = opts.skin; ctx.fillRect(x - r * 0.15, hy + hr * 0.55, r * 0.3, r * 0.5);
+    ctx.beginPath(); ctx.arc(x, hy, hr, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = shade(opts.skin, -0.4); ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#f6f8fa';
+    for (const side of [-1, 1]) {
+      ctx.fillRect(x + side * hr * 0.85 - 1.5, hy, 3, hr * 0.5);
+      ctx.beginPath(); ctx.arc(x + side * hr * 0.85, hy - 2, 2.7, 0, Math.PI * 2); ctx.fill();
+    }
+    return { hy, hr };
+  };
+  const eyes = (cx, cy, dx, ey, er, glow) => {
+    ctx.shadowColor = glow; ctx.shadowBlur = 10; ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(cx - dx, cy + ey, er, 0, Math.PI * 2); ctx.arc(cx + dx, cy + ey, er, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0; ctx.fillStyle = '#16121c';
+    ctx.beginPath(); ctx.arc(cx - dx, cy + ey, er * 0.4, 0, Math.PI * 2); ctx.arc(cx + dx, cy + ey, er * 0.4, 0, Math.PI * 2); ctx.fill();
+  };
+  if (type === 'rizard_rizz' || type === 'rizard_tizz') {
+    const tizz = type === 'rizard_tizz';
+    if (tizz) runeRing(ctx, x, y - r * 0.5, r * 0.9, '#3fb5ff', now, { count: 8, lw: 1.5, alpha: 0.6 });
+    const { hy, hr } = founder({ aura: tizz ? '#3fb5ff' : '#ffd166', jacket: '#1c2b4a', accent: '#ff6a00', skin: '#e8b98a', inner: '#e6eaee' });
+    ctx.fillStyle = '#2a2018';
+    ctx.beginPath(); ctx.arc(x, hy - hr * 0.3, hr, Math.PI * 1.05, Math.PI * 1.95); ctx.lineTo(x + hr * 0.7, hy - hr * 0.1); ctx.quadraticCurveTo(x, hy - hr * 1.1, x - hr * 0.9, hy - hr * 0.1); ctx.closePath(); ctx.fill();
+    if (tizz) {
+      eyes(x, hy, hr * 0.42, hr * 0.05, hr * 0.2, '#eaffff');
+      ctx.strokeStyle = '#5a3a24'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, hy + hr * 0.45, hr * 0.35, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+    } else {
+      ctx.fillStyle = '#16121c';
+      ctx.fillRect(x - hr * 0.75, hy - hr * 0.12, hr * 1.5, 2.5);
+      ctx.beginPath(); ctx.ellipse(x - hr * 0.42, hy, hr * 0.34, hr * 0.24, 0, 0, Math.PI * 2); ctx.ellipse(x + hr * 0.42, hy, hr * 0.34, hr * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.beginPath(); ctx.arc(x - hr * 0.5, hy - hr * 0.08, 2, 0, Math.PI * 2); ctx.arc(x + hr * 0.34, hy - hr * 0.08, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#5a3a24'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x + hr * 0.12, hy + hr * 0.5, hr * 0.4, 0.1 * Math.PI, 0.55 * Math.PI); ctx.stroke();
+    }
+    return;
+  }
+  if (type === 'manu_de' || type === 'manu_mx') {
+    const de = type === 'manu_de';
+    const { hy, hr } = founder({ aura: de ? '#c9cdd8' : '#e3a86a', jacket: de ? '#3d4450' : '#4a4f57', accent: de ? '#c0392b' : '#2e8b57', skin: '#d69a6a', inner: de ? '#cfd6e0' : '#e8dcc0' });
+    ctx.fillStyle = '#2a2018';
+    ctx.beginPath(); ctx.arc(x, hy - hr * 0.18, hr * 0.98, Math.PI * 1.08, Math.PI * 1.92); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#20242c'; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.arc(x - hr * 0.42, hy, hr * 0.3, 0, Math.PI * 2); ctx.moveTo(x + hr * 0.72, hy); ctx.arc(x + hr * 0.42, hy, hr * 0.3, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - hr * 0.12, hy); ctx.lineTo(x + hr * 0.12, hy); ctx.stroke();
+    ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 4.5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x - hr * 0.5, hy + hr * 0.58); ctx.quadraticCurveTo(x - hr * 0.06, hy + hr * 0.9, x, hy + hr * 0.5); ctx.quadraticCurveTo(x + hr * 0.06, hy + hr * 0.9, x + hr * 0.5, hy + hr * 0.58); ctx.stroke();
+    ctx.lineCap = 'butt';
+    if (de) {
+      ctx.fillStyle = '#2b2f38';
+      ctx.beginPath(); ctx.arc(x, hy - hr * 0.12, hr * 1.02, Math.PI * 1.02, Math.PI * 1.98); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#c0392b'; ctx.fillRect(x - hr * 0.95, hy - hr * 0.6, hr * 1.9, 4);
+    } else {
+      ctx.fillStyle = '#8a5a2b';
+      ctx.beginPath(); ctx.ellipse(x, hy - hr * 0.7, hr * 1.5, hr * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(x, hy - hr * 1.02, hr * 0.55, hr * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#2e8b57'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(x, hy - hr * 0.82, hr * 0.55, hr * 0.16, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+}
+
 function drawStoryBoss(ctx, o) {
   const { x, y, now = 0 } = o, r = o.r || 46, type = o.type, color = o.color || '#e15d5d';
+  // secret bosses share the team-portrait path
+  if (type === 'rizard_rizz' || type === 'rizard_tizz' || type === 'manu_de' || type === 'manu_mx') {
+    return drawSecretBoss(ctx, o);
+  }
   glowOrb(ctx, x, y, r * 1.7, color, 0.28); // aura
   const bodyOrb = (fill, rim) => {
     const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.2, x, y, r);

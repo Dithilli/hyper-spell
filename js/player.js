@@ -456,13 +456,13 @@ function drawWizardFigure(p, x, y, scale, now, angle = 0) {
   const spell = p.spellId && SPELLS[p.spellId];
   const ready = spell && now - p.lastCast > spell.cooldown;
   drawStoryWizard(ctx, {
-    x, y, scale, angle, now,
+    x, y, scale, angle, now, name: p.name,
     color: p.color, hat: p.hat, hp: ((p.hp ?? MAX_HP) / MAX_HP) * 100,
     facing: p.facing, walkPhase: p.walkPhase, vx: p.body.velocity.x,
     piggy: now < (p.pigUntil || 0),
     alive: p.alive !== 0 && p.alive !== false,
     spellReady: ready, spellColor: ready ? spell.color : '#fff',
-    variant: avatarVariant(p.name), // Alinea / David "Grey" get bespoke avatars
+    variant: avatarVariant(p.name),
   });
 }
 

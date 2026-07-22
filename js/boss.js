@@ -429,117 +429,15 @@ function updateBoss(now, dt) {
   }
 }
 
-// storybook-styled orb + glowing eyes (mirrors artkit's drawStoryBoss look) so the
-// bespoke team bosses live in the same illustrated world as the canonical ones.
-function bossOrb(x, y, r, fill) {
-  glowOrb(ctx, x, y, r * 1.7, fill, 0.28); // aura
-  const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.2, x, y, r);
-  g.addColorStop(0, shade(fill, 0.28)); g.addColorStop(0.6, fill); g.addColorStop(1, shade(fill, -0.4));
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = shade(fill, -0.6); ctx.lineWidth = 1.4; ctx.stroke();
-}
-function bossEyes(x, y, dx, ey, er, glow) {
-  ctx.shadowColor = glow; ctx.shadowBlur = 10; ctx.fillStyle = glow;
-  ctx.beginPath(); ctx.arc(x - dx, y + ey, er, 0, Math.PI * 2); ctx.arc(x + dx, y + ey, er, 0, Math.PI * 2); ctx.fill();
-  ctx.shadowBlur = 0; ctx.fillStyle = '#16121c';
-  ctx.beginPath(); ctx.arc(x - dx, y + ey, er * 0.4, 0, Math.PI * 2); ctx.arc(x + dx, y + ey, er * 0.4, 0, Math.PI * 2); ctx.fill();
-}
-
-// a smug Bay-Area tech founder: YC vest over a tee, AirPods, messy hair. The
-// physics hitbox stays the torso circle (r); the head/hair sit above it. Returns
-// the head center/radius so callers can draw the face (shades, glasses, etc.).
-function drawFounder(x, y, r, o) {
-  glowOrb(ctx, x, y, r * 1.8, o.aura, 0.26);
-  const hr = r * 0.6, hy = y - r * 0.58;                    // head
-  const shoY = y - r * 0.05, hemY = y + r * 1.4, shoW = r * 1.8, hemW = r * 1.55;
-  // tee/hoodie underneath
-  ctx.fillStyle = o.inner || '#d3d8de';
-  ctx.beginPath(); ctx.moveTo(x - shoW * 0.45, shoY); ctx.lineTo(x + shoW * 0.45, shoY); ctx.lineTo(x + hemW * 0.45, hemY); ctx.lineTo(x - hemW * 0.45, hemY); ctx.closePath(); ctx.fill();
-  // the vest / jacket
-  ctx.fillStyle = o.jacket;
-  ctx.beginPath(); ctx.moveTo(x - shoW / 2, shoY); ctx.lineTo(x + shoW / 2, shoY); ctx.lineTo(x + hemW / 2, hemY); ctx.lineTo(x - hemW / 2, hemY); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = shade(o.jacket, -0.5); ctx.lineWidth = 1.3; ctx.stroke();
-  // tee neckline (inner shows through the open vest) + zipper
-  ctx.fillStyle = o.inner || '#d3d8de';
-  ctx.beginPath(); ctx.moveTo(x - r * 0.3, shoY); ctx.lineTo(x + r * 0.3, shoY); ctx.lineTo(x, shoY + r * 0.55); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = shade(o.jacket, -0.6); ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(x, shoY + r * 0.55); ctx.lineTo(x, hemY); ctx.stroke();
-  // YC patch on the chest (orange square, white Y)
-  const ps = r * 0.36, px = x - r * 0.5, py = y + r * 0.5;
-  ctx.fillStyle = o.accent; ctx.fillRect(px - ps / 2, py - ps / 2, ps, ps);
-  ctx.fillStyle = '#fff'; ctx.font = `bold ${Math.round(ps * 0.85)}px Georgia`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('Y', px, py + 1); ctx.textBaseline = 'alphabetic';
-  // neck + head
-  ctx.fillStyle = o.skin; ctx.fillRect(x - r * 0.15, hy + hr * 0.55, r * 0.3, r * 0.5);
-  ctx.beginPath(); ctx.arc(x, hy, hr, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = shade(o.skin, -0.4); ctx.lineWidth = 1; ctx.stroke();
-  // AirPods (white stems by each ear)
-  ctx.fillStyle = '#f6f8fa';
-  for (const s of [-1, 1]) { ctx.fillRect(x + s * hr * 0.85 - 1.5, hy, 3, hr * 0.5); ctx.beginPath(); ctx.arc(x + s * hr * 0.85, hy - 2, 2.7, 0, Math.PI * 2); ctx.fill(); }
-  return { hy, hr };
-}
-
 // drawn via drawDynamicBody (live, LAN ghosts, and the killcam use the same path)
 function drawBossBody(b, now) {
   const { x, y } = b.position;
-  const type = b.bossType;
-  const r = b.circleRadius || 46;
-  // canonical bosses render through the storybook toolkit; bespoke team bosses
-  // (rizard, manu) keep their hand-crafted look below.
-  if (type === 'dragon' || type === 'lich' || type === 'golem' || type === 'kraken') {
-    drawStoryBoss(ctx, { x, y, r, type, color: b.color || '#e15d5d', now });
-  } else if (type === 'rizard_rizz' || type === 'rizard_tizz') {
-    const tizz = type === 'rizard_tizz';
-    if (tizz) runeRing(ctx, x, y - r * 0.5, r * 0.9, '#3fb5ff', now, { count: 8, lw: 1.5, alpha: 0.6 }); // locked-on reticle around the head — hyperfocus
-    // Conor the founder: YC vest, AirPods, slicked hair
-    const { hy, hr } = drawFounder(x, y, r, { aura: tizz ? '#3fb5ff' : '#ffd166', jacket: '#1c2b4a', accent: '#ff6a00', skin: '#e8b98a', inner: '#e6eaee' });
-    // slicked-back founder hair
-    ctx.fillStyle = '#2a2018';
-    ctx.beginPath(); ctx.arc(x, hy - hr * 0.3, hr, Math.PI * 1.05, Math.PI * 1.95); ctx.lineTo(x + hr * 0.7, hy - hr * 0.1); ctx.quadraticCurveTo(x, hy - hr * 1.1, x - hr * 0.9, hy - hr * 0.1); ctx.closePath(); ctx.fill();
-    if (tizz) {
-      // TIZZARD: locked-in founder — intense glowing eyes, unbothered half-smile
-      bossEyes(x, hy, hr * 0.42, hr * 0.05, hr * 0.2, '#eaffff');
-      ctx.strokeStyle = '#5a3a24'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(x, hy + hr * 0.45, hr * 0.35, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
-    } else {
-      // RIZZARD: sunglasses + smirk (the rizz)
-      ctx.fillStyle = '#16121c';
-      ctx.fillRect(x - hr * 0.75, hy - hr * 0.12, hr * 1.5, 2.5);
-      ctx.beginPath(); ctx.ellipse(x - hr * 0.42, hy, hr * 0.34, hr * 0.24, 0, 0, Math.PI * 2); ctx.ellipse(x + hr * 0.42, hy, hr * 0.34, hr * 0.24, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.beginPath(); ctx.arc(x - hr * 0.5, hy - hr * 0.08, 2, 0, Math.PI * 2); ctx.arc(x + hr * 0.34, hy - hr * 0.08, 2, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#5a3a24'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(x + hr * 0.12, hy + hr * 0.5, hr * 0.4, 0.1 * Math.PI, 0.55 * Math.PI); ctx.stroke();
-    }
-  } else if (type === 'manu_de' || type === 'manu_mx') {
-    const de = type === 'manu_de';
-    // Manu the CTO-founder: gray vest, techie round glasses, signature mustache.
-    // Mode tints the palette; German gets a beanie, Mexican a tiny sombrero.
-    const { hy, hr } = drawFounder(x, y, r, { aura: de ? '#c9cdd8' : '#e3a86a', jacket: de ? '#3d4450' : '#4a4f57', accent: de ? '#c0392b' : '#2e8b57', skin: '#d69a6a', inner: de ? '#cfd6e0' : '#e8dcc0' });
-    // short tidy hair
-    ctx.fillStyle = '#2a2018';
-    ctx.beginPath(); ctx.arc(x, hy - hr * 0.18, hr * 0.98, Math.PI * 1.08, Math.PI * 1.92); ctx.closePath(); ctx.fill();
-    // round founder glasses
-    ctx.strokeStyle = '#20242c'; ctx.lineWidth = 2.2;
-    ctx.beginPath(); ctx.arc(x - hr * 0.42, hy, hr * 0.3, 0, Math.PI * 2); ctx.moveTo(x + hr * 0.72, hy); ctx.arc(x + hr * 0.42, hy, hr * 0.3, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x - hr * 0.12, hy); ctx.lineTo(x + hr * 0.12, hy); ctx.stroke();
-    // signature mustache
-    ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 4.5; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(x - hr * 0.5, hy + hr * 0.58); ctx.quadraticCurveTo(x - hr * 0.06, hy + hr * 0.9, x, hy + hr * 0.5); ctx.quadraticCurveTo(x + hr * 0.06, hy + hr * 0.9, x + hr * 0.5, hy + hr * 0.58); ctx.stroke();
-    ctx.lineCap = 'butt';
-    if (de) { // 🇩🇪 dark beanie with a red fold
-      ctx.fillStyle = '#2b2f38';
-      ctx.beginPath(); ctx.arc(x, hy - hr * 0.12, hr * 1.02, Math.PI * 1.02, Math.PI * 1.98); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#c0392b'; ctx.fillRect(x - hr * 0.95, hy - hr * 0.6, hr * 1.9, 4);
-    } else { // 🇲🇽 tiny sombrero
-      ctx.fillStyle = '#8a5a2b';
-      ctx.beginPath(); ctx.ellipse(x, hy - hr * 0.7, hr * 1.5, hr * 0.3, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(x, hy - hr * 1.02, hr * 0.55, hr * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#2e8b57'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(x, hy - hr * 0.82, hr * 0.55, hr * 0.16, 0, 0, Math.PI * 2); ctx.stroke();
-    }
-  } else {
-    drawStoryBoss(ctx, { x, y, r, type, color: b.color || '#e15d5d', now });
-  }
+  drawStoryBoss(ctx, {
+    x, y, now,
+    r: b.circleRadius || 46,
+    type: b.bossType,
+    color: b.color || '#e15d5d',
+  });
 }
 
 // shared HP bar (host HUD draws from game.boss; the net client from snap.bs)
