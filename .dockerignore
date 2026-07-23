@@ -1,0 +1,6 @@
+.git
+server/node_modules
+server/telemetry
+deploy
+Dockerfile
+.dockerignore

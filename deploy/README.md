@@ -22,10 +22,34 @@ every browser is a client. So this deployment buys:
 Latency = player ↔ server, for **everyone** (server-authoritative, no client
 prediction). With the server in `us-west-2` and the team mostly in SF that's
 ~10–30ms — fine. Don't put it cross-country from the players. Press **F8**
-in-game for the live net-stats overlay if a session feels off. Sizing note:
-the sim is one busy Node process — a `t4g.small` is a safer floor than the
-originally planned `t4g.micro` (the sim + 8 sockets fits in micro's CPU, but
-micro's burst credits could make a long session mushy).
+in-game for the live net-stats overlay if a session feels off.
+
+## It's a container (the company-shaped way to run it)
+
+Company infrastructure is Docker-in-k8s, so the repo root has a `Dockerfile`
+that packages the whole game server (verified: builds, boots, serves the page,
+and the in-container sim answers joins and moves wizards):
+
+```
+docker build -t hyperspell-game .
+docker run -p 8787:8787 -e GAME_KEY=somesecret \
+  -v hyperspell-telemetry:/app/server/telemetry hyperspell-game
+```
+
+Notes for a k8s deploy, if it ever graduates to one:
+- **One replica, ever.** The room is a single in-process match — no horizontal
+  scaling, no rolling surge (`strategy: Recreate`); a deploy restarts the match.
+- Sizing: one busy Node process — requests of ~0.5 CPU / 256Mi with a 1-CPU
+  limit are comfortable (the sim ticks at 60Hz regardless of player count).
+- WebSockets on `/ws`, plain HTTP on the rest; any ingress that speaks
+  websockets works. `GAME_KEY` via a Secret. Telemetry wants a small PVC.
+- Non-customer-facing: it has no business near the prod cluster's ingress —
+  a cheap internal namespace (or just a container on any box) is the right home.
+
+The EC2 kit below still works as the zero-cluster alternative — for a toy we
+run ourselves, either is fine. The kit's cloud-init installs Node directly;
+if you'd rather run the container on the instance, swap the systemd unit's
+ExecStart for a `docker run`.
 
 ## Two access models (pick one, or run both on the same box)
 
