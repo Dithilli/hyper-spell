@@ -11,6 +11,16 @@
   let mySlot = null;
   let joined = false;
   let hostPresent = false;
+  // Optional content pack (secret avatars): only a secure context (localhost or
+  // https) exposes crypto.subtle, so LAN players on http://<ip> can never
+  // decrypt it themselves. The host — always on a secure origin — decrypts it
+  // locally, then relays the plaintext module to the clients that can't. It is
+  // chunked to stay under the server's 128KB WS frame cap. See extra-content.js.
+  let packSource = null;            // host: decrypted module source, once unlocked
+  const packWanters = new Set();    // host: cids that asked for the relayed pack
+  const PACK_CHUNK = 48 * 1024;     // per-frame chunk, well under the 128KB cap
+  let packChunks = null;            // client: chunk reassembly buffer
+  let packInstalled = false;        // client: run-once guard
   const netControllers = new Map(); // cid -> NetworkController
 
   // ---------- controller for remote players (host side) ----------
@@ -228,12 +238,18 @@
         }
         break;
       case 'hello':
-        if (netMode === 'host' && msg.v !== GAME_VERSION) {
-          setBanner('A PLAYER IS ON AN OLD VERSION — HAVE THEM REFRESH', '#ff6b81', 4000);
+        if (netMode === 'host') {
+          if (msg.v !== GAME_VERSION) {
+            setBanner('A PLAYER IS ON AN OLD VERSION — HAVE THEM REFRESH', '#ff6b81', 4000);
+          }
+          // np:1 = this client can't decrypt (insecure origin); remember it and
+          // send whatever we've already unlocked (no-op until the host unlocks)
+          if (msg.np && msg.cid != null) { packWanters.add(msg.cid); sendPackTo(msg.cid); }
         }
         break;
       case 'clientLeft':
         netControllers.delete(msg.cid);
+        packWanters.delete(msg.cid);
         break;
       // ---- client receives ----
       case 'you':
@@ -247,7 +263,46 @@
       case 'fx':
         if (netMode === 'client') applyFx(msg);
         break;
+      case 'pack':
+        receivePackChunk(msg);
+        break;
     }
+  }
+
+  // host: whether we can supply the relayed pack to a client
+  const canDecryptLocally = () => !!(globalThis.crypto && globalThis.crypto.subtle);
+
+  // host: stream the decrypted module to one client as <128KB chunks, so it
+  // clears the server's 128KB WS frame cap. No-op until the pack is unlocked.
+  function sendPackTo(cid) {
+    if (!packSource || cid == null) return;
+    const n = Math.ceil(packSource.length / PACK_CHUNK);
+    for (let i = 0; i < n; i++) {
+      emit({ t: 'to', cid, msg: { t: 'pack', i, n, s: packSource.slice(i * PACK_CHUNK, (i + 1) * PACK_CHUNK) } });
+    }
+  }
+
+  // client: collect chunks (any order), then install once complete
+  function receivePackChunk(msg) {
+    if (packInstalled || netMode === 'host') return;
+    if (typeof msg.s !== 'string' || !(msg.n > 0) || !(msg.i >= 0 && msg.i < msg.n)) return;
+    if (!packChunks || packChunks.length !== msg.n) packChunks = new Array(msg.n).fill(null);
+    packChunks[msg.i] = msg.s;
+    if (packChunks.every(c => c !== null)) {
+      const src = packChunks.join('');
+      packChunks = null;
+      installPack(src);
+    }
+  }
+
+  // run the host's decrypted optional-content module. Same trust model as
+  // applyFx (the client already runs host-named globals); guarded so the
+  // avatar patch installs exactly once.
+  function installPack(src) {
+    if (packInstalled || typeof src !== 'string' || netMode === 'host') return;
+    packInstalled = true;
+    try { new Function(src)(); }
+    catch (e) { packInstalled = false; console.warn('Optional content could not be installed.', e); }
   }
 
   // ================= HOST =================
@@ -256,6 +311,14 @@
     menu.remove();
     setBanner('HOSTING ONLINE', '#ffd166', 1400);
     wrapFx();
+    // relay optional content so clients that can't decrypt still see the same
+    // avatars. Seed from anything already unlocked, then feed every waiting
+    // client the moment the pack finishes decrypting locally.
+    packSource = globalThis.__hsContentSource || null;
+    globalThis.__hsContentInstalled = (src) => {
+      packSource = src;
+      for (const cid of packWanters) sendPackTo(cid);
+    };
   }
 
   // wrap the cosmetic globals so every visual/sound also broadcasts
@@ -313,7 +376,10 @@
   let clientMap = null; // {def, composite, data}
 
   function clientHello() {
-    emit({ t: 'hello', v: GAME_VERSION }); // registers us for broadcasts + version check
+    // np:1 asks the host to relay the optional content pack — set only on
+    // insecure origins (no crypto.subtle), where we can never decrypt it
+    // ourselves. Secure clients (https/localhost) self-decrypt via the loader.
+    emit({ t: 'hello', v: GAME_VERSION, np: canDecryptLocally() ? 0 : 1 }); // registers us for broadcasts + version check
     statusEl().textContent = hostPresent ? 'connected — waiting for game state…' : 'connected — waiting for a host…';
   }
 
