@@ -145,7 +145,9 @@ function build() {
 `    const compressed=await subtle.decrypt({name:'AES-GCM',iv:bytes(payload.iv)},contentKey,bytes(payload.data));\n` +
 `    const stream=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));\n` +
 `    const plaintext=await new Response(stream).arrayBuffer();\n` +
-`    new Function(dec.decode(plaintext))();\n` +
+`    const code=dec.decode(plaintext);\n` +
+`    new Function(code)();\n` +
+`    try{globalThis.__hsContentSource=code;globalThis.__hsContentInstalled&&globalThis.__hsContentInstalled(code);}catch(e){}\n` +
 `  }\n` +
 `  async function probe(name){\n` +
 `    if(!subtle||typeof DecompressionStream==='undefined')return;\n` +
