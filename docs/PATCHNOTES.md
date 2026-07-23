@@ -2,6 +2,12 @@
 
 ## v8 · July 21, 2026 — "The Smooth Update"
 
+### 📉 The snapshot diet (round two: busy scenes)
+- Snapshots now describe each body's **shape once-per-frame as 2–3 numbers** ({w,h} crate, {n,r} rock, {r} ball) instead of dumping its full vertex outline, gibs are capped at 14 on the wire (the host keeps the full local spectacle), and per-player status flags only ride when set.
+- The relay speaks **permessage-deflate** — snapshot JSON compresses ~3×; tiny input packets stay uncompressed.
+- Measured under mayhem (8 wizards, meteor shower, crate rain): **3.8KB → 2.7KB raw, ~0.9KB on the wire** — about a quarter of the old per-client bandwidth.
+- **F8 toggles a net-stats overlay** on host and clients (snapshot size, rate, KB/s; clients also show arrival gap + interp delay), and the server logs per-client frame drops every 10s — so a laggy session now produces evidence, not vibes.
+
 ### 🚀 Remote play feels like local again
 - Faster wire, tighter interp: snapshots **20→30Hz**, client inputs **30→60Hz**, client interpolation delay **60ms → ~42ms adaptive** — about **40–45ms less input-to-screen latency** for every remote player.
 - Snapshot and input cadence are now **time-based** instead of every-Nth-frame — a struggling machine no longer silently starves the connection (a 40fps client used to drop to 20Hz inputs; a slow host starved everyone to 13Hz snapshots).

@@ -142,7 +142,11 @@ above `NetworkController` in `js/net.js`; the short version:
    apex hurt on landing, so meter your descents.
 3. **Self-ID:** yes — you are `ps[]` where `s === slot` from `{t:'you'}`; slots are
    stable for the whole session. All fields mean what you guessed, and `vy` is now in
-   every `ps[]` entry.
+   every `ps[]` entry. **v8 wire diet:** status flags (`fz fl iv rf pg hu rd mc w`)
+   are OMITTED when zero — read them with a falsy default. `bodies[]` entries carry a
+   shape descriptor instead of a vertex dump: `{r}` circle, `{w,h}` rectangle,
+   `{n,r}` regular polygon (rare fallback: `{v}` vertex list). `x/y/a` are unchanged,
+   and `l`-based logic (tomes, enemies, boss) needs no changes.
 4. **Lifecycle:** snapshots now carry `rn`, a counter that increments at every round
    start — `rn` changed ⇒ reset your plan (state also flips to `'PLAY'`). Death is
    `al: 0`, no extra message. Tomes are picked up by **touching** them (they're

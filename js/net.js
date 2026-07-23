@@ -58,8 +58,40 @@
     }
   }
 
+  // ---- net stats (F8): live truth about what the wire is carrying ----
+  const netStats = { on: false, lastBytes: 0, bytes: 0, snaps: 0, at: 0, rate: 0, kbs: 0, delay: 0 };
+  addEventListener('keydown', e => { if (e.code === 'F8') netStats.on = !netStats.on; });
+  function statTick(bytes, now) {
+    netStats.lastBytes = bytes;
+    netStats.bytes += bytes;
+    netStats.snaps++;
+    if (now - netStats.at > 1000) {
+      netStats.rate = netStats.snaps; netStats.kbs = Math.round(netStats.bytes / 1024);
+      netStats.snaps = 0; netStats.bytes = 0; netStats.at = now;
+    }
+  }
+  globalThis.drawNetStats = function drawNetStats(now) {
+    if (!netStats.on) return;
+    const line = netMode === 'host'
+      ? `NET · snap ${netStats.lastBytes}B · ${netStats.rate}/s · ${netStats.kbs}KB/s out (pre-deflate, per client)`
+      : `NET · snap ${netStats.lastBytes}B · ${netStats.rate}/s · ${netStats.kbs}KB/s in · gap ${Math.round(snapGapMs)}ms · delay ${Math.round(netStats.delay)}ms`;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.font = '12px Menlo, monospace';
+    ctx.textAlign = 'left';
+    const w = ctx.measureText(line).width + 16;
+    ctx.fillStyle = 'rgba(10,6,16,0.75)';
+    ctx.fillRect(8, H - 34, w, 22);
+    ctx.fillStyle = '#9ef0f0';
+    ctx.fillText(line, 16, H - 19);
+    ctx.restore();
+  };
+
   function emit(msg) {
-    if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
+    if (!ws || ws.readyState !== 1) return;
+    const s = JSON.stringify(msg);
+    if (msg.t === 'snap') statTick(s.length, performance.now());
+    ws.send(s);
   }
 
   // ---------- mode menu ----------
@@ -127,6 +159,7 @@
     ws.onmessage = ev => {
       let msg;
       try { msg = JSON.parse(ev.data); } catch { return; }
+      if (msg.t === 'snap' && netMode !== 'host') statTick(ev.data.length, performance.now());
       handleMessage(msg, wantMode);
     };
   }
@@ -402,6 +435,7 @@
     // arrival gap (~42ms at 30Hz) instead of a fixed 60ms, and stretches
     // gracefully if the connection degrades
     const delay = Math.min(90, Math.max(36, snapGapMs * 1.25));
+    netStats.delay = delay;
     const span = Math.max(tCur - tPrev, 1);
     const alpha = Math.max(0, Math.min(1, (now - delay - tPrev) / span));
     const ghosts = drawSnapshotWorld(snap, snapPrev, alpha, now, true);
@@ -525,5 +559,6 @@
         }
       }
     }
+    drawNetStats(now); // F8 overlay
   };
 })();

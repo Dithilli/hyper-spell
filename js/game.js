@@ -1422,6 +1422,7 @@ function draw(now) {
   if (game.state === 'LOBBY') drawLobby();
   if (game.state === 'VICTORY') drawVictory(now);
   if (game.state === 'RUN_OVER') drawRunOver(now);
+  globalThis.drawNetStats?.(now); // F8 overlay (net.js; absent in file:// couch mode)
 }
 
 function drawRunOver(now) {

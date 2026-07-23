@@ -3,6 +3,9 @@
 // and replay.js (killcam), so it must work in couch mode too.
 
 function serializeSnapshot(now) {
+  // status flags ride the wire only when SET — readers treat a missing field
+  // as falsy, and most wizards most frames are not frozen/floaty/piggy/etc.
+  const flag = (k, on) => (on ? { [k]: 1 } : {});
   const ps = players.map(p => ({
     s: p.slot, n: p.name, c: p.color, h: p.hat,
     x: Math.round(p.body.position.x), y: Math.round(p.body.position.y),
@@ -10,28 +13,39 @@ function serializeSnapshot(now) {
     an: +(p.body.angle * 0.35).toFixed(2),
     f: p.facing, wp: +p.walkPhase.toFixed(2),
     hp: Math.round(p.hp), al: p.alive ? 1 : 0, sc: +p.sizeScale.toFixed(2),
-    fz: now < p.frozenUntil ? 1 : 0, fl: now < (p.floatyUntil || 0) ? 1 : 0,
-    iv: now < (p.invulnUntil || 0) ? 1 : 0, rf: now < (p.reflectUntil || 0) ? 1 : 0,
-    pg: now < (p.pigUntil || 0) ? 1 : 0, hu: now < (p.hurtUntil || 0) ? 1 : 0,
+    ...flag('fz', now < p.frozenUntil), ...flag('fl', now < (p.floatyUntil || 0)),
+    ...flag('iv', now < (p.invulnUntil || 0)), ...flag('rf', now < (p.reflectUntil || 0)),
+    ...flag('pg', now < (p.pigUntil || 0)), ...flag('hu', now < (p.hurtUntil || 0)),
     ...(p.ghost && !p.alive ? { gx: Math.round(p.ghost.x), gy: Math.round(p.ghost.y) } : {}),
-    sp: p.spellId, rd: p.spellId && now - p.lastCast > SPELLS[p.spellId].cooldown ? 1 : 0,
+    sp: p.spellId, ...flag('rd', p.spellId && now - p.lastCast > SPELLS[p.spellId].cooldown),
     // both spell slots + per-slot cooldown fraction for the two-slot HUD
     s0: p.slots[0], s1: p.slots[1],
     h0: p.slotCharges?.[0] ?? undefined, h1: p.slotCharges?.[1] ?? undefined, // fusion charges left
     c0: p.slots[0] ? +Math.min(1, (now - p.casts[0]) / (SPELLS[p.slots[0]].cooldown || 1)).toFixed(2) : 0,
     c1: p.slots[1] ? +Math.min(1, (now - p.casts[1]) / (SPELLS[p.slots[1]].cooldown || 1)).toFixed(2) : 0,
-    mc: p.megaCasts || 0,
-    w: p.roundWins,
+    ...(p.megaCasts ? { mc: p.megaCasts } : {}),
+    ...(p.roundWins ? { w: p.roundWins } : {}),
   }));
 
   const bodies = [];
+  // shape descriptor instead of a vertex dump: geometry never changes frame to
+  // frame, so a crate is {w,h}, a rock is {n,r}, a ball is {r} — the client
+  // rebuilds the outline from descriptor + angle. Bodies that don't classify
+  // (none today) fall back to the old vertex list. Cuts the payload ~30%.
   const pushGhost = (b, label, color, extra) => {
     const e = { id: b.id, l: label, c: color, a: +b.angle.toFixed(3), ...extra };
+    e.x = Math.round(b.position.x); e.y = Math.round(b.position.y);
+    const v = b.vertices;
     if (b.circleRadius) {
-      e.x = Math.round(b.position.x); e.y = Math.round(b.position.y); e.r = Math.round(b.circleRadius);
+      e.r = Math.round(b.circleRadius);
+    } else if (v.length === 4) {
+      e.w = Math.round(Math.hypot(v[1].x - v[0].x, v[1].y - v[0].y));
+      e.h = Math.round(Math.hypot(v[2].x - v[1].x, v[2].y - v[1].y));
+    } else if (v.length >= 3 && v.length <= 12) {
+      e.n = v.length;
+      e.r = Math.round(Math.hypot(v[0].x - b.position.x, v[0].y - b.position.y));
     } else {
-      e.x = Math.round(b.position.x); e.y = Math.round(b.position.y);
-      e.v = b.vertices.flatMap(pt => [Math.round(pt.x), Math.round(pt.y)]);
+      e.v = v.flatMap(pt => [Math.round(pt.x), Math.round(pt.y)]);
     }
     bodies.push(e);
   };
@@ -43,7 +57,10 @@ function serializeSnapshot(now) {
     if (s.bossType) extra.bt = s.bossType;
     pushGhost(s, s.label, s.render.fillStyle, extra);
   }
-  for (const g of gibs) pushGhost(g, 'gib', g.color);
+  // gibs are confetti — during real mayhem nobody counts them. Cap what rides
+  // the wire; the host keeps the full physics spectacle locally.
+  let gibsSent = 0;
+  for (const g of gibs) { if (++gibsSent > 14) break; pushGhost(g, 'gib', g.color); }
   for (const t of tomes) bodies.push({ id: t.id, l: 'tome', x: Math.round(t.position.x), y: Math.round(t.position.y), a: +t.angle.toFixed(3), sp: t.spell });
   for (const h of hats) bodies.push({ id: h.id, l: 'hat', x: Math.round(h.position.x), y: Math.round(h.position.y), a: +h.angle.toFixed(3) });
   for (const b of Composite.allBodies(currentMap.composite)) {
@@ -86,18 +103,30 @@ function serializeSnapshot(now) {
 }
 
 function ghostBody(e, ep, alpha) {
-  // interpolate between prev entry ep and current e
+  // interpolate between prev entry ep and current e, then rebuild the outline
+  // from the shape descriptor ({r} circle, {w,h} rect, {n,r} polygon) — or the
+  // legacy vertex list if one arrived
   const lerp = (a, b) => a + (b - a) * alpha;
   const x = ep ? lerp(ep.x, e.x) : e.x;
   const y = ep ? lerp(ep.y, e.y) : e.y;
   const angle = ep ? lerp(ep.a, e.a) : e.a;
   let vertices;
-  if (e.r) {
+  if (e.n && e.r) {
+    vertices = [];
+    for (let i = 0; i < e.n; i++) {
+      const a = angle + (i / e.n) * Math.PI * 2;
+      vertices.push({ x: x + Math.cos(a) * e.r, y: y + Math.sin(a) * e.r });
+    }
+  } else if (e.r) {
     vertices = [];
     for (let i = 0; i < 10; i++) {
       const a = angle + i * Math.PI / 5;
       vertices.push({ x: x + Math.cos(a) * e.r, y: y + Math.sin(a) * e.r });
     }
+  } else if (e.w != null) {
+    const c = Math.cos(angle), s = Math.sin(angle), hw = e.w / 2, hh = e.h / 2;
+    vertices = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([px, py]) =>
+      ({ x: x + px * c - py * s, y: y + px * s + py * c }));
   } else if (e.v) {
     vertices = [];
     for (let i = 0; i < e.v.length; i += 2) {
@@ -109,7 +138,7 @@ function ghostBody(e, ep, alpha) {
   }
   const fake = {
     position: { x, y }, angle, vertices,
-    circleRadius: e.r, label: e.l, color: e.c,
+    circleRadius: e.n ? null : e.r, label: e.l, color: e.c,
     render: { fillStyle: e.c },
   };
   if (e.cd != null) fake.critter = { dir: e.cd };
