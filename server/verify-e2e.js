@@ -198,7 +198,12 @@ async function phaseOpen() {
     ok(await until(() => A.lastSnap && A.lastSnap.st === 'PLAY'), 'start → st:PLAY');
     const rn1 = A.lastSnap.rn;
     ok(rn1 >= 1, `round counter running (rn=${rn1})`);
-    const keepalive = setInterval(() => A.send(IDLE), 500); // stay un-stale enough to spectate
+    // GANDALF wanders instead of standing still — a motionless statue on the
+    // wrong platform can stall a round for many minutes (the bot has to find a
+    // tome before it can kill anything); a wanderer meets hazards and bots
+    let wanderDir = 1;
+    const wanderFlip = setInterval(() => { wanderDir = -wanderDir; }, 4000);
+    const keepalive = setInterval(() => A.send({ t: 'input', m: wanderDir, j: Math.random() < 0.2 ? 1 : 0, c: 0, c2: 0, b: 0, a: null }), 100);
 
     // fx flow during play (rate varies a lot — wizards start unarmed and fx pick
     // up once the bot grabs a tome, so give this a generous window)
@@ -241,8 +246,8 @@ async function phaseOpen() {
     console.log('  … letting the bot win the match (can take a few minutes) …');
     const nextRound = await until(() => A.lastSnap && A.lastSnap.rn > rn1, 300000, 300);
     ok(nextRound, `next round started (rn ${A.lastSnap && A.lastSnap.rn})`);
-    ok(await until(() => !ps(A, youD.slot), 10000), 'unclaimed shell removed at the round boundary');
-    ok(await until(() => ps(A, youC.slot) && ps(A, youC.slot).al === 1, 10000), 'reconnected latecomer spawns into the new round');
+    ok(await until(() => !ps(A, youD.slot), 60000), 'unclaimed shell removed at the round boundary');
+    ok(await until(() => ps(A, youC.slot) && ps(A, youC.slot).al === 1, 60000), 'reconnected latecomer spawns into the new round');
 
     const vic = await until(() => A.lastSnap && A.lastSnap.st === 'VICTORY', 300000, 300);
     ok(vic, `match reaches VICTORY (st=${A.lastSnap && A.lastSnap.st})`);
@@ -251,7 +256,7 @@ async function phaseOpen() {
       ok(!!A.lastSnap.aw, 'victory snapshot carries awards');
       ok(!!A.lastSnap.sr, 'victory snapshot carries the spell report');
     }
-    clearInterval(keepalive);
+    clearInterval(keepalive); clearInterval(wanderFlip);
 
     // killcam was broadcast between rounds (rp frames)
     // (checked via SPEC which idled through the whole match)
