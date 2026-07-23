@@ -61,6 +61,12 @@ wrapServerFx();
 // sink instead of fetch()ing our own HTTP endpoint
 postTelemetry = rec => { try { __postTelemetry(rec); } catch {} };
 
+// content-pack relay hook: when a special name unlocks the pack, the loader
+// (js/extra-content.js) exposes the decrypted module source and calls this —
+// the room streams it to clients whose origin can't decrypt (http://<ip> has
+// no crypto.subtle). See Andrew's relay design in js/net.js.
+globalThis.__hsContentInstalled = (src) => { try { __onPackUnlocked(src); } catch {} };
+
 // ---- snapshot / killcam (port of net.js netHostTick, minus the emit) ----
 function takeWireSnapshot(now) {
   if (game.replay) {
@@ -194,6 +200,7 @@ globalThis.__bridge = {
   // unlock) and the live spell count (jumps when a pack installs)
   packStaged: () => typeof globalThis.__hsPackData !== 'undefined',
   spellCount: () => Object.keys(SPELLS).length,
+  packSource: () => globalThis.__hsContentSource || null, // decrypted module, once unlocked
   playerCount: () => players.length,
   minPlayers: () => minPlayers(),
   // diagnostics for the smoke harness / leak audit

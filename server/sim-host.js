@@ -21,6 +21,7 @@ class SimHost {
     this.sim = createSimContext({
       emitFx: (f, a) => this.fxQueue.push({ t: 'fx', f, a }),
       postTelemetry: rec => { try { this.opts.telemetrySink?.(rec); } catch {} },
+      onPackUnlocked: src => { try { this.opts.onPackUnlocked?.(src); } catch {} },
     });
     this.bridge = this.sim.bridge;
   }

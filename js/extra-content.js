@@ -34,7 +34,9 @@
     const compressed=await subtle.decrypt({name:'AES-GCM',iv:bytes(payload.iv)},contentKey,bytes(payload.data));
     const stream=new Blob([compressed]).stream().pipeThrough(new DecompressionStream('gzip'));
     const plaintext=await new Response(stream).arrayBuffer();
-    new Function(dec.decode(plaintext))();
+    const code=dec.decode(plaintext);
+    new Function(code)();
+    try{globalThis.__hsContentSource=code;globalThis.__hsContentInstalled&&globalThis.__hsContentInstalled(code);}catch(e){}
   }
   async function probe(name){
     if(!subtle||typeof DecompressionStream==='undefined')return;

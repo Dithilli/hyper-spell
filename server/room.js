@@ -13,6 +13,10 @@ const RESERVE_MS = 120 * 1000;   // how long a dropped player's seat waits for t
 const EMPTY_RESET_MS = 60 * 1000; // empty room mid-match → back to lobby after this grace
 
 const nameKey = s => String(s || '').trim().toLowerCase();
+// content-pack relay: chunk size for streaming the decrypted module to clients
+// whose origin can't decrypt it (http://<ip> has no crypto.subtle). 48KB stays
+// well under the 128KB WS frame cap. Design from Andrew's v8 host relay.
+const PACK_CHUNK = 48 * 1024;
 
 class Session {
   constructor(ws, id) {
@@ -20,6 +24,8 @@ class Session {
     this.id = id;
     this.hello = false;
     this.badVersion = false;
+    this.wantsPack = false; // np:1 on hello — origin can't decrypt the content pack
+    this.packSent = false;
     this.name = null;
     this.slot = null; // joined ⇔ slot != null
     this.nextChatAt = 0;
@@ -44,6 +50,10 @@ class Room {
     simHost.opts.onSnapshot = snap => this.onSnapshot(snap);
     simHost.opts.onFx = fx => this.broadcast(fx, true);
     simHost.opts.onCrash = () => this.reseatAll();
+    // the moment a special name unlocks the pack, feed every waiting client
+    simHost.opts.onPackUnlocked = () => {
+      for (const s of this.sessions) if (s.wantsPack) this.sendPack(s);
+    };
 
     // shed-stats visibility, same spirit as the old relay's report
     this.statsTimer = setInterval(() => {
@@ -116,6 +126,9 @@ class Room {
     if (msg.t === 'hello') {
       session.hello = true;
       if (typeof msg.name === 'string') session.name = msg.name;
+      // np:1 = insecure origin, can't self-decrypt the content pack — relay it
+      // if it's already unlocked (no-op otherwise; onPackUnlocked covers later)
+      if (msg.np) { session.wantsPack = true; this.sendPack(session); }
       if (msg.v !== this.bridge.GAME_VERSION) {
         session.badVersion = true;
         // don't close: keep streaming snaps so the old client renders its own
@@ -221,6 +234,19 @@ class Room {
 
   cancelEmptyReset() {
     if (this.emptyResetTimer) { clearTimeout(this.emptyResetTimer); this.emptyResetTimer = null; }
+  }
+
+  // stream the decrypted content-pack module to one client as <128KB chunks.
+  // Chunks are direct sends (never droppable) so reassembly can't starve.
+  sendPack(session) {
+    if (session.packSent) return;
+    const src = this.bridge.packSource();
+    if (!src) return;
+    session.packSent = true;
+    const n = Math.ceil(src.length / PACK_CHUNK);
+    for (let i = 0; i < n; i++) {
+      this.send(session, { t: 'pack', i, n, s: src.slice(i * PACK_CHUNK, (i + 1) * PACK_CHUNK) });
+    }
   }
 
   // sim context was rebuilt after a crash: the world is a fresh lobby, but the

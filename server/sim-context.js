@@ -45,11 +45,12 @@ const SIM_FILES = [
   'server/sim-bridge.js',
 ];
 
-// opts: { emitFx(name, args), postTelemetry(rec), clock }
+// opts: { emitFx(name, args), postTelemetry(rec), onPackUnlocked(src), clock }
 function createSimContext(opts = {}) {
   const { sandbox, ctxCounter, flushTimers } = buildSandbox({ clock: opts.clock });
   sandbox.__emitFx = opts.emitFx || (() => {});
   sandbox.__postTelemetry = opts.postTelemetry || (() => {});
+  sandbox.__onPackUnlocked = opts.onPackUnlocked || (() => {});
   const ctx = vm.createContext(sandbox);
   // classic scripts expect window/self; Matter's UMD attaches to the global this
   vm.runInContext('globalThis.window = globalThis; globalThis.self = globalThis;', ctx);

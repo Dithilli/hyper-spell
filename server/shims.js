@@ -54,6 +54,9 @@ function buildSandbox({ clock } = {}) {
     },
     localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     navigator: { getGamepads: () => [] },
+    // the content pack preloads its sprites with new Image() — headless they're
+    // never drawn, so an inert stand-in (src accepted, onload never fires) works
+    Image: class Image { },
     requestAnimationFrame: () => 0, // game.js self-starts its loop; headless it never ticks
     addEventListener() {},
     removeEventListener() {},

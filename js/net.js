@@ -12,6 +12,12 @@
   let joined = false;
   let joinDeniedMsg = null;
   let serverWorld = null; // {t:'world', world, spells} — constants, stashed for curious tooling
+  // Optional content pack (secret avatars): only a secure context (localhost or
+  // https) exposes crypto.subtle, so players on http://<ip> can never decrypt
+  // it themselves. The server — which always can — relays the plaintext module,
+  // chunked to stay under the 128KB WS frame cap. See extra-content.js.
+  let packChunks = null;            // chunk reassembly buffer
+  let packInstalled = false;        // run-once guard
 
   // THE CLIENT INPUT CONTRACT — { t:'input', m, j, c, c2, b, a }, sent ~60/sec:
   //   m: move, WORLD-space: 1 = +x (screen right), -1 = left, 0 = idle. Not facing-relative.
@@ -124,7 +130,10 @@
     statusEl().textContent = 'connecting…';
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     ws = new WebSocket(`${proto}://${location.host}/ws`);
-    ws.onopen = () => emit({ t: 'hello', v: GAME_VERSION, name: myName() });
+    // np:1 asks the server to relay the optional content pack — set only on
+    // insecure origins (no crypto.subtle), where we can never decrypt it
+    // ourselves. Secure clients (https/localhost) self-decrypt via the loader.
+    ws.onopen = () => emit({ t: 'hello', v: GAME_VERSION, name: myName(), np: canDecryptLocally() ? 0 : 1 });
     ws.onerror = () => { const el = statusEl(); if (el) el.textContent = 'connection failed — is the server running?'; };
     ws.onclose = () => { if (netMode === 'online') setBanner('CONNECTION LOST — refresh', '#ff6b81', 60000); };
     ws.onmessage = ev => {
@@ -168,7 +177,37 @@
       case 'fx':
         applyFx(msg);
         break;
+      case 'pack':
+        receivePackChunk(msg);
+        break;
     }
+  }
+
+  // can this origin decrypt the pack itself? (crypto.subtle needs a secure
+  // context — https or localhost; http://<ip> LAN pages don't have it)
+  const canDecryptLocally = () => !!(globalThis.crypto && globalThis.crypto.subtle);
+
+  // collect server-relayed pack chunks (any order), then install once complete
+  function receivePackChunk(msg) {
+    if (packInstalled) return;
+    if (typeof msg.s !== 'string' || !(msg.n > 0) || !(msg.i >= 0 && msg.i < msg.n)) return;
+    if (!packChunks || packChunks.length !== msg.n) packChunks = new Array(msg.n).fill(null);
+    packChunks[msg.i] = msg.s;
+    if (packChunks.every(c => c !== null)) {
+      const src = packChunks.join('');
+      packChunks = null;
+      installPack(src);
+    }
+  }
+
+  // run the server's decrypted optional-content module. Same trust model as
+  // applyFx (we already render server-named state); guarded so the avatar
+  // patch installs exactly once.
+  function installPack(src) {
+    if (packInstalled || typeof src !== 'string') return;
+    packInstalled = true;
+    try { new Function(src)(); }
+    catch (e) { packInstalled = false; console.warn('Optional content could not be installed.', e); }
   }
 
   // ================= CLIENT =================
