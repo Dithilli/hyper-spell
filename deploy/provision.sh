@@ -1,7 +1,9 @@
 #!/bin/bash
 # Provision the HyperSpell game instance in the company AWS account.
 # ── REVIEW BEFORE RUNNING — this creates real (cheap, tagged) resources. ──
-# Creates: 1 key pair, 1 security group, 1 t4g.micro (~$6/mo). Nothing else.
+# Creates: 1 key pair, 1 security group, 1 t4g.small (~$12/mo). Nothing else.
+# (small, not micro: since v9 the sim runs ON this box — micro's burst credits
+# could make a long session mushy)
 # Usage:
 #   ./deploy/provision.sh              # Option B posture: 80/443 open, 22 from your IP
 #   OPEN_WEB=no ./deploy/provision.sh  # Option A posture: 22 from your IP only (join tailnet after)
@@ -10,7 +12,7 @@ set -euo pipefail
 PROFILE=hyperspell
 REGION=us-west-2
 NAME=hyperspell-game
-TYPE=t4g.micro
+TYPE=${TYPE:-t4g.small}
 OPEN_WEB=${OPEN_WEB:-yes}
 KEY_FILE="$HOME/.ssh/${NAME}.pem"
 cd "$(dirname "$0")"
