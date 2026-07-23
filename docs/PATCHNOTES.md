@@ -18,6 +18,7 @@
 - Client fx application is now allowlisted (a server can only invoke the ten cosmetic functions + sfx, not arbitrary globals).
 - Server telemetry writes straight to `rounds.jsonl` (no HTTP hop); couch telemetry unchanged.
 - The sim survives its own crashes: a fresh world boots and re-seats everyone (you'd see the match reset, not a dead server).
+- The optional content pack loads server-side too — special names unlock online exactly like on the couch (probed on join/rename).
 
 ---
 
