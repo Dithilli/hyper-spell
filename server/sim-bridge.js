@@ -85,6 +85,7 @@ function serverAddPlayer(opts = {}) {
   // mid-match joiners wait despawned; startRound spawns everyone at the next round
   if (game.state !== 'LOBBY') despawnPlayer(p);
   serverControllers.set(p.slot, nc);
+  avatarVariant(p.name); // content-pack hook: a special name schedules its unlock probe
   return p.slot;
 }
 
@@ -111,6 +112,7 @@ function serverRenamePlayer(slot, name) {
   const clean = cleanName(name);
   if (!p || !clean) return;
   p.name = clean;
+  avatarVariant(clean); // content-pack hook, same as join
 }
 
 function serverSetOffline(slot, off) {
@@ -188,6 +190,10 @@ globalThis.__bridge = {
   worldInfo: serverWorldInfo,
   state: () => game.state,
   round: () => game.totalRounds || 0,
+  // content-pack diagnostics: payload staged (pre-seeded, not yet claimed by an
+  // unlock) and the live spell count (jumps when a pack installs)
+  packStaged: () => typeof globalThis.__hsPackData !== 'undefined',
+  spellCount: () => Object.keys(SPELLS).length,
   playerCount: () => players.length,
   minPlayers: () => minPlayers(),
   // diagnostics for the smoke harness / leak audit

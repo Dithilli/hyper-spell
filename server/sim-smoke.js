@@ -52,21 +52,17 @@ const snapNow = () => b.takeWireSnapshot(performance.now());
 async function main() {
   ok(b.GAME_VERSION >= 9, `context loaded, GAME_VERSION=${b.GAME_VERSION}`);
   ok(b.state() === 'LOBBY', 'boots into LOBBY');
+  ok(b.packStaged(), 'content-pack payload staged in the context');
+  const spells0 = b.spellCount();
 
   // ---- lobby commands ----
   const s0 = b.addPlayer({ name: 'SMOKE-A', color: '#4ecdc4' });
   const s1 = b.addPlayer({ name: 'SMOKE-B' });
   ok(s0 === 0 && s1 === 1, `two players joined, slots ${s0},${s1}`);
-  b.addBot(); b.addBot();
-  ok(b.playerCount() === 4, 'two bots added');
   b.setWins({ n: 1 });
-  await tickFor(120);
-  const lobbySnap = snapNow();
-  ok(lobbySnap.st === 'LOBBY' && lobbySnap.wn === 1, 'lobby snapshot: st + win target');
-  ok(lobbySnap.ps.length === 4, 'lobby snapshot: 4 players');
-  ok(lobbySnap.ps.filter(p => p.b).length === 2, 'bots flagged b:1 in snapshot');
 
   // ---- input drives a wizard (lobby wizards are live physics bodies) ----
+  // no bots yet — a lobby bot shoving the test wizard makes these flaky
   await tickFor(300);
   const before = snapNow().ps.find(p => p.s === s0);
   const endMove = performance.now() + 1000;
@@ -86,6 +82,14 @@ async function main() {
   const idle2 = snapNow().ps.find(p => p.s === s0);
   ok(Math.abs(idle2.x - idle1.x) < 8, 'stale input guard: silent wizard stops');
 
+  b.addBot(); b.addBot();
+  ok(b.playerCount() === 4, 'two bots added');
+  await tickFor(120);
+  const lobbySnap = snapNow();
+  ok(lobbySnap.st === 'LOBBY' && lobbySnap.wn === 1, 'lobby snapshot: st + win target');
+  ok(lobbySnap.ps.length === 4, 'lobby snapshot: 4 players');
+  ok(lobbySnap.ps.filter(p => p.b).length === 2, 'bots flagged b:1 in snapshot');
+
   // ---- a real match runs to VICTORY ----
   // deterministic and quick: one bot vs one idle statue, win target 1 — the bot
   // wins round 1 in seconds. (Bot-vs-bot brawls can stall for minutes.)
@@ -94,7 +98,16 @@ async function main() {
   ok(b.playerCount() === 2, 'roster trimmed to statue + bot for the match');
   b.start();
   ok(b.state() === 'PLAY', 'start → PLAY');
-  const reached = await tickUntil(() => b.state() === 'VICTORY', LONG ? 240000 : 150000, 'victory');
+  // the test wizard wanders (like the e2e suite's) — a motionless statue parked
+  // on the wrong platform can be unreachable for some bot temperaments, and a
+  // wanderer meets bots and hazards, so rounds actually resolve
+  let wanderFlip = 1;
+  const wanderTimer = setInterval(() => { wanderFlip = -wanderFlip; }, 4000);
+  const wanderFeed = setInterval(() => {
+    if (b.state() === 'PLAY') b.setInput(s0, { m: wanderFlip, j: Math.random() < 0.2 ? 1 : 0, c: 0, c2: 0, b: 0, a: null });
+  }, 100);
+  const reached = await tickUntil(() => b.state() === 'VICTORY', 300000, 'victory');
+  clearInterval(wanderTimer); clearInterval(wanderFeed);
   ok(reached, `match reaches VICTORY (state=${b.state()})`);
   const vicSnap = snapNow();
   ok(vicSnap && vicSnap.wr != null, 'victory snapshot carries winner slot');
@@ -126,6 +139,13 @@ async function main() {
   const audit = b.audit();
   ok(audit.projectiles === 0 && audit.summons === 0 && audit.gibs === 0, 'no live projectiles/summons/gibs after reset');
   ok(fxLog.some(e => e.f === 'setBanner' && String(e.a[0]).includes('RESET')), 'attributed reset banner emitted');
+
+  // ---- content-pack probe path: ordinary names miss cleanly ----
+  // joins above already scheduled probes (PBKDF2 → HMAC fingerprint → lookup
+  // miss); give them time to finish and confirm nothing broke or unlocked
+  await tickFor(1500);
+  ok(b.spellCount() === spells0, `ordinary names don't unlock the pack (${spells0} spells before and after probes)`);
+  ok(b.packStaged(), 'pack payload still staged (unclaimed)');
 
   // ---- the tripwire: nothing headless ever touched a canvas context ----
   ok(sim.ctxCounter.calls === 0, `zero ctx-proxy invocations (got ${sim.ctxCounter.calls})`);

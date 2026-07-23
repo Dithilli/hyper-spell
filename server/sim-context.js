@@ -11,13 +11,17 @@ const { buildSandbox } = require('./shims');
 
 const ROOT = path.join(__dirname, '..');
 
-// index.html's script order, minus extra-content.js (its loader is DOM-bound —
-// pack spells are couch-only until it grows a Node path) and net.js (browser
-// transport; the server-side equivalents live in sim-bridge.js).
+// index.html's script order, minus net.js (browser transport; the server-side
+// equivalents live in sim-bridge.js). The content pack DOES load: evaluating
+// extra-content.pack.js first pre-seeds globalThis.__hsPackData, so the
+// loader's DOM script-injection fallback is never reached — unlocks work
+// headless (sim-bridge probes player names on join/rename).
 const SIM_FILES = [
   'server/node_modules/matter-js/build/matter.min.js',
   'js/core.js',
   'js/artkit.js',
+  'js/extra-content.pack.js',
+  'js/extra-content.js',
   'js/audio.js',
   'js/fx.js',
   'js/awards.js',

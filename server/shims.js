@@ -42,6 +42,12 @@ function buildSandbox({ clock } = {}) {
     console,
     performance: clock || performance,
     Date, // telemetry stamps records with Date.now(); nothing else reads wall time
+    // the content-pack loader (js/extra-content.js) needs the web platform's
+    // crypto/compression surface — Node has all of it natively
+    crypto: globalThis.crypto,
+    TextEncoder, TextDecoder, atob: globalThis.atob, URL,
+    Blob: globalThis.Blob, Response: globalThis.Response,
+    DecompressionStream: globalThis.DecompressionStream,
     document: {
       getElementById: () => makeFakeCanvas(ctxCounter),
       createElement: (tag) => (tag === 'canvas' ? makeFakeCanvas(ctxCounter) : {}),
