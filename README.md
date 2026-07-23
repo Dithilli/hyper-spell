@@ -31,6 +31,18 @@ No config needed — the server listens on all interfaces and the client picks `
 
 Latency note: the netcode is host-authoritative with no client prediction, so remote players feel their own wizard react one round-trip late. Direct tailnet connections (5–30ms) feel fine; if `tailscale ping <host-machine>` says "via DERP", that player's traffic is being relayed and will feel mushy — fixing their NAT/firewall usually restores a direct path.
 
+## Host on a company server
+
+`deploy/` has a full, reviewed-but-not-yet-run kit for a small always-on relay in the
+company AWS account (tailnet-only or public-HTTPS + game key) — see `deploy/README.md`.
+
+For hosting beyond a trusted LAN, the server supports a shared key: start it with
+`GAME_KEY=somesecret node serve.js` and every page load and WebSocket needs the key —
+share `http://<host>:8787/?key=somesecret` and the first click sets a cookie. Unset
+(the default), nothing changes. The server also caps WS payloads (128KB), connection
+count (`MAX_CONNS`, default 40), telemetry disk usage (50MB), and pings sockets every
+30s so dead connections get reaped instead of hanging the room.
+
 ## Docs
 
 - `docs/MULTIPLAYER.md` — online multiplayer planning notes

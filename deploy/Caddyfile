@@ -1,0 +1,9 @@
+# Reference Caddyfile (Option B — public HTTPS). cloud-init.sh writes the real
+# one to /etc/caddy/Caddyfile with GAME_HOST filled in from the instance IP,
+# e.g. 203-0-113-7.sslip.io. Swap the hostname for game.hyperspell.com if/when
+# a Route53 record exists — nothing else changes.
+{$GAME_HOST} {
+	# ws:// upgrades proxy transparently; no extra config needed
+	reverse_proxy 127.0.0.1:8787
+	encode zstd gzip
+}

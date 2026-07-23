@@ -1,0 +1,23 @@
+# systemd unit for the HyperSpell relay — installed by cloud-init.sh to
+# /etc/systemd/system/hyperspell-game.service
+[Unit]
+Description=HyperSpell game server (static host + WebSocket relay)
+After=network.target
+
+[Service]
+Type=simple
+User=hyperspell
+WorkingDirectory=/opt/hyperspell/server
+EnvironmentFile=/etc/hyperspell-game.env
+ExecStart=/usr/bin/node serve.js
+Restart=always
+RestartSec=2
+# the relay needs nothing beyond its own tree — keep it boxed in
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/hyperspell/server/telemetry
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
