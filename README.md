@@ -6,18 +6,23 @@ wizards · physics · violence — a couch/LAN party brawler. Last wizard standi
 
 Open `index.html` in a browser. Press **E**, **Enter**, or any gamepad button to join; **B** adds an AI bot (great for playing solo); **Space** to fight; **1–9** sets the win target.
 
-## Play over the network
+## Play over the network (v2: the server runs the match)
+
+The server is no longer a dumb relay — **the simulation runs on the server** (headless
+Node, same game code) and every browser is a client. Nobody's tab is "the host": no
+laptop lid closing can kill a match, and joining is just opening a URL.
 
 macOS quick start: double-click `scripts/hyperspell-launcher.command` (or a copy on
-your Desktop) — it starts the server, opens the host window, and puts a ready-to-paste
-invite on your clipboard. `scripts/hyperspell-stop.command` shuts it down. Manually:
+your Desktop) — it starts the server and opens the game. `scripts/hyperspell-stop.command`
+shuts it down. Manually:
 
 ```
 cd server && npm install && node serve.js
 ```
 
-- Host: open `http://localhost:8787` → **HOST ONLINE** (this machine runs the sim — pick the one with the best CPU and connection)
-- Players on the same LAN: open `http://<your-ip>:8787` (printed at server startup) → **JOIN GAME**
+- Everyone (including you): open `http://<server-ip>:8787` (printed at startup) → type a name → **PLAY ONLINE**
+- The lobby lives on the server: **SPACE** starts, **1–9** sets the win target, **B** adds a bot, **M** toggles wave survival, **R** resets. Anyone in the room can press them.
+- Drop mid-match? Refresh and rejoin with the same name within 2 minutes — you get your seat and your round wins back.
 
 ## Play over Tailscale (remote players)
 
@@ -27,13 +32,13 @@ No config needed — the server listens on all interfaces and the client picks `
    - **Simplest:** share `http://<machine-name>.<tailnet>.ts.net:8787` (or its Tailscale IP from `tailscale ip -4`) with the team, or
    - **Cleaner URL + TLS:** run `tailscale serve --bg 8787` and share `https://<machine-name>.<tailnet>.ts.net`.
 2. Everyone joining must be on the tailnet (invite them first). To open it to people outside the tailnet, use `tailscale funnel 8787` instead — that exposes it to the public internet.
-3. Host clicks **HOST ONLINE** on the serving machine; everyone else opens the URL, clicks **JOIN GAME**, and presses E / clicks to grab a slot. LAN and tailnet players can mix — same server, same room, 8 players max.
+3. Everyone opens the URL and clicks **PLAY ONLINE**. LAN and tailnet players mix — same server, same match, 8 wizards max, spectators unlimited (connect without joining).
 
-Latency note: the netcode is host-authoritative with no client prediction, so remote players feel their own wizard react one round-trip late. Direct tailnet connections (5–30ms) feel fine; if `tailscale ping <host-machine>` says "via DERP", that player's traffic is being relayed and will feel mushy — fixing their NAT/firewall usually restores a direct path.
+Latency note: the sim is server-authoritative with no client prediction, so **every** player feels their wizard react one round-trip late — put the server close to the players (LAN or direct tailnet paths of 5–30ms feel fine). If `tailscale ping <server>` says "via DERP", that player's traffic is being relayed and will feel mushy — fixing their NAT/firewall usually restores a direct path. F8 shows live net stats.
 
 ## Host on a company server
 
-`deploy/` has a full, reviewed-but-not-yet-run kit for a small always-on relay in the
+`deploy/` has a full, reviewed-but-not-yet-run kit for a small always-on game server in the
 company AWS account (tailnet-only or public-HTTPS + game key) — see `deploy/README.md`.
 
 For hosting beyond a trusted LAN, the server supports a shared key: start it with

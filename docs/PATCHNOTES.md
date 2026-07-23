@@ -1,5 +1,26 @@
 # HYPERSPELL — Patch Notes
 
+## v9 · July 23, 2026 — "The Big Move" (server-authoritative)
+
+### 🏰 The match moved into the server
+- **The simulation now runs on the server** — headless Node, the exact same game files the browser loads (physics, all spells, all maps, bots, bosses, wave mode). Nobody clicks HOST anymore; there is no host. Every browser is a client that sends inputs and renders snapshots.
+- What this buys: the match survives any player leaving (including the ex-"host"), spectators are free (open the URL, don't join), and the always-on-server dream from `deploy/` now means the *whole game* is always on, not just a relay.
+- What it costs: the old zero-latency host seat is gone — **everyone** now feels one round-trip. On LAN/tailnet (5–30ms) this is imperceptible; don't host the match far away.
+- **HOST ONLINE / JOIN GAME are gone** — the menu is COUCH or **PLAY ONLINE**. Couch mode (open `index.html`, everyone local) is untouched.
+
+### 🛋️ A real lobby
+- The lobby lives on the server and renders with the full couch lobby art. Joining is automatic (your menu name is your wizard); anyone can press SPACE to start, 1–9 for the win target, B for a bot, M for wave survival, R to reset (resets are name-attributed on the banner — shame is the permission system).
+- **Join mid-match**: you get a seat instantly and spawn at the next round.
+- **Drop mid-match**: your wizard parks (tagged ⌁), your seat is reserved by name for 2 minutes — refresh, rejoin, keep your round wins. Unclaimed seats clear at the round boundary.
+
+### 🔧 Under the hood
+- v9 wire protocol: mandatory versioned hello (stale tabs get told to refresh, exactly as before), `join/you/world/joinDenied`, lobby verbs as messages. Inputs, snapshots, and fx are **byte-compatible with v8** — headless clients (hi, A Linea) need only the hello + join tweaks (see `docs/ALINEA-CLIENT.md`).
+- Client fx application is now allowlisted (a server can only invoke the ten cosmetic functions + sfx, not arbitrary globals).
+- Server telemetry writes straight to `rounds.jsonl` (no HTTP hop); couch telemetry unchanged.
+- The sim survives its own crashes: a fresh world boots and re-seats everyone (you'd see the match reset, not a dead server).
+
+---
+
 ## v8 · July 21, 2026 — "The Smooth Update"
 
 ### 📉 The snapshot diet (round two: busy scenes)

@@ -25,6 +25,8 @@ function serializeSnapshot(now) {
     c1: p.slots[1] ? +Math.min(1, (now - p.casts[1]) / (SPELLS[p.slots[1]].cooldown || 1)).toFixed(2) : 0,
     ...(p.megaCasts ? { mc: p.megaCasts } : {}),
     ...(p.roundWins ? { w: p.roundWins } : {}),
+    ...flag('b', typeof BotController !== 'undefined' && p.controller instanceof BotController),
+    ...flag('off', !!p.offline), // online: seat's connection dropped (server sets it)
   }));
 
   const bodies = [];
@@ -86,6 +88,8 @@ function serializeSnapshot(now) {
   return {
     v: GAME_VERSION,
     st: game.state, mi: game.mapIndex, wn: game.winsNeeded,
+    ...(game.mode !== 'versus' ? { md: game.mode } : {}), // lobby needs the mode line
+    ...(game.mode === 'wave' && game.bestWave ? { bw: game.bestWave } : {}),
     msd: game.mapSeed, // seed for deterministic map extras (client regenerates statics)
     rn: game.totalRounds || 0, // increments every round start — the "re-plan now" signal
     lv: currentMap.data.lavaY != null ? Math.round(currentMap.data.lavaY) : null,

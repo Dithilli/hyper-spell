@@ -91,7 +91,7 @@ function drawSpellReport(report, now) {
 // (normal wins, draws, and boss outcomes alike). Never throws — a missing server
 // or file:// load just means no logging.
 function flushRoundTelemetry() {
-  if (netMode === 'client') return; // clients don't own the sim
+  if (netMode === 'online') return; // online, the server owns the sim and logs directly
   const spells = {};
   for (const [id, v] of Object.entries(spellTally)) spells[id] = { ...v };
   const rec = {

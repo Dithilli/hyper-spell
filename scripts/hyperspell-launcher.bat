@@ -1,7 +1,8 @@
 @echo off
-REM HyperSpell launcher for Windows — double-click to host a game.
-REM Starts the server, copies a ready-to-paste invite to the clipboard,
-REM and opens the host window. Needs Node.js installed (nodejs.org).
+REM HyperSpell launcher for Windows — double-click to put a game up.
+REM Starts the game server (the match runs ON the server now), copies a
+REM ready-to-paste invite to the clipboard, and opens the game.
+REM Needs Node.js installed (nodejs.org).
 REM Lives in the repo's scripts\ folder; make a Desktop SHORTCUT to it
 REM (right-click, Send to, Desktop) rather than copying the file.
 setlocal enabledelayedexpansion
@@ -24,7 +25,7 @@ set URL=http://%IP%:8787
 (
   echo 🧙 HYPERSPELL time! Join the fight: %URL%
   echo ^(type it WITH the http:// — Chrome gets weird otherwise^)
-  echo Click JOIN GAME, type your wizard name, then press E to grab a slot.
+  echo Type your wizard name and click PLAY ONLINE — you're in.
 ) | clip
 
 start http://localhost:8787
@@ -32,7 +33,7 @@ start http://localhost:8787
 echo.
 echo   HYPERSPELL is live
 echo.
-echo   Host (you):   http://localhost:8787   (opening now — click HOST ONLINE)
+echo   You:          http://localhost:8787   (opening now — click PLAY ONLINE)
 echo   Players:      %URL%
 echo.
 echo   The invite is on your clipboard — just paste it in Slack.

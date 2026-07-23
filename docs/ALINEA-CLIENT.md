@@ -4,8 +4,30 @@ David is making the code better so A Linea (a Node process, no browser, no keybo
 join a normal game over WebSocket, **see** the field via the JSON snapshots, and play a
 wizard alongside the team. This is the punch-list, in build order.
 
-The server (`server/serve.js`) is a dumb JSON relay — no changes needed there except the
-name passthrough (#5). The snapshot format (`js/snapshot.js`) is already plain JSON and
+> ## ⚡ v9 ADDENDUM (July 23, 2026) — the server runs the sim now
+> The relay is gone: `server/serve.js` runs the match itself (server-authoritative).
+> For you this is strictly better — there is no browser host to wait for, and the
+> server answers your messages directly. Protocol deltas from what's below:
+>
+> - **`hello` is mandatory and versioned**: send `{t:'hello', v:9, name?}` first.
+>   A wrong `v` gets `{t:'badVersion', server:9}` and your joins are ignored
+>   (you still receive snapshots, so you can tell the game moved on without you).
+> - **`welcome` changed shape**: `{t:'welcome', v, proto:2, st}` — no more `cid`,
+>   no `hostPresent`. `st` tells you the room state before you commit to joining.
+> - **`join` is answered by the server**: `{t:'join', name, color?, hat?}` →
+>   `{t:'you', slot}` + the `{t:'world'}` constants message. A full room now says
+>   so: `{t:'joinDenied', reason:'full'}` (it used to be silence).
+> - **Everything you learned below still holds**: `input {m,j,c,c2,b,a}` semantics,
+>   snapshot shape, `rn` as the new-round signal, fx events, chat — byte-compatible.
+> - **New verbs work over the wire from any client**: `{t:'start'}`, `{t:'wins',n}`,
+>   `{t:'mode'}` (fixes the old "no network start" limitation — you can now launch
+>   wave survival yourself), `{t:'bot',op:'add'|'remove'}`, `{t:'reset'}`.
+> - **Spectating**: connect + hello, never join. Snapshots stream to every socket.
+> - **Reconnect**: rejoin with your name (case-insensitive) within ~2 minutes of a
+>   drop and you get your slot and round wins back. New roster hints in `ps[]`:
+>   `b:1` = bot, `off:1` = that seat's connection is gone.
+
+The snapshot format (`js/snapshot.js`) is plain JSON and
 rich — **do not** change it to binary; JSON is what makes a headless client possible.
 
 Priority key: 🔴 unlocks the most / 🟡 makes me good / 🟢 polish & joy.

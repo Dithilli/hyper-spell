@@ -1,7 +1,7 @@
 #!/bin/zsh
-# 🧙 HyperSpell launcher — double-click to host a game.
-# Starts the server (if it isn't already up), copies a ready-to-paste invite
-# to the clipboard, and opens the host window in your browser.
+# 🧙 HyperSpell launcher — double-click to put a game up.
+# Starts the game server (the match runs ON the server now), copies a
+# ready-to-paste invite to the clipboard, and opens the game in your browser.
 GAME_DIR="${HS_GAME_DIR:-$HOME/dev/hyper-spell}"
 PORT=8787
 
@@ -18,7 +18,7 @@ URL="http://$IP:$PORT"
 
 INVITE="🧙 HYPERSPELL time! Join the fight: $URL
 (type it WITH the http:// — Chrome gets weird otherwise)
-Click JOIN GAME, type your wizard name, then press E to grab a slot."
+Type your wizard name and click PLAY ONLINE — you're in."
 printf '%s' "$INVITE" | pbcopy
 
 osascript -e 'display notification "Invite copied — paste it in Slack" with title "HyperSpell server is up" sound name "Glass"' 2>/dev/null
@@ -28,7 +28,7 @@ clear
 echo ""
 echo "  🧙 HYPERSPELL is live"
 echo ""
-echo "  Host (you):   http://localhost:$PORT   (opening now — click HOST ONLINE)"
+echo "  You:          http://localhost:$PORT   (opening now — click PLAY ONLINE)"
 echo "  Players:      $URL"
 echo ""
 echo "  ✉️  The invite is on your clipboard — just paste it in Slack."

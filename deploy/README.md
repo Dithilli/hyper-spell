@@ -1,27 +1,31 @@
 # Deploying HyperSpell to a company server
 
-Goal: an always-on, **company-trusted** relay so team sessions don't depend on
-someone's laptop staying awake — without exposing the game to the public internet
-more than we choose to.
+Goal: an always-on, **company-trusted** game server so team sessions don't depend
+on someone's laptop staying awake — without exposing the game to the public
+internet more than we choose to.
 
 Nothing in this directory has been run. `provision.sh` / `push.sh` are written for
 the Hyperspell AWS account (`503505393860`, profile `hyperspell`, region
 `us-west-2`) and are meant to be reviewed, then run by a human.
 
-## What actually moves to the server (and what doesn't)
+## What actually moves to the server (v2: everything)
 
-The Node process is a **static file host + dumb WebSocket relay**. The simulation
-still runs in the *host player's browser* — the server never simulates anything.
-So this deployment buys:
+As of v9 the Node process **runs the match itself** — the simulation (physics,
+spells, bots, bosses) executes headless on the server (`server/sim-host.js`);
+every browser is a client. So this deployment buys:
 
-- a stable URL the whole team can keep bookmarked
-- no more "whoever hosts must also run `node serve.js`"
+- a stable URL the whole team can keep bookmarked — open it, click PLAY ONLINE
+- the match survives anyone leaving; no player's machine matters
+- free spectating (connect without joining)
 - one shared, persistent `telemetry/rounds.jsonl` for balance reports
 
-It does **not** remove the host-player round trip. Latency = player ↔ relay ↔
-host-browser. With the relay in `us-west-2` and the team mostly in SF, expect
-~10–30ms added for remote players vs. a direct Tailscale path. Press **F8**
-in-game for the live net-stats overlay if a session feels off.
+Latency = player ↔ server, for **everyone** (server-authoritative, no client
+prediction). With the server in `us-west-2` and the team mostly in SF that's
+~10–30ms — fine. Don't put it cross-country from the players. Press **F8**
+in-game for the live net-stats overlay if a session feels off. Sizing note:
+the sim is one busy Node process — a `t4g.small` is a safer floor than the
+originally planned `t4g.micro` (the sim + 8 sockets fits in micro's CPU, but
+micro's burst credits could make a long session mushy).
 
 ## Two access models (pick one, or run both on the same box)
 
@@ -88,6 +92,7 @@ tagged instance plus deleting the `hyperspell-game` SG and key pair.
 ## Later, if the team wants more
 
 - `game.hyperspell.com` instead of sslip.io (one Route53 record + one Caddyfile line)
-- rooms/multiple matches (the relay is single-room today — first HOST wins)
-- WebRTC data channels to cut the relay hop for remote players
-- headless server-side host so no player has the 0ms home-field advantage
+- rooms/multiple matches (the server runs one match today — v9 made the sim a
+  per-context object, so rooms are "spawn another sim context" away)
+- client-side movement prediction to hide the round trip
+- ~~headless server-side host~~ ✅ shipped in v9 — the server IS the host now

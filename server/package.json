@@ -8,6 +8,7 @@
     "start": "node serve.js"
   },
   "dependencies": {
+    "matter-js": "0.19.0",
     "ws": "^8.18.0"
   }
 }

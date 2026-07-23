@@ -1,9 +1,9 @@
-// serve.js — HyperSpell LAN server: serves the game over HTTP and relays
-// host<->client messages over WebSocket on the same port.
+// serve.js — the HyperSpell game server: serves the game over HTTP and RUNS THE
+// MATCH — the simulation lives here (headless, in a vm context; see sim-host.js),
+// every browser is a client that sends inputs and renders snapshots.
 //
 //   cd server && npm install && node serve.js
-//   host:    open http://localhost:8787       → click HOST ONLINE
-//   players: open http://<your-ip>:8787       → click JOIN GAME
+//   everyone: open http://<server-ip>:8787 → PLAY ONLINE
 //
 const http = require('http');
 const fs = require('fs');
@@ -12,6 +12,9 @@ const os = require('os');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const { isPublicRealPath, resolveStaticPath } = require('./static-path');
+const { appendTelemetryRecord } = require('./telemetry-sink');
+const { SimHost } = require('./sim-host');
+const { Room } = require('./room');
 
 const PORT = process.env.PORT || 8787;
 
@@ -73,29 +76,14 @@ const MIME = {
   '.json': 'application/json', '.md': 'text/markdown',
 };
 
-// balance telemetry: the host POSTs one JSON record per round; we append it as a
-// line to telemetry/rounds.jsonl for offline analysis (see scripts/balance-report.js).
-const TEL_DIR = path.join(__dirname, 'telemetry');
-const TEL_FILE = path.join(TEL_DIR, 'rounds.jsonl');
-// on a shared box the log must not grow without bound — past the cap we ack
-// (204) but stop writing, so a long-lived server can't fill its disk
-const TEL_MAX_BYTES = 50 * 1024 * 1024;
-let telFullLogged = false;
+// balance telemetry: couch-mode browsers POST one record per round; server-side
+// matches append directly through the same capped sink (telemetry-sink.js).
 function appendTelemetry(body, res) {
   let json;
   try { json = JSON.parse(body); } catch { res.writeHead(400); res.end('bad json'); return; }
-  fs.mkdir(TEL_DIR, { recursive: true }, (mkErr) => {
-    if (mkErr) { res.writeHead(500); res.end('mkdir failed'); return; }
-    fs.stat(TEL_FILE, (stErr, st) => {
-      if (!stErr && st.size > TEL_MAX_BYTES) {
-        if (!telFullLogged) { telFullLogged = true; console.log(`telemetry file over ${TEL_MAX_BYTES / 1e6}MB — rotating stopped, dropping new rounds`); }
-        res.writeHead(204); res.end(); return;
-      }
-      fs.appendFile(TEL_FILE, JSON.stringify(json) + '\n', (err) => {
-        if (err) { res.writeHead(500); res.end('write failed'); return; }
-        res.writeHead(204); res.end();
-      });
-    });
+  appendTelemetryRecord(json, (err) => {
+    if (err) { res.writeHead(500); res.end(err); return; }
+    res.writeHead(204); res.end();
   });
 }
 
@@ -132,47 +120,26 @@ const server = http.createServer((req, res) => {
   });
 });
 
-// ---- relay: one room, one host, many clients ----
+// ---- the match: headless sim + one room ----
 // permessage-deflate: snapshot JSON is full of repeated keys and compresses
 // ~4x. Only frames >1KB get compressed, so 60Hz inputs stay zero-overhead.
-// maxPayload: the biggest legit frame is a mayhem snapshot (a few KB) — 128KB
-// bounds what a hostile sender can make us buffer/parse per message
+// maxPayload: the biggest legit frame is a chat — 128KB bounds what a hostile
+// sender can make us buffer/parse per message.
 const wss = new WebSocketServer({
   server, path: '/ws', perMessageDeflate: { threshold: 1024 },
   maxPayload: 128 * 1024,
   verifyClient: ({ req }) => isAuthed(req),
 });
 const MAX_CONNS = Number(process.env.MAX_CONNS) || 40;
-let host = null;
-const clients = new Map(); // cid -> ws
-let nextCid = 1;
 
-function send(ws, msg) {
-  if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
-}
-
-// a slow client's socket must never queue unboundedly — past this, droppable
-// traffic (snapshots, fx) skips that client until its buffer drains. Snapshots
-// are full-state, so the next one supersedes anything dropped: a lagging player
-// gets a lower snapshot rate instead of seconds of accumulating delay.
-const DROP_AT = 64 * 1024;
-
-// visibility: every 10s, log which clients are shedding frames and how backed
-// up their sockets are — this is the number that says "the pipe is too small"
-const dropStats = new Map(); // cid -> frames dropped since last report
-setInterval(() => {
-  const lines = [];
-  for (const c of clients.values()) {
-    const d = dropStats.get(c.cid) || 0;
-    if (d || c.bufferedAmount > 4096) lines.push(`cid${c.cid}: dropped ${d}, ${Math.round(c.bufferedAmount / 1024)}KB queued`);
-  }
-  dropStats.clear();
-  if (lines.length) console.log(`[net ${new Date().toISOString().slice(11, 19)}] ${lines.join(' | ')}`);
-}, 10000);
+const simHost = new SimHost({
+  telemetrySink: rec => appendTelemetryRecord(rec),
+});
+const room = new Room(simHost);
+simHost.start();
 
 // internet NATs and sleeping laptops kill sockets without a FIN — ping every
-// 30s and reap anything that stayed silent, so a zombie host can't hang the
-// room until TCP gives up minutes later. Browsers answer pings automatically.
+// 30s and reap anything that stayed silent. Browsers answer pings automatically.
 setInterval(() => {
   for (const ws of wss.clients) {
     if (ws.silent) { ws.terminate(); continue; }
@@ -183,70 +150,22 @@ setInterval(() => {
 
 wss.on('connection', (ws) => {
   if (wss.clients.size > MAX_CONNS) { ws.close(1013, 'server full'); return; }
-  const cid = nextCid++;
-  ws.cid = cid;
   // game traffic is many small packets — Nagle batching just adds latency
   ws._socket.setNoDelay(true);
   // without this, any socket error (oversized frame, mid-frame disconnect)
   // becomes an unhandled 'error' event and takes down the whole process
-  ws.on('error', (err) => console.log(`cid${cid} socket error: ${err.code || err.message}`));
+  ws.on('error', (err) => console.log(`socket error: ${err.code || err.message}`));
   ws.on('pong', () => { ws.silent = false; });
-  send(ws, { t: 'welcome', cid, hostPresent: !!host });
-
-  ws.on('message', (raw) => {
-    ws.silent = false;
-    let msg;
-    try { msg = JSON.parse(raw); } catch { return; }
-    if (msg.t === 'claimHost') {
-      if (host && host !== ws) { send(ws, { t: 'hostTaken' }); return; }
-      host = ws;
-      ws.isHost = true;
-      clients.delete(cid);
-      send(ws, { t: 'youAreHost' });
-      for (const c of clients.values()) send(c, { t: 'hostUp' });
-      console.log(`host claimed by connection ${cid}`);
-      return;
-    }
-    if (ws.isHost) {
-      // host -> one client or broadcast
-      if (msg.t === 'to') {
-        send(clients.get(msg.cid), msg.msg);
-      } else {
-        // serialize once (was per client) and respect per-client backpressure
-        const text = raw.toString();
-        const droppable = msg.t === 'snap' || msg.t === 'fx';
-        for (const c of clients.values()) {
-          if (c.readyState !== 1) continue;
-          if (droppable && c.bufferedAmount > DROP_AT) { dropStats.set(c.cid, (dropStats.get(c.cid) || 0) + 1); continue; }
-          c.send(text);
-        }
-      }
-    } else {
-      // client -> host, stamped with sender id
-      if (!clients.has(cid)) clients.set(cid, ws);
-      msg.cid = cid;
-      send(host, msg);
-    }
-  });
-
-  ws.on('close', () => {
-    if (ws.isHost) {
-      host = null;
-      for (const c of clients.values()) send(c, { t: 'hostLeft' });
-      console.log('host left');
-    } else {
-      clients.delete(cid);
-      send(host, { t: 'clientLeft', cid });
-    }
-  });
+  ws.on('message', () => { ws.silent = false; });
+  room.addSession(ws);
 });
 
 server.listen(PORT, () => {
   const nets = os.networkInterfaces();
   const ips = Object.values(nets).flat().filter(n => n && n.family === 'IPv4' && !n.internal).map(n => n.address);
   const q = GAME_KEY ? `/?key=${encodeURIComponent(GAME_KEY)}` : '';
-  console.log(`\n  HyperSpell server running${GAME_KEY ? ' (key-gated)' : ''}:`);
-  console.log(`    you (host):  http://localhost:${PORT}${q}`);
-  for (const ip of ips) console.log(`    players:     http://${ip}:${PORT}${q}`);
+  console.log(`\n  HyperSpell server running${GAME_KEY ? ' (key-gated)' : ''} — the match runs here, everyone joins as a player:`);
+  console.log(`    this machine: http://localhost:${PORT}${q}`);
+  for (const ip of ips) console.log(`    players:      http://${ip}:${PORT}${q}`);
   console.log('');
 });

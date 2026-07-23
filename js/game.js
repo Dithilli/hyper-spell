@@ -257,7 +257,7 @@ function toggleMode() {
 // DEMO: drop straight into a solo fight against a named secret boss (T = THE
 // RIZARD, Y = MANU). Made for showing Conor & Manu — joins you if the lobby's empty.
 function fightSecretBoss(id) {
-  if (netMode === 'client') return;
+  if (netMode === 'online') return;
   nameEdit = null;
   if (players.length === 0) { kbControllers[0].assigned = true; joinPlayer(kbControllers[0]); } // WASD + mouse
   game.mode = 'versus';
@@ -278,7 +278,7 @@ function fightSecretBoss(id) {
 }
 
 addEventListener('keydown', e => {
-  if (netMode === 'client' || nameEdit) return; // clients send these to the host instead
+  if (netMode === 'online' || nameEdit) return; // online, these become messages to the server
   if (e.code === 'KeyT') { fightSecretBoss('rizard'); return; } // demo: instant THE RIZARD fight
   if (e.code === 'KeyN') { fightSecretBoss('manu'); return; }   // demo: instant MANU fight (Y is reserved for naming)
   if (e.code === 'Space' && game.state === 'LOBBY' && players.length >= minPlayers()) beginFromLobby();
@@ -292,7 +292,11 @@ addEventListener('keydown', e => {
 // ---------- joining ----------
 function joinPlayer(controller, name) {
   if (players.length >= MAX_PLAYERS) return;
-  const p = createPlayer(players.length, controller);
+  // lowest free slot, not players.length — online play can remove a mid-roster
+  // player, and slots are wire identity (colors, spawns) that must never collide
+  let slot = 0;
+  while (players.some(p => p.slot === slot)) slot++;
+  const p = createPlayer(slot, controller);
   if (name) p.name = name;
   spawnPlayer(p, spawnPointFor(p));
   sfx.pickup();
@@ -1297,59 +1301,79 @@ function drawArcadeLogo(cx, cy, px, now, text = 'HYPERSPELL') {
   ctx.textAlign = 'center';
 }
 
-function drawLobby() {
+// the lobby panel proper, fed by a plain view object so the couch lobby (live
+// players[]) and the online lobby (server snapshot, js/net.js) share pixels.
+// view: { joinLine, slots: [{label, color, hint, hintBright}], readyLine,
+//         readyColor, controlsLine }
+function drawLobbyPanel(view) {
   ctx.fillStyle = 'rgba(12,8,18,0.72)';
   ctx.fillRect(W / 2 - 430, 55, 860, 265);
   ctx.textAlign = 'center';
   drawArcadeLogo(W / 2, 132, 60, performance.now());
   ctx.font = '16px Georgia';
   ctx.fillStyle = '#9c8ab8';
-  ctx.fillText('press E · ENTER · or any gamepad button to join — B / BACK adds a bot', W / 2, 162);
-  const slots = Math.max(4, Math.min(MAX_PLAYERS, players.length + 1));
-  const slotW = Math.min(200, 840 / slots);
-  for (let i = 0; i < slots; i++) {
-    const x = W / 2 + (i - (slots - 1) / 2) * slotW;
-    const p = players[i];
-    ctx.strokeStyle = p ? p.color : '#4a3f5e';
+  ctx.fillText(view.joinLine, W / 2, 162);
+  const slots = view.slots;
+  const slotW = Math.min(200, 840 / slots.length);
+  for (let i = 0; i < slots.length; i++) {
+    const x = W / 2 + (i - (slots.length - 1) / 2) * slotW;
+    const s = slots[i];
+    ctx.strokeStyle = s.color;
     ctx.lineWidth = 2;
     ctx.strokeRect(x - slotW / 2 + 6, 185, slotW - 12, 60);
     ctx.font = 'bold 20px Georgia';
-    ctx.fillStyle = p ? p.color : '#4a3f5e';
-    const editing = nameEdit && nameEdit.p === p;
-    const padEditing = editing && nameEdit.pad != null;
-    if (padEditing) {
-      // buffer in the player's color, the pickable letter bracketed and bright
-      const blink = Math.floor(performance.now() / 350) % 2;
-      ctx.fillText(`${nameEdit.buffer}${blink ? `[${PAD_ALPHABET[nameEdit.letter]}]` : '   '}`, x, 218);
-    } else if (editing) {
-      const cursor = Math.floor(performance.now() / 400) % 2 ? '_' : ' ';
-      ctx.fillText((nameEdit.buffer || '') + cursor, x, 218);
-    } else {
-      ctx.fillText(p ? p.name + ' ✦' : 'JOIN', x, 218);
-    }
+    ctx.fillStyle = s.color;
+    ctx.fillText(s.label, x, 218);
     ctx.font = '11px Georgia';
-    ctx.fillStyle = editing ? '#e8d5ff' : '#675a7d';
-    const hint = padEditing ? '◀▶ letter · A add · B del · START ✓'
-      : editing ? 'TYPE NAME · ENTER ✓'
-      : p ? controllerHint(p) : 'E · ENTER · PAD';
-    ctx.fillText(hint, x, 238);
+    ctx.fillStyle = s.hintBright ? '#e8d5ff' : '#675a7d';
+    ctx.fillText(s.hint, x, 238);
+  }
+  ctx.font = 'bold 20px Georgia';
+  ctx.fillStyle = view.readyColor;
+  ctx.fillText(view.readyLine, W / 2, 288);
+  ctx.font = '13px Georgia';
+  ctx.fillStyle = '#675a7d';
+  ctx.fillText(view.controlsLine, W / 2, 310);
+}
+
+function drawLobby() { // couch adapter: build the view from live local state
+  const count = Math.max(4, Math.min(MAX_PLAYERS, players.length + 1));
+  const slots = [];
+  for (let i = 0; i < count; i++) {
+    const p = players[i];
+    const editing = nameEdit && p && nameEdit.p === p;
+    const padEditing = editing && nameEdit.pad != null;
+    let label;
+    if (padEditing) {
+      const blink = Math.floor(performance.now() / 350) % 2;
+      label = `${nameEdit.buffer}${blink ? `[${PAD_ALPHABET[nameEdit.letter]}]` : '   '}`;
+    } else if (editing) {
+      label = (nameEdit.buffer || '') + (Math.floor(performance.now() / 400) % 2 ? '_' : ' ');
+    } else {
+      label = p ? p.name + ' ✦' : 'JOIN';
+    }
+    slots.push({
+      label,
+      color: p ? p.color : '#4a3f5e',
+      hintBright: !!editing,
+      hint: padEditing ? '◀▶ letter · A add · B del · START ✓'
+        : editing ? 'TYPE NAME · ENTER ✓'
+        : p ? controllerHint(p) : 'E · ENTER · PAD',
+    });
   }
   const wave = game.mode === 'wave';
   const ready = players.length >= minPlayers();
-  ctx.font = 'bold 20px Georgia';
-  ctx.fillStyle = ready ? (wave ? '#ffd166' : '#7bd88f') : '#675a7d';
-  ctx.fillText(
-    !ready ? (wave ? 'NEED AT LEAST 1 WIZARD' : 'NEED AT LEAST 2 WIZARDS')
+  drawLobbyPanel({
+    joinLine: 'press E · ENTER · or any gamepad button to join — B / BACK adds a bot',
+    slots,
+    readyColor: ready ? (wave ? '#ffd166' : '#7bd88f') : '#675a7d',
+    readyLine: !ready ? (wave ? 'NEED AT LEAST 1 WIZARD' : 'NEED AT LEAST 2 WIZARDS')
       : wave ? `SPACE / START — WAVE SURVIVAL${game.bestWave ? `  (BEST: WAVE ${game.bestWave})` : ''}`
       : `SPACE / START TO FIGHT — FIRST TO ${game.winsNeeded} WINS`,
-    W / 2, 288);
-  ctx.font = '13px Georgia';
-  ctx.fillStyle = '#675a7d';
-  ctx.fillText(
-    wave
+    controlsLine: wave
       ? 'M / pad-X switches back to VERSUS · co-op: everyone fights the waves together · Y names your wizard'
       : `M / pad-X = WAVE SURVIVAL · 1–9 or d-pad ↑↓ sets win target (${game.winsNeeded}) · Y names your wizard`,
-    W / 2, 310);
+  });
 }
 
 function drawVictory(now) {
@@ -1446,20 +1470,14 @@ function drawRunOver(now) {
 }
 
 // ---------- main loop ----------
-let last = performance.now();
-function frame(now) {
-  if (netMode === 'client') {
-    netClientFrame(now);
-    requestAnimationFrame(frame);
-    return;
-  }
-  const rawDt = Math.min(now - last, 33);
-  last = now;
+// stepSim is the entire update phase — everything that advances game state and
+// nothing that draws. The browser loop below calls it every rAF; the dedicated
+// server calls it from its own fixed 60Hz tick (server/sim-host.js) with the
+// draw/rAF half never running.
+function stepSim(now, rawDt) {
   updateTimeScale(now);
   const dt = rawDt * timeScale;
 
-  scanJoins();
-  scanLobbyPads();
   for (const p of players) p.input = p.controller.poll();
   if (game.state === 'LOBBY' && players.length >= minPlayers() && !nameEdit && now > nameEditEndAt + 350 && players.some(p => p.input.startPressed)) beginFromLobby();
   if ((game.state === 'VICTORY' || game.state === 'RUN_OVER') && players.some(p => p.input.castPressed)) resetMatch();
@@ -1502,8 +1520,21 @@ function frame(now) {
   postPhysics(now);
   updateParticles(timeScale);
   replayRecord(now);
+}
+
+let last = performance.now();
+function frame(now) {
+  if (netMode === 'online') {
+    netClientFrame(now);
+    requestAnimationFrame(frame);
+    return;
+  }
+  const rawDt = Math.min(now - last, 33);
+  last = now;
+  scanJoins();
+  scanLobbyPads();
+  stepSim(now, rawDt);
   draw(now);
-  if (netMode === 'host') netHostTick(now);
   requestAnimationFrame(frame);
 }
 

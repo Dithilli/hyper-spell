@@ -1,6 +1,8 @@
 # HyperSpell Online — Multiplayer Planning Doc
 
-*Status: planning only, nothing implemented. Written July 1, 2026. Updated July 2: cheating is explicitly a non-concern (internal easter egg product) — see the addendum at the bottom, which revises the recommendation toward feel and simplicity and shortens the estimates.*
+*Status: **Option A (server-authoritative) SHIPPED as v9, July 23 2026** — the sim runs headless in Node inside `server/serve.js` (see `server/sim-host.js` and `docs/PATCHNOTES.md`). The host-peer addendum below was the interim v6–v8 architecture and is now historical. Still open from the original ask: lobbies-with-auto-start beyond the single room, leaderboards, Hyperspell-account auth.*
+
+*Originally: planning only. Written July 1, 2026. Updated July 2: cheating is explicitly a non-concern (internal easter egg product) — see the addendum at the bottom, which revises the recommendation toward feel and simplicity and shortens the estimates.*
 
 ## The ask
 

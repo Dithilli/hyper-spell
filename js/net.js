@@ -1,4 +1,5 @@
-// net.js — LAN multiplayer: host broadcasts the sim, clients render ghosts.
+// net.js — online client: the SERVER runs the match (headless sim in
+// server/sim-host.js); this file connects, sends inputs, and renders snapshots.
 // Loaded last; when opened via file:// this file does nothing (pure couch mode).
 
 /* eslint-disable no-global-assign */
@@ -7,56 +8,29 @@
   if (typeof document.createElement !== 'function') return;
 
   let ws = null;
-  let myCid = null;
   let mySlot = null;
   let joined = false;
-  let hostPresent = false;
-  const netControllers = new Map(); // cid -> NetworkController
+  let joinDeniedMsg = null;
+  let serverWorld = null; // {t:'world', world, spells} — constants, stashed for curious tooling
 
-  // ---------- controller for remote players (host side) ----------
-  // THE CLIENT INPUT CONTRACT — { t:'input', m, j, c, a }, sent ~60/sec:
+  // THE CLIENT INPUT CONTRACT — { t:'input', m, j, c, c2, b, a }, sent ~60/sec:
   //   m: move, WORLD-space: 1 = +x (screen right), -1 = left, 0 = idle. Not facing-relative.
   //   a: aim, ABSOLUTE world radians: 0 = +x, positive = clockwise on screen (screen y grows
   //      down, so a = Math.atan2(dy, dx) with dy downward-positive). null = no aim (falls back
-  //      to facing + lob). The host uses the LAST-KNOWN aim at the moment a cast fires, so `a`
+  //      to facing + lob). The server uses the LAST-KNOWN aim at the moment a cast fires, so `a`
   //      does not need to arrive on the same frame as c:1 — but sending both together is safest.
   //   c: cast, HOLD semantics: keep c:1 and the wizard casts every time the cooldown is ready
-  //      (auto-repeats). The castPressed edge below is only used for lobby join / rematch.
+  //      (auto-repeats). The castPressed edge is only used for lobby join / rematch.
   //   j: jump, hybrid: holding j:1 jumps whenever grounded (auto-hop); the AIR jump (double
   //      jump) needs a fresh 0→1 edge. Send j:1 then j:0 to meter your jumps.
   //   b: block/parry, EDGE semantics: a fresh 0→1 triggers one ~240ms parry (then ~1.4s
   //      cooldown). Holding b:1 does nothing extra — time it.
   //   c2: cast slot B, same HOLD semantics as c.
-  // Inputs older than 2000ms zero out (stale guard) — keep sending even when idle.
+  // Inputs older than 2000ms zero out server-side (stale guard) — keep sending even when idle.
   // Snapshots broadcast at ~30Hz. In snapshot ps[]: you are the entry with s === your slot
   // (slots are stable for the whole session; they never reshuffle). Tomes are picked up by
   // touching them (bodies[].l === 'tome', body is 20×24px; players are r=15 circles).
   // A new round = the snapshot's `rn` counter increments (state also flips to 'PLAY').
-  class NetworkController {
-    constructor(cid) {
-      this.cid = cid;
-      this.state = { m: 0, j: 0, c: 0, a: null };
-      this.prev = { jump: false, cast: false, block: false, start: false };
-      this.lastSeen = performance.now();
-    }
-    poll() {
-      const stale = performance.now() - this.lastSeen > 2000;
-      const st = stale ? { m: 0, j: 0, c: 0, c2: 0, b: 0, a: null } : this.state;
-      const jump = !!st.j, cast = !!st.c, cast2 = !!st.c2, block = !!st.b;
-      const s = {
-        move: st.m || 0, jump, cast, cast2, block,
-        jumpPressed: jump && !this.prev.jump,
-        castPressed: cast && !this.prev.cast,
-        cast2Pressed: cast2 && !this.prev.cast2,
-        blockPressed: block && !this.prev.block,
-        startPressed: false,
-        aimPoint: null, aimVec: null,
-        aimAngle: st.a,
-      };
-      this.prev = { jump, cast, cast2, block, start: false };
-      return s;
-    }
-  }
 
   // ---- net stats (F8): live truth about what the wire is carrying ----
   const netStats = { on: false, lastBytes: 0, bytes: 0, snaps: 0, at: 0, rate: 0, kbs: 0, delay: 0 };
@@ -72,9 +46,7 @@
   }
   globalThis.drawNetStats = function drawNetStats(now) {
     if (!netStats.on) return;
-    const line = netMode === 'host'
-      ? `NET · snap ${netStats.lastBytes}B · ${netStats.rate}/s · ${netStats.kbs}KB/s out (pre-deflate, per client)`
-      : `NET · snap ${netStats.lastBytes}B · ${netStats.rate}/s · ${netStats.kbs}KB/s in · gap ${Math.round(snapGapMs)}ms · delay ${Math.round(netStats.delay)}ms`;
+    const line = `NET · snap ${netStats.lastBytes}B · ${netStats.rate}/s · ${netStats.kbs}KB/s in · gap ${Math.round(snapGapMs)}ms · delay ${Math.round(netStats.delay)}ms`;
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.font = '12px Menlo, monospace';
@@ -89,9 +61,7 @@
 
   function emit(msg) {
     if (!ws || ws.readyState !== 1) return;
-    const s = JSON.stringify(msg);
-    if (msg.t === 'snap') statTick(s.length, performance.now());
-    ws.send(s);
+    ws.send(JSON.stringify(msg));
   }
 
   // ---------- mode menu ----------
@@ -125,8 +95,7 @@
     <input id="netname" maxlength="12" placeholder="YOUR WIZARD NAME" autocomplete="off"
       style="min-width:380px;padding:12px 20px;font-family:Georgia,serif;font-size:17px;text-align:center;background:transparent;border:2px solid #675a7d;color:#e8d5ff;border-radius:8px;text-transform:uppercase;outline:none;">
     <button data-mode="couch" style="${btnCss('#4ecdc4')}">COUCH — everyone on this computer</button>
-    <button data-mode="host" style="${btnCss('#ffd166')}">HOST ONLINE — this computer runs the match</button>
-    <button data-mode="client" style="${btnCss('#ff6b81')}">JOIN GAME — play from this computer</button>
+    <button data-mode="online" style="${btnCss('#ffd166')}">PLAY ONLINE — join the match on this server</button>
     <div id="netstatus" style="color:#675a7d;font-size:13px;margin-top:10px"></div>`;
   function btnCss(color) {
     return `min-width:420px;padding:14px 26px;font-family:Georgia,serif;font-size:18px;cursor:pointer;background:transparent;border:2px solid ${color};color:${color};border-radius:8px;`;
@@ -146,181 +115,66 @@
     globalThis.nameSetViaMenu = true; // the menu was player 1's name UI — lobby must not re-open an edit
     ensureAudio();
     if (mode === 'couch') { menu.remove(); return; }
-    connect(mode);
+    connect();
   });
 
-  function connect(wantMode) {
+  function myName() { return cleanName(localStorage.getItem('hs-name-0') || ''); }
+
+  function connect() {
     statusEl().textContent = 'connecting…';
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     ws = new WebSocket(`${proto}://${location.host}/ws`);
-    ws.onopen = () => { if (wantMode === 'host') emit({ t: 'claimHost' }); else clientHello(); };
-    ws.onerror = () => { statusEl().textContent = 'connection failed — is the server running?'; };
-    ws.onclose = () => { if (netMode === 'client') setBanner('CONNECTION LOST — refresh', '#ff6b81', 60000); };
+    ws.onopen = () => emit({ t: 'hello', v: GAME_VERSION, name: myName() });
+    ws.onerror = () => { const el = statusEl(); if (el) el.textContent = 'connection failed — is the server running?'; };
+    ws.onclose = () => { if (netMode === 'online') setBanner('CONNECTION LOST — refresh', '#ff6b81', 60000); };
     ws.onmessage = ev => {
       let msg;
       try { msg = JSON.parse(ev.data); } catch { return; }
-      if (msg.t === 'snap' && netMode !== 'host') statTick(ev.data.length, performance.now());
-      handleMessage(msg, wantMode);
+      if (msg.t === 'snap') statTick(ev.data.length, performance.now());
+      handleMessage(msg);
     };
   }
 
-  function handleMessage(msg, wantMode) {
+  function handleMessage(msg) {
     switch (msg.t) {
       case 'welcome':
-        myCid = msg.cid;
-        hostPresent = msg.hostPresent;
-        break;
-      case 'youAreHost':
-        startHosting();
-        break;
-      case 'hostTaken':
-        statusEl().textContent = 'someone is already hosting — join instead';
-        break;
-      case 'hostUp':
-        hostPresent = true;
-        break;
-      case 'hostLeft':
-        if (netMode === 'client') setBanner('HOST LEFT — refresh to rejoin', '#ff6b81', 60000);
-        break;
-      // ---- host receives ----
-      case 'input': {
-        const nc = netControllers.get(msg.cid);
-        if (nc) { nc.state = msg; nc.lastSeen = performance.now(); }
-        break;
-      }
-      case 'join': {
-        if (netMode !== 'host' || netControllers.has(msg.cid)) break;
-        if (players.length >= MAX_PLAYERS) break;
-        const nc = new NetworkController(msg.cid);
-        netControllers.set(msg.cid, nc);
-        joinPlayer(nc, cleanName(msg.name || msg.n) || undefined);
-        const p = players.find(q => q.controller === nc);
-        if (p) {
-          if (/^#[0-9a-f]{6}$/i.test(msg.color || '')) p.color = readableColor(msg.color);
-          if (/^#[0-9a-f]{6}$/i.test(msg.hat || '')) p.hat = readableColor(msg.hat);
-          emit({ t: 'to', cid: msg.cid, msg: { t: 'you', slot: p.slot } });
-          emit({ t: 'to', cid: msg.cid, msg: worldInfo() });
+        if (msg.v !== GAME_VERSION) {
+          statusEl().textContent = 'GAME UPDATED — hard-refresh this page (⌘⇧R) and try again';
+          ws.close();
+          return;
         }
+        netMode = 'online';
+        menu.remove();
+        emit({ t: 'join', name: myName() }); // the menu already asked for the name — just go
         break;
-      }
-      case 'chat': {
-        // trash talk: floats above the sender's wizard; spawnText is fx-wrapped,
-        // so every client sees it too. Rate-limited per sender.
-        if (netMode !== 'host') break;
-        const nc = netControllers.get(msg.cid);
-        const p = nc && players.find(q => q.controller === nc);
-        if (!p || !p.alive) break;
-        if (performance.now() < (nc.nextChatAt || 0)) break;
-        nc.nextChatAt = performance.now() + 1500;
-        const text = String(msg.text || '').replace(/[^\w !?.,'"-]/g, '').slice(0, 60);
-        if (text) spawnText(p.body.position.x, p.body.position.y - 64, text, p.color);
+      case 'badVersion':
+        // server told us we're stale before we ever saw a snapshot
+        setBanner('GAME UPDATED — REFRESH THE PAGE', '#ff6b81', 60000);
         break;
-      }
-      case 'start':
-        if (netMode === 'host' && game.state === 'LOBBY' && players.length >= 2) startRound(game.mapIndex);
-        break;
-      case 'wins':
-        if (netMode === 'host' && game.state === 'LOBBY') {
-          if (msg.n >= 1 && msg.n <= 20) game.winsNeeded = msg.n;
-          else if (msg.d) game.winsNeeded = Math.max(1, Math.min(20, game.winsNeeded + Math.sign(msg.d)));
-          else break;
-          setBanner(`FIRST TO ${game.winsNeeded}`, '#e8d5ff', 900);
-        }
-        break;
-      case 'hello':
-        if (netMode === 'host' && msg.v !== GAME_VERSION) {
-          setBanner('A PLAYER IS ON AN OLD VERSION — HAVE THEM REFRESH', '#ff6b81', 4000);
-        }
-        break;
-      case 'clientLeft':
-        netControllers.delete(msg.cid);
-        break;
-      // ---- client receives ----
       case 'you':
         mySlot = msg.slot;
         joined = true;
+        joinDeniedMsg = null;
+        break;
+      case 'world':
+        serverWorld = msg;
+        break;
+      case 'joinDenied':
+        joinDeniedMsg = msg.reason === 'full' ? 'match is full (8 wizards) — spectating' : 'join refused — spectating';
         break;
       case 'snap':
-        if (netMode !== 'client' && wantMode === 'client') startClient();
         pushSnapshot(msg);
         break;
       case 'fx':
-        if (netMode === 'client') applyFx(msg);
+        applyFx(msg);
         break;
     }
   }
-
-  // ================= HOST =================
-  function startHosting() {
-    netMode = 'host';
-    menu.remove();
-    setBanner('HOSTING ONLINE', '#ffd166', 1400);
-    wrapFx();
-  }
-
-  // wrap the cosmetic globals so every visual/sound also broadcasts
-  function wrapFx() {
-    const names = ['spawnParticles', 'spawnRing', 'spawnText', 'doFlash', 'addShake', 'slowMo', 'boltVisual', 'setBanner', 'addKillFeed', 'spawnBurst'];
-    for (const name of names) {
-      const orig = globalThis[name];
-      globalThis[name] = (...args) => { emit({ t: 'fx', f: name, a: args }); return orig(...args); };
-    }
-    for (const key of Object.keys(sfx)) {
-      const orig = sfx[key];
-      sfx[key] = (...args) => { emit({ t: 'fx', f: 'sfx', a: [key] }); return orig(...args); };
-    }
-  }
-
-  // sent once to each client on join: the physics constants a headless client
-  // needs to compute firing solutions, plus per-spell cooldowns. Most bolt spells
-  // launch near defaultBolt's profile (speed ~16-23, gravityScale ~0.45-0.9).
-  function worldInfo() {
-    const spells = {};
-    for (const [id, s] of Object.entries(SPELLS)) spells[id] = { name: s.name, cooldown: s.cooldown };
-    return {
-      t: 'world',
-      world: {
-        W, H, gravity: game.baseGravity, gravityScale: engine.gravity.scale, tickMs: 16.7,
-        snapshotHz: 30, inputHz: 60, staleMs: 2000,
-        playerRadius: 15, playerFrictionAir: 0.02,
-        moveSpeed: 7, jumpVy: -15, airJumpVy: -13,
-        defaultBolt: { speed: 20, vy: -6, gravityScale: 0.45 },
-        fallSafeDropPx: FALL_SAFE_DROP,
-      },
-      spells,
-    };
-  }
-
-  // time-based cadence (~30Hz): the old every-3rd-frame gate meant a struggling
-  // host silently starved its clients — 40fps host ⇒ 13Hz snapshots
-  let lastSnapAt = 0;
-  globalThis.netHostTick = function netHostTick(now) {
-    if (now - lastSnapAt < 32) return;
-    lastSnapAt = now;
-    if (game.replay) {
-      // killcam: re-broadcast the buffered tape; clients replay it through
-      // their normal interpolation with no extra logic
-      const f = replayFrameAt(now);
-      if (f) emit({ t: 'snap', ...f.snap, st: 'ROUND_END', rp: 1 });
-      return;
-    }
-    emit({ t: 'snap', ...serializeSnapshot(now) });
-  };
 
   // ================= CLIENT =================
   let snapPrev = null, snapCur = null, tPrev = 0, tCur = 0;
   let snapGapMs = 40; // smoothed inter-snapshot gap → drives the interp delay
   let clientMap = null; // {def, composite, data}
-
-  function clientHello() {
-    emit({ t: 'hello', v: GAME_VERSION }); // registers us for broadcasts + version check
-    statusEl().textContent = hostPresent ? 'connected — waiting for game state…' : 'connected — waiting for a host…';
-  }
-
-  function startClient() {
-    netMode = 'client';
-    menu.remove();
-  }
 
   function pushSnapshot(snap) {
     const tNow = performance.now();
@@ -331,7 +185,7 @@
     applyBrokenDestructibles(snap.bd);
   }
 
-  // mirror the host's blown-apart cover by removing the matching local blocks
+  // mirror the server's blown-apart cover by removing the matching local blocks
   function applyBrokenDestructibles(bd) {
     if (!bd || !clientMap) return;
     const applied = clientMap.data._bdApplied || 0;
@@ -350,7 +204,7 @@
     const def = MAPS[index];
     const m = { def, composite: Composite.create(), data: {} };
     def.build(m);
-    // regenerate the host's seeded extras so static cover/steppers match exactly
+    // regenerate the server's seeded extras so static cover/steppers match exactly
     // (statics never ride the snapshot; dynamics below get stripped and arrive as ghosts)
     if (seed != null) { m.data.seed = seed; buildMapExtras(m, seed); }
     // keep only plain static scenery; everything else arrives as ghosts
@@ -368,8 +222,12 @@
     activeEffects.length = 0;
   }
 
+  // fx events call local cosmetic functions by name — allowlisted, so a bug (or
+  // a hostile server) can't reach into arbitrary globals
+  const FX_ALLOWED = new Set(['spawnParticles', 'spawnRing', 'spawnText', 'doFlash', 'addShake', 'slowMo', 'boltVisual', 'setBanner', 'addKillFeed', 'spawnBurst']);
   function applyFx(msg) {
     if (msg.f === 'sfx') { sfx[msg.a[0]]?.(); return; }
+    if (!FX_ALLOWED.has(msg.f)) return;
     const fn = globalThis[msg.f];
     if (typeof fn === 'function') fn(...msg.a);
   }
@@ -387,19 +245,54 @@
       const me = snapCur.ps.find(q => q.s === mySlot);
       if (me) aim = Math.atan2(mouse.y - me.y, mouse.x - me.x);
     }
-    if (!joined && (cast || mouse.down)) emit({ t: 'join', n: localStorage.getItem('hs-name-0') || '' });
+    if (!joined && (cast || mouse.down)) emit({ t: 'join', name: myName() }); // retry after a denial
     if (joined) emit({ t: 'input', m: move, j: jump ? 1 : 0, c: cast ? 1 : 0, c2: cast2 ? 1 : 0, b: block ? 1 : 0, a: aim });
-    // lobby controls forwarded to host
-    if (keys['Space'] && !this._sp) emit({ t: 'start' });
-    this._sp = !!keys['Space'];
-    for (let d = 1; d <= 9; d++) {
-      if (keys[`Digit${d}`] && !this[`_d${d}`]) emit({ t: 'wins', n: d });
-      this[`_d${d}`] = !!keys[`Digit${d}`];
-    }
-    for (const [code, d] of [['Equal', 1], ['Minus', -1]]) {
-      if (keys[code] && !this[`_${code}`]) emit({ t: 'wins', d });
+    // lobby verbs become messages; the server's sim answers with banners/fx
+    const edge = (code, fn) => {
+      if (keys[code] && !this[`_${code}`]) fn();
       this[`_${code}`] = !!keys[code];
+    };
+    edge('Space', () => emit({ t: 'start' }));
+    edge('KeyB', () => emit({ t: 'bot', op: 'add' }));
+    edge('KeyM', () => emit({ t: 'mode' }));
+    edge('KeyR', () => emit({ t: 'reset' }));
+    for (let d = 1; d <= 9; d++) edge(`Digit${d}`, () => emit({ t: 'wins', n: d }));
+    edge('Equal', () => emit({ t: 'wins', d: 1 }));
+    edge('Minus', () => emit({ t: 'wins', d: -1 }));
+  }
+
+  function drawOnlineLobby(snap, now) {
+    const mode = snap.md || 'versus';
+    const wave = mode === 'wave';
+    const count = Math.max(4, Math.min(MAX_PLAYERS, snap.ps.length + 1));
+    const slots = [];
+    for (let i = 0; i < count; i++) {
+      const gp = snap.ps[i];
+      slots.push({
+        label: gp ? gp.n + (gp.s === mySlot ? ' ✦' : '') : 'JOIN',
+        color: gp ? gp.c : '#4a3f5e',
+        hint: !gp ? 'OPEN SEAT'
+          : gp.b ? 'BOT'
+          : gp.off ? '(connection lost)'
+          : gp.s === mySlot ? 'YOU — WASD + MOUSE'
+          : 'ONLINE',
+      });
     }
+    const min = wave ? 1 : 2;
+    const ready = snap.ps.length >= min;
+    drawLobbyPanel({
+      joinLine: joinDeniedMsg || (joined
+        ? `you are in as P${(mySlot ?? 0) + 1} — WASD move · SPACE/W jump · aim & fire with the mouse`
+        : 'CLICK or press E to join'),
+      slots,
+      readyColor: ready ? (wave ? '#ffd166' : '#7bd88f') : '#675a7d',
+      readyLine: !ready ? (wave ? 'NEED AT LEAST 1 WIZARD' : 'NEED AT LEAST 2 WIZARDS')
+        : wave ? `SPACE — WAVE SURVIVAL${snap.bw ? `  (BEST: WAVE ${snap.bw})` : ''}`
+        : `SPACE TO FIGHT — FIRST TO ${snap.wn} WINS`,
+      controlsLine: wave
+        ? 'M switches back to VERSUS · co-op: everyone fights the waves together · B adds a bot'
+        : `M = WAVE SURVIVAL · 1–9 sets win target (${snap.wn}) · B adds a bot · R resets`,
+    });
   }
 
   globalThis.netClientFrame = function netClientFrame(now) {
@@ -417,7 +310,7 @@
       ctx.fillStyle = '#9c8ab8';
       ctx.font = '22px Georgia';
       ctx.textAlign = 'center';
-      ctx.fillText('waiting for the host…', W / 2, H / 2);
+      ctx.fillText('connecting to the match…', W / 2, H / 2);
       return;
     }
 
@@ -460,7 +353,7 @@
     }
     flashAlpha *= 0.86;
 
-    if (snap.rp) drawReplayOverlay(now); // host is playing the killcam
+    if (snap.rp) drawReplayOverlay(now); // the server is playing the killcam
 
     // HUD
     ctx.textAlign = 'center';
@@ -483,7 +376,7 @@
       const x = snap.ps.length === 1 ? 150 : W / 2 + (i - (snap.ps.length - 1) / 2) * spacing;
       ctx.font = 'bold 20px Georgia';
       ctx.fillStyle = gp.c;
-      ctx.fillText(gp.n + (gp.s === mySlot ? ' ◂you' : ''), x, 38);
+      ctx.fillText(gp.n + (gp.s === mySlot ? ' ◂you' : '') + (gp.off ? ' ⌁' : ''), x, 38);
       ctx.strokeStyle = gp.c;
       if (snap.wn <= 9) {
         const pipStart = x - (snap.wn - 1) * 9;
@@ -519,25 +412,7 @@
       }
     }
 
-    if (snap.st === 'LOBBY') {
-      ctx.fillStyle = 'rgba(12,8,18,0.72)';
-      ctx.fillRect(W / 2 - 430, 55, 860, 210);
-      drawArcadeLogo(W / 2, 120, 46, now);
-      ctx.font = 'bold 14px Georgia';
-      ctx.fillStyle = '#9c8ab8';
-      ctx.fillText('— O N L I N E —', W / 2, 142);
-      ctx.font = '17px Georgia';
-      ctx.fillStyle = joined ? '#7bd88f' : '#9c8ab8';
-      ctx.fillText(joined ? `you are in as P${(mySlot ?? 0) + 1} — WASD move · SPACE/W jump · aim & fire with the mouse` : 'CLICK or press E to join', W / 2, 165);
-      ctx.font = '15px Georgia';
-      snap.ps.forEach((gp, i) => {
-        ctx.fillStyle = gp.c;
-        ctx.fillText(gp.n + (gp.s === mySlot ? ' (you)' : ''), W / 2 - 300 + (i % 4) * 200, 205 + Math.floor(i / 4) * 26);
-      });
-      ctx.fillStyle = '#675a7d';
-      ctx.font = '13px Georgia';
-      ctx.fillText(`SPACE to start · 1-9 sets win target (${snap.wn})`, W / 2, 252);
-    }
+    if (snap.st === 'LOBBY') drawOnlineLobby(snap, now);
 
     if (snap.st === 'VICTORY' && snap.wr != null) {
       const gw = snap.ps.find(q => q.s === snap.wr);

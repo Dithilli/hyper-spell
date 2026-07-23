@@ -2,7 +2,7 @@
 const { Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector } = Matter;
 
 // bump when gameplay/wire format changes — stale tabs get told to refresh
-const GAME_VERSION = 8; // v8: snapshot shape descriptors + omitted default flags
+const GAME_VERSION = 9; // v9: server-authoritative sim — the server runs the match, every browser renders
 
 const W = 1280, H = 720;
 const canvas = document.getElementById('game');
@@ -12,7 +12,8 @@ const engine = Engine.create();
 engine.gravity.y = 2;
 const world = engine.world;
 
-// 'couch' (local only) | 'host' (simulating + broadcasting) | 'client' (rendering remote state)
+// 'couch' (this machine runs the sim, everyone local) | 'online' (the server runs
+// the sim; this browser sends inputs and renders snapshots)
 let netMode = 'couch';
 
 const rand = (a, b) => a + Math.random() * (b - a);
