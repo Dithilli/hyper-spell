@@ -16,13 +16,24 @@ const KEYMAPS = [
 
 const IDLE_INPUT = { move: 0, jump: false, cast: false, cast2: false, block: false, jumpPressed: false, castPressed: false, cast2Pressed: false, blockPressed: false, startPressed: false, aimPoint: null, aimVec: null };
 
-// mouse state in canvas/world coordinates
-const mouse = { x: W / 2, y: H / 2, down: false, rdown: false, mdown: false, present: false };
+// Mouse state. sx/sy are SCREEN coords (the 1280x720 logical frame); x/y are the
+// WORLD coords aim actually uses. With a camera between the two they're no longer
+// the same point, and the world pair has to be re-derived every frame — the
+// camera keeps moving under a stationary cursor.
+const mouse = { x: W / 2, y: H / 2, sx: W / 2, sy: H / 2, down: false, rdown: false, mdown: false, present: false };
+
+function syncMouseWorld() {
+  if (typeof screenToWorld !== 'function') return; // headless
+  const w = screenToWorld(mouse.sx, mouse.sy);
+  mouse.x = w.x; mouse.y = w.y;
+}
+
 if (typeof canvas.addEventListener === 'function') {
   canvas.addEventListener('mousemove', e => {
     const r = canvas.getBoundingClientRect();
-    mouse.x = (e.clientX - r.left) * (W / r.width);
-    mouse.y = (e.clientY - r.top) * (H / r.height);
+    mouse.sx = (e.clientX - r.left) * (W / r.width);
+    mouse.sy = (e.clientY - r.top) * (H / r.height);
+    syncMouseWorld();
     mouse.present = true;
   });
   canvas.addEventListener('mousedown', e => {

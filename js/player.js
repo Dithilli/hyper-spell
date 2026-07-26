@@ -363,16 +363,21 @@ function ghostGust(g) {
 // tips downward it's marking the column they're about to land in. Shared by
 // the live draw, LAN clients, and the killcam. list: [{x, y, vx, vy, color}]
 function drawOffscreenPointers(list, now) {
-  const INSET = 22;
+  // Bounds are the camera's view rect, not the arena — once the camera zooms in,
+  // "off screen" starts well inside the world, and that's exactly when these
+  // arrows matter most. Sizes divide by zoom so they stay constant on screen.
+  const v = cameraViewRect();
+  const z = CAM.zoom;
+  const INSET = 22 / z, EDGE = 18 / z;
   for (const w of list) {
-    if (w.x > -18 && w.x < W + 18 && w.y > -18 && w.y < H + 18) continue;
-    const ax = Math.max(INSET, Math.min(W - INSET, w.x));
-    const ay = Math.max(INSET, Math.min(H - INSET, w.y));
+    if (w.x > v.x0 - EDGE && w.x < v.x1 + EDGE && w.y > v.y0 - EDGE && w.y < v.y1 + EDGE) continue;
+    const ax = Math.max(v.x0 + INSET, Math.min(v.x1 - INSET, w.x));
+    const ay = Math.max(v.y0 + INSET, Math.min(v.y1 - INSET, w.y));
     const speed = Math.hypot(w.vx || 0, w.vy || 0);
     // point along travel; a near-still wizard (frozen mid-air) points at them
     const ang = speed > 0.8 ? Math.atan2(w.vy, w.vx) : Math.atan2(w.y - ay, w.x - ax);
     const dist = Math.hypot(w.x - ax, w.y - ay);
-    const s = Math.max(9, 15 - dist * 0.012) * (1 + 0.12 * Math.sin(now * 0.012));
+    const s = Math.max(9, 15 - dist * 0.012) / z * (1 + 0.12 * Math.sin(now * 0.012));
     ctx.save();
     ctx.translate(ax, ay);
     ctx.rotate(ang);
@@ -575,10 +580,12 @@ function updatePlayers(now) {
 // gone below 50 (the shame), and under 25 the wizard smolders.
 // Rendering lives in artkit.js (drawStoryWizard) so the game and the review
 // gallery share one source of truth; this adapter just supplies the state.
-function drawWizardFigure(p, x, y, scale, now, angle = 0) {
+// the art-state object for a player — extracted so the hit flash can re-render
+// the exact same figure into its scratch buffer
+function wizardArt(p, x, y, scale, now, angle = 0) {
   const spell = p.spellId && SPELLS[p.spellId];
   const ready = spell && now - p.lastCast > spell.cooldown;
-  drawStoryWizard(ctx, {
+  return {
     x, y, scale, angle, now, name: p.name,
     color: p.color, hat: p.hat, hp: ((p.hp ?? MAX_HP) / MAX_HP) * 100,
     facing: p.facing, walkPhase: p.walkPhase, vx: p.body.velocity.x,
@@ -586,32 +593,71 @@ function drawWizardFigure(p, x, y, scale, now, angle = 0) {
     alive: p.alive !== 0 && p.alive !== false,
     spellReady: ready, spellColor: ready ? spell.color : '#fff',
     variant: avatarVariant(p.name),
-  });
+  };
+}
+
+function drawWizardFigure(p, x, y, scale, now, angle = 0) {
+  drawStoryWizard(ctx, wizardArt(p, x, y, scale, now, angle));
+}
+
+// Nametags used to be drawn unconditionally at a fixed offset, so two wizards
+// standing together rendered their tags on top of each other and the overlap
+// read as one corrupted word ("BREWJESTER"). Tags now reserve a slot: each one
+// checks the boxes already claimed this frame and steps up until it's clear.
+// Reset every frame by resetNameTagSlots().
+const _tagSlots = [];
+function resetNameTagSlots() { _tagSlots.length = 0; }
+
+function _claimTagSlot(x, y, halfW) {
+  const STEP = 13, LIMIT = 5;
+  let ty = y;
+  for (let i = 0; i <= LIMIT; i++) {
+    const clash = _tagSlots.some(s => Math.abs(s.y - ty) < STEP - 1 && Math.abs(s.x - x) < s.halfW + halfW + 4);
+    if (!clash) break;
+    ty -= STEP;
+  }
+  _tagSlots.push({ x, y: ty, halfW });
+  return ty;
 }
 
 function drawNameTag(name, color, x, y) {
-  ctx.font = 'bold 11px Georgia';
+  const z = typeof CAM !== 'undefined' ? CAM.zoom : 1;
+  ctx.save();
+  // sized in screen px: a nametag that scales with the camera stops being a label
+  ctx.font = `bold ${11 / z}px Georgia`;
   ctx.textAlign = 'center';
+  const halfW = ctx.measureText(name).width / 2;
+  const ty = _claimTagSlot(x, y, halfW);
   ctx.globalAlpha = 0.9;
   ctx.strokeStyle = 'rgba(10, 6, 16, 0.85)'; // halo so any color reads on any backdrop
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3 / z;
   ctx.lineJoin = 'round';
-  ctx.strokeText(name, x, y);
+  ctx.strokeText(name, x, ty);
   ctx.fillStyle = color;
-  ctx.fillText(name, x, y);
+  ctx.fillText(name, x, ty);
+  // a tag pushed up off its owner gets a stem, so it stays attached to a wizard
+  if (ty < y - 2) {
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1 / z;
+    ctx.beginPath(); ctx.moveTo(x, ty + 3 / z); ctx.lineTo(x, y + 2 / z); ctx.stroke();
+  }
   ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 function drawWizard(p, now) {
   const { x, y } = p.body.position;
   const s = p.sizeScale || 1;
   drawNameTag(p.name, p.color, x, y - 48 * s);
+  // mega-size wizards get a gold aura — additive so the bloom pass picks it up
   if (s > 1.6) {
-    ctx.shadowColor = '#ffd700';
-    ctx.shadowBlur = 18;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    glowOrb(ctx, x, y - 6 * s, 34 * s, '#ffd700', 0.32);
+    ctx.restore();
   }
   drawWizardFigure(p, x, y, s, now, p.body.angle * 0.35);
-  ctx.shadowBlur = 0;
   if (now < (p.floatyUntil || 0)) {
     ctx.strokeStyle = '#ff6b81';
     ctx.lineWidth = 1.5;
@@ -627,19 +673,10 @@ function drawWizard(p, now) {
     ctx.globalAlpha = 1;
   }
   if (now < (p.hurtUntil || 0)) {
-    ctx.globalAlpha = 0.5;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(x, y - 8 * s, 19 * s, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1;
+    // fades over the hitstop window rather than popping on/off
+    const amt = Math.min(1, (p.hurtUntil - now) / 90);
+    drawStoryHitFlash(ctx, wizardArt(p, x, y, s, now), amt * 0.95);
   }
-  if (now < p.frozenUntil) {
-    ctx.globalAlpha = 0.45;
-    ctx.fillStyle = '#9be7ff';
-    ctx.fillRect(x - 17 * s, y - 32 * s, 34 * s, 50 * s);
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = '#d8f4ff';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(x - 17 * s, y - 32 * s, 34 * s, 50 * s);
-  }
+  if (now < p.frozenUntil) drawStoryIceBlock(ctx, x, y - 7 * s, 34 * s, 50 * s, now);
   // no health bars — the hat tells the story (see drawWizardFigure)
 }

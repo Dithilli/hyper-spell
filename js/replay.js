@@ -54,10 +54,20 @@ function replayFrameAt(now) {
   return { snap: cur.snap, prev: prev.snap, alpha, done };
 }
 
-function drawReplayOverlay(now) {
+// the killcam's camera targets: the wizards as recorded in the tape, since the
+// live players the camera would normally follow are off doing the next round
+function replayCameraPoints() {
+  const f = replayFrameAt(performance.now());
+  if (!f) return null;
+  return f.snap.ps.filter(gp => gp.al).map(gp => ({ x: gp.x, y: gp.y }));
+}
+
+// screen-space furniture: letterbox bars, vignette, REPLAY dot. Drawn after
+// endWorld() so the camera's zoom never scales the bars.
+function drawReplayLetterbox(now) {
   ctx.fillStyle = '#000';
-  ctx.fillRect(-30, -30, W + 60, 84);
-  ctx.fillRect(-30, H - 54, W + 60, 84);
+  ctx.fillRect(0, 0, W, 54);
+  ctx.fillRect(0, H - 54, W, 54);
   ctx.fillStyle = '#ff5e57';
   ctx.beginPath(); ctx.arc(30, 30, 6 + 1.5 * Math.sin(now * 0.01), 0, Math.PI * 2); ctx.fill();
   ctx.font = 'bold 16px Georgia';
@@ -66,12 +76,10 @@ function drawReplayOverlay(now) {
   ctx.textAlign = 'center';
 }
 
+// world-space half only — the caller wraps this in beginWorld()/endWorld()
 function drawReplay(now) {
   const f = replayFrameAt(now);
   if (!f) return;
   drawSnapshotWorld(f.snap, f.prev, f.alpha, now);
-  ctx.fillStyle = getVignette();
-  ctx.fillRect(0, 0, W, H);
-  drawReplayOverlay(now);
   if (f.done) game.replay = null;
 }

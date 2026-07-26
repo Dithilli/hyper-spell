@@ -5,7 +5,14 @@
 
 // ---------- colour math (work from any hex tint) ----------
 function _hx(hex) {
-  if (typeof hex !== 'string' || hex[0] !== '#') return { r: 150, g: 140, b: 165 };
+  if (typeof hex !== 'string') return { r: 150, g: 140, b: 165 };
+  // shade()/mix() hand back 'rgb(r,g,b)', so accept their own output as input —
+  // otherwise every derived colour has to be re-hexed before it can be reused
+  if (hex[0] === 'r') {
+    const m = hex.match(/-?\d+/g);
+    return m && m.length >= 3 ? { r: +m[0], g: +m[1], b: +m[2] } : { r: 150, g: 140, b: 165 };
+  }
+  if (hex[0] !== '#') return { r: 150, g: 140, b: 165 };
   let h = hex.slice(1);
   if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
   const n = parseInt(h, 16);
@@ -59,6 +66,75 @@ function glowOrb(ctx, x, y, r, color, alpha = 1) {
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
 }
 
+// ---------- contact shadows ----------
+// Nothing in the game used to cast a shadow, so every wizard, crate and tome
+// floated a few pixels off whatever it was standing on. A single squashed
+// ellipse fixes that, but it needs a ground height, and the real groundYAt()
+// (spells.js) walks every static body 60 times — far too heavy to call per
+// object per frame. So: sample the collision geometry once per map into a
+// coarse height field and read it back in O(1).
+const GROUND_FIELD_STEP = 16;
+
+function buildGroundField(map) {
+  const bodies = Composite.allBodies(map.composite).filter(b =>
+    b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 && b.label !== 'spikes');
+  const n = Math.ceil(W / GROUND_FIELD_STEP) + 1;
+  const field = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = i * GROUND_FIELD_STEP;
+    let top = H + 200;
+    for (const b of bodies) {
+      if (x < b.bounds.min.x || x > b.bounds.max.x) continue;
+      if (b.bounds.min.y > 60 && b.bounds.min.y < top) top = b.bounds.min.y;
+    }
+    field[i] = top;
+  }
+  map.data.groundField = field;
+  return field;
+}
+
+// ground height under a world x, or null if there's nothing to land on.
+// Refreshed on a slow timer because destructibles blow up mid-round and a stale
+// field would leave shadows painted in mid-air where a tower used to be.
+const GROUND_FIELD_TTL = 400;
+function groundFieldY(x) {
+  const map = typeof currentMap !== 'undefined' ? currentMap : null;
+  if (!map) return null;
+  const t = performance.now();
+  if (!map.data.groundField || t - (map.data.groundFieldAt || 0) > GROUND_FIELD_TTL) {
+    buildGroundField(map);
+    map.data.groundFieldAt = t;
+  }
+  const field = map.data.groundField;
+  const i = Math.round(x / GROUND_FIELD_STEP);
+  if (i < 0 || i >= field.length) return null;
+  const y = field[i];
+  return y > H + 100 ? null : y;
+}
+
+// The shadow shrinks and fades with height, which is what actually communicates
+// "this thing is airborne" — a constant blob just looks like a decal.
+// o: {x, y, w, alpha} — y is the object's own centre; we find the floor ourselves
+function drawContactShadow(ctx, x, y, w, o = {}) {
+  const gy = o.groundY != null ? o.groundY : groundFieldY(x);
+  if (gy == null) return;
+  const drop = gy - y;
+  if (drop < -20 || drop > 260) return; // below the floor, or too high to matter
+  const t = Math.max(0, Math.min(1, 1 - drop / 260));
+  const rx = w * (0.42 + 0.34 * t);
+  const alpha = (o.alpha ?? 0.4) * (0.18 + 0.82 * t * t);
+  const g = ctx.createRadialGradient(x, gy - 1, 0, x, gy - 1, rx);
+  g.addColorStop(0, `rgba(8,4,14,${alpha})`);
+  g.addColorStop(0.6, `rgba(8,4,14,${alpha * 0.55})`);
+  g.addColorStop(1, 'rgba(8,4,14,0)');
+  ctx.save();
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(x, gy - 1, rx, Math.max(1.6, rx * 0.26), 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 // ---------- the wizard: a hooded, robed storybook figure ----------
 // o: {x,y,scale,angle,now,color,hat,hp,facing,walkPhase,vx,piggy,alive,spellReady,spellColor}
 // map longstanding public character names to bespoke avatar variants
@@ -70,6 +146,8 @@ function avatarVariant(name) {
 }
 
 function drawStoryWizard(ctx, o) {
+  // every variant gets grounded before it draws
+  if (!o.noShadow && o.alive !== false && o.alive !== 0) drawContactShadow(ctx, o.x, o.y + 16 * (o.scale ?? 1), 22 * (o.scale ?? 1));
   if (o.variant === 'alinea') return drawStorySorceress(ctx, o); // Alinea gets her own avatar
   if (o.variant === 'grey') return drawStoryGandalf(ctx, o);     // David "Grey" → the grey pilgrim
   const scale = o.scale ?? 1, now = o.now || 0, facing = o.facing || 1;
@@ -233,6 +311,101 @@ function drawStoryWizard(ctx, o) {
     runeRing(ctx, facing * 12, -7, 5, rgba(sc, 1), now, { count: 4, lw: 0.7, spin: 0.004 });
   }
 
+  ctx.restore();
+}
+
+// ---------- hit flash: the wizard's own silhouette, blown to white ----------
+// The old damage tell was a 50%-alpha white circle laid over the wizard, which
+// read as a rendering glitch rather than a hit. This re-renders the actual
+// figure into a scratch buffer, keeps only its coverage (source-in) and stamps
+// it back as a solid white silhouette — the standard 2D hit flash. It runs only
+// while a wizard is actually in hitstop, so the double-draw costs nothing at rest.
+let _flashCan = null, _flashCtx = null;
+const FLASH_BUF = 160, FLASH_ORIGIN_Y = 0.66;
+
+function drawStoryHitFlash(ctx, o, amount, tint = '#ffffff') {
+  if (!(amount > 0.01)) return;
+  if (!_flashCan) {
+    if (typeof document === 'undefined' || !document.createElement) return;
+    _flashCan = document.createElement('canvas');
+    _flashCan.width = _flashCan.height = FLASH_BUF;
+    _flashCtx = _flashCan.getContext('2d');
+    if (!_flashCtx) { _flashCan = null; return; }
+  }
+  const c = _flashCtx;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, FLASH_BUF, FLASH_BUF);
+  c.save();
+  c.translate(FLASH_BUF / 2, FLASH_BUF * FLASH_ORIGIN_Y);
+  drawStoryWizard(c, { ...o, x: 0, y: 0, angle: 0, noShadow: true, spellReady: false });
+  c.restore();
+  c.globalCompositeOperation = 'source-in';
+  c.fillStyle = tint;
+  c.fillRect(0, 0, FLASH_BUF, FLASH_BUF);
+  c.globalCompositeOperation = 'source-over';
+
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, amount);
+  ctx.translate(o.x, o.y);
+  if (o.angle) ctx.rotate(o.angle);
+  ctx.drawImage(_flashCan, -FLASH_BUF / 2, -FLASH_BUF * FLASH_ORIGIN_Y);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+// ---------- frozen: an actual block of ice, not a translucent rectangle ----------
+// Faceted silhouette, refracted highlights, a frost rim and a couple of trapped
+// bubbles. Same footprint as the rect it replaces, so nothing about hitboxes or
+// readability of "who is frozen" changes — it just stops looking like a debug fill.
+function drawStoryIceBlock(ctx, x, y, w, h, now = 0) {
+  const hw = w / 2;
+  ctx.save();
+  ctx.translate(x, y);
+  // chipped, faceted outline
+  const p = [
+    [-hw, -h * 0.42], [-hw * 0.72, -h * 0.5], [hw * 0.5, -h * 0.47], [hw, -h * 0.3],
+    [hw * 0.86, h * 0.34], [hw * 0.55, h * 0.5], [-hw * 0.62, h * 0.48], [-hw * 0.94, h * 0.24],
+  ];
+  ctx.beginPath();
+  ctx.moveTo(p[0][0], p[0][1]);
+  for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]);
+  ctx.closePath();
+
+  const g = ctx.createLinearGradient(-hw, -h / 2, hw, h / 2);
+  g.addColorStop(0, 'rgba(198,240,255,0.62)');
+  g.addColorStop(0.45, 'rgba(120,205,240,0.44)');
+  g.addColorStop(1, 'rgba(196,244,255,0.58)');
+  ctx.fillStyle = g;
+  ctx.fill();
+
+  ctx.save();
+  ctx.clip();
+  // internal facet planes catching the light
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.strokeStyle = 'rgba(230,250,255,0.5)';
+  ctx.lineWidth = 1.2;
+  for (const [ax, ay, bx, by] of [[-hw, h * 0.1, hw * 0.3, -h * 0.5], [-hw * 0.3, h * 0.5, hw, -h * 0.15]]) {
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  ctx.beginPath(); ctx.moveTo(-hw * 0.55, -h * 0.5); ctx.lineTo(-hw * 0.1, -h * 0.5); ctx.lineTo(-hw * 0.5, h * 0.5); ctx.lineTo(-hw * 0.85, h * 0.5); ctx.closePath(); ctx.fill();
+  // trapped bubbles, drifting almost imperceptibly
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  for (let i = 0; i < 3; i++) {
+    const bx = (_thash(i * 3.7) - 0.5) * w * 0.7;
+    const by = (_thash(i * 8.1) - 0.5) * h * 0.7 + Math.sin(now * 0.001 + i) * 1.5;
+    ctx.beginPath(); ctx.arc(bx, by, 1 + _thash(i * 5.3) * 1.6, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+
+  // frost rim + a bright top edge where the light lands
+  ctx.strokeStyle = 'rgba(226,248,255,0.9)';
+  ctx.lineWidth = 1.6;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath(); ctx.moveTo(-hw * 0.7, -h * 0.49); ctx.lineTo(hw * 0.48, -h * 0.46); ctx.stroke();
   ctx.restore();
 }
 
@@ -542,6 +715,7 @@ function drawStoryTome(ctx, o) {
   const now = o.now || 0, color = o.color || '#b98cff';
   const rank = o.rank || 0;
   const bob = Math.sin(now * 0.003 + o.x * 0.05) * 1.5;
+  drawContactShadow(ctx, o.x, o.y + bob + 14, 20, { alpha: 0.34 });
   // rarity halo
   if (rank >= 2 && o.rarityColor) {
     const pulse = 0.5 + 0.5 * Math.sin(now * (rank >= 3 ? 0.012 : 0.008));
@@ -571,9 +745,11 @@ function drawStoryTome(ctx, o) {
   ctx.strokeStyle = shade(color, 0.4); ctx.lineWidth = 0.6;
   ctx.strokeRect(-10, -14, 3.5, 28);
   // embossed sigil, glowing in the spell colour
-  ctx.shadowColor = color; ctx.shadowBlur = 8 + 4 * Math.sin(now * 0.008);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  glowOrb(ctx, -1.5, 0, 11 + 3 * Math.sin(now * 0.008), color, 0.55);
+  ctx.restore();
   drawStar(ctx, -1.5, 0, 5, color);
-  ctx.shadowBlur = 0;
   runeRing(ctx, -1.5, 0, 7, rgba(color, 1), now, { count: 6, lw: 0.7, alpha: 0.7 });
   // clasp
   ctx.fillStyle = mix(color, '#ffe9a8', 0.6);
@@ -590,8 +766,9 @@ function drawStoryHat(ctx, o) {
   ctx.save();
   ctx.translate(o.x, o.y + bob);
   ctx.rotate((o.angle || 0) * 0.4);
-  glowOrb(ctx, 0, -4, 20 + 4 * Math.sin(now * 0.01), gold, 0.4);
-  ctx.shadowColor = gold; ctx.shadowBlur = 12;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  glowOrb(ctx, 0, -4, 26 + 5 * Math.sin(now * 0.01), gold, 0.5);
+  ctx.restore();
   // brim
   ctx.fillStyle = shade(gold, -0.15);
   ctx.beginPath(); ctx.ellipse(0, 7, 15, 4, 0, 0, Math.PI * 2); ctx.fill();
@@ -605,7 +782,6 @@ function drawStoryHat(ctx, o) {
   const hg = ctx.createLinearGradient(-11, 7, 10, -16);
   hg.addColorStop(0, '#c99700'); hg.addColorStop(0.5, gold); hg.addColorStop(1, '#fff3b0');
   ctx.fillStyle = hg; ctx.fill();
-  ctx.shadowBlur = 0;
   // band, stars, filigree
   ctx.strokeStyle = '#8a6a00'; ctx.lineWidth = 2.5;
   ctx.beginPath(); ctx.moveTo(-10, 4); ctx.quadraticCurveTo(0, 6, 10, 3); ctx.stroke();
@@ -623,7 +799,6 @@ function drawStoryCatalyst(ctx, o) {
   ctx.save();
   ctx.translate(o.x, o.y);
   ctx.rotate(now * 0.004);
-  ctx.shadowColor = mag; ctx.shadowBlur = 14 + 6 * pulse;
   // outer gem with facets
   const g = ctx.createLinearGradient(0, -12, 0, 12);
   g.addColorStop(0, '#ffd6fb'); g.addColorStop(0.5, mag); g.addColorStop(1, '#a01e9a');
@@ -631,7 +806,6 @@ function drawStoryCatalyst(ctx, o) {
   ctx.beginPath(); ctx.moveTo(0, -13); ctx.lineTo(11, -2); ctx.lineTo(6, 12); ctx.lineTo(-6, 12); ctx.lineTo(-11, -2); ctx.closePath(); ctx.fill();
   ctx.strokeStyle = rgba('#ffd6fb', 0.8); ctx.lineWidth = 0.8;
   ctx.beginPath(); ctx.moveTo(0, -13); ctx.lineTo(0, 12); ctx.moveTo(-11, -2); ctx.lineTo(11, -2); ctx.stroke();
-  ctx.shadowBlur = 0;
   ctx.fillStyle = rgba('#fff', 0.85);
   ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(4, -2); ctx.lineTo(0, 3); ctx.lineTo(-4, -2); ctx.closePath(); ctx.fill();
   ctx.restore();
@@ -642,6 +816,7 @@ function drawStoryCatalyst(ctx, o) {
 // o: {vertices, x, y, angle}
 function drawStoryCrate(ctx, o) {
   const wood = '#a6763c';
+  drawContactShadow(ctx, o.x, o.y + 11, 22, { alpha: 0.3 });
   ctx.save();
   ctx.fillStyle = wood;
   ctx.strokeStyle = shade(wood, -0.35);
@@ -697,10 +872,20 @@ function _ridge(ctx, W, H, baseY, amp, freq, sharp, tint, rim, phase) {
 function drawStoryBackdrop(ctx, o) {
   const W = o.W, H = o.H, now = o.now || 0, base = o.bg || '#241d2e';
   const icy = !!o.icy, lava = o.lavaY != null, space = !!o.stars, acid = !!o.acid;
-  const biome = icy ? { accent: '#bfe8ff', far: mix(base, '#0a1830', 0.5), near: '#233a54', rim: rgba('#eafaff', 0.5), sharp: 2.0, freq: 0.016 }
-    : lava ? { accent: acid ? '#c5f97d' : '#ff8c5a', far: mix(base, '#160608', 0.5), near: '#2a1518', rim: rgba(acid ? '#c5f97d' : '#ff8c5a', 0.55), sharp: 1.4, freq: 0.011 }
-    : space ? { accent: '#c8b8ff', far: mix(base, '#0a0818', 0.5), near: shade(base, -0.5), rim: rgba('#c8b8ff', 0.3), sharp: 1, freq: 0.01 }
-    : { accent: '#b98cff', far: mix(base, '#0c0818', 0.4), near: shade(base, -0.45), rim: rgba('#b98cff', 0.28), sharp: 2.4, freq: 0.02 };
+  const cam = o.cam || { dx: 0, dy: 0, zoom: 1 };
+
+  // Atmospheric perspective: distance washes things OUT, toward the colour of
+  // the air. The far range used to be painted darker than the sky and the near
+  // range only slightly darker still, which flattened sky/far/near/terrain into
+  // one muddy value band — the single biggest reason the game read as murky.
+  // Now: far ridge sits close to the sky, near ridge goes properly dark, and the
+  // separation between them does the depth work.
+  const skyHi = mix(shade(base, 0.14), icy ? '#bfe8ff' : lava ? '#ff8c5a' : space ? '#c8b8ff' : '#b98cff', 0.14);
+  const haze = c => mix(c, skyHi, 0.62); // push a colour toward the sky
+  const biome = icy ? { accent: '#bfe8ff', far: haze('#2a4a6e'), near: shade('#152538', -0.15), rim: rgba('#eafaff', 0.5), sharp: 2.0, freq: 0.016 }
+    : lava ? { accent: acid ? '#c5f97d' : '#ff8c5a', far: haze('#3a1a1c'), near: shade('#1c0e10', 0.05), rim: rgba(acid ? '#c5f97d' : '#ff8c5a', 0.55), sharp: 1.4, freq: 0.011 }
+    : space ? { accent: '#c8b8ff', far: haze(shade(base, -0.3)), near: shade(base, -0.68), rim: rgba('#c8b8ff', 0.3), sharp: 1, freq: 0.01 }
+    : { accent: '#b98cff', far: haze(shade(base, -0.25)), near: shade(base, -0.66), rim: rgba('#b98cff', 0.28), sharp: 2.4, freq: 0.02 };
 
   // sky wash, tinted toward the biome accent at the top
   const vg = ctx.createLinearGradient(0, -30, 0, H + 30);
@@ -711,12 +896,17 @@ function drawStoryBackdrop(ctx, o) {
   ctx.fillRect(-30, -30, W + 60, H + 60);
 
   // celestial body (arcane/ice = moon, space = ringed planet); lava gets bottom-glow instead
+  // Parallax: the sky barely moves, which is what sells it as far away.
   if (!lava) {
-    const cx = space ? W * 0.78 : W * 0.2, cy = H * 0.24, cr = space ? 54 : 44;
-    glowOrb(ctx, cx, cy, cr * 2.2, biome.accent, 0.14);
+    const cx = (space ? W * 0.78 : W * 0.2) - cam.dx * 0.06, cy = H * 0.24 - cam.dy * 0.06, cr = space ? 54 : 44;
+    glowOrb(ctx, cx, cy, cr * 2.4, biome.accent, 0.2);
     const mg = ctx.createRadialGradient(cx - cr * 0.3, cy - cr * 0.3, cr * 0.2, cx, cy, cr);
-    mg.addColorStop(0, rgba(mix(biome.accent, '#fff', 0.5), 0.9));
-    mg.addColorStop(1, rgba(biome.accent, 0.28));
+    // was rgba(accent, 0.28) at the rim — against a lit sky wash the moon was
+    // washed out to the point of being invisible in play. It's a light source;
+    // it should read as one.
+    mg.addColorStop(0, rgba(mix(biome.accent, '#fff', 0.72), 1));
+    mg.addColorStop(0.72, rgba(mix(biome.accent, '#fff', 0.25), 0.92));
+    mg.addColorStop(1, rgba(biome.accent, 0.55));
     ctx.fillStyle = mg;
     ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.fill();
     if (space) { // planet ring
@@ -757,11 +947,30 @@ function drawStoryBackdrop(ctx, o) {
     ctx.globalAlpha = 1;
   }
 
-  // two parallax silhouette ranges — the depth upgrade
+  // two parallax silhouette ranges — the depth upgrade.
+  // Each slides against the camera at its own rate: the far range hardly moves,
+  // the near range moves about a third as fast as the world. That difference is
+  // what reads as distance once the camera starts panning.
+  ctx.save();
+  ctx.translate(-cam.dx * 0.12, -cam.dy * 0.10);
   ctx.globalAlpha = 0.85;
   _ridge(ctx, W, H, H * 0.72, 70, biome.freq * 0.6, 1, biome.far, null, now * 0.00003);
   ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // horizon haze: a soft band of sky colour where the far range meets the near
+  // one. Cheap, and it stops the two silhouettes reading as stacked paper cutouts.
+  const hz = ctx.createLinearGradient(0, H * 0.58, 0, H * 0.86);
+  hz.addColorStop(0, rgba(skyHi, 0));
+  hz.addColorStop(0.55, rgba(skyHi, 0.30));
+  hz.addColorStop(1, rgba(skyHi, 0));
+  ctx.fillStyle = hz;
+  ctx.fillRect(-30, H * 0.58, W + 60, H * 0.28);
+
+  ctx.save();
+  ctx.translate(-cam.dx * 0.34, -cam.dy * 0.26);
   _ridge(ctx, W, H, H * 0.86, space ? 70 : 120, biome.freq, biome.sharp, biome.near, biome.rim, now * 0.00007);
+  ctx.restore();
   if (space) { // a couple of floating islands drifting between the ranges
     for (const [ix, iy, iw] of [[300, 380, 90], [820, 300, 70], [1050, 440, 100]]) {
       const dy = Math.sin(now * 0.0005 + ix) * 6;
@@ -970,9 +1179,12 @@ function drawSecretBoss(ctx, o) {
     return { hy, hr };
   };
   const eyes = (cx, cy, dx, ey, er, glow) => {
-    ctx.shadowColor = glow; ctx.shadowBlur = 10; ctx.fillStyle = glow;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    glowOrb(ctx, cx - dx, cy + ey, er * 3, glow, 0.6); glowOrb(ctx, cx + dx, cy + ey, er * 3, glow, 0.6);
+    ctx.restore();
+    ctx.fillStyle = glow;
     ctx.beginPath(); ctx.arc(cx - dx, cy + ey, er, 0, Math.PI * 2); ctx.arc(cx + dx, cy + ey, er, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur = 0; ctx.fillStyle = '#16121c';
+    ctx.fillStyle = '#16121c';
     ctx.beginPath(); ctx.arc(cx - dx, cy + ey, er * 0.4, 0, Math.PI * 2); ctx.arc(cx + dx, cy + ey, er * 0.4, 0, Math.PI * 2); ctx.fill();
   };
   if (type === 'rizard_rizz' || type === 'rizard_tizz') {
@@ -1034,13 +1246,14 @@ function drawStoryBoss(ctx, o) {
     ctx.strokeStyle = shade(fill, -0.6); ctx.lineWidth = 1.4; ctx.stroke();
     ctx.strokeStyle = rgba(shade(fill, 0.5), 0.6); ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(x, y, r - 2, Math.PI * 1.05, Math.PI * 1.6); ctx.stroke();
-    if (rim) { ctx.shadowColor = rim; }
   };
   const eyes = (dx, ey, er, glow) => {
-    ctx.shadowColor = glow; ctx.shadowBlur = 10;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    glowOrb(ctx, x - dx, y + ey, er * 3, glow, 0.6); glowOrb(ctx, x + dx, y + ey, er * 3, glow, 0.6);
+    ctx.restore();
     ctx.fillStyle = glow;
     ctx.beginPath(); ctx.arc(x - dx, y + ey, er, 0, Math.PI * 2); ctx.arc(x + dx, y + ey, er, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur = 0; ctx.fillStyle = '#16121c';
+    ctx.fillStyle = '#16121c';
     ctx.beginPath(); ctx.arc(x - dx, y + ey, er * 0.4, 0, Math.PI * 2); ctx.arc(x + dx, y + ey, er * 0.4, 0, Math.PI * 2); ctx.fill();
   };
   if (type === 'dragon') {
@@ -1081,11 +1294,10 @@ function drawStoryBoss(ctx, o) {
   } else if (type === 'golem') {
     bodyOrb('#a6763c');
     ctx.strokeStyle = rgba('#ff8c5a', 0.7); ctx.lineWidth = 2.5; ctx.lineCap = 'round'; // molten cracks
-    ctx.shadowColor = '#ff8c5a'; ctx.shadowBlur = 6;
     ctx.beginPath();
     ctx.moveTo(x - 20, y - 30); ctx.lineTo(x - 6, y - 10); ctx.lineTo(x - 16, y + 14);
     ctx.moveTo(x + 22, y - 20); ctx.lineTo(x + 10, y + 4); ctx.lineTo(x + 18, y + 22);
-    ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.stroke();
     ctx.strokeStyle = rgba(shade('#a6763c', -0.5), 0.6); ctx.lineWidth = 1.5; // chips
     ctx.beginPath(); ctx.moveTo(x - r + 6, y - 6); ctx.lineTo(x - r * 0.5, y - 2); ctx.stroke();
     eyes(13, -18, 5, '#ff8c5a');
@@ -1123,6 +1335,7 @@ function _detSeed(x, y) {
 // frac = hp fraction; damage reads differently per material (scorch, glow, chips).
 function drawStoryDestructible(ctx, { x, y, w, h, angle = 0, kind = 'wood', frac = 1, color = '#6b4a2a', now = 0 }) {
   const rnd = _detSeed(x, y);
+  drawContactShadow(ctx, x, y + h / 2, w * 0.9, { alpha: 0.32 });
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
@@ -1359,8 +1572,25 @@ function drawStoryParticles(ctx, particles) {
       ctx.fillRect(pt.x - pt.r / 2, pt.y - pt.r / 2, pt.r, pt.r * 0.6);
     } else { // ember mote — additive glow with a hot core
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = a; ctx.fillStyle = pt.color;
-      ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r * 0.9, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = a;
+      ctx.fillStyle = pt.color;
+      // Fast motes stretch along their travel instead of staying round. A
+      // circle moving 12px per frame reads as a strobing dot; an ellipse
+      // aligned to velocity reads as motion. Slow motes are left alone, so
+      // settling embers still look like embers.
+      const sp = Math.hypot(pt.vx || 0, pt.vy || 0);
+      if (sp > 4) {
+        const stretch = Math.min(3.2, 1 + sp * 0.11);
+        ctx.save();
+        ctx.translate(pt.x, pt.y);
+        ctx.rotate(Math.atan2(pt.vy, pt.vx));
+        ctx.beginPath();
+        ctx.ellipse(0, 0, pt.r * 0.9 * stretch, pt.r * 0.9 / Math.sqrt(stretch), 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else {
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r * 0.9, 0, Math.PI * 2); ctx.fill();
+      }
       if (hex) { ctx.globalAlpha = a * 0.9; ctx.fillStyle = shade(pt.color, 0.6);
         ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r * 0.4, 0, Math.PI * 2); ctx.fill(); }
       ctx.globalCompositeOperation = 'source-over';

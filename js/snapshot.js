@@ -152,6 +152,26 @@ function ghostBody(e, ep, alpha) {
   return fake;
 }
 
+// Camera targets straight off the wire. The online client has no local players
+// to follow, and the ghosts don't exist until drawSnapshotWorld builds them —
+// but the camera has to be positioned BEFORE anything draws, so this does the
+// same interpolation a frame early and cheaply.
+function snapshotCameraPoints(snap, snapPrev, alpha) {
+  if (!snap?.ps) return null;
+  const prevPs = {};
+  if (snapPrev) for (const q of snapPrev.ps) prevPs[q.s] = q;
+  const pts = [];
+  for (const gp of snap.ps) {
+    if (!gp.al) continue;
+    const p = prevPs[gp.s];
+    pts.push({
+      x: p ? p.x + (gp.x - p.x) * alpha : gp.x,
+      y: p ? p.y + (gp.y - p.y) * alpha : gp.y,
+    });
+  }
+  return pts;
+}
+
 function ghostPlayer(gp, gpPrev, alpha, now) {
   const lerp = (a, b) => a + (b - a) * alpha;
   const x = gpPrev ? lerp(gpPrev.x, gp.x) : gp.x;
@@ -172,9 +192,13 @@ function ghostPlayer(gp, gpPrev, alpha, now) {
 function drawGhostWizard(g, now) {
   const s = g.sizeScale || 1;
   drawNameTag(g.name, g.color, g._x, g._y - 48 * s);
-  if (s > 1.6) { ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 18; }
+  if (s > 1.6) { // matches drawWizard (player.js): additive aura, not a canvas shadow
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    glowOrb(ctx, g._x, g._y - 6 * s, 34 * s, '#ffd700', 0.32);
+    ctx.restore();
+  }
   drawWizardFigure(g, g._x, g._y, s, now, g._an);
-  ctx.shadowBlur = 0;
   const x = g._x, y = g._y;
   if (g.floaty) {
     ctx.strokeStyle = '#ff6b81'; ctx.lineWidth = 1.5;
@@ -189,21 +213,11 @@ function drawGhostWizard(g, now) {
     ctx.beginPath(); ctx.arc(x, y - 8 * s, 24 * s, 0, Math.PI * 2); ctx.stroke();
     ctx.globalAlpha = 1;
   }
-  if (g.hurt) {
-    ctx.globalAlpha = 0.5;
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(x, y - 8 * s, 19 * s, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1;
-  }
-  if (g.frozen) {
-    ctx.globalAlpha = 0.45;
-    ctx.fillStyle = '#9be7ff';
-    ctx.fillRect(x - 17 * s, y - 32 * s, 34 * s, 50 * s);
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = '#d8f4ff';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(x - 17 * s, y - 32 * s, 34 * s, 50 * s);
-  }
+  // matches the couch path (player.js): silhouette flash, real ice block.
+  // The snapshot only carries a hurt BOOLEAN, not a remaining duration, so the
+  // flash plays at a fixed strength here instead of fading out.
+  if (g.hurt) drawStoryHitFlash(ctx, wizardArt(g, x, y, s, now, g._an), 0.8);
+  if (g.frozen) drawStoryIceBlock(ctx, x, y - 7 * s, 34 * s, 50 * s, now);
   // no health bars — the hat tells the story (see drawWizardFigure)
 }
 
