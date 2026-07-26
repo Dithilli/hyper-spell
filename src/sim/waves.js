@@ -19,7 +19,7 @@ import { clearReplay } from './replay.js';
 import { enemies, spawnEnemy } from './ai/enemies.js';
 import { spawnBoss } from './ai/boss.js';
 
-let pendingSpawns = [];         // staggered spawn queue: { type, tier, at, x, y }
+export let pendingSpawns = [];         // staggered spawn queue: { type, tier, at, x, y }
 
 export function clearEnemies() {
   for (const b of [...enemies]) removeSummon(b);
