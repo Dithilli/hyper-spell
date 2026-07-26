@@ -12,6 +12,9 @@ function btnCss(color) {
 }
 
 export function mountMenu() {
+  // js/net.js's IIFE bailed out on file:// — a double-clicked page went straight
+  // to the couch lobby and never saw the online menu. Keep it that way.
+  if (typeof location === 'undefined' || !location.protocol.startsWith('http')) return;
   if (typeof document === 'undefined' || typeof document.createElement !== 'function') return;
   const menu = document.createElement('div');
   menu.id = 'netmenu';

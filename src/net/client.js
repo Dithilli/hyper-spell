@@ -71,7 +71,11 @@ export function netMode() { return currentNetMode; }
 
 // ---- net stats (F8): live truth about what the wire is carrying ----
 const netStats = { on: false, lastBytes: 0, bytes: 0, snaps: 0, at: 0, rate: 0, kbs: 0, delay: 0 };
-addEventListener('keydown', e => { if (e.code === 'F8') netStats.on = !netStats.on; });
+// the overlay only means anything online, and js/net.js's IIFE never ran on
+// file:// — so the toggle stays unbound there too
+if (typeof location !== 'undefined' && location.protocol.startsWith('http')) {
+  addEventListener('keydown', e => { if (e.code === 'F8') netStats.on = !netStats.on; });
+}
 function statTick(bytes, now) {
   netStats.lastBytes = bytes;
   netStats.bytes += bytes;

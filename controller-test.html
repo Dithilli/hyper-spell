@@ -6,29 +6,9 @@
 </head>
 <body>
 <canvas id="game" width="1280" height="720"></canvas>
-<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
-<script src="js/core.js"></script>
-<script src="js/artkit.js"></script>
-<script src="js/audio.js"></script>
-<script src="js/fx.js"></script>
-<script src="js/awards.js"></script>
-<script src="js/telemetry.js"></script>
-<script src="js/input.js"></script>
-<script src="js/spells.js"></script>
-<script src="js/player.js"></script>
-<script src="js/pickups.js"></script>
-<script src="js/spellbook.js"></script>
-<script src="js/spelltiers.js"></script>
-<script src="js/hybrids.js"></script>
-<script src="js/maps.js"></script>
-<script src="js/mapbook.js"></script>
-<script src="js/events.js"></script>
-<script src="js/boss.js"></script>
-<script src="js/bot.js"></script>
-<script src="js/snapshot.js"></script>
+<script>window.requestAnimationFrame = () => 0;</script> <!-- before the bundle: browser.js self-starts the loop -->
+<script src="dist/hyperspell.js?nomenu"></script>
 <!-- freeze the auto game loop so the lobby-input units run deterministically -->
-<script>window.requestAnimationFrame = () => 0;</script>
-<script src="js/game.js"></script>
 <script>
 // Controller-parity verification: drives the REAL lobby input paths
 // (scanJoins + scanLobbyPads + the pad name wheel) with a mocked Gamepad API,
@@ -58,7 +38,7 @@
     // headless virtual time can report performance.now() < 350ms at boot, which
     // would trip scanJoins' name-edit join lockout. Real play is always well past
     // it — neutralize it so joins aren't spuriously blocked.
-    nameEditEndAt = -1e9;
+    setNameEditEndAt(-1e9);
 
     // --- 1) two pads join on a button press (rising edge) ---
     tick();                                   // baseline: no buttons held
@@ -121,7 +101,7 @@
     // --- 5) remaining pads fill to the 8 cap; extra join is refused ---
     // (clear the post-name-edit join lockout again: the wheel confirm in step 4
     //  re-armed it; real play elapses >350ms before the next join)
-    nameEditEndAt = -1e9;
+    setNameEditEndAt(-1e9);
     for (let i = 2; i < N; i++) { set(i, 0, true); tick(); set(i, 0, false); tick(); }
     // players now = 8 humans? we also added 2 bots earlier, so cap should hold at 8 total
     if (players.length !== 8) fail('expected MAX_PLAYERS=8 total, got ' + players.length);

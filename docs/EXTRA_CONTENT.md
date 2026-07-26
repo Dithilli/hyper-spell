@@ -1,9 +1,10 @@
 # Optional content pack
 
-The browser loads `js/extra-content.js`, a small generated lookup loader. After a
-valid alias is entered, it lazily loads `js/extra-content.pack.js`, the encrypted
-content payload. Plaintext authoring source is intentionally not tracked by this
-repository.
+The game bundle includes `src/render/content-pack.js`, a small generated lookup
+loader. After a valid alias is entered, it lazily loads
+`dist/extra-content.pack.js`, the encrypted content payload — resolved relative
+to the bundle, which is why the payload sits beside it rather than in `src/`.
+Plaintext authoring source is intentionally not tracked by this repository.
 
 Local authoring files live under `.content-src/`, which is gitignored. Keep that
 directory backed up in access-controlled storage or a private repository. To rebuild
@@ -14,7 +15,7 @@ node scripts/build-extra-content.js
 ```
 
 The bundled LAN server serves only top-level web assets plus the `assets/`, `css/`,
-and `js/` trees. Private authoring data, telemetry, repository metadata, scripts,
+and `dist/` trees. Private authoring data, telemetry, repository metadata, scripts,
 and documentation are outside that allowlist. Do not serve the repository root
 with a generic static server while the private authoring directory is present;
 many such servers expose ignored files by default.

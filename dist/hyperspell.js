@@ -16626,9 +16626,11 @@
     return netMode;
   }
   var netStats = { on: false, lastBytes: 0, bytes: 0, snaps: 0, at: 0, rate: 0, kbs: 0, delay: 0 };
-  addEventListener("keydown", (e) => {
-    if (e.code === "F8") netStats.on = !netStats.on;
-  });
+  if (typeof location !== "undefined" && location.protocol.startsWith("http")) {
+    addEventListener("keydown", (e) => {
+      if (e.code === "F8") netStats.on = !netStats.on;
+    });
+  }
   function statTick(bytes, now) {
     netStats.lastBytes = bytes;
     netStats.bytes += bytes;
@@ -17008,6 +17010,7 @@
     return `min-width:420px;padding:14px 26px;font-family:Georgia,serif;font-size:18px;cursor:pointer;background:transparent;border:2px solid ${color};color:${color};border-radius:8px;`;
   }
   function mountMenu() {
+    if (typeof location === "undefined" || !location.protocol.startsWith("http")) return;
     if (typeof document === "undefined" || typeof document.createElement !== "function") return;
     const menu = document.createElement("div");
     menu.id = "netmenu";
@@ -17466,7 +17469,8 @@
   attachKeyboard(canvas2);
   attachLobbyKeys();
   installDebugGlobals();
-  if (!/(^|[?&])nomenu(=|&|$)/.test(location.search)) mountMenu();
+  var bundleSrc = document.currentScript?.src || "";
+  if (!/[?&]nomenu\b/.test(bundleSrc) && !/[?&]nomenu\b/.test(location.search)) mountMenu();
   loadMap(0);
   var last = performance.now();
   function frame(now) {

@@ -24,8 +24,10 @@ setPostTelemetry(postTelemetryHttp);
 attachKeyboard(canvas);
 attachLobbyKeys();
 installDebugGlobals();
-// the dev harness pages drive the game themselves and never wanted the menu
-if (!/(^|[?&])nomenu(=|&|$)/.test(location.search)) mountMenu();
+// the dev harness pages drive the game themselves and never wanted the menu:
+// they tag the bundle's own src with ?nomenu, since they are opened by file path
+const bundleSrc = document.currentScript?.src || '';
+if (!/[?&]nomenu\b/.test(bundleSrc) && !/[?&]nomenu\b/.test(location.search)) mountMenu();
 
 loadMap(0);
 
