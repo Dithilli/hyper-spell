@@ -191,10 +191,23 @@ explicitly deferred with a reason.
 | C9 | `activeEffects.length = 0` on map load silently skips pending `onEnd()` | `game.js:33` | Effect teardown is explicit |
 | C10 | Client never applies env-event static modifications (`winter` friction, `rubber` restitution) — blocks correct prediction | `events.js:64,119`; `net.js:242` | Client world matches server world |
 
-Flagged as design questions rather than defects (resolve during implementation):
+Two behaviours that looked like defects are **confirmed intentional** and must be
+preserved through the refactor. Both are currently side-effects of unrelated
+mechanisms, so each becomes an explicit, named rule:
 
-- **C11** — `disarm` ("Butterfingers") clears both slots via the `spellId` setter, destroying charged fusions that `addSpell` otherwise protects. Intentional for a legendary, or should fusions survive?
-- **C12** — `damageBoss` discards all damage before `bs.announced`, giving bosses ~1.9 s of invulnerability at spawn. Intentional telegraph, or an accident?
+- **C11 — `disarm` destroys charged fusions. Intended.** Butterfingers is
+  legendary (drop weight 4, the rarest tier); annihilating a charged fusion is
+  the payoff for landing it. Today this only works because
+  `p.spellId = null` happens to clear both slots and both charge counters
+  (`player.js:63`), which reads as an accident next to `addSpell`'s explicit
+  fusion protection. The refactor keeps the behaviour and makes it a declared
+  rule on the disarm effect rather than an emergent property of the accessor.
+- **C12 — bosses are invulnerable during their entrance. Intended.** The ~1.9 s
+  window (`fightAt + 800`) protects the awaken banner, flash and screenshake.
+  Today it emerges from `damageBoss` testing `bs.announced`
+  (`boss.js:353`), which silently swallows damage. The refactor keeps the window
+  and models it as a named `INVULNERABLE_UNTIL_ANNOUNCED` state on the boss, so
+  the rule is legible in code and can be asserted by a test.
 
 ### Class D — architecture
 
