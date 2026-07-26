@@ -1,4 +1,4 @@
-// mulberry32 — same algorithm as js/core.js makeRng, so seeded sim runs and
+// mulberry32 — same algorithm as src/sim/rng.js makeRng, so seeded sim runs and
 // seeded test runs agree.
 export function seededRandom(seed) {
   let a = seed >>> 0;

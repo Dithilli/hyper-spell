@@ -52,7 +52,7 @@ function canonicalize(value) {
 // full canonical encoding is a total order over the whole body, so two entries
 // can only tie when they are byte-identical — in which case their relative order
 // cannot change the digest. Sorting on a prefix of the fields would not be a
-// total order: js/snapshot.js rounds body x/y to integers, so several gibs from
+// total order: src/sim/snapshot.js rounds body x/y to integers, so several gibs from
 // one explosion routinely share a position and would fall back to Set order.
 function canonicalBodies(bodies) {
   return bodies

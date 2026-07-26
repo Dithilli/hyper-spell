@@ -3,10 +3,9 @@
 import { Body, Composite, Query, world, engine, W, H } from '../world.js';
 import { performance } from '../env.js';
 import { rand } from '../rng.js';
-import { spawnParticles } from '../fx.js';
+import { spawnParticles, addShake } from '../fx.js';
 import { sfx } from '../sfx.js';
 import { statFor } from '../awards.js';
-import { addShake } from '../fx.js';
 import { game, currentMap } from '../match.js';
 import { castSpell } from '../spells/core.js';
 import { players, gibs, MAX_HP, FALL_SAFE_DROP, setPlayerScale } from './lifecycle.js';

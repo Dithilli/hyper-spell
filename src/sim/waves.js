@@ -1,17 +1,18 @@
 // waves.js — the wave manager and run lifecycle for PvE survival mode.
 // game.js calls updateWaveMode/startRun/endRun; the enemies themselves are in
 // src/sim/ai/enemies.js.
-import { W } from './world.js';
+import { W, onWorldReset } from './world.js';
 import { performance } from './env.js';
 import { rand } from './rng.js';
 import { slowMo } from './pace.js';
 import { sfx } from './sfx.js';
 import { storage } from './storage.js';
-import { onWorldReset } from './world.js';
 import { resetMatchStats } from './awards.js';
 import { resetMatchTelemetry } from './telemetry.js';
 import { game, setBanner, loadMap } from './match.js';
-import { players, clearSpells, despawnPlayer, spawnPlayer, spawnPointFor } from './player/lifecycle.js';
+import {
+  players, clearSpells, despawnPlayer, spawnPlayer, spawnPointFor,
+} from './player/lifecycle.js';
 import { scheduleTomes, spawnTome } from './pickups.js';
 import { removeSummon } from './spells/core.js';
 import { MAPS } from './maps/builders.js';

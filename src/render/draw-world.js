@@ -6,26 +6,25 @@ import { Body, Composite, engine, world, W, H, constraintEnds } from '../sim/wor
 import { rand, pick } from '../sim/rng.js';
 import * as art from './artkit.js';
 import {
-  drawStoryBackdrop, drawStoryCrate, drawStoryDestructible, drawStorySpikes,
-  drawStoryTerrain, shade,
+  drawStoryBackdrop, drawStoryCrate, drawStoryDestructible, drawStorySpikes, drawStoryTerrain, shade,
 } from './artkit.js';
-import { particles, shake, setShake, flashColor, flashAlpha, setFlashAlpha } from '../sim/fx.js';
+import {
+  particles, shake, setShake, flashColor, flashAlpha, setFlashAlpha,
+} from '../sim/fx.js';
 import { game, currentMap } from '../sim/match.js';
-import { players } from '../sim/player/lifecycle.js';
+import { players, gibs } from '../sim/player/lifecycle.js';
 import { activeEffects, projectiles, summons } from '../sim/spells/core.js';
-import { gibs } from '../sim/player/lifecycle.js';
 import { isLeafy } from '../sim/maps/builders.js';
 import { envHash, drawVineAt, drawEnvVisualsLive } from './draw-env.js';
 import { drawBossBody } from './draw-boss.js';
 import { drawParticles } from './fx.js';
 import { drawTomes } from './draw-pickups.js';
-import { drawWizard, drawWizardFigure, drawGhostWisps, drawOffscreenPointers } from './draw-wizard.js';
-import { drawHUD, drawLobby } from './hud.js';
-import { drawAwards } from './hud.js';
-import { drawSpellReport } from './hud.js';
+import {
+  drawWizard, drawWizardFigure, drawGhostWisps, drawOffscreenPointers,
+} from './draw-wizard.js';
+import { drawHUD, drawLobby, drawAwards, drawSpellReport } from './hud.js';
 import { drawReplay } from './replay.js';
-import { mouse } from '../platform/input-keyboard.js';
-import { kbControllers } from '../platform/input-keyboard.js';
+import { mouse, kbControllers } from '../platform/input-keyboard.js';
 
 // ---------- drawing ----------
 export function drawBodyRounded(b, color) {

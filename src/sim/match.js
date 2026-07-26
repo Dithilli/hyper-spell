@@ -3,8 +3,7 @@
 import { Composite, Bodies, world, engine, W, H, onWorldReset } from './world.js';
 import { performance } from './env.js';
 import { rand } from './rng.js';
-import { particles } from './fx.js';
-import { doFlash } from './fx.js';
+import { particles, doFlash } from './fx.js';
 import { slowMo } from './pace.js';
 import { sfx } from './sfx.js';
 import { schedule } from './schedule.js';
@@ -18,12 +17,10 @@ import { rollEnvEvent } from './events.js';
 import { BOSS_EVERY, spawnBoss } from './ai/boss.js';
 import { startRun, endRun } from './waves.js';
 import {
-  players, MAX_PLAYERS, createPlayer, spawnPlayer, despawnPlayer,
-  spawnPointFor, clearSpells,
+  players, MAX_PLAYERS, createPlayer, spawnPlayer, despawnPlayer, spawnPointFor, clearSpells, gibs,
 } from './player/lifecycle.js';
 import { activeEffects, projectiles, summons } from './spells/core.js';
 import { tomes, hats, scheduleTomes } from './pickups.js';
-import { gibs } from './player/lifecycle.js';
 import { clearReplay, startReplay } from './replay.js';
 
 // mode: 'versus' (last-wizard-standing match) | 'wave' (co-op/solo PvE survival, js/enemies.js)

@@ -3,14 +3,11 @@
 // the tape would still replay to itself, and re-recording would bless the gap.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { hashSnapshot } from './harness/hash.js';
 import { makeClock } from './harness/clock.js';
 import { seededRandom } from './harness/seeded-random.js';
-
-const require = createRequire(import.meta.url);
-const { createSimContext } = require('../server/sim-context.js');
+import { createSim } from '../src/platform/node.js';
 
 // The complete set of fields the digest is allowed to skip. Written out here on
 // purpose: adding an exclusion to hash.js must break this test and force the
@@ -28,7 +25,7 @@ const perturbed = (snap, mutate) => {
   return hashSnapshot(copy);
 };
 
-// A snapshot carrying every field js/snapshot.js can emit, including the ones a
+// A snapshot carrying every field src/sim/snapshot.js can emit, including the ones a
 // quiet single-round tape never populates (polygon/vertex bodies, critter and
 // decoy and boss summons, phantom/spin statics, fusion charges, segs, fxLite).
 const richSnapshot = () => ({
@@ -100,7 +97,7 @@ test('the live snapshot carries no field the digest is blind to', () => {
   // proves the hand-written snapshot has not drifted from what the sim emits.
   const tape = JSON.parse(readFileSync('test/tape/one-round.input.json', 'utf8'));
   const clock = makeClock(0);
-  const sim = createSimContext({ clock, random: seededRandom(12345) });
+  const sim = createSim({ clock, random: seededRandom(12345) });
   const bridge = sim.bridge;
   try {
     const slots = tape.players.map((p) => bridge.addPlayer({ name: p.name }));
@@ -130,7 +127,7 @@ test('the live snapshot carries no field the digest is blind to', () => {
 });
 
 test('body order is a total order, so Set iteration order cannot reach the digest', () => {
-  // js/snapshot.js:39 rounds body x/y to integers, so gibs from one explosion
+  // src/sim/snapshot.js rounds body x/y to integers, so gibs from one explosion
   // routinely share label+x+y and differ only in angle. A sort that tie-breaks
   // on label/x/y alone would leave those two in Set order.
   const wrap = (bodies) => ({ t: 'snap', v: '1', st: 'PLAY', mi: 0, rn: 1, wr: null, ps: [], bodies });
