@@ -613,11 +613,14 @@ function reachLanding(g, x, y) {
   return -1;
 }
 
-// how much of the map you can work with from a given landing cell (memoised —
-// eight wizards landing on one platform is one flood fill, not eight)
+// how much of the map you can work with from a given landing cell. Everything
+// along one flat run shares a reach set, so collapse to the run's left end
+// first: a 300px platform then costs one flood fill instead of twenty.
 function reachEscape(g, land) {
-  let n = g.escape.get(land);
-  if (n == null) { n = reachCount(g, reachFrom(g, land)); g.escape.set(land, n); }
+  let k = land;
+  while (k % g.cols > 0 && g.stand[k - 1]) k--;
+  let n = g.escape.get(k);
+  if (n == null) { n = reachCount(g, reachFrom(g, k)); g.escape.set(k, n); }
   return n;
 }
 
@@ -661,6 +664,10 @@ function spawnEscapes(m, x, y) {
 // that rolls. Planks don't count: a rope bridge is a fine place to come down.
 const DROP_LABELS = new Set(['crate', 'barrel', 'ball']);
 function dropColumnClear(m, x, y0, y1) {
+  // a body radius past the landing row: the wizard comes to rest with its
+  // CENTRE on that row, and a barrel its feet touch is still a barrel it
+  // rolls off. Same half-cell slip that used to let a spawn clip a tree.
+  y1 += y1 >= y0 ? REACH_PAD : -REACH_PAD;
   const lo = Math.min(y0, y1), hi = Math.max(y0, y1);
   for (const b of Composite.allBodies(m.composite)) {
     if (b.isStatic || b.isSensor || !DROP_LABELS.has(b.label)) continue;
@@ -679,17 +686,24 @@ function dropColumnClear(m, x, y0, y1) {
 function safeSpawnPoint(m, x, y, busy = []) {
   const g = reachInfo(m);
   const escapes = i => i >= 0 && reachEscape(g, i) >= g.arenaN * REACH_SHARE;
-  const sound = (nx, i) => reachLandable(g, i) && escapes(i) &&
-    dropColumnClear(m, nx, y, ((i - (i % g.cols)) / g.cols) * REACH_CELL);
+  // grade at the cell CENTRE and hand back that same centre. Grading one point
+  // and dropping the wizard at another up to half a cell away is how a spawn
+  // the grid called clear still clips a tree trunk on the way down.
+  const cellX = i => (i % g.cols) * REACH_CELL + REACH_CELL / 2;
+  const sound = i => i >= 0 && reachLandable(g, i) && escapes(i) &&
+    dropColumnClear(m, cellX(i), y, ((i - (i % g.cols)) / g.cols) * REACH_CELL);
   const land = reachLanding(g, x, y);
   if (escapes(land)) {
-    if (sound(x, land)) return { x, y };
-    for (let d = 1; d <= 6; d++) {
+    if (sound(land)) return { x: cellX(land), y };
+    // far enough to step past a set-piece or a cover block and still be on the
+    // ledge the map put you on — relocating somewhere else entirely is the last
+    // resort, not the answer to a crate in the way
+    for (let d = 1; d <= 11; d++) {
       for (const side of [-1, 1]) {
         const nx = x + side * d * REACH_CELL;
         if (nx < 40 || nx > W - 40) continue;
         const ni = reachLanding(g, nx, y);
-        if (ni >= 0 && sound(nx, ni)) return { x: nx, y };
+        if (sound(ni)) return { x: cellX(ni), y };
       }
     }
   }
@@ -716,19 +730,22 @@ function arenaSpawnNear(m, x, y, busy = []) {
   const ranked = reachSpots(g)
     .filter(s => !busy.some(q => Math.hypot(q.x - s.x, q.y - s.y) < 70))
     .sort((a, b) => cost(a) - cost(b));
-  for (let k = 0; k < ranked.length && k < 40; k++) {
-    const s = ranked[k];
-    if (reachEscape(g, s.i) < g.arenaN * REACH_SHARE) continue;
-    // drop in from as high as the column above is clear, so it still reads as an arrival
-    let lift = 0;
-    while (lift < 8) {
-      const above = s.i - g.gdir * g.cols * (lift + 1);
-      if (above < 0 || above >= g.pass.length || !g.pass[above]) break;
-      lift++;
+  // two passes: prefer a clear drop, but a spot you might bounce on beats
+  // giving up and leaving the wizard walled in
+  for (const needClear of [true, false]) {
+    for (const s of ranked) {
+      if (reachEscape(g, s.i) < g.arenaN * REACH_SHARE) continue;
+      // drop in from as high as the column above is clear, so it still reads as an arrival
+      let lift = 0;
+      while (lift < 8) {
+        const above = s.i - g.gdir * g.cols * (lift + 1);
+        if (above < 0 || above >= g.pass.length || !g.pass[above]) break;
+        lift++;
+      }
+      const y0 = s.y - g.gdir * lift * REACH_CELL;
+      if (needClear && !dropColumnClear(m, s.x, y0, s.y)) continue;
+      return { x: s.x, y: y0 };
     }
-    const y0 = s.y - g.gdir * lift * REACH_CELL;
-    if (!dropColumnClear(m, s.x, y0, s.y)) continue;
-    return { x: s.x, y: y0 };
   }
   return null;
 }

@@ -64,7 +64,8 @@ run(`
       const pt = spawnPointFor({ slot });
       const moved = pt.x !== ax || pt.y !== ay;
       out.push({ slot, ax, ay, authored, why, pt, ok: spawnEscapes(currentMap, pt.x, pt.y),
-        moved, nudged: moved && pt.y === ay && Math.abs(pt.x - ax) <= 96 });
+        moved: moved && Math.abs(pt.x - ax) > 8, // a sub-cell snap onto the graded point isn't a move
+        nudged: moved && pt.y === ay && Math.abs(pt.x - ax) > 8 && Math.abs(pt.x - ax) <= 11 * 16 });
     }
     const g = currentMap.data.reach;
     return { name: currentMap.def.name, mapSeed: currentMap.data.seed, arenaN: g.arenaN, out };
