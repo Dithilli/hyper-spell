@@ -100,6 +100,29 @@ function spawnHat(now) {
   setBanner('A MEGA HAT FALLS...', '#ffd700', 1200);
 }
 
+// The pickup used to say only the spell's NAME, which is the one thing a name
+// already tells you and the one thing that doesn't help — "Whirligig" does not
+// hint that it falls out of the sky. So the grab now also plays the cast mark
+// once, big, above your head: the same symbol that's on the tome cover and that
+// will sit at your cursor from here on. One beat, then it's gone.
+function showCastMark(p, spellId) {
+  const kind = typeof castKind === 'function' ? castKind(spellId) : null;
+  const def = SPELLS[spellId];
+  if (!kind || !def) return;
+  const t0 = performance.now(), DUR = 1100;
+  activeEffects.push({
+    until: t0 + DUR,
+    draw(now) {
+      if (!p.alive || !p.body) return;
+      const t = Math.max(0, Math.min(1, (now - t0) / DUR));
+      // pops to full size fast, then drifts up and fades — reads as a stamp
+      const s = 1.5 * (1 - Math.pow(1 - Math.min(1, t * 4), 3)) * (1 + t * 0.35);
+      drawCastGlyph(ctx, kind, p.body.position.x, p.body.position.y - 60 - t * 26,
+        def.color, now, s, Math.min(1, (1 - t) * 2.2));
+    },
+  });
+}
+
 function pickupTome(tome, p) {
   if (!tomes.has(tome) || !p.alive) return;
   tomes.delete(tome);
@@ -111,6 +134,7 @@ function pickupTome(tome, p) {
   sfx.pickup();
   spawnParticles(tome.position.x, tome.position.y, SPELLS[tome.spell].color, 14, 5);
   spawnText(p.body.position.x, p.body.position.y - 48, SPELLS[tome.spell].name.toUpperCase() + '!', SPELLS[tome.spell].color);
+  showCastMark(p, tome.spell);
   // rare & legendary grabs get a shout so a jackpot lands with weight
   const tier = spellTier(tome.spell);
   if ((TIER_RANK[tier] || 0) >= 2) {
@@ -169,9 +193,13 @@ function unMega(p) {
 }
 
 // storybook grimoire, mega hat and catalyst all render from artkit.js
-function drawTomeAt(x, y, angle, spellColor, now, tier) {
+// spellId is optional and purely cosmetic — it selects the cast mark embossed on
+// the cover. The LAN client passes it too, so a ghost's tomes read the same as
+// the host's rather than falling back to the generic star.
+function drawTomeAt(x, y, angle, spellColor, now, tier, spellId) {
   const rank = TIER_RANK[tier] || 0;
-  drawStoryTome(ctx, { x, y, angle, now, color: spellColor, rank, rarityColor: TIER_COLOR[tier] });
+  const kind = spellId && typeof castKind === 'function' ? castKind(spellId) : null;
+  drawStoryTome(ctx, { x, y, angle, now, color: spellColor, rank, rarityColor: TIER_COLOR[tier], kind });
 }
 
 function drawCatalystAt(x, y, angle, now) {
@@ -185,7 +213,7 @@ function drawHatAt(x, y, angle, now) {
 function drawTomes(now) {
   for (const t of tomes) {
     if (t.catalyst) drawCatalystAt(t.position.x, t.position.y, t.angle, now);
-    else drawTomeAt(t.position.x, t.position.y, t.angle, SPELLS[t.spell].color, now, spellTier(t.spell));
+    else drawTomeAt(t.position.x, t.position.y, t.angle, SPELLS[t.spell].color, now, spellTier(t.spell), t.spell);
   }
   for (const h of hats) drawHatAt(h.position.x, h.position.y, h.angle, now);
 }

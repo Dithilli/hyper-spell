@@ -379,6 +379,17 @@
       ctx.globalAlpha = 0.85;
       ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 9 / CAM.zoom, 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = 1;
+      // ...and the cast-shape preview, same as couch play (drawReticle, game.js).
+      // The snapshot already carries spellId and a ready flag for the two-slot
+      // HUD, so the online cursor costs nothing on the wire.
+      const spell = mine?.spellId && SPELLS[mine.spellId];
+      const kind = spell && typeof castKind === 'function' ? castKind(mine.spellId) : null;
+      if (kind && mine.lastCast === -1e9) {
+        drawCastCursor(ctx, {
+          kind, x: mouse.x, y: mouse.y, color: spell.color, now, zoom: CAM.zoom,
+          px: mine._x, py: mine._y - 6,
+        });
+      }
     }
     endWorld();
 

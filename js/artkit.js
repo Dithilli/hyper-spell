@@ -749,7 +749,19 @@ function drawStoryTome(ctx, o) {
   ctx.globalCompositeOperation = 'lighter';
   glowOrb(ctx, -1.5, 0, 11 + 3 * Math.sin(now * 0.008), color, 0.55);
   ctx.restore();
-  drawStar(ctx, -1.5, 0, 5, color);
+  // The cover sigil used to be a generic star on every tome in the game, which
+  // told you nothing you didn't already get from the colour. It's now the cast
+  // mark, so you can read a drop's chevron or a ray's arrow from across the
+  // arena and decide whether the walk is worth it. (o.kind, js/spellcast.js.)
+  if (o.kind) {
+    // A bright sigil drawn straight onto the additive glow disappeared into it —
+    // same hue, same value. It needs a dark medallion to be stamped into.
+    ctx.fillStyle = rgba(INK, 0.62);
+    ctx.beginPath(); ctx.arc(-1.5, 0, 8.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = rgba(mix(color, '#fff6e0', 0.5), 0.55); ctx.lineWidth = 0.7;
+    ctx.beginPath(); ctx.arc(-1.5, 0, 8.5, 0, Math.PI * 2); ctx.stroke();
+    drawCastGlyph(ctx, o.kind, -1.5, 0, mix(color, '#fff6e0', 0.75), now, 0.6, 1);
+  } else drawStar(ctx, -1.5, 0, 5, color);
   runeRing(ctx, -1.5, 0, 7, rgba(color, 1), now, { count: 6, lw: 0.7, alpha: 0.7 });
   // clasp
   ctx.fillStyle = mix(color, '#ffe9a8', 0.6);
@@ -1506,10 +1518,35 @@ function drawStoryDestructible(ctx, { x, y, w, h, angle = 0, kind = 'wood', frac
 }
 
 // ---------- particles: glowing storybook embers, motes & sigil rings ----------
-function drawStoryParticles(ctx, particles) {
-  ctx.save();
+// Floating labels are laid out before anything draws: two damage numbers landing
+// on the same wizard used to overprint into an unreadable smear. Each label steps
+// up until it clears the ones already placed — the same slot trick the nametags
+// use (_claimTagSlot, js/player.js), run per frame over the live text particles.
+function _layoutTextParticles(ctx, particles, z) {
+  const slots = [];
+  const step = 15 / z;
+  ctx.font = `bold ${16 / z}px Georgia`;
   for (const pt of particles) {
-    const a = Math.max(0, Math.min(1, pt.life / pt.maxLife));
+    if (pt.kind !== 'text') continue;
+    const halfW = ctx.measureText(pt.str).width / 2;
+    let ty = pt.y;
+    for (let i = 0; i < 6; i++) {
+      if (!slots.some(s => Math.abs(s.y - ty) < step && Math.abs(s.x - pt.x) < s.halfW + halfW + 6 / z)) break;
+      ty -= step;
+    }
+    slots.push({ x: pt.x, y: ty, halfW });
+    pt._ty = ty;
+  }
+}
+
+function drawStoryParticles(ctx, particles) {
+  const z = typeof CAM !== 'undefined' ? CAM.zoom : 1;
+  ctx.save();
+  _layoutTextParticles(ctx, particles, z);
+  for (const pt of particles) {
+    // `dim` is the core/mote tier from fx.js — cores burn at full brightness,
+    // motes sit back as texture so the two layers stay distinguishable
+    const a = Math.max(0, Math.min(1, pt.life / pt.maxLife)) * (pt.dim ?? 1);
     const hex = typeof pt.color === 'string' && pt.color[0] === '#';
     if (pt.kind === 'ring') {
       ctx.globalCompositeOperation = 'lighter';
@@ -1520,12 +1557,15 @@ function drawStoryParticles(ctx, particles) {
       ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2); ctx.stroke();
       ctx.globalCompositeOperation = 'source-over';
     } else if (pt.kind === 'text') {
+      // sized in screen px, like the nametags: a damage number that grows with
+      // the camera stops reading as a label and starts competing with the banner
+      const ty = pt._ty ?? pt.y;
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = a;
-      ctx.font = 'bold 16px Georgia'; ctx.textAlign = 'center';
-      ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(18,10,24,0.75)';
-      ctx.strokeText(pt.str, pt.x, pt.y);
-      ctx.fillStyle = pt.color; ctx.fillText(pt.str, pt.x, pt.y);
+      ctx.font = `bold ${16 / z}px Georgia`; ctx.textAlign = 'center';
+      ctx.lineWidth = 3.5 / z; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(18,10,24,0.85)';
+      ctx.strokeText(pt.str, pt.x, ty);
+      ctx.fillStyle = pt.color; ctx.fillText(pt.str, pt.x, ty);
     } else if (pt.kind === 'spark') {
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = a; ctx.strokeStyle = pt.color; ctx.lineWidth = 2; ctx.lineCap = 'round';
@@ -1574,6 +1614,11 @@ function drawStoryParticles(ctx, particles) {
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = a;
       ctx.fillStyle = pt.color;
+      // Motes shrink as they die as well as fading. Alpha alone leaves a mark the
+      // same size for its whole life, which is what made a settling burst read as
+      // a static field of dots; shrinking makes it read as burning out.
+      const lf = Math.max(0, Math.min(1, pt.life / pt.maxLife));
+      const r = pt.r * 0.9 * (0.4 + 0.6 * lf);
       // Fast motes stretch along their travel instead of staying round. A
       // circle moving 12px per frame reads as a strobing dot; an ellipse
       // aligned to velocity reads as motion. Slow motes are left alone, so
@@ -1585,18 +1630,168 @@ function drawStoryParticles(ctx, particles) {
         ctx.translate(pt.x, pt.y);
         ctx.rotate(Math.atan2(pt.vy, pt.vx));
         ctx.beginPath();
-        ctx.ellipse(0, 0, pt.r * 0.9 * stretch, pt.r * 0.9 / Math.sqrt(stretch), 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, r * stretch, r / Math.sqrt(stretch), 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       } else {
-        ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r * 0.9, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2); ctx.fill();
       }
-      if (hex) { ctx.globalAlpha = a * 0.9; ctx.fillStyle = shade(pt.color, 0.6);
-        ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r * 0.4, 0, Math.PI * 2); ctx.fill(); }
+      // the white-hot pip belongs to cores only — on a dim mote it just added a
+      // second overlapping dot and undid the tiering
+      if (hex && (pt.dim ?? 1) >= 1) {
+        ctx.globalAlpha = a * 0.9; ctx.fillStyle = shade(pt.color, 0.6);
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, r * 0.45, 0, Math.PI * 2); ctx.fill();
+      }
       ctx.globalCompositeOperation = 'source-over';
     }
   }
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
+  ctx.restore();
+}
+
+// ---------- cast-shape marks: one vocabulary, three sizes ----------
+// The archetype comes from js/spellcast.js. Every mark is drawn from the same
+// primitives at whatever scale it's asked for, so the badge on a tome lying on
+// the floor and the mark under your cursor are recognisably the same symbol —
+// that's the whole point. Learn it once on a pickup, read it forever at the
+// cursor.
+//
+// All marks are drawn around (0,0) in a roughly 20x20 box and scaled by s, so
+// callers only translate. Stroke-only, in the spell's own colour, so they sit on
+// top of the storybook look instead of fighting it.
+function drawCastGlyph(ctx, kind, x, y, color, now = 0, s = 1, alpha = 1) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 1.6;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const dot = (dx, dy, r = 1.5) => { ctx.beginPath(); ctx.arc(dx, dy, r, 0, Math.PI * 2); ctx.fill(); };
+
+  if (kind === 'ray') {
+    // a straight shot with a head: instant, and it does not curve
+    ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(6, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(2, -3.5); ctx.lineTo(7.5, 0); ctx.lineTo(2, 3.5); ctx.stroke();
+    dot(-9, 0, 1.8);
+  } else if (kind === 'bolt') {
+    // an arc, drawn as a dashed parabola — the dashes say "it travels"
+    ctx.setLineDash([2.4, 2.2]);
+    ctx.beginPath();
+    ctx.moveTo(-9, 4);
+    ctx.quadraticCurveTo(0, -10, 9, 4);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    dot(-9, 4, 1.8);
+  } else if (kind === 'drop') {
+    // falling strokes into a chevron, over the ground line it lands on
+    ctx.beginPath();
+    ctx.moveTo(-4, -10); ctx.lineTo(-4, -5);
+    ctx.moveTo(4, -10); ctx.lineTo(4, -5);
+    ctx.moveTo(0, -11); ctx.lineTo(0, -2);
+    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-4.5, -5.5); ctx.lineTo(0, 0); ctx.lineTo(4.5, -5.5); ctx.stroke();
+    ctx.globalAlpha = alpha * 0.6;
+    ctx.beginPath(); ctx.ellipse(0, 6, 8, 2.4, 0, 0, Math.PI * 2); ctx.stroke();
+  } else if (kind === 'nova') {
+    // rings coming off a centre: it leaves YOU, in every direction
+    dot(0, 0, 2);
+    for (let i = 1; i <= 2; i++) {
+      ctx.globalAlpha = alpha * (1 - i * 0.28);
+      ctx.beginPath(); ctx.arc(0, 0, i * 4.5 + 1.5, 0, Math.PI * 2); ctx.stroke();
+    }
+  } else if (kind === 'place') {
+    // corner brackets around a footprint: a thing gets left here
+    ctx.beginPath();
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      ctx.moveTo(sx * 9, sy * 4.5); ctx.lineTo(sx * 9, sy * 9); ctx.lineTo(sx * 4.5, sy * 9);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = alpha * 0.85;
+    ctx.strokeRect(-3.5, -2.5, 7, 6);
+  } else { // self
+    // an aura hugging a figure, rising: it happens to you
+    ctx.beginPath(); ctx.arc(0, 0, 7.5, 0, Math.PI * 2); ctx.stroke();
+    dot(0, 1, 2.2);
+    ctx.globalAlpha = alpha * 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-4, -6); ctx.lineTo(-4, -10); ctx.moveTo(4, -6); ctx.lineTo(4, -10);
+    ctx.moveTo(-5.6, -8.4); ctx.lineTo(-4, -10.6); ctx.lineTo(-2.4, -8.4);
+    ctx.moveTo(2.4, -8.4); ctx.lineTo(4, -10.6); ctx.lineTo(5.6, -8.4);
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+// ---------- the cursor: the same six marks, at play scale ----------
+// Sized in SCREEN px (divided by zoom) for the same reason the nametags are — a
+// reticle that grows with the camera stops reading as a cursor. The marks that
+// describe something happening at the CASTER (nova, self) deliberately draw at
+// the wizard instead of the cursor: that IS the information.
+function drawCastCursor(ctx, o) {
+  const { kind, x, y, color, now = 0 } = o;
+  const z = o.zoom || 1, k = 1 / z;
+  const px = o.px, py = o.py; // the caster, world coords
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  const pulse = 0.72 + 0.18 * Math.sin(now * 0.006);
+
+  if (kind === 'ray' && px != null) {
+    // the actual line of fire, out past the cursor — line of sight is the thing
+    // you need to check before you commit to a hitscan spell
+    const dx = x - px, dy = y - py, d = Math.hypot(dx, dy) || 1;
+    const g = ctx.createLinearGradient(px, py, px + dx / d * 900, py + dy / d * 900);
+    g.addColorStop(0, rgba(color, 0));
+    g.addColorStop(0.25, rgba(color, 0.5));
+    g.addColorStop(1, rgba(color, 0));
+    ctx.strokeStyle = g; ctx.lineWidth = 1.6 * k;
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + dx / d * 900, py + dy / d * 900); ctx.stroke();
+    ctx.strokeStyle = color;
+  } else if (kind === 'bolt' && px != null) {
+    // a dashed arc from the hand to the aim point. Deliberately stylised rather
+    // than a solved trajectory: gravityScale varies per spell, and a preview
+    // that is subtly wrong is worse than an honest "this one arcs".
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = color; ctx.lineWidth = 1.4 * k;
+    ctx.setLineDash([4 * k, 4 * k]);
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.quadraticCurveTo((px + x) / 2, Math.min(py, y) - Math.abs(x - px) * 0.28 - 30, x, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+  } else if (kind === 'drop') {
+    // the spot it lands on, marked on the actual ground under the cursor
+    const gy = typeof groundFieldY === 'function' ? groundFieldY(x) : null;
+    if (gy != null) {
+      ctx.globalAlpha = 0.55 * pulse;
+      ctx.lineWidth = 1.6 * k;
+      ctx.beginPath(); ctx.ellipse(x, gy - 2, 26, 7, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 0.3;
+      ctx.beginPath(); ctx.moveTo(x, y + 14 * k); ctx.lineTo(x, gy - 10); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  } else if ((kind === 'nova' || kind === 'self') && px != null) {
+    // aim is irrelevant — say so by putting the mark on the wizard
+    const r = kind === 'nova' ? 42 : 24;
+    ctx.globalAlpha = 0.45 * pulse;
+    ctx.lineWidth = 1.6 * k;
+    ctx.setLineDash([5 * k, 5 * k]);
+    ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+  }
+
+  // the glyph itself always rides the cursor, so the symbol you learned on the
+  // tome is the symbol you're reading mid-fight. It sits above the crosshair
+  // rather than on it — overlapping the aim point made both harder to read.
+  drawCastGlyph(ctx, kind, x, y - 22 * k, color, now, 0.85 * k, 0.95);
   ctx.restore();
 }

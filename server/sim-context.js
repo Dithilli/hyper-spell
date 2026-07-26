@@ -34,6 +34,7 @@ const SIM_FILES = [
   'js/pickups.js',
   'js/spellbook.js',
   'js/spelltiers.js',
+  'js/spellcast.js',
   'js/hybrids.js',
   'js/maps.js',
   'js/mapbook.js',

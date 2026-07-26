@@ -1126,6 +1126,20 @@ function drawReticle(now) {
   }
   ctx.stroke();
   ctx.globalAlpha = 1;
+
+  // ...and on top of it, what the equipped spell will actually DO: a ray draws
+  // its line of fire, a lobbed bolt its arc, a sky-drop the patch of ground it
+  // lands on, a nova a ring around you. See js/spellcast.js for how the shape is
+  // derived. Only the spell that's ready to fire is previewed — a mark for a
+  // spell still on cooldown would be telling you about a cast you can't make.
+  const spell = p.spellId && SPELLS[p.spellId];
+  const kind = typeof castKind === 'function' && p.spellId ? castKind(p.spellId) : null;
+  if (spell && kind && now - p.lastCast > spell.cooldown) {
+    drawCastCursor(ctx, {
+      kind, x: mouse.x, y: mouse.y, color: spell.color, now, zoom: z,
+      px: p.body.position.x, py: p.body.position.y - 6,
+    });
+  }
 }
 
 let vignetteCache = null;
