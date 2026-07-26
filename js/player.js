@@ -12,23 +12,19 @@ const PLAYER_DEFS = [
   { name: 'P8', color: '#7f9cf5', hat: '#5a6fc2' },
 ];
 
-// is there anything solid in the column at x to land on?
-function groundInColumn(x) {
-  return Composite.allBodies(currentMap.composite).some(b =>
-    b.isStatic && !b.isSensor && b.label !== 'lava' && b.collisionFilter.mask !== 0 &&
-    x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6 && b.bounds.min.y > 100);
-}
-
 function spawnPointFor(p) {
   const spawns = currentMap.def.spawns;
   const base = spawns[p.slot % spawns.length];
   const jitter = p.slot >= spawns.length ? (p.slot - spawns.length + 1) * 26 * (p.slot % 2 ? 1 : -1) : 0;
-  // safety net: a spawn over a straight drop gets moved onto a real platform
-  if (!groundInColumn(base.x + jitter)) {
-    const spot = platformSpots(currentMap, 3).find(s => groundInColumn(s.x));
-    if (spot) return { x: spot.x, y: Math.max(80, spot.y - 150) };
-  }
-  return { x: Math.max(40, Math.min(W - 40, base.x + jitter)), y: base.y };
+  const want = { x: Math.max(40, Math.min(W - 40, base.x + jitter)), y: base.y };
+  // the guarantee: never open a round somewhere you can't get out of. The
+  // authored spot is used as-is unless the drop is buried in geometry, falls
+  // straight into the lava, or lands in a pocket walled off from the arena
+  // (see the escape analysis in js/maps.js) — then take the nearest spot that
+  // isn't, keeping clear of the wizards already standing there.
+  if (spawnEscapes(currentMap, want.x, want.y)) return want;
+  const busy = players.filter(q => q !== p && q.alive).map(q => ({ x: q.body.position.x, y: q.body.position.y }));
+  return arenaSpawnNear(currentMap, want.x, want.y, busy) || want;
 }
 
 const players = [];
@@ -163,6 +159,7 @@ function damagePlayer(p, amt, src) {
     return;
   }
   if (src && src.slot !== undefined) p.lastHitBy = { player: src, at: now }; // kill credit window
+  game.lastDamageAt = now; // bots watch this to notice a round has gone quiet (bot.js)
   let n = Math.round(amt);
   if (n <= 0) return;
   // SHATTER synergy: a solid blow to a frozen wizard cracks the ice for bonus

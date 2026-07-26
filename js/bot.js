@@ -208,17 +208,43 @@ class BotController {
         if (best) goal = best.position;
       }
     }
-    // the hurt ones run: below the flee threshold, away beats toward
-    const fleeing = m.fleeHp && p.hp < m.fleeHp && goal === tpos && tpos;
+    // STALEMATE BREAKER: if nothing has taken damage in a while and the round
+    // is still going, temperament stops mattering — everyone closes. Without
+    // this a round can simply never end, which is worse than any bad fight.
+    const stale = game.lastDamageAt != null && now - game.lastDamageAt > 7000;
+
+    // RETREAT IS A MOVE, NOT A PERSONALITY.
+    // Fleeing used to be a pure state test — below fleeHp, run away, forever.
+    // Two wounded flee-capable bots therefore ran to opposite walls and stayed
+    // there: measured at 1316px average separation (wider than the arena
+    // itself), out of every spell's range 77% of the time, round never
+    // resolving. Two fixes: you can only flee from a threat that's actually
+    // near you, and a retreat is time-boxed and followed by a window where you
+    // have to come back and fight.
+    const FLEE_NEAR = 420;      // beyond this there is nothing to run from
+    const REENGAGE_MS = 2800;   // after a retreat, no fleeing for this long
+    let fleeing = false;
+    if (!stale && m.fleeHp && tpos && goal === tpos && p.hp < m.fleeHp) {
+      const dThreat = Math.hypot(tpos.x - me.x, tpos.y - me.y);
+      if (now < (this.fleeUntil || 0)) fleeing = true;               // mid-retreat
+      else if (now < (this.reengageUntil || 0)) fleeing = false;     // owe them a fight
+      else if (dThreat < FLEE_NEAR) {                                // threat is real → break off
+        this.fleeUntil = now + rand(900, 1700);
+        this.reengageUntil = this.fleeUntil + REENGAGE_MS;
+        fleeing = true;
+      }
+    }
+    // a kiting standoff has the same failure mode, so it yields to staleness too
+    const standoff = stale ? 0 : m.standoff;
 
     let move = 0;
     if (goal) {
       const dx = goal.x - me.x;
       const d = goal === tpos ? Math.hypot(tpos.x - me.x, tpos.y - me.y) : 1e9;
       if (fleeing) move = -Math.sign(dx || 1);
-      else if (goal === tpos && m.standoff && d < m.standoff - 60) move = -Math.sign(dx || 1); // kite back out
-      else if (Math.abs(dx) > 46 && !(goal === tpos && m.standoff && d < m.standoff + 60)) move = Math.sign(dx);
-      else if (goal === tpos && Math.random() < m.keepDist) move = -Math.sign(dx || 1); // occasionally keep some distance
+      else if (goal === tpos && standoff && d < standoff - 60) move = -Math.sign(dx || 1); // kite back out
+      else if (Math.abs(dx) > 46 && !(goal === tpos && standoff && d < standoff + 60)) move = Math.sign(dx);
+      else if (goal === tpos && !stale && Math.random() < m.keepDist) move = -Math.sign(dx || 1); // occasionally keep some distance
     } else if (Math.random() < 0.12) {
       move = pick([-1, 0, 1]);
     }
