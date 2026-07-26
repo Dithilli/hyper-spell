@@ -167,7 +167,16 @@ function snapshotCameraPoints(snap, snapPrev, alpha) {
     pts.push({
       x: p ? p.x + (gp.x - p.x) * alpha : gp.x,
       y: p ? p.y + (gp.y - p.y) * alpha : gp.y,
+      r: 26 * (gp.sc || 1),
     });
+  }
+  // The boss is a summon on the wire, not a player, so walking snap.ps alone
+  // meant the online camera never knew it existed — with one wizard left it
+  // would happily zoom in on them and push the boss off screen entirely.
+  for (const e of snap.bodies || []) {
+    if (e.l !== 'boss') continue;
+    const r = e.r || Math.max(e.w || 0, e.h || 0) / 2 || 42;
+    pts.push({ x: e.x, y: e.y, r: r + 24 });
   }
   return pts;
 }
@@ -301,7 +310,7 @@ function drawSnapshotWorld(snap, snapPrev, alpha, now, includeLocalFx = false) {
   }
 
   for (const e of snap.bodies) {
-    if (e.l === 'tome') { drawTomeAt(e.x, e.y, e.a, SPELLS[e.sp]?.color || '#e8d5ff', now); continue; }
+    if (e.l === 'tome') { drawTomeAt(e.x, e.y, e.a, SPELLS[e.sp]?.color || '#e8d5ff', now, undefined, e.sp); continue; }
     if (e.l === 'hat') { drawHatAt(e.x, e.y, e.a, now); continue; }
     const fake = ghostBody(e, prevById[e.id], alpha);
     if (e.ph === 0) ctx.globalAlpha = 0.18;

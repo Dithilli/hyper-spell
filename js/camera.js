@@ -42,11 +42,15 @@ function cameraPoints() {
   if (typeof players !== 'undefined') {
     for (const p of players) {
       if (!p.alive || !p.body) continue;
-      pts.push({ x: p.body.position.x, y: p.body.position.y });
+      pts.push({ x: p.body.position.x, y: p.body.position.y, r: 26 * (p.sizeScale || 1) });
     }
   }
   if (typeof game !== 'undefined' && game.boss?.body) {
-    pts.push({ x: game.boss.body.position.x, y: game.boss.body.position.y });
+    const b = game.boss.body;
+    // a boss is framed by its EXTENT, not its centre point — half of a dragon
+    // hanging off the edge of the screen is still the camera losing the boss
+    const r = b.circleRadius || Math.max(b.bounds.max.x - b.bounds.min.x, b.bounds.max.y - b.bounds.min.y) / 2;
+    pts.push({ x: b.position.x, y: b.position.y, r: r + 24 });
   }
   return pts;
 }
@@ -58,8 +62,9 @@ function cameraTarget(pts) {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (const p of pts) {
     if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
-    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-    if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+    const r = p.r || 0; // points can carry an extent (see cameraPoints)
+    if (p.x - r < minX) minX = p.x - r; if (p.x + r > maxX) maxX = p.x + r;
+    if (p.y - r < minY) minY = p.y - r; if (p.y + r > maxY) maxY = p.y + r;
   }
   if (!Number.isFinite(minX)) { CAM.tzoom = 1; return; }
 
