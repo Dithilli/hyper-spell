@@ -6,16 +6,35 @@ function tomePool() {
   return Object.keys(SPELLS).filter(id => !SPELLS[id].hybrid); // hybrids come only from fusion
 }
 
+// every wizard opens the round armed. Nobody spends the first ten seconds
+// running at an unarmed opponent, and the opening reads as a hand you were
+// dealt rather than a scramble. Weighted by the same rarity table as tome
+// drops, so a legendary opener is a jackpot and not the norm, and dealt
+// distinct where the pool allows — eight identical fireballs is no opening.
+function dealStartingSpells(who = players) {
+  const pool = tomePool();
+  const dealt = new Set(players.map(p => p.slots[0]).filter(Boolean));
+  for (const p of who) {
+    let id = weightedSpellPick(pool);
+    for (let tries = 0; tries < 12 && dealt.has(id); tries++) id = weightedSpellPick(pool);
+    if (!id) continue;
+    dealt.add(id);
+    addSpell(p, id);
+  }
+}
+
 function scheduleTomes(now) {
-  nextTomeAt = now + rand(1200, 2500);
-  firstDrop = true;
+  // the opening volley used to be what armed everyone; dealStartingSpells does
+  // that now, so tomes start on their normal cadence and the first one on the
+  // field is a second spell worth fighting over
+  nextTomeAt = now + rand(2500, 4000);
+  firstDrop = false;
 }
 
 function updateTomes(now) {
   const tomeCap = Math.max(3, Math.ceil(players.length / 2));
   if (now > nextTomeAt && (firstDrop || tomes.size < tomeCap)) {
     if (firstDrop) {
-      // opening volley: one tome per wizard, everyone gets armed
       firstDrop = false;
       const n = Math.max(2, players.length);
       for (let i = 0; i < n; i++) spawnTome(now);

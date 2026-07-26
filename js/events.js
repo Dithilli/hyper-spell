@@ -3,6 +3,14 @@
 // visuals reach LAN clients and the killcam through the snapshot's `ev` field.
 const ENV_EVENT_CHANCE = 0.20; // one round in five
 
+// a wizard dropping in at round start must land on the platform, not on the
+// crate stack we just piled onto it — a bounce off loose cover on a narrow sky
+// island is a death before FIGHT!. Keep clutter out of the drop columns.
+const SPAWN_CLEAR = 55;
+function inSpawnColumn(m, x) {
+  return (m.def.spawns || []).some(s => Math.abs(s.x - x) < SPAWN_CLEAR);
+}
+
 // find n platform tops spread across the map (same spirit as tomeDropSpot).
 // Pass a seeded rng when the result must match across host & LAN clients.
 function platformSpots(m, n, rng) {
@@ -11,15 +19,20 @@ function platformSpots(m, n, rng) {
     b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 &&
     b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
   const spots = [];
-  for (let tries = 0; tries < n * 10 && spots.length < n; tries++) {
-    const x = rr(90, W - 90);
-    const col = solids.filter(b => x > b.bounds.min.x + 8 && x < b.bounds.max.x - 8);
-    if (!col.length) continue;
-    const tops = col.map(b => b.bounds.min.y).filter(y => y > 150 && y < H - 60);
-    if (!tops.length) continue;
-    const y = Math.min(...tops);
-    if (spots.some(s => Math.abs(s.x - x) < 70 && Math.abs(s.y - y) < 60)) continue;
-    spots.push({ x, y });
+  // first pass keeps clear of the drop columns; a second, looser pass only runs
+  // if that starved a cramped map of cover
+  for (let pass = 0; pass < 2 && spots.length < n; pass++) {
+    for (let tries = 0; tries < n * 10 && spots.length < n; tries++) {
+      const x = rr(90, W - 90);
+      if (pass === 0 && inSpawnColumn(m, x)) continue;
+      const col = solids.filter(b => x > b.bounds.min.x + 8 && x < b.bounds.max.x - 8);
+      if (!col.length) continue;
+      const tops = col.map(b => b.bounds.min.y).filter(y => y > 150 && y < H - 60);
+      if (!tops.length) continue;
+      const y = Math.min(...tops);
+      if (spots.some(s => Math.abs(s.x - x) < 70 && Math.abs(s.y - y) < 60)) continue;
+      spots.push({ x, y });
+    }
   }
   return spots;
 }

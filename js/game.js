@@ -72,6 +72,7 @@ function startRound(index) {
     despawnPlayer(p);
     spawnPlayer(p, spawnPointFor(p));
   }
+  dealStartingSpells(); // nobody opens a round empty-handed
   game.state = 'PLAY';
   game.fightAt = performance.now() + 1100;
   game.fightShown = false;
@@ -269,6 +270,7 @@ function fightSecretBoss(id) {
   do { idx = Math.floor(Math.random() * MAPS.length); } while (MAPS[idx].cozy && ++tries < 60); // open arena
   loadMap(idx);
   for (const p of players) { clearSpells(p); despawnPlayer(p); spawnPlayer(p, spawnPointFor(p)); }
+  dealStartingSpells();
   game.state = 'PLAY';
   game.fightAt = performance.now() + 900;
   game.fightShown = false;
@@ -299,6 +301,7 @@ function joinPlayer(controller, name) {
   const p = createPlayer(slot, controller);
   if (name) p.name = name;
   spawnPlayer(p, spawnPointFor(p));
+  dealStartingSpells([p]); // armed from the moment you join, lobby included
   sfx.pickup();
   setBanner(`${p.name} JOINED`, p.color, 900);
 }
@@ -1440,19 +1443,29 @@ function draw(now) {
     flashAlpha *= 0.86;
     updateCamera(now, replayCameraPoints());
     clearFrame();
+    perfBegin('world');
     beginWorld();
     drawReplay(now);
     endWorld();
+    perfEnd();
+    perfBegin('bloom');
     applyBloom(now);
+    perfEnd();
+    perfBegin('hud');
     ctx.fillStyle = getVignette();
     ctx.fillRect(0, 0, W, H);
     drawReplayLetterbox(now);
     drawHUD(now);
+    perfEnd();
+    drawPerfHud(now);
     return;
   }
   updateCamera(now);
   clearFrame();
+  perfBegin('backdrop');
   drawBackdrop(now); // screen space, parallaxed against the camera
+  perfEnd();
+  perfBegin('world');
   beginWorld();
   drawMapBodies(now);
   drawLava(now);
@@ -1463,8 +1476,12 @@ function draw(now) {
   drawGibs();
   drawProjectiles(now);
   for (const e of activeEffects) e.draw?.(now);
+  perfBegin('fx');
   drawParticles();
+  perfEnd();
+  perfBegin('wizards');
   for (const p of players) if (p.alive) drawWizard(p, now);
+  perfEnd();
   drawOffscreenPointers(players.filter(p => p.alive).map(p => ({
     x: p.body.position.x, y: p.body.position.y,
     vx: p.body.velocity.x, vy: p.body.velocity.y, color: p.color,
@@ -1474,9 +1491,13 @@ function draw(now) {
   drawEnvVisualsLive(now);
   drawReticle(now);
   endWorld();
+  perfEnd();
 
+  perfBegin('bloom');
   applyBloom(now); // one additive pass over the finished world (js/bloom.js)
+  perfEnd();
 
+  perfBegin('hud');
   ctx.fillStyle = getVignette();
   ctx.fillRect(0, 0, W, H);
 
@@ -1493,6 +1514,8 @@ function draw(now) {
   if (game.state === 'VICTORY') drawVictory(now);
   if (game.state === 'RUN_OVER') drawRunOver(now);
   globalThis.drawNetStats?.(now); // F8 overlay (net.js; absent in file:// couch mode)
+  perfEnd();
+  drawPerfHud(now); // F7 overlay (js/profiler.js)
 }
 
 function drawRunOver(now) {
@@ -1562,16 +1585,26 @@ function stepSim(now, rawDt) {
       Body.applyForce(fb, fb.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * fb.mass * (1 - fb.gravityScale) });
     }
   }
+  perfBegin('physics');
   Engine.update(engine, Math.max(dt, 0.5));
+  perfEnd();
   postPhysics(now);
   updateParticles(timeScale);
   replayRecord(now);
+  if (PERF.on) { // allBodies allocates — never walk it unless someone is looking
+    perfCount('parts', particles.length);
+    perfCount('proj', projectiles.size);
+    perfCount('enem', enemies.size);
+    perfCount('bodies', Composite.allBodies(engine.world).length);
+  }
 }
 
 let last = performance.now();
 function frame(now) {
+  perfFrameStart(); // js/profiler.js — F7 overlay; no-op when it's off
   if (netMode === 'online') {
     netClientFrame(now);
+    perfFrameEnd();
     requestAnimationFrame(frame);
     return;
   }
@@ -1579,8 +1612,11 @@ function frame(now) {
   last = now;
   scanJoins();
   scanLobbyPads();
+  perfBegin('sim');
   stepSim(now, rawDt);
+  perfEnd();
   draw(now);
+  perfFrameEnd();
   requestAnimationFrame(frame);
 }
 

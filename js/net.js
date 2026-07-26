@@ -52,9 +52,16 @@
   }
   globalThis.drawNetStats = function drawNetStats(now) {
     if (!netStats.on) return;
-    const line = `NET · snap ${netStats.lastBytes}B · ${netStats.rate}/s · ${netStats.kbs}KB/s in · gap ${Math.round(snapGapMs)}ms · delay ${Math.round(netStats.delay)}ms`;
+    // jitter and held are the numbers that explain stutter-without-frame-cost:
+    // jitter is how unevenly packets land, held is how many frames the playout
+    // clock ran past the buffer and had to freeze on the newest snapshot.
+    const line = `NET · snap ${netStats.lastBytes}B · ${netStats.rate}/s · ${netStats.kbs}KB/s in`
+      + ` · tick ${Math.round(snapPeriodMs)}ms · jitter ${Math.round(snapJitterMs)}ms`
+      + ` · lag ${Math.round(netStats.delay)}ms · held ${interpHeld}`;
     ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // RENDER_SCALE, not 1: the backing store is device pixels now, and a raw
+    // identity transform put this overlay at half size in the middle of the map
+    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
     ctx.font = '12px Menlo, monospace';
     ctx.textAlign = 'left';
     const w = ctx.measureText(line).width + 16;
@@ -211,17 +218,94 @@
   }
 
   // ================= CLIENT =================
-  let snapPrev = null, snapCur = null, tPrev = 0, tCur = 0;
-  let snapGapMs = 40; // smoothed inter-snapshot gap → drives the interp delay
-  let clientMap = null; // {def, composite, data}
+  // ---- snapshot buffer + playout clock ----
+  // Entity interpolation, done on the SERVER clock. The old version interpolated
+  // between the arrival times of the last two packets, which had two fatal
+  // properties: network jitter went straight into rendered motion, and the
+  // render target (1.25 gaps back) sat outside the one gap of buffer a quarter
+  // of the time, pinning alpha to 0. On a zero-jitter LAN a wizard walking at a
+  // constant 6px/frame rendered as 3px, then 9px, then 3px. None of that costs a
+  // millisecond of frame time, which is why it looked like a mystery.
+  //
+  // Now: buffer several snapshots, keep a clock in server time that we render
+  // slightly in the past, and correct that clock by nudging its RATE rather than
+  // jumping it — a 5% speed difference is invisible, a jump is a stutter.
+  let snapCur = null;                 // newest snapshot: HUD, state, input aim
+  let clientMap = null;               // {def, composite, data}
+  const snapBuf = [];                 // [{ s, sv, at }] oldest → newest
+  const SNAP_BUF_MAX = 16;
+  let playT = 0, playInit = false, playRate = 1;
+  let snapPeriodMs = 33.3;            // smoothed SERVER-side spacing between snapshots
+  let snapJitterMs = 0;               // smoothed |arrival spacing − server spacing|
+  let lastNetNow = 0;
+  let interpHeld = 0;                 // frames the clock ran past the buffer (starved)
 
   function pushSnapshot(snap) {
-    const tNow = performance.now();
-    if (tCur) snapGapMs += (Math.min(tNow - tCur, 200) - snapGapMs) * 0.12;
-    snapPrev = snapCur; tPrev = tCur;
-    snapCur = snap; tCur = tNow;
+    const at = performance.now();
+    // fall back to arrival time if the server predates the `sv` field — both are
+    // monotonic ms, so the clock just locks onto a different base
+    const sv = typeof snap.sv === 'number' ? snap.sv : at;
+    const prev = snapBuf[snapBuf.length - 1];
+
+    // A round reset or map change teleports every body. Interpolating across
+    // that smears the whole roster over the arena, so cut the tape instead.
+    const cut = prev && (snap.rn !== prev.s.rn || snap.mi !== prev.s.mi || sv < prev.sv);
+    if (cut) { snapBuf.length = 0; playInit = false; }
+
+    if (prev && !cut) {
+      const svGap = sv - prev.sv;
+      if (svGap > 0 && svGap < 400) snapPeriodMs += (svGap - snapPeriodMs) * 0.1;
+      snapJitterMs += (Math.min(Math.abs((at - prev.at) - svGap), 200) - snapJitterMs) * 0.1;
+    }
+
+    snapBuf.push({ s: snap, sv, at });
+    while (snapBuf.length > SNAP_BUF_MAX) snapBuf.shift();
+    snapCur = snap;
     if (!clientMap || clientMap.index !== snap.mi || (snap.msd != null && clientMap.data.seed !== snap.msd)) clientLoadMap(snap.mi, snap.msd);
     applyBrokenDestructibles(snap.bd);
+  }
+
+  // How far behind the newest snapshot we render. One full period is the
+  // minimum that keeps a bracketing pair available; the jitter term buys back
+  // the margin a lumpy connection eats.
+  function interpDelay() {
+    return Math.min(240, Math.max(45, snapPeriodMs * 1.5 + snapJitterMs * 2));
+  }
+
+  // Advance the playout clock and return the two snapshots bracketing it.
+  // Returns null until there are two to work with.
+  function advancePlayout(now) {
+    const dt = lastNetNow ? Math.min(now - lastNetNow, 100) : 16.7;
+    lastNetNow = now;
+    if (snapBuf.length < 2) return null;
+
+    const newest = snapBuf[snapBuf.length - 1];
+    const target = newest.sv - interpDelay();
+    if (!playInit) { playT = target; playInit = true; playRate = 1; }
+    else {
+      playT += dt * playRate;
+      const err = target - playT;
+      // A big error means something actually broke (tab backgrounded, long
+      // stall). Anything smaller gets absorbed by running the clock up to 10%
+      // fast or slow, which nobody can see.
+      if (Math.abs(err) > 400) { playT = target; playRate = 1; }
+      else playRate = 1 + Math.max(-0.1, Math.min(0.1, err * 0.0025));
+    }
+
+    // clamp into the buffer we actually hold
+    const oldest = snapBuf[0];
+    if (playT < oldest.sv) playT = oldest.sv;
+    if (playT > newest.sv) { playT = newest.sv; interpHeld++; }
+
+    for (let i = snapBuf.length - 1; i > 0; i--) {
+      const a = snapBuf[i - 1], b = snapBuf[i];
+      if (playT >= a.sv && playT <= b.sv) {
+        const span = Math.max(b.sv - a.sv, 1);
+        return { a, b, alpha: Math.max(0, Math.min(1, (playT - a.sv) / span)) };
+      }
+    }
+    const a = snapBuf[snapBuf.length - 2], b = newest;
+    return { a, b, alpha: 1 };
   }
 
   // mirror the server's blown-apart cover by removing the matching local blocks
@@ -358,18 +442,34 @@
       ctx.fillText('GAME UPDATED — REFRESH THE PAGE', W / 2, H / 2);
       return;
     }
-    // interpolate just behind the snapshot stream — the delay tracks the real
-    // arrival gap (~42ms at 30Hz) instead of a fixed 60ms, and stretches
-    // gracefully if the connection degrades
-    const delay = Math.min(90, Math.max(36, snapGapMs * 1.25));
-    netStats.delay = delay;
-    const span = Math.max(tCur - tPrev, 1);
-    const alpha = Math.max(0, Math.min(1, (now - delay - tPrev) / span));
+    // Where in server time we are rendering, and the pair straddling it.
+    // `snap` (newest) still drives the HUD and state; the world is drawn from
+    // the bracketing pair, one interp delay in the past.
+    const rp = advancePlayout(now);
+    netStats.delay = interpDelay();
+    if (!rp) { // only one snapshot so far — draw it dead-on rather than nothing
+      updateCamera(now, snapshotCameraPoints(snap, null, 1));
+      clearFrame();
+      perfBegin('world');
+      beginWorld();
+      drawSnapshotWorld(snap, null, 1, now, true);
+      endWorld();
+      perfEnd();
+      return;
+    }
+    const alpha = rp.alpha;
 
-    updateCamera(now, snapshotCameraPoints(snap, snapPrev, alpha));
+    if (PERF.on) {
+      perfCount('jit', Math.round(snapJitterMs));
+      perfCount('lag', Math.round(interpDelay()));
+      perfCount('held', interpHeld);
+    }
+
+    updateCamera(now, snapshotCameraPoints(rp.b.s, rp.a.s, alpha));
     clearFrame();
+    perfBegin('world');
     beginWorld();
-    const ghosts = drawSnapshotWorld(snap, snapPrev, alpha, now, true);
+    const ghosts = drawSnapshotWorld(rp.b.s, rp.a.s, alpha, now, true);
 
     // reticle (world space — mouse.x/y are world coords, see input.js)
     if (mouse.present) {
@@ -392,9 +492,13 @@
       }
     }
     endWorld();
+    perfEnd();
 
+    perfBegin('bloom');
     applyBloom(now);
+    perfEnd();
 
+    perfBegin('hud');
     ctx.fillStyle = getVignette();
     ctx.fillRect(0, 0, W, H);
     if (flashAlpha > 0.01) {
@@ -487,5 +591,8 @@
       }
     }
     drawNetStats(now); // F8 overlay
+    perfEnd();
+    if (PERF.on) { perfCount('parts', particles.length); perfCount('ghosts', snap.ps.length); }
+    drawPerfHud(now); // F7 overlay (js/profiler.js)
   };
 })();

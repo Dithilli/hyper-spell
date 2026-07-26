@@ -73,7 +73,10 @@ function takeWireSnapshot(now) {
     const f = replayFrameAt(now);
     // in the browser, drawReplay clears the finished tape; headless nobody
     // draws, so the serializer owns that cleanup or the killcam never ends
-    if (f && !f.done) return { t: 'snap', ...f.snap, st: 'ROUND_END', rp: 1 };
+    // a replay frame's own `sv` is when it was RECORDED, seconds in the past —
+    // sending that would throw the client's playout clock backwards mid-killcam.
+    // The tape plays at real time, so restamp it with the live clock.
+    if (f && !f.done) return { t: 'snap', ...f.snap, sv: Math.round(now), st: 'ROUND_END', rp: 1 };
     game.replay = null;
   }
   return { t: 'snap', ...serializeSnapshot(now) };

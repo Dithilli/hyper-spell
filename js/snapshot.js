@@ -87,6 +87,12 @@ function serializeSnapshot(now) {
 
   return {
     v: GAME_VERSION,
+    // sv — the SIM clock at the moment this snapshot was taken. The client
+    // interpolates on this, not on packet arrival time: snapshots are produced
+    // on an even ~33ms tick but arrive unevenly, and interpolating across
+    // arrival times maps smooth server motion onto jittery client time. That
+    // showed up as stutter with a completely clean frame-time graph.
+    sv: Math.round(now),
     st: game.state, mi: game.mapIndex, wn: game.winsNeeded,
     ...(game.mode !== 'versus' ? { md: game.mode } : {}), // lobby needs the mode line
     ...(game.mode === 'wave' && game.bestWave ? { bw: game.bestWave } : {}),

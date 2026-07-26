@@ -273,6 +273,7 @@ function startRun() {
   const idx = MAPS.findIndex(m => !m.cozy && (m.gravity ?? 2) > 0);
   loadMap(idx >= 0 ? idx : 0);
   for (const p of players) { clearSpells(p); despawnPlayer(p); spawnPlayer(p, spawnPointFor(p)); }
+  dealStartingSpells();
   game.state = 'PLAY';
   game.fightAt = performance.now() + 900;
   game.fightShown = false;

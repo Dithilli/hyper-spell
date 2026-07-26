@@ -21,6 +21,7 @@ const SIM_FILES = [
   'js/core.js',
   'js/camera.js',
   'js/bloom.js',
+  'js/profiler.js',
   'js/artkit.js',
   'js/extra-content.pack.js',
   'js/extra-content.js',
@@ -65,6 +66,8 @@ function createSimContext(opts = {}) {
   const bridge = vm.runInContext('__bridge', ctx);
   return {
     bridge,
+    ctx, // raw vm context — offline analysis tools (verify-spawns.js) poke at the game globals
+
     ctxCounter, // { calls } — any nonzero means a draw path ran headless (a bug)
     destroy() { flushTimers(); },
   };

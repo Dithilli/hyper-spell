@@ -16,15 +16,13 @@ function spawnPointFor(p) {
   const spawns = currentMap.def.spawns;
   const base = spawns[p.slot % spawns.length];
   const jitter = p.slot >= spawns.length ? (p.slot - spawns.length + 1) * 26 * (p.slot % 2 ? 1 : -1) : 0;
-  const want = { x: Math.max(40, Math.min(W - 40, base.x + jitter)), y: base.y };
   // the guarantee: never open a round somewhere you can't get out of. The
-  // authored spot is used as-is unless the drop is buried in geometry, falls
-  // straight into the lava, or lands in a pocket walled off from the arena
-  // (see the escape analysis in js/maps.js) — then take the nearest spot that
-  // isn't, keeping clear of the wizards already standing there.
-  if (spawnEscapes(currentMap, want.x, want.y)) return want;
+  // authored spot stands unless the drop is buried in geometry, falls straight
+  // into the lava, or lands in a pocket walled off from the arena — see the
+  // escape analysis in js/maps.js, which nudges or relocates as little as it
+  // can, and keeps clear of the wizards already standing there.
   const busy = players.filter(q => q !== p && q.alive).map(q => ({ x: q.body.position.x, y: q.body.position.y }));
-  return arenaSpawnNear(currentMap, want.x, want.y, busy) || want;
+  return safeSpawnPoint(currentMap, Math.max(40, Math.min(W - 40, base.x + jitter)), base.y, busy);
 }
 
 const players = [];
