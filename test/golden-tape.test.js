@@ -18,3 +18,12 @@ test('the same seed twice produces the same run', () => {
   const b = runTape({ tape, ticks: 120, seed: 999 });
   assert.deepEqual(a, b);
 });
+
+// Without this, a sim frozen into doing nothing would satisfy the reproducibility
+// test above just as well as a working one: the seed has to actually reach
+// Math.random inside the vm context and change what the run does.
+test('a different seed produces a different run', () => {
+  const a = runTape({ tape, ticks: 120, seed: 999 });
+  const b = runTape({ tape, ticks: 120, seed: 424242 });
+  assert.notDeepEqual(a, b);
+});
