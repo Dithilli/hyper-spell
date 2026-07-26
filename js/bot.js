@@ -129,6 +129,17 @@ class BotController {
     return false;
   }
 
+  // How far this wizard can actually carry a jump right now, level to level.
+  // Measured in-engine: a running jump clears ~274px, a running jump followed by
+  // the air jump ~424px, and a STANDING jump covers zero ground — distance comes
+  // entirely from the speed you take off with. Bots used to commit to a gap on
+  // geometry alone, so a bot ambling toward a 195px gap at walking pace jumped
+  // and dropped straight in. (Caught one doing exactly that at takeoff speed 3.1.)
+  jumpReach(p, vx) {
+    const base = Math.abs(vx) * 36;
+    return p.airJumps > 0 ? base * 1.5 : base; // the second jump buys ~55% more
+  }
+
   // nearest direction with real footing within reach (used mid-air over death)
   safeGroundDir(me, lavaY) {
     for (let d = 60; d <= 380; d += 48) {
@@ -254,6 +265,18 @@ class BotController {
 
     const grounded = now - (p.lastGround || 0) < 220;
     let jump = false;
+
+    // THE SECOND JUMP. Bots knew this game had a double jump only in the sense
+    // that the lava-panic branch spent one while already plummeting. On a
+    // deliberate gap leap they never used it, which capped them at ~274px of a
+    // real ~424px range and left them dropping into gaps they could have
+    // cleared. Now: if we're mid-leap, falling, and there's still nothing under
+    // us, spend it — exactly when a player would.
+    if (!grounded && now < (this.gapJumpUntil || 0) && p.airJumps > 0 && p.body.velocity.y > 1) {
+      const dir = Math.sign(p.body.velocity.x) || p.facing || 1;
+      const ahead = navGroundY(me.x + dir * 40, me.y);
+      if (ahead == null || ahead - me.y > 130) jump = true;
+    }
     if (currentMap.data.lavaY != null && me.y > currentMap.data.lavaY - 60) jump = true; // feet warm — bail off the lava
 
     // LEDGE SAFETY: don't stroll off a cliff into lava or a pit. If the goal is
@@ -277,8 +300,11 @@ class BotController {
     if (move && !blundering && this.fallDanger(me, move, vx)) {
       // is there a real landing across the gap? scan a spread of jump distances
       // instead of one fixed 135px guess — most gaps aren't exactly that wide
+      // ...but only as far as this wizard can actually throw itself right now
+      const reach = this.jumpReach(p, vx) * 0.85; // margin: land ON it, not at its lip
       let landDir = 0;
-      for (const dist of [110, 135, 165, 195]) {
+      for (const dist of [110, 135, 165, 195, 240, 300, 360]) {
+        if (dist > reach) break;                  // ascending, so nothing further fits
         const landX = Math.max(24, Math.min(W - 24, me.x + move * dist));
         const gLand = navGroundY(landX, me.y);
         if (gLand == null) continue;
@@ -286,7 +312,10 @@ class BotController {
         if (gLand - me.y < 240 && gLand - me.y > -140) { landDir = move; break; }
       }
       const nerveOdds = (m.nerve ?? 0.03) * (fleeing ? 2.5 : 1);
-      if (landDir && grounded) jump = true;                 // clear the gap on purpose
+      if (landDir && grounded) {                            // clear the gap on purpose
+        jump = true;
+        this.gapJumpUntil = now + 1100;                     // remember we're mid-leap
+      }
       else if (Math.abs(vx) > 1.6 && Math.random() < nerveOdds) {
         this.blunderUntil = now + 520;                      // ...went for it anyway
       } else { move = 0; vetoed = true; }                   // refuse to step off
