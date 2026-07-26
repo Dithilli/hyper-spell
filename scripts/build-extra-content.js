@@ -11,8 +11,11 @@ const zlib = require('zlib');
 
 const ROOT = path.resolve(__dirname, '..');
 const SOURCE_DIR = path.join(ROOT, '.content-src');
-const LOADER_OUTPUT = path.join(ROOT, 'js', 'extra-content.js');
-const PAYLOAD_OUTPUT = path.join(ROOT, 'js', 'extra-content.pack.js');
+const LOADER_OUTPUT = path.join(ROOT, 'src', 'render', 'content-pack.js');
+// The payload sits beside the bundle because the loader resolves it relative to
+// document.currentScript.src, which is dist/hyperspell.js once the game ships as
+// one IIFE. It is fetched on demand, never bundled.
+const PAYLOAD_OUTPUT = path.join(ROOT, 'dist', 'extra-content.pack.js');
 // One-time async lookup cost: ~44 ms on the development machine. This makes
 // low-entropy offline name dictionaries materially more expensive without
 // blocking rendering or delaying ordinary frames after the first lookup.
@@ -109,7 +112,12 @@ function build() {
   }
 
   const data = JSON.stringify({ n: ITERATIONS, s: b64(indexSalt), v: packVersion, k: keys });
+  // The generated body is unchanged classic script: it reads and reassigns a
+  // bare `avatarVariant`. Inside a module that is a local binding, so the
+  // wrapper seeds it from artkit and pushes the patched function back after.
   const output = `// Generated optional-content loader. Rebuild with scripts/build-extra-content.js.\n` +
+`import { avatarVariant as __baseAvatarVariant, setAvatarVariant as __setAvatarVariant } from './artkit.js';\n` +
+`let avatarVariant = __baseAvatarVariant;\n` +
 `(function installContentPack(){\n` +
 `  'use strict';\n` +
 `  const pack=${data};\n` +
@@ -178,7 +186,8 @@ function build() {
 `    }\n` +
 `    return baseVariant(name);\n` +
 `  };\n` +
-`})();\n`;
+`})();\n` +
+`__setAvatarVariant(avatarVariant);\n`;
 
   const payloadOutput = `// Generated optional-content payload.\nglobalThis.__hsPackData=${JSON.stringify(payload)};\n`;
   if (containsProtectedTerm(output + payloadOutput, protectedTerms)) {
