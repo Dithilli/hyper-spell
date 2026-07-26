@@ -1621,4 +1621,15 @@ function frame(now) {
 }
 
 loadMap(0);
-requestAnimationFrame(frame);
+// Start the loop only once every script tag has run. game.js is NOT the last
+// script on the page — replay.js and net.js follow it — and on a cold load the
+// parser can stall fetching one of them long enough for a frame to fire in
+// between. That frame threw (`replayRecord is not defined`) from inside the rAF
+// callback, so the callback never reached its own requestAnimationFrame and the
+// loop stayed dead until a reload. Headless has no document; it self-starts as
+// before and the shim's rAF is a no-op anyway.
+if (typeof document !== 'undefined' && document.readyState === 'loading') {
+  addEventListener('DOMContentLoaded', () => requestAnimationFrame(frame), { once: true });
+} else {
+  requestAnimationFrame(frame);
+}

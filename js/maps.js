@@ -512,15 +512,17 @@ function buildReach(m) {
   const cols = Math.ceil(W / REACH_CELL), rows = Math.ceil(H / REACH_CELL);
   const n = cols * rows;
   // solid: everything you can stand on or bump into. firm: the subset steady
-  // enough to fall onto from the sky — a rope bridge carries a wizard who walks
-  // across it, but a sky-drop punches straight through the slack.
+  // enough to fall onto from the sky. A rope bridge carries a wizard who walks
+  // across it but a sky-drop punches through the slack; cover is a 46px block
+  // (often a leaning crystal) that flicks a falling wizard off sideways. Both
+  // are fine ground once you're on them — neither is a landing pad.
   const solid = new Uint8Array(n), firm = new Uint8Array(n);
   const V = Matter.Vertices;
   for (const b of Composite.allBodies(m.composite)) {
     // planks are dynamic but they're ground all the same — a rope bridge or a
     // hanging platform is the only floor some of the sky maps have
     if ((!b.isStatic && b.label !== 'plank') || b.isSensor || b.collisionFilter.mask === 0 || b.label === 'lava') continue;
-    const solidOnly = !!b.rope;
+    const solidOnly = !!b.rope || b.label === 'destructible';
     const x0 = Math.max(0, Math.floor((b.bounds.min.x - REACH_PAD) / REACH_CELL));
     const x1 = Math.min(cols - 1, Math.floor((b.bounds.max.x + REACH_PAD) / REACH_CELL));
     const y0 = Math.max(0, Math.floor((b.bounds.min.y - REACH_PAD) / REACH_CELL));
