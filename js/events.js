@@ -283,10 +283,20 @@ function drawEnvVisuals(id, now, lights = []) {
         ctx.fillStyle = `rgba(210, 224, 255, ${0.5 * flash})`;
         ctx.fillRect(-30, -30, W + 60, H + 60);
         const bx = envHash(bucket + 9) * W;
-        ctx.strokeStyle = `rgba(230, 238, 255, ${flash})`; ctx.lineWidth = 2.5; ctx.shadowColor = '#cfe0ff'; ctx.shadowBlur = 16;
-        ctx.beginPath(); ctx.moveTo(bx, -10);
-        for (let s = 1; s <= 6; s++) { ctx.lineTo(bx + (envHash(bucket * 7 + s) - 0.5) * 90, s / 6 * H * 0.7); }
-        ctx.stroke(); ctx.shadowBlur = 0;
+        // bolt: a wide soft pass under a tight hot core, both additive. The
+        // bloom pass turns that into the halo ctx.shadowBlur used to fake.
+        const bolt = () => {
+          ctx.beginPath(); ctx.moveTo(bx, -10);
+          for (let s = 1; s <= 6; s++) ctx.lineTo(bx + (envHash(bucket * 7 + s) - 0.5) * 90, s / 6 * H * 0.7);
+          ctx.stroke();
+        };
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = `rgba(150, 190, 255, ${flash * 0.5})`; ctx.lineWidth = 9; bolt();
+        ctx.strokeStyle = `rgba(230, 238, 255, ${flash})`; ctx.lineWidth = 2.5; bolt();
+        ctx.strokeStyle = `rgba(255, 255, 255, ${flash})`; ctx.lineWidth = 1; bolt();
+        ctx.restore();
       }
     }
   } else if (id === 'meteors') {

@@ -19,6 +19,8 @@ const ROOT = path.join(__dirname, '..');
 const SIM_FILES = [
   'server/node_modules/matter-js/build/matter.min.js',
   'js/core.js',
+  'js/camera.js',
+  'js/bloom.js',
   'js/artkit.js',
   'js/extra-content.pack.js',
   'js/extra-content.js',

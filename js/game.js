@@ -985,11 +985,16 @@ function drawDynamicBody(b, now) {
   const col = (b.render && b.render.fillStyle) || b.color || '#c0c0cc';
   if (b.label === 'projectile') {
     const r = b.circleRadius || 7;
-    ctx.shadowColor = b.color || '#ffb347';
-    ctx.shadowBlur = 12;
-    ctx.fillStyle = b.color || '#ffb347';
+    // additive halo instead of ctx.shadowBlur: one gradient fill rather than a
+    // full re-rasterisation of the shape, and it feeds the bloom pass so
+    // overlapping projectiles light each other up instead of stacking stickers
+    const pcol = b.color || '#ffb347';
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    glowOrb(ctx, b.position.x, b.position.y, r * 2.6, pcol, 0.5);
+    ctx.restore();
+    ctx.fillStyle = pcol;
     ctx.beginPath(); ctx.arc(b.position.x, b.position.y, r, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur = 0;
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.beginPath(); ctx.arc(b.position.x, b.position.y, r * 0.45, 0, Math.PI * 2); ctx.fill();
     return;
@@ -1107,14 +1112,17 @@ function drawReticle(now) {
   if (!mouse.present) return;
   const p = players.find(q => q.controller === kbControllers[0]);
   if (!p || !p.alive) return;
+  // drawn in world space at the aim point, but sized in screen px — a reticle
+  // that grows with the camera zoom stops reading as a cursor
+  const z = CAM.zoom;
   ctx.strokeStyle = p.color;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.5 / z;
   ctx.globalAlpha = 0.85;
-  ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 9, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 9 / z, 0, Math.PI * 2); ctx.stroke();
   ctx.beginPath();
   for (const [dx, dy] of [[12, 0], [-12, 0], [0, 12], [0, -12]]) {
-    ctx.moveTo(mouse.x + dx * 0.5, mouse.y + dy * 0.5);
-    ctx.lineTo(mouse.x + dx, mouse.y + dy);
+    ctx.moveTo(mouse.x + dx * 0.5 / z, mouse.y + dy * 0.5 / z);
+    ctx.lineTo(mouse.x + dx / z, mouse.y + dy / z);
   }
   ctx.stroke();
   ctx.globalAlpha = 1;
@@ -1130,13 +1138,22 @@ function getVignette() {
   return vignetteCache;
 }
 
+// The backdrop is a SCREEN-space layer that parallaxes against the camera rather
+// than a world-space one that zooms with it — distant hills that scale 1:1 with
+// the foreground read as a painted flat, and the sky gradient has to cover the
+// viewport whatever the camera is doing. Transform-safe: callers may invoke this
+// from either space.
 function drawBackdrop(now) {
+  ctx.save();
+  endWorld();
   drawStoryBackdrop(ctx, {
     bg: currentMap.def.bg || '#241d2e', W, H, now,
     stars: currentMap.data.starfield, voidTop: currentMap.data.voidTop,
     icy: currentMap.def.icy || currentMap.data.eventIcy,
     acid: currentMap.data.acid, lavaY: currentMap.data.lavaY,
+    cam: cameraParallax(),
   });
+  ctx.restore();
 }
 
 // spell recharge indicator under the spell name (all spells are infinite-use;
@@ -1151,6 +1168,12 @@ function drawCooldownBar(x, y, spell, frac, megaCasts) {
     ctx.fillStyle = '#ffd700';
     ctx.fillText(`★${megaCasts}`, x + 36, y + 5);
   }
+}
+
+// world point -> screen point, for screen-space furniture attached to a world thing
+function worldToScreen(wx, wy) {
+  const r = cameraViewRect();
+  return { x: ((wx - r.x0) / (r.x1 - r.x0)) * W, y: ((wy - r.y0) / (r.y1 - r.y0)) * H };
 }
 
 // two spell slots stacked under a player's name — shared by host HUD and LAN client.
@@ -1397,20 +1420,26 @@ function drawVictory(now) {
 
 function draw(now) {
   if (game.replay) {
-    // killcam: re-render the recorded tape; the live sim keeps running unseen
-    shake *= 0.88;
+    // killcam: re-render the recorded tape; the live sim keeps running unseen.
+    // The replay frames carry their own positions, so the camera follows those
+    // rather than the live players it can't see.
     flashAlpha *= 0.86;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(-30, -30, W + 60, H + 60);
+    updateCamera(now, replayCameraPoints());
+    clearFrame();
+    beginWorld();
     drawReplay(now);
+    endWorld();
+    applyBloom(now);
+    ctx.fillStyle = getVignette();
+    ctx.fillRect(0, 0, W, H);
+    drawReplayLetterbox(now);
     drawHUD(now);
     return;
   }
-  const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
-  shake *= 0.88;
-  ctx.setTransform(1, 0, 0, 1, sx, sy);
-  ctx.clearRect(-30, -30, W + 60, H + 60);
-  drawBackdrop(now);
+  updateCamera(now);
+  clearFrame();
+  drawBackdrop(now); // screen space, parallaxed against the camera
+  beginWorld();
   drawMapBodies(now);
   drawLava(now);
   drawGeysers(now);
@@ -1430,6 +1459,9 @@ function draw(now) {
 
   drawEnvVisualsLive(now);
   drawReticle(now);
+  endWorld();
+
+  applyBloom(now); // one additive pass over the finished world (js/bloom.js)
 
   ctx.fillStyle = getVignette();
   ctx.fillRect(0, 0, W, H);
@@ -1437,7 +1469,7 @@ function draw(now) {
   if (flashAlpha > 0.01) {
     ctx.globalAlpha = flashAlpha;
     ctx.fillStyle = flashColor;
-    ctx.fillRect(-30, -30, W + 60, H + 60);
+    ctx.fillRect(0, 0, W, H);
     ctx.globalAlpha = 1;
   }
   flashAlpha *= 0.86;

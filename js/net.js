@@ -338,14 +338,9 @@
     sendInput.call(sendInput, now);
     updateParticles(1);
 
-    const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
-    shake *= 0.88;
-    ctx.setTransform(1, 0, 0, 1, sx, sy);
-    ctx.clearRect(-30, -30, W + 60, H + 60);
-
     if (!snapCur || !clientMap) {
-      ctx.fillStyle = '#16121c';
-      ctx.fillRect(-30, -30, W + 60, H + 60);
+      updateCamera(now, null);
+      clearFrame('#16121c');
       ctx.fillStyle = '#9c8ab8';
       ctx.font = '22px Georgia';
       ctx.textAlign = 'center';
@@ -355,8 +350,8 @@
 
     const snap = snapCur;
     if (snap.v !== GAME_VERSION) {
-      ctx.fillStyle = '#16121c';
-      ctx.fillRect(-30, -30, W + 60, H + 60);
+      updateCamera(now, null);
+      clearFrame('#16121c');
       ctx.fillStyle = '#ff6b81';
       ctx.font = 'bold 34px Georgia';
       ctx.textAlign = 'center';
@@ -370,29 +365,36 @@
     netStats.delay = delay;
     const span = Math.max(tCur - tPrev, 1);
     const alpha = Math.max(0, Math.min(1, (now - delay - tPrev) / span));
+
+    updateCamera(now, snapshotCameraPoints(snap, snapPrev, alpha));
+    clearFrame();
+    beginWorld();
     const ghosts = drawSnapshotWorld(snap, snapPrev, alpha, now, true);
 
-    // reticle
+    // reticle (world space — mouse.x/y are world coords, see input.js)
     if (mouse.present) {
       const mine = ghosts.find(g => g.slot === mySlot);
       ctx.strokeStyle = mine ? mine.color : '#9c8ab8';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.5 / CAM.zoom;
       ctx.globalAlpha = 0.85;
-      ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 9, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 9 / CAM.zoom, 0, Math.PI * 2); ctx.stroke();
       ctx.globalAlpha = 1;
     }
+    endWorld();
+
+    applyBloom(now);
 
     ctx.fillStyle = getVignette();
     ctx.fillRect(0, 0, W, H);
     if (flashAlpha > 0.01) {
       ctx.globalAlpha = flashAlpha;
       ctx.fillStyle = flashColor;
-      ctx.fillRect(-30, -30, W + 60, H + 60);
+      ctx.fillRect(0, 0, W, H);
       ctx.globalAlpha = 1;
     }
     flashAlpha *= 0.86;
 
-    if (snap.rp) drawReplayOverlay(now); // the server is playing the killcam
+    if (snap.rp) drawReplayLetterbox(now); // the server is playing the killcam
 
     // HUD
     ctx.textAlign = 'center';
