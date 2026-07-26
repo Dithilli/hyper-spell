@@ -10,7 +10,7 @@
 // couch-only is *starting* a wave run — there's no network start message, so the host
 // begins one from its own keyboard (M then Space). This lets a spectator host render
 // a networked Alinea fighting the waves.
-import { Bodies, Body, Composite, world, W } from '../world.js';
+import { Bodies, Body, Composite, world, onWorldReset } from '../world.js';
 import { performance } from '../env.js';
 import { rand } from '../rng.js';
 import { spawnParticles, spawnRing, addShake } from '../fx.js';
@@ -21,6 +21,7 @@ import { projectiles, summons, summon, removeSummon, explode } from '../spells/c
 import { bossAliveTarget } from './boss.js';
 
 export const enemies = new Set();      // live enemy bodies (for wave-clear counting)
+onWorldReset(() => enemies.clear());
 
 // ---------- shared hostile attacks (mirror the boss helpers) ----------
 
@@ -175,7 +176,6 @@ export function killEnemy(e, src) {
   removeSummon(b); // out of summons + world
   sfx.death?.();
 }
-
 
 export function updateEnemies(now, dt) {
   if (game.state !== 'PLAY') return;

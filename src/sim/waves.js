@@ -2,7 +2,7 @@
 // game.js calls updateWaveMode/startRun/endRun; the enemies themselves are in
 // src/sim/ai/enemies.js.
 import { W, onWorldReset } from './world.js';
-import { performance } from './env.js';
+import { performance, random } from './env.js';
 import { rand } from './rng.js';
 import { slowMo } from './pace.js';
 import { sfx } from './sfx.js';
@@ -50,7 +50,7 @@ export function waveComposition(n) {
 }
 
 export function queueSpawn(type, tier, at) {
-  const side = Math.random() < 0.5 ? -1 : 1;
+  const side = random() < 0.5 ? -1 : 1;
   pendingSpawns.push({ type, tier, at, x: side < 0 ? 40 : W - 40, y: 120 });
 }
 

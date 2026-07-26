@@ -8,7 +8,7 @@
 // and whether a fusion tome outranks a fistfight. addBot() deals temperaments
 // round-robin so any bot lobby has real variety.
 import { W, H, onWorldReset } from '../world.js';
-import { performance } from '../env.js';
+import { performance, random } from '../env.js';
 import { rand, pick } from '../rng.js';
 import { game, currentMap, joinPlayer } from '../match.js';
 import { players, MAX_PLAYERS } from '../player/lifecycle.js';
@@ -108,7 +108,7 @@ export class BotController {
     }
     // a ghost's wail rattles the circuits: drop the plan and scurry for a beat
     if (now < (p.spookedUntil || 0)) {
-      this.plan = { move: pick([-1, 1]), jump: Math.random() < 0.3, cast: false, cast2: false, aim: null, block: false };
+      this.plan = { move: pick([-1, 1]), jump: random() < 0.3, cast: false, cast2: false, aim: null, block: false };
       this.nextThink = now + 130;
       return;
     }
@@ -126,7 +126,7 @@ export class BotController {
       }
       if (t) { tbody = t.body; tpos = tbody.position; }
       // a mirror image fools a bot half the time
-      if (tpos && Math.random() < 0.5) {
+      if (tpos && random() < 0.5) {
         for (const s of summons) {
           if (s.label === 'decoy' && s.decoyOf !== p && Math.hypot(s.position.x - tpos.x, s.position.y - tpos.y) < 260) { tbody = s; tpos = { x: s.position.x, y: s.position.y }; break; }
         }
@@ -166,11 +166,11 @@ export class BotController {
       if (fleeing) move = -Math.sign(dx || 1);
       else if (goal === tpos && m.standoff && d < m.standoff - 60) move = -Math.sign(dx || 1); // kite back out
       else if (Math.abs(dx) > 46 && !(goal === tpos && m.standoff && d < m.standoff + 60)) move = Math.sign(dx);
-      else if (goal === tpos && Math.random() < m.keepDist) move = -Math.sign(dx || 1); // occasionally keep some distance
-    } else if (Math.random() < 0.12) {
+      else if (goal === tpos && random() < m.keepDist) move = -Math.sign(dx || 1); // occasionally keep some distance
+    } else if (random() < 0.12) {
       move = pick([-1, 0, 1]);
     }
-    if (m.chaos && Math.random() < 0.2) move = pick([-1, 0, 1]); // wandering feet
+    if (m.chaos && random() < 0.2) move = pick([-1, 0, 1]); // wandering feet
     if (me.x < 80) move = 1;
     if (me.x > W - 80) move = -1;
 
@@ -189,9 +189,9 @@ export class BotController {
       else move = 0;                            // otherwise refuse to step off
     }
 
-    if (goal && goal.y < me.y - 70 && grounded && Math.random() < 0.4) jump = true;                       // goal is above → hop up
-    if (move && Math.abs(p.body.velocity.x) < 0.5 && grounded && Math.random() < 0.3) jump = true;         // wedged against a wall
-    if (m.chaos && grounded && Math.random() < 0.15) jump = true;                                          // hops for no reason
+    if (goal && goal.y < me.y - 70 && grounded && random() < 0.4) jump = true;                       // goal is above → hop up
+    if (move && Math.abs(p.body.velocity.x) < 0.5 && grounded && random() < 0.3) jump = true;         // wedged against a wall
+    if (m.chaos && grounded && random() < 0.15) jump = true;                                          // hops for no reason
 
     let cast = false, cast2 = false, aim = null;
     if (tpos && (p.slots[0] || p.slots[1])) {
@@ -206,8 +206,8 @@ export class BotController {
           const risky = id => currentMap.data.lavaY != null && SPELLS[id]?.selfMove;
           const r0 = p.slots[0] && !risky(p.slots[0]) && now - p.casts[0] > (SPELLS[p.slots[0]].cooldown || 0);
           const r1 = p.slots[1] && !risky(p.slots[1]) && now - p.casts[1] > (SPELLS[p.slots[1]].cooldown || 0);
-          if (r0 && r1 && Math.random() < m.combo) { cast = true; cast2 = true; } // two-slot combo
-          else if (r0 && (!r1 || Math.random() < 0.6)) cast = true;               // usually one measured shot
+          if (r0 && r1 && random() < m.combo) { cast = true; cast2 = true; } // two-slot combo
+          else if (r0 && (!r1 || random() < 0.6)) cast = true;               // usually one measured shot
           else if (r1) cast2 = true;
         }
         // human-ish aim: wobblier at range and against fast movers — and much
@@ -220,7 +220,7 @@ export class BotController {
         if (beam) {
           err = err * 1.7 + 0.09;
           if ((cast || cast2) && now - (this.lastBeam || 0) < 950) { cast = cast2 = false; }        // beams on a measured cadence
-          else if ((cast || cast2) && tspd > 6 && Math.random() < 0.4) { cast = cast2 = false; }    // hesitate at a fast mover
+          else if ((cast || cast2) && tspd > 6 && random() < 0.4) { cast = cast2 = false; }    // hesitate at a fast mover
           if (cast || cast2) this.lastBeam = now;
         }
         if (vsBoss) err *= 0.45; // the boss is a barn door
@@ -235,7 +235,7 @@ export class BotController {
         if (fb.owner === p) continue;
         const dx = me.x - fb.position.x, dy = me.y - fb.position.y;
         const d = Math.hypot(dx, dy);
-        if (d < 150 && (fb.velocity.x * dx + fb.velocity.y * dy) / (d || 1) > 5 && Math.random() < m.blockOdds) { block = true; break; }
+        if (d < 150 && (fb.velocity.x * dx + fb.velocity.y * dy) / (d || 1) > 5 && random() < m.blockOdds) { block = true; break; }
       }
     }
     this.plan = { move, jump, cast, cast2, aim, block };

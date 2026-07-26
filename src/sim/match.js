@@ -1,7 +1,7 @@
 // match.js — the state machine: round and match flow, the arena currently
 // loaded, and the banner that narrates both.
 import { Composite, Bodies, world, engine, W, H, onWorldReset } from './world.js';
-import { performance } from './env.js';
+import { performance, random } from './env.js';
 import { rand } from './rng.js';
 import { particles, doFlash } from './fx.js';
 import { slowMo } from './pace.js';
@@ -66,7 +66,7 @@ export function loadMap(index) {
   def.build(m);
   // seeded extras (gap steppers, scattered cover) — the seed rides the snapshot
   // so LAN clients regenerate the exact same statics
-  game.mapSeed = (Math.random() * 0xffffffff) >>> 0;
+  game.mapSeed = (random() * 0xffffffff) >>> 0;
   m.data.seed = game.mapSeed;
   buildMapExtras(m, game.mapSeed);
   if (def.stars) {
@@ -88,7 +88,7 @@ export function startRound(index) {
   resetTelemetry(); // fresh per-round balance tally
   const bossTime = game.totalRounds % BOSS_EVERY === 0;
   let tries = 0;
-  while (bossTime && MAPS[index].cozy && ++tries < 60) index = Math.floor(Math.random() * MAPS.length);
+  while (bossTime && MAPS[index].cozy && ++tries < 60) index = Math.floor(random() * MAPS.length);
   loadMap(index);
   for (const p of players) {
     clearSpells(p);
@@ -164,7 +164,7 @@ export function checkRoundEnd() {
 export function nextMapIndex() {
   const crowded = players.length >= 6; // cozy maps can't hold a big lobby
   let i, tries = 0;
-  do { i = Math.floor(Math.random() * MAPS.length); }
+  do { i = Math.floor(random() * MAPS.length); }
   while ((i === game.mapIndex || (crowded && MAPS[i].cozy)) && ++tries < 60);
   return i;
 }

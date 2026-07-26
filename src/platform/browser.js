@@ -23,11 +23,21 @@ setStorage(globalThis.localStorage);
 setPostTelemetry(postTelemetryHttp);
 attachKeyboard(canvas);
 attachLobbyKeys();
-installDebugGlobals();
-// the dev harness pages drive the game themselves and never wanted the menu:
-// they tag the bundle's own src with ?nomenu, since they are opened by file path
+
+// The dev harness pages tag the bundle's own src with ?nomenu — they are opened
+// by file path, so the page URL carries no query. That flag means "an inline
+// script is driving this page": it suppresses the online menu and is the only
+// thing that publishes the module surface as globals.
+//
+// index.html gets neither. The published globals are accessors without setters,
+// and the optional content pack runs its decrypted module as
+// `new Function(code)()` at global scope — an assignment to one of them would be
+// dropped in sloppy mode and throw in strict, and that throw would abort the
+// unlock. A real player's page must not carry that hazard for a dev affordance.
 const bundleSrc = document.currentScript?.src || '';
-if (!/[?&]nomenu\b/.test(bundleSrc) && !/[?&]nomenu\b/.test(location.search)) mountMenu();
+const harness = /[?&]nomenu\b/.test(bundleSrc) || /[?&]nomenu\b/.test(location.search);
+if (harness) installDebugGlobals();
+else mountMenu();
 
 loadMap(0);
 
@@ -46,5 +56,5 @@ function frame(now) {
   draw(now);
   requestAnimationFrame(frame);
 }
-globalThis.frame = frame; // the dev harness pages step the loop by hand
+if (harness) globalThis.frame = frame; // the dev harness pages step the loop by hand
 requestAnimationFrame(frame);

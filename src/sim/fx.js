@@ -10,6 +10,7 @@
 // The six spawners are rebindable because the server bridge wraps each one to
 // broadcast it to LAN clients (server/sim-bridge.js reassigned the globals).
 import { onWorldReset } from './world.js';
+import { random } from './env.js';
 
 export const particles = [];
 export let shake = 0;
@@ -24,8 +25,8 @@ function baseDoFlash(color, alpha = 0.4) { flashColor = color; flashAlpha = Math
 
 function baseSpawnParticles(x, y, color, count, speed, life = 40) {
   for (let i = 0; i < count; i++) {
-    const a = Math.random() * Math.PI * 2, v = Math.random() * speed;
-    particles.push({ kind: 'square', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, life: life + Math.random() * 20, maxLife: life, color, r: 2 + Math.random() * 3 });
+    const a = random() * Math.PI * 2, v = random() * speed;
+    particles.push({ kind: 'square', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, life: life + random() * 20, maxLife: life, color, r: 2 + random() * 3 });
   }
 }
 
@@ -41,9 +42,9 @@ function baseSpawnBurst(x, y, color, count = 12, o = {}) {
   const kind = o.kind || 'square', speed = o.speed ?? 5, spread = o.spread ?? Math.PI * 2;
   const dir = o.dir ?? 0, up = o.up ?? 0, life = o.life ?? 40, g = o.g ?? 0.25, r = o.r ?? 3;
   for (let i = 0; i < count; i++) {
-    const a = dir + (Math.random() - 0.5) * spread;
-    const v = speed * (0.4 + Math.random() * 0.9);
-    particles.push({ kind, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - up, life: life + Math.random() * 15, maxLife: life, color, r: r * (0.6 + Math.random() * 0.8), g });
+    const a = dir + (random() - 0.5) * spread;
+    const v = speed * (0.4 + random() * 0.9);
+    particles.push({ kind, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - up, life: life + random() * 15, maxLife: life, color, r: r * (0.6 + random() * 0.8), g });
   }
 }
 

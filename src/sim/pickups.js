@@ -1,7 +1,7 @@
 // pickups.js — spell tomes and the rare Mega Hat raining from the sky.
 // Their art lives in src/render/draw-pickups.js.
 import { Bodies, Body, Composite, world, engine, W, H, onWorldReset } from './world.js';
-import { performance } from './env.js';
+import { random } from './env.js';
 import { rand, pick } from './rng.js';
 import { spawnParticles, spawnRing, spawnText, addShake, doFlash } from './fx.js';
 import { sfx } from './sfx.js';
@@ -34,7 +34,7 @@ export function updateTomes(now) {
       const n = Math.max(2, players.length);
       for (let i = 0; i < n; i++) spawnTome(now);
     } else {
-      const roll = Math.random();
+      const roll = random();
       const megaOut = hats.size > 0 || players.some(p => p.megaCasts > 0);
       if (!megaOut && roll < 0.12) spawnHat(now);
       else if (roll < 0.22) spawnCatalyst(now); // ~10% rare Fusion Catalyst

@@ -3,15 +3,13 @@
 // Content file: moved verbatim from js/spellbook.js. The only edits are the
 // module header below and the effect draw() closures, which now take the render
 // surface as an argument instead of reaching for a global ctx.
-import { Bodies, Body, Composite, Query, world, engine, W, H } from '../world.js';
-import { performance } from '../env.js';
+import { Bodies, Body, Composite, world, engine, W, H } from '../world.js';
+import { performance, random } from '../env.js';
 import { rand, pick } from '../rng.js';
-import {
-  particles, spawnParticles, spawnRing, spawnText, addShake, doFlash, spawnBurst,
-} from '../fx.js';
+import { particles, spawnParticles, spawnRing, spawnText, addShake, doFlash } from '../fx.js';
 import { slowMo } from '../pace.js';
 import { sfx } from '../sfx.js';
-import { game, setBanner, currentMap } from '../match.js';
+import { game, setBanner } from '../match.js';
 import { players, gibs, healPlayer } from '../player/lifecycle.js';
 import { damagePlayer } from '../player/combat.js';
 import { grounded } from '../player/controller.js';
@@ -19,9 +17,7 @@ import { tomes, hats } from '../pickups.js';
 import { damageBoss } from '../ai/boss.js';
 import { SPELLS } from './registry.js';
 import {
-  projectiles, summons, activeEffects, aimDir, shoot, dropProjectile,
-  removeProjectile, summon, removeSummon, enemiesOf, nearestEnemy, explode,
-  raycastHit, boltVisual, groundYAt, zapHit, skyBolt, spawnSingularity, makeZone,
+  projectiles, summons, activeEffects, aimDir, shoot, dropProjectile, removeProjectile, summon, enemiesOf, nearestEnemy, explode, raycastHit, boltVisual, groundYAt, zapHit, skyBolt, makeZone,
 } from './core.js';
 
 // filled here, merged into SPELLS by src/sim/content.js
@@ -505,7 +501,7 @@ regSpell('blizzard', {
       tick(q, now) {
         if (q === p) return;
         q.frozenUntil = Math.max(q.frozenUntil, now + 200);
-        if (Math.random() < 0.02) damagePlayer(q, 3);
+        if (random() < 0.02) damagePlayer(q, 3);
       },
       draw(now, ctx) {
         ctx.globalAlpha = 0.14;
@@ -892,7 +888,7 @@ regSpell('poltergeist', {
       const dx = t.body.position.x - b.position.x, dy = t.body.position.y - b.position.y;
       const d = Math.hypot(dx, dy) || 1;
       Body.setVelocity(b, { x: (dx / d) * 18, y: (dy / d) * 18 - 3 });
-      if (Math.random() < 0.5) spawnParticles(b.position.x, b.position.y, '#b39ddb', 3, 2, 16);
+      if (random() < 0.5) spawnParticles(b.position.x, b.position.y, '#b39ddb', 3, 2, 16);
     }
   },
 });

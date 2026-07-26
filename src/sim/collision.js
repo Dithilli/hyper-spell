@@ -1,14 +1,14 @@
 // collision.js — every contact rule in the game, in one Matter handler.
 // Registered against each freshly built engine, so a rebuilt world starts with
 // exactly one listener (js/game.js:358 attached it at script load).
-import { Body, Composite, Events, engine, world, W, H, onWorldReset } from './world.js';
+import { Body, Composite, Events, engine, world, onWorldReset } from './world.js';
 import { performance } from './env.js';
 import { pick } from './rng.js';
 import { spawnParticles, spawnText, addShake } from './fx.js';
 import { sfx } from './sfx.js';
 import { statFor } from './awards.js';
 import { currentMap } from './match.js';
-import { players, gibs } from './player/lifecycle.js';
+import { gibs } from './player/lifecycle.js';
 import { damagePlayer, killPlayer } from './player/combat.js';
 import { tomes, hats, pickupTome, pickupHat } from './pickups.js';
 import { projectiles, summons, removeSummon, explode } from './spells/core.js';

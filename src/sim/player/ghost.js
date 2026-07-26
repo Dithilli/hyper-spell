@@ -1,5 +1,6 @@
 // player/ghost.js — dead wizards linger as wisps and meddle, gently.
 import { Body, Composite, world, W, H } from '../world.js';
+import { random } from '../env.js';
 import { rand } from '../rng.js';
 import { particles, spawnParticles, spawnRing, spawnBurst } from '../fx.js';
 import { sfx } from '../sfx.js';
@@ -37,7 +38,7 @@ export function updateGhosts(now) {
           y: Math.max(-6, Math.min(6, (g.y + 26 - held.position.y) * 0.18)),
         });
         Body.setAngularVelocity(held, held.angularVelocity * 0.9);
-        if (Math.random() < 0.2) particles.push({ kind: 'spark', x: held.position.x + rand(-8, 8), y: held.position.y + rand(-8, 8), vx: 0, vy: -0.6, life: 14, maxLife: 14, color: '#e8d5ff', r: 1.5 });
+        if (random() < 0.2) particles.push({ kind: 'spark', x: held.position.x + rand(-8, 8), y: held.position.y + rand(-8, 8), vx: 0, vy: -0.6, life: 14, maxLife: 14, color: '#e8d5ff', r: 1.5 });
       }
     } else if (c.cast) {
       // grab if a loose prop is in reach, otherwise the classic gust

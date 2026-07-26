@@ -9,15 +9,15 @@
 // header below and the effect draw() closures, which now take the render surface
 // as an argument instead of reaching for a global ctx.
 import { Bodies, Body, Composite, world, W, H } from '../world.js';
-import { performance } from '../env.js';
-import { rand, pick } from '../rng.js';
+import { performance, random } from '../env.js';
+import { rand } from '../rng.js';
 import {
   spawnParticles, spawnRing, spawnText, addShake, doFlash, spawnBurst,
 } from '../fx.js';
 import { slowMo } from '../pace.js';
 import { sfx } from '../sfx.js';
 import { game, setBanner } from '../match.js';
-import { players, healPlayer } from '../player/lifecycle.js';
+import { healPlayer } from '../player/lifecycle.js';
 import { damagePlayer } from '../player/combat.js';
 import { telPick } from '../telemetry.js';
 import { SPELLS } from './registry.js';
@@ -35,19 +35,19 @@ export const HYBRID_SPELLS = {};
 function regHybrid(id, def) { def.hybrid = true; HYBRID_SPELLS[id] = def; }
 
 // ingredient families (a spell may sit in more than one; first matching recipe wins)
-const F_FIRE  = ['fireball', 'ember', 'twinfire', 'trishot', 'scatter', 'mortar', 'sunburst', 'skullrocket', 'dragonbreath', 'ignite', 'shard', 'firecrackers', 'volcanospell', 'napalm', 'flamewall', 'phoenixdash', 'starfall'];
-const F_ICE   = ['frost', 'iceshard', 'snowball', 'coldsnap', 'glacier', 'permafrost', 'blizzard', 'frostnova', 'icicledrop', 'flashfreeze'];
-const F_ZAP   = ['lightning', 'zapspell', 'thunderlance', 'chain', 'railgun', 'sweep', 'skysmite', 'teslacoil', 'lightningrod', 'stormcall'];
-const F_AIR   = ['gust', 'shove', 'cyclone', 'vortexpull', 'updraft', 'tornado', 'repulsor', 'slam', 'magnetpalm'];
-const F_EARTH = ['cratedrop', 'anvil', 'piano', 'boulder', 'stonewall', 'bowling', 'sawblade', 'cannonball'];
-const F_VOID  = ['blackhole', 'meteor', 'bigbang', 'gravflip', 'chaostheory', 'moongrav'];
-const F_LIFE  = ['secondwind', 'vampirebolt', 'aegis', 'ghostwalk'];
-const F_TRICK = ['banana', 'pigmorph', 'swaphex', 'roulette', 'shrinkray', 'balloonhex', 'anchorhex', 'unoreverse', 'wobble', 'decoy', 'blackcat', 'rubberduck', 'confetti', 'poltergeist', 'brainfreeze', 'disarm', 'kingsdecree', 'midas', 'growthspurt', 'smokebomb', 'mirrorcast', 'timeskip', 'yoink', 'lifeswap', 'frograin', 'boomerang', 'kitchensink'];
+export const F_FIRE  = ['fireball', 'ember', 'twinfire', 'trishot', 'scatter', 'mortar', 'sunburst', 'skullrocket', 'dragonbreath', 'ignite', 'shard', 'firecrackers', 'volcanospell', 'napalm', 'flamewall', 'phoenixdash', 'starfall'];
+export const F_ICE   = ['frost', 'iceshard', 'snowball', 'coldsnap', 'glacier', 'permafrost', 'blizzard', 'frostnova', 'icicledrop', 'flashfreeze'];
+export const F_ZAP   = ['lightning', 'zapspell', 'thunderlance', 'chain', 'railgun', 'sweep', 'skysmite', 'teslacoil', 'lightningrod', 'stormcall'];
+export const F_AIR   = ['gust', 'shove', 'cyclone', 'vortexpull', 'updraft', 'tornado', 'repulsor', 'slam', 'magnetpalm'];
+export const F_EARTH = ['cratedrop', 'anvil', 'piano', 'boulder', 'stonewall', 'bowling', 'sawblade', 'cannonball'];
+export const F_VOID  = ['blackhole', 'meteor', 'bigbang', 'gravflip', 'chaostheory', 'moongrav'];
+export const F_LIFE  = ['secondwind', 'vampirebolt', 'aegis', 'ghostwalk'];
+export const F_TRICK = ['banana', 'pigmorph', 'swaphex', 'roulette', 'shrinkray', 'balloonhex', 'anchorhex', 'unoreverse', 'wobble', 'decoy', 'blackcat', 'rubberduck', 'confetti', 'poltergeist', 'brainfreeze', 'disarm', 'kingsdecree', 'midas', 'growthspurt', 'smokebomb', 'mirrorcast', 'timeskip', 'yoink', 'lifeswap', 'frograin', 'boomerang', 'kitchensink'];
 
 // recipes: unordered {a, b} family pair -> hybrid id. The 7 same-family entries
 // are the "amplified" pure fusions (listed first, so a WILD catalyst on any spell
 // resolves to its school's amp). Then all 21 cross-school pairs. Full 7x7 matrix.
-const FUSIONS = [
+export const FUSIONS = [
   // --- amplified (same-school) ---
   { id: 'inferno',        a: F_FIRE,  b: F_FIRE },
   { id: 'absolutezero',   a: F_ICE,   b: F_ICE },
@@ -568,7 +568,7 @@ regHybrid('pandemonium', {
   cast(p) {
     const m = p.mega || 1, now = performance.now();
     for (const q of enemiesOf(p)) {
-      const roll = Math.floor(Math.random() * 5);
+      const roll = Math.floor(random() * 5);
       if (roll === 0) q.frozenUntil = now + 1000 * m;
       else if (roll === 1) q.reversedUntil = now + 2500 * m;
       else if (roll === 2) q.shrinkUntil = now + 3500 * m;

@@ -3,14 +3,15 @@
 // visuals reach LAN clients and the killcam through the snapshot's `ev` field
 // (drawn in src/render/draw-env.js).
 import { Bodies, Body, Composite, world, engine, W, H } from './world.js';
+import { random } from './env.js';
 import { rand, pick } from './rng.js';
 import { spawnParticles, addShake, doFlash } from './fx.js';
 import { sfx } from './sfx.js';
 import { game, setBanner, currentMap } from './match.js';
 import { players } from './player/lifecycle.js';
-import { damagePlayer } from './player/combat.js';
+
 import { tomes, spawnTome } from './pickups.js';
-import { dropProjectile, explode, summon, summons, projectiles } from './spells/core.js';
+import { dropProjectile, explode, summon, summons } from './spells/core.js';
 import { applyWind, updateStrikes } from './maps/builders.js';
 
 export const ENV_EVENT_CHANCE = 0.20; // one round in five
@@ -117,7 +118,7 @@ export const ENV_EVENTS = [
       }
       if (now < (m.data.quakeUntil || 0)) {
         addShake(1.3);
-        if (Math.random() < 0.25) {
+        if (random() < 0.25) {
           for (const b of Composite.allBodies(world)) {
             if (b.isStatic || b.isSensor) continue;
             Body.setVelocity(b, { x: b.velocity.x + rand(-1.6, 1.6), y: b.velocity.y - rand(0, 1.2) });
@@ -166,7 +167,7 @@ export function envEventById(id) {
 
 export function rollEnvEvent(now) {
   game.envEvent = null;
-  if (Math.random() >= ENV_EVENT_CHANCE) return;
+  if (random() >= ENV_EVENT_CHANCE) return;
   const def = pick(ENV_EVENTS);
   game.envEvent = { def, announced: false };
   def.start?.(currentMap, now);

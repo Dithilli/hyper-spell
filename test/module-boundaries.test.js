@@ -16,8 +16,15 @@ test('src/sim never imports render, net, or platform', () => {
   const offenders = [];
   for (const file of walk('src/sim')) {
     const src = readFileSync(file, 'utf8');
-    for (const m of src.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
-      if (/(^|\/)(render|net|platform)\//.test(m[1])) offenders.push(`${file} → ${m[1]}`);
+    // Both import forms: `… from 'x'` and the bare side-effect `import 'x';`.
+    // sim/ genuinely uses the bare form (content.js, tick.js), so matching only
+    // the `from` clause would leave a live hole in the layering gate.
+    const specifiers = [
+      ...[...src.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]),
+      ...[...src.matchAll(/^\s*import\s+['"]([^'"]+)['"]/gm)].map((m) => m[1]),
+    ];
+    for (const spec of specifiers) {
+      if (/(^|\/)(render|net|platform)\//.test(spec)) offenders.push(`${file} → ${spec}`);
     }
   }
   assert.deepEqual(offenders, [], `sim must not depend on outer layers:\n${offenders.join('\n')}`);

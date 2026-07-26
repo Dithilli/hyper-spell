@@ -3,11 +3,14 @@
 //
 // The vm sandbox used to hand the sim a fake `performance` and a seeded
 // `Math.random` through the context's global scope (server/shims.js). ES modules
-// have no such scope, so sim code imports `performance` from here instead: the
-// identifier still reads `performance.now()` at every call site, but it resolves
-// to whatever the host injected. Task 4 replaces those call sites with simNow()
-// and Task 5 replaces setRandom with the seeded stream registry; until then this
-// module is what makes a headless run reproducible.
+// have no such scope, so sim code imports both from here instead. The clock's
+// call sites still read `performance.now()` verbatim — Task 4 replaces them with
+// simNow() — and the random source is a plain `random()`.
+//
+// Seeding is a swap of the binding below, not of the platform Math.random:
+// nothing under src/sim calls Math.random any more, so a seeded run cannot leak
+// entropy into, or draw it from, anything else sharing the process. Task 5
+// replaces this single stream with the per-subsystem seeded registry.
 
 export let performance = globalThis.performance;
 
@@ -15,20 +18,12 @@ export function setClock(clock) {
   performance = clock || globalThis.performance;
 }
 
-// Seeding is a global swap, exactly as the sandbox did it
-// (server/sim-context.js:59 rewrote Math.random inside the context). Production
-// passes nothing and keeps the platform generator; tests pass a seeded one and
-// restoreRandom() puts the original back when the sim is destroyed.
-let originalRandom = null;
+export let random = Math.random;
 
-export function setRandom(random) {
-  if (!random || random === Math.random) return;
-  if (originalRandom === null) originalRandom = Math.random;
-  Math.random = random;
+export function setRandom(fn) {
+  random = fn || Math.random;
 }
 
 export function restoreRandom() {
-  if (originalRandom === null) return;
-  Math.random = originalRandom;
-  originalRandom = null;
+  random = Math.random;
 }

@@ -4865,6 +4865,7 @@
 
   // src/sim/env.js
   var performance2 = globalThis.performance;
+  var random = Math.random;
 
   // src/sim/rng.js
   var rng_exports = {};
@@ -4873,8 +4874,8 @@
     pick: () => pick,
     rand: () => rand
   });
-  var rand = (a, b) => a + Math.random() * (b - a);
-  var pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  var rand = (a, b) => a + random() * (b - a);
+  var pick = (arr) => arr[Math.floor(random() * arr.length)];
   function makeRng(seed) {
     let a = seed >>> 0;
     return () => {
@@ -4927,8 +4928,8 @@
   }
   function baseSpawnParticles(x, y, color, count, speed, life = 40) {
     for (let i = 0; i < count; i++) {
-      const a = Math.random() * Math.PI * 2, v = Math.random() * speed;
-      particles.push({ kind: "square", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, life: life + Math.random() * 20, maxLife: life, color, r: 2 + Math.random() * 3 });
+      const a = random() * Math.PI * 2, v = random() * speed;
+      particles.push({ kind: "square", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, life: life + random() * 20, maxLife: life, color, r: 2 + random() * 3 });
     }
   }
   function baseSpawnRing(x, y, color) {
@@ -4938,9 +4939,9 @@
     const kind = o.kind || "square", speed = o.speed ?? 5, spread = o.spread ?? Math.PI * 2;
     const dir = o.dir ?? 0, up = o.up ?? 0, life = o.life ?? 40, g = o.g ?? 0.25, r = o.r ?? 3;
     for (let i = 0; i < count; i++) {
-      const a = dir + (Math.random() - 0.5) * spread;
-      const v = speed * (0.4 + Math.random() * 0.9);
-      particles.push({ kind, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - up, life: life + Math.random() * 15, maxLife: life, color, r: r * (0.6 + Math.random() * 0.8), g });
+      const a = dir + (random() - 0.5) * spread;
+      const v = speed * (0.4 + random() * 0.9);
+      particles.push({ kind, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - up, life: life + random() * 15, maxLife: life, color, r: r * (0.6 + random() * 0.8), g });
     }
   }
   function baseSpawnText(x, y, str, color) {
@@ -5344,7 +5345,7 @@
     if (!ids.length) return null;
     let total = 0;
     for (const id of ids) total += TIER_WEIGHT[spellTier(id)] || 1;
-    let r = Math.random() * total;
+    let r = random() * total;
     for (const id of ids) {
       r -= TIER_WEIGHT[spellTier(id)] || 1;
       if (r <= 0) return id;
@@ -5355,6 +5356,15 @@
   // src/sim/spells/fusion.js
   var fusion_exports = {};
   __export(fusion_exports, {
+    FUSIONS: () => FUSIONS,
+    F_AIR: () => F_AIR,
+    F_EARTH: () => F_EARTH,
+    F_FIRE: () => F_FIRE,
+    F_ICE: () => F_ICE,
+    F_LIFE: () => F_LIFE,
+    F_TRICK: () => F_TRICK,
+    F_VOID: () => F_VOID,
+    F_ZAP: () => F_ZAP,
     HYBRID_SPELLS: () => HYBRID_SPELLS,
     WILD: () => WILD,
     hybridFor: () => hybridFor,
@@ -5767,7 +5777,7 @@
           if (t) bs.pending.push({ x: t.body.position.x, at: now + 650 });
         }
         for (const w of bs.pending) {
-          if (Math.random() < 0.5) spawnParticles(w.x + rand(-12, 12), H - 30, "#3d6a8a", 1, 2, 14);
+          if (random() < 0.5) spawnParticles(w.x + rand(-12, 12), H - 30, "#3d6a8a", 1, 2, 14);
           if (now > w.at) {
             const tb = Bodies.rectangle(w.x, H + 120, 26, 240, { isStatic: true, label: "tentacle" });
             summon(tb, { life: 3e3, color: "#3d6a8a" });
@@ -5862,7 +5872,7 @@
             if (t) {
               const lead = { body: { position: { x: t.body.position.x + (t.body.velocity.x || 0) * 8, y: t.body.position.y + (t.body.velocity.y || 0) * 8 } } };
               bossBolt(b.position, lead, { speed: 15, r: 7, color: "#3fb5ff", boom: [55, 8, 13] });
-              if (Math.random() < 0.3) setBanner(pick(["LFG!", "LOCKED IN", "PATTERN RECOGNIZED", "HYPERFOCUS", "I SEE THE WHOLE BOARD", "THE TIZZARD SEES ALL", "EVERY. DETAIL."]), "#3fb5ff", 1e3);
+              if (random() < 0.3) setBanner(pick(["LFG!", "LOCKED IN", "PATTERN RECOGNIZED", "HYPERFOCUS", "I SEE THE WHOLE BOARD", "THE TIZZARD SEES ALL", "EVERY. DETAIL."]), "#3fb5ff", 1e3);
             }
             sfx.cast();
           }
@@ -5911,7 +5921,7 @@
             bs.nextDe = now + bcd(bs, 1500, 1500);
             const t = bossAliveTarget(b.position);
             if (t) bossBolt(b.position, t, { speed: 13, r: 7, color: "#9ec9ff", boom: [55, 8, 12] });
-            if (Math.random() < 0.4) {
+            if (random() < 0.4) {
               const q = bossAliveTarget(null);
               if (q) {
                 q.frozenUntil = now + 700;
@@ -5926,7 +5936,7 @@
             const t = bossAliveTarget(b.position);
             if (t) for (const off of [-0.18, 0.08]) bossBolt(b.position, t, { speed: 10, r: 8, color: "#ff7043", spread: off, boom: [70, 9, 12] });
             for (const p of players) if (p.alive && Math.hypot(p.body.position.x - b.position.x, p.body.position.y - b.position.y) < 220) p.burnUntil = now + 1600;
-            if (Math.random() < 0.3) spawnParticles(b.position.x, b.position.y, pick(["#6cbf5b", "#e15d5d", "#ffd166"]), 10, 5);
+            if (random() < 0.3) spawnParticles(b.position.x, b.position.y, pick(["#6cbf5b", "#e15d5d", "#ffd166"]), 10, 5);
             sfx.cast();
           }
         }
@@ -5939,7 +5949,7 @@
   }
   var BOSS_ROMAN = ["", "", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
   function spawnBoss(now, opts = {}) {
-    const secret = opts.bossId ? SECRET_BOSSES.some((d) => d.id === opts.bossId) : Math.random() < 0.12;
+    const secret = opts.bossId ? SECRET_BOSSES.some((d) => d.id === opts.bossId) : random() < 0.12;
     const pool = secret ? SECRET_BOSSES : BOSSES;
     const def = opts.bossId ? [...BOSSES, ...SECRET_BOSSES].find((d) => d.id === opts.bossId) || pick(pool) : pick(pool);
     const body = def.make();
@@ -6054,6 +6064,7 @@
     updateEnemies: () => updateEnemies
   });
   var enemies = /* @__PURE__ */ new Set();
+  onWorldReset(() => enemies.clear());
   function enemyBolt(from, target, { speed = 9, r = 7, color = "#ff8c5a", spread = 0, boom = [55, 8, 10] } = {}) {
     const t = target.body.position;
     const a = Math.atan2(t.y - from.y, t.x - from.x) + spread;
@@ -6391,7 +6402,7 @@
         }
         if (now < (m.data.quakeUntil || 0)) {
           addShake(1.3);
-          if (Math.random() < 0.25) {
+          if (random() < 0.25) {
             for (const b of Composite.allBodies(world)) {
               if (b.isStatic || b.isSensor) continue;
               Body.setVelocity(b, { x: b.velocity.x + rand(-1.6, 1.6), y: b.velocity.y - rand(0, 1.2) });
@@ -6444,7 +6455,7 @@
   }
   function rollEnvEvent(now) {
     game.envEvent = null;
-    if (Math.random() >= ENV_EVENT_CHANCE) return;
+    if (random() >= ENV_EVENT_CHANCE) return;
     const def = pick(ENV_EVENTS);
     game.envEvent = { def, announced: false };
     def.start?.(currentMap, now);
@@ -6496,7 +6507,7 @@
   }
   function damageDestructible(b, dmg) {
     if (b.hp == null || b.hp <= 0) return;
-    if (b.hp === b.maxHp && b.kind === "wood" && isLeafy(b.dcolor) && Math.random() < 0.75) {
+    if (b.hp === b.maxHp && b.kind === "wood" && isLeafy(b.dcolor) && random() < 0.75) {
       spawnBurst(b.position.x, b.position.y - 10, "#2c2438", 3, { kind: "bird", dir: -Math.PI / 2, spread: 1.8, speed: 2.5, up: 3, g: -0.02, life: 85, r: 3 });
     }
     b.hp -= dmg;
@@ -6769,7 +6780,7 @@
         ic.fallen = true;
         Body.setStatic(ic.body, false);
         Body.setVelocity(ic.body, { x: 0, y: 2 });
-      } else if (Math.random() < 0.3) {
+      } else if (random() < 0.3) {
         particles.push({ kind: "square", x: ix + rand(-8, 8), y: ic.body.position.y + 20, vx: 0, vy: 1, life: 20, maxLife: 20, color: "#bfe8ff", r: 2 });
       }
     }
@@ -6904,7 +6915,7 @@
       const lift = now < (p.floatyUntil || 0) ? 1.5 : now < (p.featherUntil || 0) ? 0.72 : 0;
       if (lift) {
         Body.applyForce(body, body.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * body.mass * lift });
-        if (lift < 1 && Math.random() < 0.06) spawnParticles(body.position.x + rand(-10, 10), body.position.y - 18, "#fffde7", 1, 1.2, 22);
+        if (lift < 1 && random() < 0.06) spawnParticles(body.position.x + rand(-10, 10), body.position.y - 18, "#fffde7", 1, 1.2, 22);
       }
       if (p.wasFrozen && !frozen) {
         body.frictionAir = 0.02;
@@ -6913,7 +6924,7 @@
       }
       p.wasFrozen = frozen;
       if (currentMap.def.icy || currentMap.data.eventIcy) p.wetUntil = Math.max(p.wetUntil || 0, now + 600);
-      if (now < (p.wetUntil || 0) && Math.random() < 0.04) spawnParticles(body.position.x, body.position.y + 8, "#9ec9ff", 1, 1.5, 16);
+      if (now < (p.wetUntil || 0) && random() < 0.04) spawnParticles(body.position.x, body.position.y + 8, "#9ec9ff", 1, 1.5, 16);
       const c = p.input;
       const gdir = gravDirFor(p);
       if (now < (p.gravityLockUntil || 0)) {
@@ -7101,7 +7112,7 @@
         x: body.velocity.x + dx / d * power * s,
         y: body.velocity.y + dy / d * power * s - 4 * s
       });
-      Body.setAngularVelocity(body, body.angularVelocity + (Math.random() - 0.5) * 0.4);
+      Body.setAngularVelocity(body, body.angularVelocity + (random() - 0.5) * 0.4);
       if (body.label === "player" && damage) {
         const dmg = damage * (1 - d / (radius * 1.15));
         if (body.player === owner) {
@@ -7230,7 +7241,7 @@
           const pos = (c.bodyA || c.bodyB).position;
           if (Math.hypot(pos.x - x, pos.y - y) < 140) Composite.remove(currentMap.composite, c);
         }
-        if (Math.random() < 0.6) {
+        if (random() < 0.6) {
           const a = rand(0, Math.PI * 2), dd = rand(60, 180);
           particles.push({ kind: "square", x: x + Math.cos(a) * dd, y: y + Math.sin(a) * dd, vx: -Math.cos(a) * 4, vy: -Math.sin(a) * 4, life: 16, maxLife: 16, color: "#a55eea", r: 2.5 });
         }
@@ -7304,7 +7315,7 @@
     p.casts[slot] = now;
     p.lastCastSlot = slot;
     telCast(id);
-    const hyper = Math.random() < Math.min(0.06, spell.cooldown * 12e-6);
+    const hyper = random() < Math.min(0.06, spell.cooldown * 12e-6);
     const potency = spell.hybrid ? hybridPotency(hybridCharges(spell)) : 1;
     p.mega = (p.megaCasts > 0 ? 1.7 : 1) * (hyper ? 2.2 : 1) * potency;
     if (hyper) {
@@ -7976,7 +7987,7 @@
         tick(q, now) {
           if (q === p) return;
           q.frozenUntil = Math.max(q.frozenUntil, now + 200);
-          if (Math.random() < 0.02) damagePlayer(q, 3);
+          if (random() < 0.02) damagePlayer(q, 3);
         },
         draw(now, ctx2) {
           ctx2.globalAlpha = 0.14;
@@ -8487,7 +8498,7 @@
         const dx = t.body.position.x - b.position.x, dy = t.body.position.y - b.position.y;
         const d = Math.hypot(dx, dy) || 1;
         Body.setVelocity(b, { x: dx / d * 18, y: dy / d * 18 - 3 });
-        if (Math.random() < 0.5) spawnParticles(b.position.x, b.position.y, "#b39ddb", 3, 2, 16);
+        if (random() < 0.5) spawnParticles(b.position.x, b.position.y, "#b39ddb", 3, 2, 16);
       }
     }
   });
@@ -9456,7 +9467,7 @@
     cast(p) {
       const m = p.mega || 1, now = performance2.now();
       for (const q of enemiesOf(p)) {
-        const roll = Math.floor(Math.random() * 5);
+        const roll = Math.floor(random() * 5);
         if (roll === 0) q.frozenUntil = now + 1e3 * m;
         else if (roll === 1) q.reversedUntil = now + 2500 * m;
         else if (roll === 2) q.shrinkUntil = now + 3500 * m;
@@ -9629,7 +9640,7 @@
         const n = Math.max(2, players.length);
         for (let i = 0; i < n; i++) spawnTome(now);
       } else {
-        const roll = Math.random();
+        const roll = random();
         const megaOut = hats.size > 0 || players.some((p) => p.megaCasts > 0);
         if (!megaOut && roll < 0.12) spawnHat(now);
         else if (roll < 0.22) spawnCatalyst(now);
@@ -9903,7 +9914,7 @@
         }
       }
       if (now < (p.spookedUntil || 0)) {
-        this.plan = { move: pick([-1, 1]), jump: Math.random() < 0.3, cast: false, cast2: false, aim: null, block: false };
+        this.plan = { move: pick([-1, 1]), jump: random() < 0.3, cast: false, cast2: false, aim: null, block: false };
         this.nextThink = now + 130;
         return;
       }
@@ -9924,7 +9935,7 @@
           tbody = t.body;
           tpos = tbody.position;
         }
-        if (tpos && Math.random() < 0.5) {
+        if (tpos && random() < 0.5) {
           for (const s of summons) {
             if (s.label === "decoy" && s.decoyOf !== p && Math.hypot(s.position.x - tpos.x, s.position.y - tpos.y) < 260) {
               tbody = s;
@@ -9969,11 +9980,11 @@
         if (fleeing) move = -Math.sign(dx || 1);
         else if (goal === tpos && m.standoff && d < m.standoff - 60) move = -Math.sign(dx || 1);
         else if (Math.abs(dx) > 46 && !(goal === tpos && m.standoff && d < m.standoff + 60)) move = Math.sign(dx);
-        else if (goal === tpos && Math.random() < m.keepDist) move = -Math.sign(dx || 1);
-      } else if (Math.random() < 0.12) {
+        else if (goal === tpos && random() < m.keepDist) move = -Math.sign(dx || 1);
+      } else if (random() < 0.12) {
         move = pick([-1, 0, 1]);
       }
-      if (m.chaos && Math.random() < 0.2) move = pick([-1, 0, 1]);
+      if (m.chaos && random() < 0.2) move = pick([-1, 0, 1]);
       if (me.x < 80) move = 1;
       if (me.x > W - 80) move = -1;
       const grounded2 = now - (p.lastGround || 0) < 220;
@@ -9987,9 +9998,9 @@
         if (safeLanding && grounded2) jump = true;
         else move = 0;
       }
-      if (goal && goal.y < me.y - 70 && grounded2 && Math.random() < 0.4) jump = true;
-      if (move && Math.abs(p.body.velocity.x) < 0.5 && grounded2 && Math.random() < 0.3) jump = true;
-      if (m.chaos && grounded2 && Math.random() < 0.15) jump = true;
+      if (goal && goal.y < me.y - 70 && grounded2 && random() < 0.4) jump = true;
+      if (move && Math.abs(p.body.velocity.x) < 0.5 && grounded2 && random() < 0.3) jump = true;
+      if (m.chaos && grounded2 && random() < 0.15) jump = true;
       let cast = false, cast2 = false, aim = null;
       if (tpos && (p.slots[0] || p.slots[1])) {
         const d = Math.hypot(tpos.x - me.x, tpos.y - me.y);
@@ -9998,10 +10009,10 @@
             const risky = (id) => currentMap.data.lavaY != null && SPELLS[id]?.selfMove;
             const r0 = p.slots[0] && !risky(p.slots[0]) && now - p.casts[0] > (SPELLS[p.slots[0]].cooldown || 0);
             const r1 = p.slots[1] && !risky(p.slots[1]) && now - p.casts[1] > (SPELLS[p.slots[1]].cooldown || 0);
-            if (r0 && r1 && Math.random() < m.combo) {
+            if (r0 && r1 && random() < m.combo) {
               cast = true;
               cast2 = true;
-            } else if (r0 && (!r1 || Math.random() < 0.6)) cast = true;
+            } else if (r0 && (!r1 || random() < 0.6)) cast = true;
             else if (r1) cast2 = true;
           }
           const firingId = cast ? p.slots[0] : cast2 ? p.slots[1] : p.slots[0] || p.slots[1];
@@ -10012,7 +10023,7 @@
             err = err * 1.7 + 0.09;
             if ((cast || cast2) && now - (this.lastBeam || 0) < 950) {
               cast = cast2 = false;
-            } else if ((cast || cast2) && tspd > 6 && Math.random() < 0.4) {
+            } else if ((cast || cast2) && tspd > 6 && random() < 0.4) {
               cast = cast2 = false;
             }
             if (cast || cast2) this.lastBeam = now;
@@ -10028,7 +10039,7 @@
           if (fb.owner === p) continue;
           const dx = me.x - fb.position.x, dy = me.y - fb.position.y;
           const d = Math.hypot(dx, dy);
-          if (d < 150 && (fb.velocity.x * dx + fb.velocity.y * dy) / (d || 1) > 5 && Math.random() < m.blockOdds) {
+          if (d < 150 && (fb.velocity.x * dx + fb.velocity.y * dy) / (d || 1) > 5 && random() < m.blockOdds) {
             block = true;
             break;
           }
@@ -10315,7 +10326,7 @@
     return list;
   }
   function queueSpawn(type, tier, at) {
-    const side = Math.random() < 0.5 ? -1 : 1;
+    const side = random() < 0.5 ? -1 : 1;
     pendingSpawns.push({ type, tier, at, x: side < 0 ? 40 : W - 40, y: 120 });
   }
   function startWave(n) {
@@ -10446,7 +10457,7 @@
       Composite.add(m.composite, wall);
     }
     def.build(m);
-    game.mapSeed = Math.random() * 4294967295 >>> 0;
+    game.mapSeed = random() * 4294967295 >>> 0;
     m.data.seed = game.mapSeed;
     buildMapExtras(m, game.mapSeed);
     if (def.stars) {
@@ -10470,7 +10481,7 @@
     resetTelemetry();
     const bossTime = game.totalRounds % BOSS_EVERY === 0;
     let tries = 0;
-    while (bossTime && MAPS[index].cozy && ++tries < 60) index = Math.floor(Math.random() * MAPS.length);
+    while (bossTime && MAPS[index].cozy && ++tries < 60) index = Math.floor(random() * MAPS.length);
     loadMap(index);
     for (const p of players) {
       clearSpells(p);
@@ -10541,7 +10552,7 @@
     const crowded = players.length >= 6;
     let i, tries = 0;
     do {
-      i = Math.floor(Math.random() * MAPS.length);
+      i = Math.floor(random() * MAPS.length);
     } while ((i === game.mapIndex || crowded && MAPS[i].cozy) && ++tries < 60);
     return i;
   }
@@ -10892,8 +10903,8 @@
       const gib = Bodies.rectangle(x, y, 14, 4, { density: 1e-3, frictionAir: 0.01, label: "gib" });
       gib.color = p.color;
       gib.dieAt = performance2.now() + 3e3;
-      Body.setVelocity(gib, { x: (Math.random() - 0.5) * 16, y: -6 - Math.random() * 8 });
-      Body.setAngularVelocity(gib, (Math.random() - 0.5) * 0.6);
+      Body.setVelocity(gib, { x: (random() - 0.5) * 16, y: -6 - random() * 8 });
+      Body.setAngularVelocity(gib, (random() - 0.5) * 0.6);
       gibs.add(gib);
       Composite.add(world, gib);
     }
@@ -11257,7 +11268,7 @@
       addLava(m);
     }, u(m, now) {
       applyWind(Math.sin(now / 1800) * 0.25);
-      if (Math.random() < 0.3) particles.push({ kind: "square", x: rand(0, W), y: rand(0, H - 100), vx: Math.sin(now / 1800) * 6, vy: 1, life: 20, maxLife: 20, color: "#fff", r: 2 });
+      if (random() < 0.3) particles.push({ kind: "square", x: rand(0, W), y: rand(0, H - 100), vx: Math.sin(now / 1800) * 6, vy: 1, life: 20, maxLife: 20, color: "#fff", r: 2 });
     } },
     { n: "Ice Towers", cozy: true, b(m) {
       for (const x of [180, 490, 790, 1100]) {
@@ -11318,7 +11329,7 @@
         if (b.isStatic || b.isSensor) continue;
         if (Math.abs(b.position.x - W / 2) < 110) Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y - 0.9 });
       }
-      if (Math.random() < 0.4) particles.push({ kind: "spark", x: W / 2 + rand(-100, 100), y: rand(300, H), vx: 0, vy: -9, life: 18, maxLife: 18, color: "#e0ffff", r: 2 });
+      if (random() < 0.4) particles.push({ kind: "spark", x: W / 2 + rand(-100, 100), y: rand(300, H), vx: 0, vy: -9, life: 18, maxLife: 18, color: "#e0ffff", r: 2 });
     }, s: [{ x: 200, y: 120 }, { x: W - 200, y: 120 }, { x: 340, y: 120 }, { x: W - 340, y: 120 }] },
     { n: "Cloud Bounce", cozy: true, b(m) {
       addStatic(m, 220, 580, 260, 30, { restitution: 1.2, color: "#4a5578" });
@@ -11506,7 +11517,7 @@
             v.blowing = true;
             spawnBurst(v.x, v.y - 8, "#aef05a", 16, { dir: -Math.PI / 2, spread: 0.5, speed: 8, up: 2, g: -0.02, life: 34, r: 3.5 });
             spawnBurst(v.x, v.y - 4, "#7bd88f", 8, { dir: -Math.PI / 2, spread: 0.9, speed: 5, up: 1, g: -0.02, life: 40, r: 2.5 });
-          } else if (Math.random() < 0.3) {
+          } else if (random() < 0.3) {
             spawnBurst(v.x + rand(-30, 30), v.y - 10, "#aef05a", 2, { dir: -Math.PI / 2, spread: 0.4, speed: 7, up: 1, g: -0.02, life: 26, r: 3 });
           }
         } else v.blowing = false;
@@ -11876,7 +11887,7 @@
         const d = Math.hypot(dx, dy) || 1;
         if (d < 480) Body.setVelocity(b, { x: b.velocity.x + dx / d * 0.3, y: b.velocity.y + dy / d * 0.3 });
       }
-      if (Math.random() < 0.4) particles.push({ kind: "square", x: W / 2 + rand(-160, 160), y: H - rand(10, 60), vx: 0, vy: 2, life: 18, maxLife: 18, color: "#a55eea", r: 2.5 });
+      if (random() < 0.4) particles.push({ kind: "square", x: W / 2 + rand(-160, 160), y: H - rand(10, 60), vx: 0, vy: 2, life: 18, maxLife: 18, color: "#a55eea", r: 2.5 });
     }, s: [{ x: 200, y: 120 }, { x: W - 200, y: 120 }, { x: 340, y: 120 }, { x: W - 340, y: 120 }] },
     { n: "Glitch", wrap: true, b(m) {
       const xs = [[260, 560], [640, 470], [1020, 560], [W / 2, 300]];
@@ -17109,7 +17120,7 @@
             y: Math.max(-6, Math.min(6, (g.y + 26 - held.position.y) * 0.18))
           });
           Body.setAngularVelocity(held, held.angularVelocity * 0.9);
-          if (Math.random() < 0.2) particles.push({ kind: "spark", x: held.position.x + rand(-8, 8), y: held.position.y + rand(-8, 8), vx: 0, vy: -0.6, life: 14, maxLife: 14, color: "#e8d5ff", r: 1.5 });
+          if (random() < 0.2) particles.push({ kind: "spark", x: held.position.x + rand(-8, 8), y: held.position.y + rand(-8, 8), vx: 0, vy: -0.6, life: 14, maxLife: 14, color: "#e8d5ff", r: 1.5 });
         }
       } else if (c.cast) {
         let best = null, bd = 1e9;
@@ -17304,7 +17315,7 @@
     const wrap = currentMap.def.wrap;
     for (const fb of [...projectiles]) {
       fb.update?.(fb, now);
-      if (Math.random() < 0.7) {
+      if (random() < 0.7) {
         particles.push({ kind: "square", x: fb.position.x, y: fb.position.y, vx: rand(-0.5, 0.5), vy: rand(-0.5, 0.5), life: 14, maxLife: 14, color: fb.color || "#ffb347", r: 2.5 });
       }
       if (fb.expireAt && now > fb.expireAt) {
@@ -17468,9 +17479,10 @@
   setPostTelemetry(postTelemetryHttp);
   attachKeyboard(canvas2);
   attachLobbyKeys();
-  installDebugGlobals();
   var bundleSrc = document.currentScript?.src || "";
-  if (!/[?&]nomenu\b/.test(bundleSrc) && !/[?&]nomenu\b/.test(location.search)) mountMenu();
+  var harness = /[?&]nomenu\b/.test(bundleSrc) || /[?&]nomenu\b/.test(location.search);
+  if (harness) installDebugGlobals();
+  else mountMenu();
   loadMap(0);
   var last = performance.now();
   function frame(now) {
@@ -17487,7 +17499,7 @@
     draw(now);
     requestAnimationFrame(frame);
   }
-  globalThis.frame = frame;
+  if (harness) globalThis.frame = frame;
   requestAnimationFrame(frame);
 })();
 /*! Bundled license information:

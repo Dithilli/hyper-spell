@@ -1,6 +1,6 @@
 // player/combat.js — taking damage, losing the hat, and dying.
-import { Bodies, Body, Composite, world, engine, H } from '../world.js';
-import { performance } from '../env.js';
+import { Bodies, Body, Composite, world, engine } from '../world.js';
+import { performance, random } from '../env.js';
 import { rand } from '../rng.js';
 import { spawnParticles, spawnText, addShake, doFlash } from '../fx.js';
 import { slowMo } from '../pace.js';
@@ -8,7 +8,7 @@ import { sfx } from '../sfx.js';
 import { statFor, creditKill } from '../awards.js';
 import { telDmg } from '../telemetry.js';
 import { game } from '../match.js';
-import { players, gibs, MAX_HP } from './lifecycle.js';
+import { gibs, MAX_HP } from './lifecycle.js';
 
 export function damagePlayer(p, amt, src) {
   if (!p || !p.alive) return;
@@ -17,7 +17,7 @@ export function damagePlayer(p, amt, src) {
     spawnText(p.body.position.x, p.body.position.y - 34, 'BLOCKED', '#e8d5ff');
     return;
   }
-  if (src && src.slot !== undefined) p.lastHitBy = { player: src, at: now }; // kill credit window
+  if (src && src.slot !== undefined) p.lastHitBy = { player: src, at: now }; // starts the kill-credit timer
   let n = Math.round(amt);
   if (n <= 0) return;
   // SHATTER synergy: a solid blow to a frozen wizard cracks the ice for bonus
@@ -69,8 +69,8 @@ export function killPlayer(p) {
     const gib = Bodies.rectangle(x, y, 14, 4, { density: 0.001, frictionAir: 0.01, label: 'gib' });
     gib.color = p.color;
     gib.dieAt = performance.now() + 3000;
-    Body.setVelocity(gib, { x: (Math.random() - 0.5) * 16, y: -6 - Math.random() * 8 });
-    Body.setAngularVelocity(gib, (Math.random() - 0.5) * 0.6);
+    Body.setVelocity(gib, { x: (random() - 0.5) * 16, y: -6 - random() * 8 });
+    Body.setAngularVelocity(gib, (random() - 0.5) * 0.6);
     gibs.add(gib);
     Composite.add(world, gib);
   }

@@ -4,7 +4,7 @@
 // summons ghost path to LAN clients, its HP bar via the snapshot's `bs` field.
 // The boss art lives in src/render/draw-boss.js.
 import { Bodies, Body, Composite, world, engine, W, H } from '../world.js';
-import { performance } from '../env.js';
+import { performance, random } from '../env.js';
 import { rand, pick } from '../rng.js';
 import {
   spawnParticles, spawnRing, spawnText, spawnBurst, addShake, doFlash,
@@ -188,7 +188,7 @@ export const BOSSES = [
         if (t) bs.pending.push({ x: t.body.position.x, at: now + 650 });
       }
       for (const w of bs.pending) {
-        if (Math.random() < 0.5) spawnParticles(w.x + rand(-12, 12), H - 30, '#3d6a8a', 1, 2, 14);
+        if (random() < 0.5) spawnParticles(w.x + rand(-12, 12), H - 30, '#3d6a8a', 1, 2, 14);
         if (now > w.at) {
           const tb = Bodies.rectangle(w.x, H + 120, 26, 240, { isStatic: true, label: 'tentacle' });
           summon(tb, { life: 3000, color: '#3d6a8a' });
@@ -277,7 +277,7 @@ export const SECRET_BOSSES = [
           if (t) {
             const lead = { body: { position: { x: t.body.position.x + (t.body.velocity.x || 0) * 8, y: t.body.position.y + (t.body.velocity.y || 0) * 8 } } };
             bossBolt(b.position, lead, { speed: 15, r: 7, color: '#3fb5ff', boom: [55, 8, 13] });
-            if (Math.random() < 0.3) setBanner(pick(['LFG!', 'LOCKED IN', 'PATTERN RECOGNIZED', 'HYPERFOCUS', 'I SEE THE WHOLE BOARD', 'THE TIZZARD SEES ALL', 'EVERY. DETAIL.']), '#3fb5ff', 1000);
+            if (random() < 0.3) setBanner(pick(['LFG!', 'LOCKED IN', 'PATTERN RECOGNIZED', 'HYPERFOCUS', 'I SEE THE WHOLE BOARD', 'THE TIZZARD SEES ALL', 'EVERY. DETAIL.']), '#3fb5ff', 1000);
           }
           sfx.cast();
         }
@@ -318,7 +318,7 @@ export const SECRET_BOSSES = [
           bs.nextDe = now + bcd(bs, 1500, 1500);
           const t = bossAliveTarget(b.position);
           if (t) bossBolt(b.position, t, { speed: 13, r: 7, color: '#9ec9ff', boom: [55, 8, 12] });
-          if (Math.random() < 0.4) { const q = bossAliveTarget(null); if (q) { q.frozenUntil = now + 700; q.body.frictionAir = 0.001; } }
+          if (random() < 0.4) { const q = bossAliveTarget(null); if (q) { q.frozenUntil = now + 700; q.body.frictionAir = 0.001; } }
           sfx.freeze();
         }
       } else {
@@ -328,7 +328,7 @@ export const SECRET_BOSSES = [
           const t = bossAliveTarget(b.position);
           if (t) for (const off of [-0.18, 0.08]) bossBolt(b.position, t, { speed: 10, r: 8, color: '#ff7043', spread: off, boom: [70, 9, 12] });
           for (const p of players) if (p.alive && Math.hypot(p.body.position.x - b.position.x, p.body.position.y - b.position.y) < 220) p.burnUntil = now + 1600;
-          if (Math.random() < 0.3) spawnParticles(b.position.x, b.position.y, pick(['#6cbf5b', '#e15d5d', '#ffd166']), 10, 5);
+          if (random() < 0.3) spawnParticles(b.position.x, b.position.y, pick(['#6cbf5b', '#e15d5d', '#ffd166']), 10, 5);
           sfx.cast();
         }
       }
@@ -347,7 +347,7 @@ export function spawnBoss(now, opts = {}) {
   // ~12% of boss rounds summon a rare SECRET boss instead of a regular one.
   // Wave mode can force a specific boss by id (opts.bossId) and difficulty tier.
   // a forced id may name a SECRET boss (e.g. 'rizard'); search both pools so it works
-  const secret = opts.bossId ? SECRET_BOSSES.some(d => d.id === opts.bossId) : Math.random() < 0.12;
+  const secret = opts.bossId ? SECRET_BOSSES.some(d => d.id === opts.bossId) : random() < 0.12;
   const pool = secret ? SECRET_BOSSES : BOSSES;
   const def = opts.bossId ? ([...BOSSES, ...SECRET_BOSSES].find(d => d.id === opts.bossId) || pick(pool)) : pick(pool);
   const body = def.make();

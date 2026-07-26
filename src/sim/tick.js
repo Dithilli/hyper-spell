@@ -2,8 +2,9 @@
 // the browser loop calls it every rAF, the dedicated server from its own fixed
 // 60Hz tick (server/sim-host.js) with the draw half never running.
 import { Body, Composite, Engine, engine, world, W, H } from './world.js';
+import { random } from './env.js';
 import { rand } from './rng.js';
-import { particles, spawnParticles, updateParticles } from './fx.js';
+import { particles, updateParticles } from './fx.js';
 import { timeScale, updateTimeScale } from './pace.js';
 import { sfx } from './sfx.js';
 import { nameEdit, nameEditEndAt } from './lobby.js';
@@ -13,8 +14,7 @@ import { updatePlayers } from './player/controller.js';
 import { updateGhosts } from './player/ghost.js';
 import { updateTomes } from './pickups.js';
 import {
-  projectiles, summons, activeEffects, removeProjectile, removeSummon,
-  explode, updateEffects,
+  projectiles, summons, removeProjectile, removeSummon, explode, updateEffects,
 } from './spells/core.js';
 import { updateEnvEvent } from './events.js';
 import { updateBoss } from './ai/boss.js';
@@ -33,7 +33,7 @@ export function postPhysics(now) {
   const wrap = currentMap.def.wrap;
   for (const fb of [...projectiles]) {
     fb.update?.(fb, now);
-    if (Math.random() < 0.7) {
+    if (random() < 0.7) {
       particles.push({ kind: 'square', x: fb.position.x, y: fb.position.y, vx: rand(-0.5, 0.5), vy: rand(-0.5, 0.5), life: 14, maxLife: 14, color: fb.color || '#ffb347', r: 2.5 });
     }
     if (fb.expireAt && now > fb.expireAt) {

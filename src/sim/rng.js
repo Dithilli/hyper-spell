@@ -1,6 +1,10 @@
-// rng.js — random helpers shared by the whole simulation.
-export const rand = (a, b) => a + Math.random() * (b - a);
-export const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+// rng.js — random helpers shared by the whole simulation. Every draw goes
+// through the injected source in env.js, so a seeded run is reproducible without
+// touching the platform's Math.random.
+import { random } from './env.js';
+
+export const rand = (a, b) => a + random() * (b - a);
+export const pick = arr => arr[Math.floor(random() * arr.length)];
 
 // deterministic RNG (mulberry32) — host and LAN clients must generate identical
 // post-build map extras (stepping platforms, scattered cover) from a shared seed,

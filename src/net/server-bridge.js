@@ -260,4 +260,9 @@ export function installServerBridge(opts = {}) {
   };
 }
 
-export function uninstallServerBridge() { undoWrap?.(); }
+// Put the module back the way installServerBridge found it: unwrap the fx
+// emitters and drop the wire controllers, so nothing survives into the next sim.
+export function uninstallServerBridge() {
+  undoWrap?.();
+  serverControllers.clear();
+}

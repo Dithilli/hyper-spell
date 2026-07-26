@@ -1,14 +1,14 @@
 // player/controller.js — the per-frame movement, jump, aim and cast pass: the
 // bridge between a controller's input and the physics body.
 import { Body, Composite, Query, world, engine, W, H } from '../world.js';
-import { performance } from '../env.js';
+import { performance, random } from '../env.js';
 import { rand } from '../rng.js';
 import { spawnParticles, addShake } from '../fx.js';
 import { sfx } from '../sfx.js';
 import { statFor } from '../awards.js';
 import { game, currentMap } from '../match.js';
 import { castSpell } from '../spells/core.js';
-import { players, gibs, MAX_HP, FALL_SAFE_DROP, setPlayerScale } from './lifecycle.js';
+import { players, FALL_SAFE_DROP, setPlayerScale } from './lifecycle.js';
 import { damagePlayer, killPlayer } from './combat.js';
 import { tryBlock } from './status.js';
 
@@ -58,7 +58,7 @@ export function updatePlayers(now) {
     const lift = now < (p.floatyUntil || 0) ? 1.5 : now < (p.featherUntil || 0) ? 0.72 : 0;
     if (lift) {
       Body.applyForce(body, body.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * body.mass * lift });
-      if (lift < 1 && Math.random() < 0.06) spawnParticles(body.position.x + rand(-10, 10), body.position.y - 18, '#fffde7', 1, 1.2, 22);
+      if (lift < 1 && random() < 0.06) spawnParticles(body.position.x + rand(-10, 10), body.position.y - 18, '#fffde7', 1, 1.2, 22);
     }
 
     if (p.wasFrozen && !frozen) {
@@ -69,7 +69,7 @@ export function updatePlayers(now) {
     p.wasFrozen = frozen;
     // standing on ice/snow keeps you Wet; a faint sheen hints at it
     if (currentMap.def.icy || currentMap.data.eventIcy) p.wetUntil = Math.max(p.wetUntil || 0, now + 600);
-    if (now < (p.wetUntil || 0) && Math.random() < 0.04) spawnParticles(body.position.x, body.position.y + 8, '#9ec9ff', 1, 1.5, 16);
+    if (now < (p.wetUntil || 0) && random() < 0.04) spawnParticles(body.position.x, body.position.y + 8, '#9ec9ff', 1, 1.5, 16);
 
     const c = p.input;
     const gdir = gravDirFor(p);

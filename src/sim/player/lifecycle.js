@@ -1,6 +1,6 @@
 // player/lifecycle.js — the roster: who exists, how they are built, where they
 // spawn, and which spells they hold.
-import { Bodies, Body, Composite, world, W, H, onWorldReset } from '../world.js';
+import { Bodies, Body, Composite, world, W, onWorldReset } from '../world.js';
 import { performance } from '../env.js';
 import { spawnParticles, spawnText } from '../fx.js';
 import { IDLE_INPUT } from '../input-contract.js';
@@ -85,7 +85,6 @@ export function createPlayer(slot, controller) {
   players.push(p);
   return p;
 }
-
 
 export function setPlayerScale(p, target) {
   const ratio = target / p.sizeScale;

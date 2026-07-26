@@ -5,7 +5,7 @@
 // global ctx, which is what keeps sim/ free of a render/ import. Task 13 turns
 // them into emitted events and the drawing moves out entirely.
 import { Bodies, Body, Composite, Query, world, engine, W, H, onWorldReset } from '../world.js';
-import { performance } from '../env.js';
+import { performance, random } from '../env.js';
 import { rand } from '../rng.js';
 import {
   particles, spawnParticles, spawnRing, spawnText, addShake, doFlash,
@@ -126,7 +126,7 @@ export function explode(x, y, radius = 150, power = 22, damage = 0, owner = null
       x: body.velocity.x + (dx / d) * power * s,
       y: body.velocity.y + (dy / d) * power * s - 4 * s,
     });
-    Body.setAngularVelocity(body, body.angularVelocity + (Math.random() - 0.5) * 0.4);
+    Body.setAngularVelocity(body, body.angularVelocity + (random() - 0.5) * 0.4);
     if (body.label === 'player' && damage) {
       const dmg = damage * (1 - d / (radius * 1.15));
       // your own blast normally costs you half damage (rocket-jumps are a gamble),
@@ -259,7 +259,7 @@ export function spawnSingularity(x, y, m = 1, owner = null, opts = {}) {
         const pos = (c.bodyA || c.bodyB).position;
         if (Math.hypot(pos.x - x, pos.y - y) < 140) Composite.remove(currentMap.composite, c);
       }
-      if (Math.random() < 0.6) {
+      if (random() < 0.6) {
         const a = rand(0, Math.PI * 2), dd = rand(60, 180);
         particles.push({ kind: 'square', x: x + Math.cos(a) * dd, y: y + Math.sin(a) * dd, vx: -Math.cos(a) * 4, vy: -Math.sin(a) * 4, life: 16, maxLife: 16, color: '#a55eea', r: 2.5 });
       }
@@ -333,7 +333,7 @@ export function castSpell(p, now, slot = 0) {
   telCast(id); // balance: a confirmed cast (past the cooldown gate)
   // HYPERSPELL proc: chance scales with cooldown so spam doesn't farm rolls —
   // ~1.2% per second of cooldown, capped at 6% (rare enough to stay special)
-  const hyper = Math.random() < Math.min(0.06, spell.cooldown * 0.000012);
+  const hyper = random() < Math.min(0.06, spell.cooldown * 0.000012);
   const potency = spell.hybrid ? hybridPotency(hybridCharges(spell)) : 1;
   p.mega = (p.megaCasts > 0 ? 1.7 : 1) * (hyper ? 2.2 : 1) * potency;
   if (hyper) {
