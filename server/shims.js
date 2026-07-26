@@ -34,7 +34,7 @@ function makeFakeCanvas(counter) {
 
 // buildSandbox returns the object to pass to vm.createContext plus the handles
 // the host needs (timer flush, ctx tripwire).
-function buildSandbox({ clock } = {}) {
+function buildSandbox({ clock, random } = {}) {
   const ctxCounter = { calls: 0 };
   const timers = new Set();
 
@@ -76,6 +76,10 @@ function buildSandbox({ clock } = {}) {
     },
     clearInterval(h) { timers.delete(h); clearInterval(h); },
   };
+
+  // tests inject a seeded generator so a run is reproducible; production passes
+  // nothing and the context keeps its own Math.random
+  if (random) sandbox.__seededRandom = random;
 
   return {
     sandbox,

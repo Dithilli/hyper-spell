@@ -45,15 +45,18 @@ const SIM_FILES = [
   'server/sim-bridge.js',
 ];
 
-// opts: { emitFx(name, args), postTelemetry(rec), onPackUnlocked(src), clock }
+// opts: { emitFx(name, args), postTelemetry(rec), onPackUnlocked(src), clock, random }
 function createSimContext(opts = {}) {
-  const { sandbox, ctxCounter, flushTimers } = buildSandbox({ clock: opts.clock });
+  const { sandbox, ctxCounter, flushTimers } = buildSandbox({ clock: opts.clock, random: opts.random });
   sandbox.__emitFx = opts.emitFx || (() => {});
   sandbox.__postTelemetry = opts.postTelemetry || (() => {});
   sandbox.__onPackUnlocked = opts.onPackUnlocked || (() => {});
   const ctx = vm.createContext(sandbox);
   // classic scripts expect window/self; Matter's UMD attaches to the global this
   vm.runInContext('globalThis.window = globalThis; globalThis.self = globalThis;', ctx);
+  // install the seeded generator before any game file loads, so every
+  // Math.random() call in the sim is reproducible under test
+  if (opts.random) vm.runInContext('Math.random = globalThis.__seededRandom;', ctx);
   for (const rel of SIM_FILES) {
     const file = path.join(ROOT, rel);
     const script = new vm.Script(fs.readFileSync(file, 'utf8'), { filename: rel });
