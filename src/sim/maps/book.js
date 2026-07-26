@@ -1,0 +1,244 @@
+// maps/book.js — 100 themed maps + 4 classics. 10 themes, 10 maps each.
+//
+// Content file: moved verbatim from js/mapbook.js, module header aside.
+// Importing it is what fills MAPS; the order of the theme() calls is the map
+// order the whole game indexes by.
+import { Bodies, Body, Composite, Constraint, world, engine, W, H } from '../world.js';
+import { rand, pick } from '../rng.js';
+import { particles, doFlash, spawnBurst } from '../fx.js';
+import { game, setBanner } from '../match.js';
+import { players } from '../player/lifecycle.js';
+import { damagePlayer } from '../player/combat.js';
+import { boltVisual } from '../spells/core.js';
+import {
+  defineMap, addBody, addStatic, addAlcove, addBarrels, addBumper, addChandelier,
+  addCoverPillar, addHangingPlatform, addIcicles, addLava, addMover,
+  addPendulumBall, addSeesaw, addSpinner, addThemedCover, addTree, addWallGap,
+  applyWind, buildBridge, buildCratePyramid, buildCrateStack,
+  keepPendulumsSwinging, updateBoulders, updateCrateRain, updateGeysers,
+  updateIcicles, updateMovers, updateStrikes,
+} from './builders.js';
+
+const DEF_SPAWNS = [
+  { x: 140, y: 120 }, { x: W - 140, y: 120 }, { x: 440, y: 120 }, { x: W - 440, y: 120 },
+  { x: W / 2, y: 120 }, { x: 290, y: 120 }, { x: W - 290, y: 120 }, { x: 540, y: 120 },
+];
+
+function theme(tname, defaults, variants) {
+  for (const v of variants) {
+    defineMap({
+      name: `${tname} · ${v.n}`.toUpperCase(),
+      bg: v.bg ?? defaults.bg,
+      icy: v.icy ?? defaults.icy,
+      muddy: v.muddy ?? defaults.muddy,
+      gravity: v.gravity ?? defaults.gravity,
+      wrap: v.wrap,
+      stars: v.stars ?? defaults.stars,
+      spawns: v.s ?? defaults.s ?? DEF_SPAWNS,
+      cozy: v.cozy, // too tight for big lobbies; skipped when 6+ wizards fight
+      cover: v.cover ?? defaults.cover, // themed destructible cover kind (maps.js addThemedCover)
+      build: v.b,
+      update: v.u,
+    });
+  }
+}
+
+// ============ THEME 1: BOX LAND ============
+theme('Box Land', { bg: '#28211a' , cover: 'crate' }, [
+  { n: 'Crate Mountain', b(m) { addStatic(m, W / 2, 650, W, 50); buildCratePyramid(m, W / 2, 600, 8); addLava(m, H - 12); } },
+  { n: 'Twin Towers', b(m) { addStatic(m, 260, 620, 480, 44); addStatic(m, W - 260, 620, 480, 44); buildCrateStack(m, 260, 572, 3, 8); buildCrateStack(m, W - 260, 572, 3, 8); addLava(m); } },
+  { n: 'Crate Bridge', b(m) { addStatic(m, 180, 560, 360, 40); addStatic(m, W - 180, 560, 360, 40); for (let i = 0; i < 9; i++) { const c = Bodies.rectangle(400 + i * 55, 528, 26, 26, { density: 0.0015, friction: 0.4, label: 'crate' }); addBody(m, c, '#b08948'); } addLava(m); } },
+  { n: 'Box Rain', b(m) { addStatic(m, W / 2, 640, W - 200, 44); addLava(m); }, u(m, now) { updateCrateRain(m, now, 30, 2200); } },
+  { n: 'The Wall', b(m) { addStatic(m, W / 2, 650, W, 50); buildCrateStack(m, W / 2, 600, 3, 10); addBarrels(m, [200, 260, W - 200, W - 260], 560); addLava(m, H - 12); } },
+  { n: 'Crate Steps', b(m) { for (let i = 0; i < 5; i++) { addStatic(m, 160 + i * 240, 640 - i * 80, 190, 34); buildCrateStack(m, 160 + i * 240, 604 - i * 80, 2, 2); } addLava(m); }, s: [{ x: 160, y: 120 }, { x: W - 160, y: 120 }, { x: 640, y: 120 }, { x: 880, y: 120 }] },
+  { n: 'Sandwich', b(m) { addStatic(m, W / 2, 650, W, 50); addStatic(m, 300, 400, 340, 30); addStatic(m, W - 300, 400, 340, 30); buildCrateStack(m, 300, 362, 4, 4); buildCrateStack(m, W - 300, 362, 4, 4); addLava(m, H - 12); } },
+  { n: 'Box Pit', cozy: true, b(m) { addStatic(m, 120, 500, 240, 400); addStatic(m, W - 120, 500, 240, 400); addStatic(m, W / 2, 680, W, 60); for (let i = 0; i < 24; i++) { const c = Bodies.rectangle(rand(300, W - 300), rand(350, 600), 26, 26, { density: 0.0015, friction: 0.4, label: 'crate' }); addBody(m, c, '#b08948'); } }, s: [{ x: 120, y: 240 }, { x: W - 120, y: 240 }, { x: 400, y: 120 }, { x: W - 400, y: 120 }] },
+  { n: 'Seesaw Storage', b(m) { addStatic(m, W / 2, 680, W, 50); addSeesaw(m, 320, 560, 240); addSeesaw(m, W / 2, 460, 240); addSeesaw(m, W - 320, 560, 240); buildCrateStack(m, W / 2, 640, 2, 2); } },
+  { n: 'Fort Knox', b(m) { addStatic(m, 230, 620, 460, 44); addStatic(m, W - 230, 620, 460, 44); buildCrateStack(m, 130, 572, 2, 5); buildCrateStack(m, 330, 572, 2, 5); buildCrateStack(m, W - 130, 572, 2, 5); buildCrateStack(m, W - 330, 572, 2, 5); addChandelier(m, W / 2, -10, 240, 34); addLava(m); } },
+]);
+
+// ============ THEME 2: LAVA WORKS ============
+theme('Lava Works', { bg: '#2b1d22' , cover: 'rock' }, [
+  { n: 'Stepping Stones', b(m) { for (let i = 0; i < 6; i++) addStatic(m, 130 + i * 205, 560 + (i % 2) * 60, 130, 30); addLava(m); }, s: [{ x: 130, y: 120 }, { x: W - 125, y: 120 }, { x: 540, y: 120 }, { x: 745, y: 120 }] },
+  { n: 'Geyser Alley', b(m) { addStatic(m, W / 2, 640, W - 160, 40); addLava(m); m.data.geysers = [{ x: 320, y: 620 }, { x: W / 2, y: 620 }, { x: W - 320, y: 620 }]; }, u(m, now) { updateGeysers(m, now); } },
+  { n: 'The Cauldron', cozy: true, b(m) { addStatic(m, 110, 460, 220, 380); addStatic(m, W - 110, 460, 220, 380); addStatic(m, W / 2, 500, 240, 32); addLava(m, H - 40); m.data.lavaBase = H - 40; }, u(m, now) { m.data.lavaY = m.data.lavaBase + Math.sin(now / 2400) * 90 - 60; Body.setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 }); }, s: [{ x: 110, y: 180 }, { x: W - 110, y: 180 }, { x: W / 2 - 80, y: 300 }, { x: W / 2 + 80, y: 300 }] },
+  { n: 'Chandelier Hall', b(m) { addStatic(m, W / 2, 650, W - 100, 44); addChandelier(m, 320, -10, 220, 28); addChandelier(m, W / 2, -10, 300, 34); addChandelier(m, W - 320, -10, 220, 28); addLava(m, H - 10); } },
+  { n: 'Volcano Peak', b(m) { for (let i = 0; i < 4; i++) { addStatic(m, W / 2 - 300 + i * 100, 640 - i * 70, 110, 30); addStatic(m, W / 2 + 300 - i * 100, 640 - i * 70, 110, 30); } addStatic(m, W / 2, 400, 150, 30); addLava(m); m.data.geysers = [{ x: W / 2, y: 390 }]; }, u(m, now) { updateGeysers(m, now); }, s: [{ x: W / 2 - 300, y: 120 }, { x: W / 2 + 300, y: 120 }, { x: W / 2 - 100, y: 120 }, { x: W / 2 + 100, y: 120 }] },
+  { n: 'Charcoal Beams', b(m) { for (let i = 0; i < 3; i++) { addStatic(m, 250 + i * 390, 600 - i * 40, 300, 18); addStatic(m, 250 + i * 390, 380 + i * 30, 240, 18); } addLava(m); }, s: [{ x: 250, y: 120 }, { x: W - 250, y: 120 }, { x: 640, y: 120 }, { x: 250, y: 300 }] },
+  { n: 'Magma Pistons', b(m) { addStatic(m, 160, 600, 280, 36); addStatic(m, W - 160, 600, 280, 36); addMover(m, W / 2 - 200, 480, 170, 26, { ay: 110, period: 3400 }); addMover(m, W / 2 + 200, 480, 170, 26, { ay: 110, period: 3400 }); addMover(m, W / 2, 380, 170, 26, { ay: 140, period: 4200 }); addLava(m); }, u(m, now) { updateMovers(m, now); }, s: [{ x: 160, y: 120 }, { x: W - 160, y: 120 }, { x: 320, y: 120 }, { x: W - 320, y: 120 }] },
+  { n: 'Twin Bridges', b(m) { addStatic(m, 150, 560, 300, 40); addStatic(m, W - 150, 560, 300, 40); buildBridge(m, 300, 620, 420); buildBridge(m, W - 300, W - 620, 420); buildBridge(m, 460, 820, 560); addLava(m); }, s: [{ x: 150, y: 120 }, { x: W - 150, y: 120 }, { x: 350, y: 120 }, { x: W - 350, y: 120 }] },
+  { n: 'Lava Foundry II', b(m) { addStatic(m, 170, 520, 340, 40); addStatic(m, W - 170, 520, 340, 40); addStatic(m, W / 2, 660, 260, 40); buildCrateStack(m, W / 2, 612, 4, 7); buildBridge(m, 340, 570, 480); buildBridge(m, W - 340, W - 570, 480); addChandelier(m, W / 2, -10, 190, 30); addBarrels(m, [90, W - 90], 480); addLava(m); }, s: [{ x: 120, y: 440 }, { x: W - 120, y: 440 }, { x: 260, y: 440 }, { x: W - 260, y: 440 }] },
+  { n: 'The Climb', cozy: true, b(m) { for (let i = 0; i < 6; i++) addStatic(m, i % 2 ? 250 : W - 250, 620 - i * 100, 300, 28); addStatic(m, W / 2, 80, 240, 28); addLava(m); m.data.lavaRise = true; }, u(m, now, dt) { m.data.lavaY = Math.max(160, m.data.lavaY - 12 * dt / 1000); Body.setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 }); }, s: [{ x: W - 250, y: 500 }, { x: 250, y: 420 }, { x: W - 250, y: 320 }, { x: 250, y: 220 }] },
+]);
+
+// ============ THEME 3: FROST FIELDS ============
+theme('Frost Fields', { bg: '#1c2531', icy: true , cover: 'ice' }, [
+  { n: 'Frozen Lake', b(m) { addStatic(m, W / 2, 620, W - 80, 44, { friction: 0.01, color: '#3d5a73' }); addBarrels(m, [300, W - 300], 560); addLava(m); } },
+  { n: 'Icicle Cave', b(m) { addStatic(m, 250, 560, 500, 40, { friction: 0.01, color: '#3d5a73' }); addStatic(m, W - 250, 560, 500, 40, { friction: 0.01, color: '#3d5a73' }); addSeesaw(m, W / 2, 590, 240); addIcicles(m, [180, 330, 480, 640, 800, 950, 1100]); addLava(m); }, u(m, now) { updateIcicles(m, now); }, s: [{ x: 150, y: 480 }, { x: W - 150, y: 480 }, { x: 420, y: 480 }, { x: W - 420, y: 480 }] },
+  { n: 'Slalom', b(m) { addStatic(m, 300, 420, 560, 26, { friction: 0.01, color: '#3d5a73', angle: 0.22 }); addStatic(m, W - 300, 560, 560, 26, { friction: 0.01, color: '#3d5a73', angle: -0.22 }); addStatic(m, W / 2, 670, 300, 30, { friction: 0.01, color: '#3d5a73' }); addLava(m); }, s: [{ x: 120, y: 200 }, { x: W - 120, y: 340 }, { x: 400, y: 200 }, { x: W - 400, y: 340 }] },
+  { n: 'Avalanche', b(m) { addStatic(m, W / 2, 630, W - 140, 44, { friction: 0.01, color: '#3d5a73' }); addLava(m); }, u(m, now) { if (now > (m.data.nextIce || 0)) { m.data.nextIce = now + rand(1800, 3200); const chunk = Bodies.polygon(rand(120, W - 120), -30, pick([3, 4, 5]), rand(12, 22), { density: 0.004, label: 'ball' }); addBody(m, chunk, '#bfe8ff'); } } },
+  { n: 'Igloo', b(m) { addStatic(m, W / 2, 650, W - 120, 40, { friction: 0.01, color: '#3d5a73' }); addStatic(m, 350, 480, 200, 24, { angle: 0.5, color: '#4d6a83' }); addStatic(m, W - 350, 480, 200, 24, { angle: -0.5, color: '#4d6a83' }); addStatic(m, W / 2, 420, 260, 24, { color: '#4d6a83' }); addLava(m, H - 10); } },
+  { n: 'Crosswind', b(m) { addStatic(m, W / 2, 620, W - 200, 40, { friction: 0.01, color: '#3d5a73' }); addStatic(m, 200, 460, 200, 26, { friction: 0.01, color: '#3d5a73' }); addStatic(m, W - 200, 460, 200, 26, { friction: 0.01, color: '#3d5a73' }); addLava(m); }, u(m, now) { applyWind(Math.sin(now / 1800) * 0.25); if (Math.random() < 0.3) particles.push({ kind: 'square', x: rand(0, W), y: rand(0, H - 100), vx: Math.sin(now / 1800) * 6, vy: 1, life: 20, maxLife: 20, color: '#fff', r: 2 }); } },
+  { n: 'Ice Towers', cozy: true, b(m) { for (const x of [180, 490, 790, 1100]) { addStatic(m, x, 520, 120, 300, { friction: 0.01, color: '#3d5a73' }); } addLava(m); }, s: [{ x: 180, y: 120 }, { x: 1100, y: 120 }, { x: 490, y: 120 }, { x: 790, y: 120 }] },
+  { n: 'Glacier Gap', b(m) { addStatic(m, 240, 540, 480, 200, { friction: 0.01, color: '#3d5a73' }); addStatic(m, W - 240, 540, 480, 200, { friction: 0.01, color: '#3d5a73' }); addHangingPlatform(m, W / 2, -10, 320, 170); addLava(m); }, s: [{ x: 200, y: 200 }, { x: W - 200, y: 200 }, { x: 400, y: 200 }, { x: W - 400, y: 200 }] },
+  { n: 'Snowman Alley', b(m) { addStatic(m, W / 2, 640, W - 120, 40, { friction: 0.01, color: '#3d5a73' }); for (const x of [300, W / 2, W - 300]) { for (let i = 0; i < 3; i++) { const ball = Bodies.circle(x, 590 - i * 38, 22 - i * 5, { density: 0.001, friction: 0.3, label: 'ball' }); addBody(m, ball, '#f4fbff'); } } addLava(m, H - 10); } },
+  { n: 'Deep Freeze', b(m) { addStatic(m, W / 2, 600, 700, 36, { friction: 0.01, color: '#3d5a73' }); addStatic(m, 240, 440, 180, 24, { friction: 0.01, color: '#3d5a73' }); addStatic(m, W - 240, 440, 180, 24, { friction: 0.01, color: '#3d5a73' }); addIcicles(m, [400, 560, 720, 880], 60); addLava(m); }, u(m, now) { updateIcicles(m, now); }, s: [{ x: 340, y: 120 }, { x: W - 340, y: 120 }, { x: 240, y: 300 }, { x: W - 240, y: 300 }] },
+]);
+
+// ============ THEME 4: SKY ISLES ============
+theme('Sky Isles', { bg: '#232a40', stars: true , cover: 'crate' }, [
+  { n: 'Archipelago', b(m) { addStatic(m, 170, 560, 260, 30); addStatic(m, 490, 460, 220, 30); addStatic(m, W / 2, 620, 200, 30); addStatic(m, W - 490, 460, 220, 30); addStatic(m, W - 170, 560, 260, 30); }, s: [{ x: 170, y: 120 }, { x: W - 170, y: 120 }, { x: 490, y: 120 }, { x: W - 490, y: 120 }] },
+  { n: 'Stepping Sky', b(m) { for (let i = 0; i < 8; i++) addStatic(m, 130 + i * 148, 580 - (i % 3) * 130, 90, 22); }, s: [{ x: 130, y: 120 }, { x: 130 + 7 * 148, y: 120 }, { x: 130 + 3 * 148, y: 120 }, { x: 130 + 4 * 148, y: 120 }] },
+  { n: 'Rope Crossing', b(m) { addStatic(m, 170, 500, 280, 30); addStatic(m, W - 170, 500, 280, 30); buildBridge(m, 310, 610, 460); buildBridge(m, W - 310, W - 610, 460); addStatic(m, W / 2, 640, 160, 26); }, s: [{ x: 170, y: 120 }, { x: W - 170, y: 120 }, { x: 350, y: 120 }, { x: W - 350, y: 120 }] },
+  { n: 'Updraft Canyon', b(m) { addStatic(m, 200, 540, 320, 34); addStatic(m, W - 200, 540, 320, 34); addStatic(m, W / 2, 300, 200, 26); }, u(m) { for (const b of Composite.allBodies(world)) { if (b.isStatic || b.isSensor) continue; if (Math.abs(b.position.x - W / 2) < 110) Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y - 0.9 }); } if (Math.random() < 0.4) particles.push({ kind: 'spark', x: W / 2 + rand(-100, 100), y: rand(300, H), vx: 0, vy: -9, life: 18, maxLife: 18, color: '#e0ffff', r: 2 }); }, s: [{ x: 200, y: 120 }, { x: W - 200, y: 120 }, { x: 340, y: 120 }, { x: W - 340, y: 120 }] },
+  { n: 'Cloud Bounce', cozy: true, b(m) { addStatic(m, 220, 580, 260, 30, { restitution: 1.2, color: '#4a5578' }); addStatic(m, W / 2, 480, 240, 30, { restitution: 1.2, color: '#4a5578' }); addStatic(m, W - 220, 580, 260, 30, { restitution: 1.2, color: '#4a5578' }); }, s: [{ x: 220, y: 120 }, { x: W - 220, y: 120 }, { x: W / 2 - 60, y: 120 }, { x: W / 2 + 60, y: 120 }] },
+  { n: 'Balloon Ride', b(m) { addHangingPlatform(m, 250, -10, 260, 160); addHangingPlatform(m, W / 2, -10, 380, 160); addHangingPlatform(m, W - 250, -10, 260, 160); addStatic(m, W / 2, 680, 240, 30); }, s: [{ x: 250, y: 120 }, { x: W - 250, y: 120 }, { x: W / 2 - 60, y: 200 }, { x: W / 2 + 60, y: 200 }] },
+  { n: 'The Spiral', b(m) { const pts = [[180, 620], [430, 540], [660, 450], [880, 360], [1080, 270], [860, 180], [620, 150]]; for (const [x, y] of pts) addStatic(m, x, y, 150, 22); }, s: [{ x: 180, y: 120 }, { x: 1080, y: 120 }, { x: 660, y: 120 }, { x: 430, y: 120 }] },
+  { n: 'Islet Duel', cozy: true, b(m) { addStatic(m, 220, 520, 300, 36); addStatic(m, W - 220, 520, 300, 36); }, s: [{ x: 220, y: 120 }, { x: W - 220, y: 120 }, { x: 160, y: 120 }, { x: W - 160, y: 120 }] },
+  { n: 'Windy Ridge', b(m) { addStatic(m, W / 2, 560, W - 320, 26); addStatic(m, 240, 400, 160, 22); addStatic(m, W - 240, 400, 160, 22); }, u(m, now) { applyWind(Math.sin(now / 2200) * 0.3); }, s: [{ x: 300, y: 120 }, { x: W - 300, y: 120 }, { x: 500, y: 120 }, { x: W - 500, y: 120 }] },
+  { n: "Heaven's Gate", b(m) { addStatic(m, W / 2, 640, 300, 30); addStatic(m, 300, 500, 200, 24); addStatic(m, W - 300, 500, 200, 24); addStatic(m, 450, 330, 180, 24); addStatic(m, W - 450, 330, 180, 24); addStatic(m, W / 2, 200, 220, 24); addChandelier(m, W / 2, -10, 140, 24); }, s: [{ x: 300, y: 120 }, { x: W - 300, y: 120 }, { x: W / 2 - 80, y: 300 }, { x: W / 2 + 80, y: 300 }] },
+]);
+
+// ============ THEME 5: THE MACHINE ============
+theme('The Machine', { bg: '#221c2b' , cover: 'pillar' }, [
+  { n: 'The Pendulum', b(m) { addStatic(m, W / 2, 645, 660, 40); addStatic(m, 110, 470, 220, 36); addStatic(m, W - 110, 470, 220, 36); buildCrateStack(m, W / 2 + 200, 611, 3, 3); addHangingPlatform(m, 330, -10, 260, 150); addHangingPlatform(m, W - 330, -10, 260, 150); addPendulumBall(m, W / 2, -80, 400); addLava(m); }, u(m) { keepPendulumsSwinging(m); }, s: [{ x: 110, y: 410 }, { x: W - 110, y: 410 }, { x: W / 2 - 240, y: 580 }, { x: W / 2 + 240, y: 580 }] },
+  { n: 'Gear Works', b(m) { addStatic(m, 180, 600, 300, 36); addStatic(m, W - 180, 600, 300, 36); addSpinner(m, W / 2, 480, 260, 0.018); addSpinner(m, 400, 300, 200, -0.025); addSpinner(m, W - 400, 300, 200, 0.025); addLava(m); }, s: [{ x: 180, y: 120 }, { x: W - 180, y: 120 }, { x: 300, y: 120 }, { x: W - 300, y: 120 }] },
+  { n: 'The Crusher', b(m) { addStatic(m, W / 2, 650, W - 200, 40); addMover(m, W / 2, 240, 320, 60, { ay: 200, period: 5200, color: '#0d0a14' }); addStatic(m, 160, 500, 220, 30); addStatic(m, W - 160, 500, 220, 30); addLava(m); }, u(m, now) { updateMovers(m, now); }, s: [{ x: 160, y: 120 }, { x: W - 160, y: 120 }, { x: 340, y: 120 }, { x: W - 340, y: 120 }] },
+  { n: 'Conveyor', b(m) { addStatic(m, 320, 600, 600, 36, { color: '#33283f' }); addStatic(m, W - 320, 450, 600, 36, { color: '#33283f' }); addLava(m); m.data.belts = [{ x0: 40, x1: 620, y: 582, dir: 1 }, { x0: W - 620, x1: W - 40, y: 432, dir: -1 }]; }, u(m) { for (const belt of m.data.belts) for (const b of Composite.allBodies(world)) { if (b.isStatic || b.isSensor) continue; if (b.position.x > belt.x0 && b.position.x < belt.x1 && Math.abs(b.position.y - belt.y + 20) < 34) Body.setVelocity(b, { x: Math.max(-9, Math.min(9, b.velocity.x + belt.dir * 0.25)), y: b.velocity.y }); } }, s: [{ x: 320, y: 120 }, { x: W - 320, y: 120 }, { x: 160, y: 120 }, { x: W - 160, y: 120 }] },
+  { n: 'Hammer Time', b(m) { addStatic(m, W / 2, 630, W - 240, 40); addPendulumBall(m, 340, -60, 330, 36, 12); addPendulumBall(m, W - 340, -60, 330, 36, -12); addLava(m); }, u(m) { keepPendulumsSwinging(m); } },
+  { n: 'Assembly Line', b(m) { addStatic(m, W / 2, 620, W - 160, 36, { color: '#33283f' }); addLava(m); m.data.belts = [{ x0: 100, x1: W - 100, y: 602, dir: 1 }]; }, u(m, now) { updateCrateRain(m, now, 24, 3000); for (const belt of m.data.belts) for (const b of Composite.allBodies(world)) { if (b.isStatic || b.isSensor) continue; if (b.position.x > belt.x0 && b.position.x < belt.x1 && Math.abs(b.position.y - belt.y + 20) < 34) Body.setVelocity(b, { x: Math.max(-9, Math.min(9, b.velocity.x + belt.dir * 0.25)), y: b.velocity.y }); } } },
+  { n: 'Twin Wrecking', b(m) { addStatic(m, W / 2, 660, 400, 40); addStatic(m, 150, 520, 260, 34); addStatic(m, W - 150, 520, 260, 34); addPendulumBall(m, W / 2 - 180, -80, 380, 40, 14); addPendulumBall(m, W / 2 + 180, -80, 380, 40, -14); addLava(m); }, u(m) { keepPendulumsSwinging(m); }, s: [{ x: 150, y: 120 }, { x: W - 150, y: 120 }, { x: W / 2 - 80, y: 500 }, { x: W / 2 + 80, y: 500 }] },
+  { n: 'Pinball', b(m) { addStatic(m, W / 2, 660, W, 40); addBumper(m, 320, 480); addBumper(m, W / 2, 340); addBumper(m, W - 320, 480); addBumper(m, W / 2 - 140, 560, 18); addBumper(m, W / 2 + 140, 560, 18); addLava(m, H - 12); } },
+  { n: 'Clockface', b(m) { addStatic(m, W / 2, 660, 520, 40); addStatic(m, 140, 480, 240, 30); addStatic(m, W - 140, 480, 240, 30); addSpinner(m, W / 2, 400, 340, 0.014); const cross = addSpinner(m, W / 2, 400, 340, 0.014); Body.setAngle(cross, Math.PI / 2); addLava(m); }, s: [{ x: 140, y: 120 }, { x: W - 140, y: 120 }, { x: W / 2 - 100, y: 560 }, { x: W / 2 + 100, y: 560 }] },
+  { n: 'The Gauntlet', b(m) { addStatic(m, W / 2, 650, W - 100, 40, { color: '#33283f' }); addPendulumBall(m, 350, -60, 300, 32, 12); addSpinner(m, W - 380, 480, 220, 0.022); addLava(m); m.data.belts = [{ x0: 80, x1: W - 80, y: 632, dir: -1 }]; }, u(m, now) { keepPendulumsSwinging(m); for (const belt of m.data.belts) for (const b of Composite.allBodies(world)) { if (b.isStatic || b.isSensor) continue; if (b.position.x > belt.x0 && b.position.x < belt.x1 && Math.abs(b.position.y - belt.y + 20) < 34) Body.setVelocity(b, { x: Math.max(-9, Math.min(9, b.velocity.x + belt.dir * 0.25)), y: b.velocity.y }); } } },
+]);
+
+// ============ THEME 6: GOO SWAMP ============
+theme('Goo Swamp', { bg: '#1e2b1e', muddy: true , cover: 'tree' }, [
+  { n: 'Bog Standard', b(m) { addStatic(m, 280, 600, 540, 40, { color: '#2d3d2a' }); addStatic(m, W - 280, 600, 540, 40, { color: '#2d3d2a' }); addLava(m, H - 22, true); }, s: [{ x: 280, y: 120 }, { x: W - 280, y: 120 }, { x: 140, y: 120 }, { x: W - 140, y: 120 }] },
+  { n: 'Bounce Marsh', b(m) { addStatic(m, W / 2, 640, W - 160, 40, { color: '#2d3d2a' }); addBumper(m, 300, 560, 26); addBumper(m, W / 2, 520, 30); addBumper(m, W - 300, 560, 26); addLava(m, H - 12, true); } },
+  { n: 'Lily Hop', b(m) { for (let i = 0; i < 6; i++) addStatic(m, 140 + i * 200, 590, 110, 18, { color: '#3d5c36' }); addLava(m, H - 40, true); }, s: [{ x: 140, y: 120 }, { x: 140 + 5 * 200, y: 120 }, { x: 540, y: 120 }, { x: 740, y: 120 }] },
+  { n: 'Vine Swing', b(m) { addStatic(m, 170, 540, 280, 36, { color: '#2d3d2a' }); addStatic(m, W - 170, 540, 280, 36, { color: '#2d3d2a' }); buildBridge(m, 310, 640, 440); buildBridge(m, W - 310, W - 640, 440); addHangingPlatform(m, W / 2, -10, 300, 150); addLava(m, H - 22, true); }, s: [{ x: 170, y: 120 }, { x: W - 170, y: 120 }, { x: 350, y: 120 }, { x: W - 350, y: 120 }] },
+  { n: 'Sticky Situation', b(m) { addStatic(m, W / 2, 620, W - 120, 44, { friction: 1, color: '#3a4a2e' }); buildCrateStack(m, W / 2, 570, 3, 3); addLava(m, H - 10, true); } },
+  // vents live in map data as {x,y} so drawGasVents can mark them on every
+  // screen; eruption puffs go through spawnBurst (fx-wrapped → LAN broadcast),
+  // not raw particles.push, so remote players see the lift columns fire too
+  { n: 'Gas Vents', b(m) { addStatic(m, W / 2, 640, W - 180, 40, { color: '#2d3d2a' }); addLava(m, H - 12, true); m.data.vents = [{ x: 280, y: 620 }, { x: W / 2, y: 620 }, { x: W - 280, y: 620 }]; }, u(m, now) { for (const v of m.data.vents) { if (Math.sin(now / 900 + v.x) > 0.7) { for (const b of Composite.allBodies(world)) { if (b.isStatic || b.isSensor) continue; if (Math.abs(b.position.x - v.x) < 60) Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y - 1.4 }); } if (!v.blowing) { v.blowing = true; spawnBurst(v.x, v.y - 8, '#aef05a', 16, { dir: -Math.PI / 2, spread: 0.5, speed: 8, up: 2, g: -0.02, life: 34, r: 3.5 }); spawnBurst(v.x, v.y - 4, '#7bd88f', 8, { dir: -Math.PI / 2, spread: 0.9, speed: 5, up: 1, g: -0.02, life: 40, r: 2.5 }); } else if (Math.random() < 0.3) { spawnBurst(v.x + rand(-30, 30), v.y - 10, '#aef05a', 2, { dir: -Math.PI / 2, spread: 0.4, speed: 7, up: 1, g: -0.02, life: 26, r: 3 }); } } else v.blowing = false; } } },
+  { n: 'Log Ride', b(m) { addStatic(m, 150, 560, 240, 34, { color: '#2d3d2a' }); addStatic(m, W - 150, 560, 240, 34, { color: '#2d3d2a' }); addSeesaw(m, 480, 520, 260); addSeesaw(m, W - 480, 520, 260); addLava(m, H - 30, true); }, s: [{ x: 150, y: 120 }, { x: W - 150, y: 120 }, { x: 480, y: 120 }, { x: W - 480, y: 120 }] },
+  { n: 'Toadstool Towers', b(m) { for (const [x, y] of [[220, 520], [520, 400], [820, 480], [1100, 380]]) { addStatic(m, x, y, 130, 20, { restitution: 1.1, color: '#c75e54' }); addStatic(m, x, y + 100, 30, 180, { color: '#e8dcc0' }); } addLava(m, H - 22, true); }, s: [{ x: 220, y: 120 }, { x: 1100, y: 120 }, { x: 520, y: 120 }, { x: 820, y: 120 }] },
+  { n: 'Quagmire', b(m) { for (let i = 0; i < 5; i++) addStatic(m, 160 + i * 240, 560 + (i % 2) * 70, 150, 28, { color: '#2d3d2a' }); addLava(m, H - 34, true); }, s: [{ x: 160, y: 120 }, { x: 160 + 4 * 240, y: 120 }, { x: 400, y: 120 }, { x: 880, y: 120 }] },
+  { n: 'The Belch', cozy: true, b(m) { addStatic(m, 130, 480, 220, 320, { color: '#2d3d2a' }); addStatic(m, W - 130, 480, 220, 320, { color: '#2d3d2a' }); addStatic(m, W / 2, 560, 280, 30, { color: '#2d3d2a' }); addLava(m, H - 30, true); m.data.lavaBase = H - 30; }, u(m, now) { const burp = Math.max(0, Math.sin(now / 1700)) ** 6; m.data.lavaY = m.data.lavaBase - burp * 260; Body.setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 }); }, s: [{ x: 130, y: 200 }, { x: W - 130, y: 200 }, { x: W / 2 - 80, y: 300 }, { x: W / 2 + 80, y: 300 }] },
+]);
+
+// ============ THEME 7: DEEP SPACE ============
+theme('Deep Space', { bg: '#141426', stars: true , cover: 'pillar' }, [
+  { n: 'Moon Base', gravity: 1.1, b(m) { addStatic(m, W / 2, 640, W - 100, 44, { color: '#2a2a40' }); addStatic(m, 300, 500, 180, 26, { color: '#2a2a40' }); addStatic(m, W - 300, 500, 180, 26, { color: '#2a2a40' }); addLava(m, H - 10); } },
+  { n: 'Asteroid Belt', cozy: true, gravity: 0.5, b(m) { addStatic(m, W / 2, 660, 500, 36, { color: '#2a2a40' }); for (let i = 0; i < 10; i++) { const rock = Bodies.polygon(rand(100, W - 100), rand(150, 450), pick([5, 6, 7]), rand(14, 30), { density: 0.003, frictionAir: 0.02, label: 'ball' }); addBody(m, rock, '#4a4a5f'); } }, s: [{ x: W / 2 - 180, y: 120 }, { x: W / 2 + 180, y: 120 }, { x: W / 2 - 60, y: 120 }, { x: W / 2 + 60, y: 120 }] },
+  { n: 'Zero-G Arena', gravity: 0.15, b(m) { addStatic(m, W / 2, 690, W, 40, { color: '#2a2a40' }); addStatic(m, W / 2, 20, W, 40, { color: '#2a2a40' }); addStatic(m, 260, 380, 200, 24, { color: '#2a2a40' }); addStatic(m, W - 260, 380, 200, 24, { color: '#2a2a40' }); addStatic(m, W / 2, 500, 220, 24, { color: '#2a2a40' }); } },
+  { n: 'The Core', gravity: 0.7, b(m) { addStatic(m, W / 2, 690, W, 40, { color: '#2a2a40' }); addStatic(m, 160, 420, 220, 26, { color: '#2a2a40' }); addStatic(m, W - 160, 420, 220, 26, { color: '#2a2a40' }); }, u(m) { for (const b of Composite.allBodies(world)) { if (b.isStatic || b.isSensor) continue; const dx = W / 2 - b.position.x, dy = 360 - b.position.y; const d = Math.hypot(dx, dy) || 1; if (d < 420) Body.setVelocity(b, { x: b.velocity.x + (dx / d) * 0.35, y: b.velocity.y + (dy / d) * 0.35 }); } }, s: [{ x: 160, y: 120 }, { x: W - 160, y: 120 }, { x: 300, y: 120 }, { x: W - 300, y: 120 }] },
+  { n: 'Solar Array', cozy: true, gravity: 1.2, b(m) { addStatic(m, W / 2, 650, 480, 36, { color: '#2a2a40' }); addSpinner(m, 300, 420, 240, 0.016, '#3a3a55'); addSpinner(m, W - 300, 420, 240, -0.016, '#3a3a55'); addLava(m, H - 10); }, s: [{ x: W / 2 - 160, y: 120 }, { x: W / 2 + 160, y: 120 }, { x: W / 2 - 60, y: 120 }, { x: W / 2 + 60, y: 120 }] },
+  { n: 'Wraparound', gravity: 1.3, wrap: true, b(m) { addStatic(m, 260, 560, 340, 30, { color: '#2a2a40' }); addStatic(m, W - 260, 560, 340, 30, { color: '#2a2a40' }); addStatic(m, W / 2, 380, 260, 26, { color: '#2a2a40' }); addLava(m); }, s: [{ x: 260, y: 120 }, { x: W - 260, y: 120 }, { x: W / 2 - 60, y: 120 }, { x: W / 2 + 60, y: 120 }] },
+  { n: 'Junkyard Orbit', gravity: 0.6, b(m) { addStatic(m, W / 2, 660, W - 300, 36, { color: '#2a2a40' }); for (let i = 0; i < 12; i++) { const junk = Bodies.rectangle(rand(150, W - 150), rand(150, 480), rand(16, 42), rand(10, 22), { density: 0.002, frictionAir: 0.015, label: 'crate' }); addBody(m, junk, '#5a5a6f'); } }, s: [{ x: W / 2 - 200, y: 120 }, { x: W / 2 + 200, y: 120 }, { x: W / 2 - 80, y: 120 }, { x: W / 2 + 80, y: 120 }] },
+  { n: 'Flip Zone', gravity: 1.5, b(m) { addStatic(m, W / 2, 660, W - 160, 36, { color: '#2a2a40' }); addStatic(m, W / 2, 60, W - 160, 36, { color: '#2a2a40' }); addStatic(m, 240, 380, 220, 24, { color: '#2a2a40' }); addStatic(m, W - 240, 380, 220, 24, { color: '#2a2a40' }); }, u(m, now) { const flipped = Math.floor(now / 8000) % 2 === 1; const want = flipped ? -game.baseGravity : game.baseGravity; if (engine.gravity.y !== want) { engine.gravity.y = want; doFlash('#c084fc', 0.25); setBanner(flipped ? 'GRAVITY UP!' : 'GRAVITY DOWN!', '#c084fc', 900); } }, s: [{ x: 240, y: 300 }, { x: W - 240, y: 300 }, { x: 400, y: 300 }, { x: W - 400, y: 300 }] },
+  { n: 'Comet Run', gravity: 0.8, b(m) { addStatic(m, W / 2, 640, W - 240, 34, { color: '#2a2a40' }); addStatic(m, 170, 460, 180, 24, { color: '#2a2a40' }); addStatic(m, W - 170, 460, 180, 24, { color: '#2a2a40' }); m.data.boulderY = 200; }, u(m, now) { updateBoulders(m, now, 4200); } },
+  { n: 'Dark Side', cozy: true, gravity: 0.55, wrap: true, b(m) { addStatic(m, 300, 560, 260, 28, { color: '#2a2a40' }); addStatic(m, W - 300, 560, 260, 28, { color: '#2a2a40' }); addStatic(m, W / 2, 360, 220, 24, { color: '#2a2a40' }); for (let i = 0; i < 6; i++) { const rock = Bodies.polygon(rand(100, W - 100), rand(120, 320), 6, rand(12, 20), { density: 0.003, frictionAir: 0.02, label: 'ball' }); addBody(m, rock, '#4a4a5f'); } }, s: [{ x: 300, y: 120 }, { x: W - 300, y: 120 }, { x: W / 2 - 60, y: 120 }, { x: W / 2 + 60, y: 120 }] },
+]);
+
+// ============ THEME 8: ANCIENT RUINS ============
+theme('Ancient Ruins', { bg: '#26221c' , cover: 'pillar' }, [
+  { n: 'Pillar Hall', b(m) { addStatic(m, W / 2, 650, W - 80, 44, { color: '#3a3226' }); for (const x of [280, 560, 840, 1060]) { for (let i = 0; i < 4; i++) { const seg = Bodies.rectangle(x, 596 - i * 66, 36, 62, { density: 0.004, friction: 0.6, label: 'crate' }); addBody(m, seg, '#8a7a5c'); } } addLava(m, H - 10); } },
+  { n: 'Collapsing Temple', b(m) { addStatic(m, 200, 620, 340, 40, { color: '#3a3226' }); addStatic(m, W - 200, 620, 340, 40, { color: '#3a3226' }); const roof = Bodies.rectangle(W / 2, 260, 460, 26, { density: 0.006, label: 'plank' }); roof.w = 460; roof.h = 26; addBody(m, roof, '#8a7a5c'); for (const side of [-1, 1]) { const rope = Constraint.create({ pointA: { x: W / 2 + side * 210, y: 40 }, bodyB: roof, pointB: { x: side * 210, y: 0 }, stiffness: 0.9, length: 200 }); rope.label = 'breakable'; Composite.add(m.composite, rope); } addLava(m); }, s: [{ x: 200, y: 120 }, { x: W - 200, y: 120 }, { x: 340, y: 120 }, { x: W - 340, y: 120 }] },
+  { n: 'Boulder Run', b(m) { addStatic(m, W / 2, 640, W, 44, { color: '#3a3226' }); addStatic(m, 300, 480, 200, 26, { color: '#3a3226' }); addStatic(m, W - 300, 480, 200, 26, { color: '#3a3226' }); addLava(m, H - 10); m.data.boulderY = 80; }, u(m, now) { updateBoulders(m, now, 3800); } },
+  { n: 'Spike Pit', b(m) { addStatic(m, 240, 600, 440, 40, { color: '#3a3226' }); addStatic(m, W - 240, 600, 440, 40, { color: '#3a3226' }); addStatic(m, W / 2, 660, 260, 20, { label: 'spikes', color: '#8a2f3d' }); addHangingPlatform(m, W / 2, -10, 340, 160); addLava(m); }, s: [{ x: 240, y: 120 }, { x: W - 240, y: 120 }, { x: 400, y: 120 }, { x: W - 400, y: 120 }] },
+  { n: 'Ziggurat', b(m) { for (let i = 0; i < 5; i++) addStatic(m, W / 2, 650 - i * 70, 800 - i * 160, 36, { color: '#3a3226' }); addLava(m, H - 10); }, s: [{ x: 340, y: 120 }, { x: W - 340, y: 120 }, { x: 500, y: 120 }, { x: W - 500, y: 120 }] },
+  { n: 'Obelisk Duel', b(m) { addStatic(m, W / 2, 650, W - 200, 40, { color: '#3a3226' }); for (const x of [360, W - 360]) { const ob = Bodies.rectangle(x, 540, 30, 180, { density: 0.005, label: 'crate' }); addBody(m, ob, '#8a7a5c'); } addBarrels(m, [W / 2 - 60, W / 2 + 60], 600); addLava(m, H - 10); } },
+  { n: 'Broken Aqueduct', b(m) { for (const [x, w] of [[180, 300], [560, 240], [940, 240], [1180, 160]]) addStatic(m, x, 500, w, 30, { color: '#3a3226' }); buildBridge(m, 680, 820, 500); addLava(m); }, s: [{ x: 180, y: 120 }, { x: 1180, y: 120 }, { x: 560, y: 120 }, { x: 940, y: 120 }] },
+  { n: 'The Tomb', b(m) { addStatic(m, W / 2, 640, W - 140, 40, { color: '#3a3226' }); addStatic(m, W / 2, 120, W - 140, 30, { color: '#3a3226' }); addStatic(m, W / 2 - 300, 420, 30, 240, { color: '#3a3226' }); addStatic(m, W / 2 + 300, 420, 30, 240, { color: '#3a3226' }); buildCrateStack(m, W / 2, 592, 2, 3); addLava(m, H - 10); } },
+  { n: 'Sandslide', b(m) { addStatic(m, 320, 480, 620, 26, { angle: 0.18, color: '#3a3226' }); addStatic(m, W - 320, 480, 620, 26, { angle: -0.18, color: '#3a3226' }); addStatic(m, W / 2, 660, 300, 30, { color: '#3a3226' }); addBarrels(m, [200, 300, W - 200, W - 300], 380); addLava(m); }, s: [{ x: 200, y: 120 }, { x: W - 200, y: 120 }, { x: 440, y: 120 }, { x: W - 440, y: 120 }] },
+  { n: 'Antechamber', b(m) { addStatic(m, 170, 560, 300, 36, { color: '#3a3226' }); addStatic(m, W - 170, 560, 300, 36, { color: '#3a3226' }); addStatic(m, W / 2, 440, 240, 30, { color: '#3a3226' }); addStatic(m, W / 2 - 200, 660, 120, 20, { label: 'spikes', color: '#8a2f3d' }); addStatic(m, W / 2 + 200, 660, 120, 20, { label: 'spikes', color: '#8a2f3d' }); addChandelier(m, W / 2, -10, 200, 28); addLava(m); }, s: [{ x: 170, y: 120 }, { x: W - 170, y: 120 }, { x: W / 2 - 60, y: 120 }, { x: W / 2 + 60, y: 120 }] },
+]);
+
+// ============ THEME 9: STORM PEAKS ============
+theme('Storm Peaks', { bg: '#1a2030' , cover: 'pillar' }, [
+  { n: 'Thunder Spire', b(m) { addStatic(m, W / 2, 660, 400, 40, { color: '#2a3242' }); addStatic(m, W / 2, 460, 160, 300, { color: '#2a3242' }); addStatic(m, 220, 540, 280, 30, { color: '#2a3242' }); addStatic(m, W - 220, 540, 280, 30, { color: '#2a3242' }); addLava(m); }, u(m, now) { updateStrikes(m, now, 3200); }, s: [{ x: 220, y: 120 }, { x: W - 220, y: 120 }, { x: W / 2 - 140, y: 200 }, { x: W / 2 + 140, y: 200 }] },
+  { n: 'Gale Force', b(m) { addStatic(m, W / 2, 620, W - 200, 36, { color: '#2a3242' }); addStatic(m, 240, 450, 200, 24, { color: '#2a3242' }); addStatic(m, W - 240, 450, 200, 24, { color: '#2a3242' }); addLava(m); }, u(m, now) { applyWind(Math.sin(now / 1500) * 0.4); } },
+  { n: 'Rain Slick', icy: true, b(m) { addStatic(m, W / 2, 600, W - 140, 36, { friction: 0.02, color: '#2a3242' }); addStatic(m, 300, 440, 220, 24, { friction: 0.02, color: '#2a3242' }); addStatic(m, W - 300, 440, 220, 24, { friction: 0.02, color: '#2a3242' }); addLava(m); }, u() { for (let i = 0; i < 3; i++) particles.push({ kind: 'spark', x: rand(0, W), y: rand(0, H - 120), vx: -1, vy: 11, life: 12, maxLife: 12, color: '#6a86b8', r: 1.5 }); } },
+  { n: 'Eye of the Storm', b(m) { addStatic(m, W / 2, 580, 340, 36, { color: '#2a3242' }); addStatic(m, 150, 500, 220, 28, { color: '#2a3242' }); addStatic(m, W - 150, 500, 220, 28, { color: '#2a3242' }); addLava(m); }, u(m, now) { for (const b of Composite.allBodies(world)) { if (b.isStatic || b.isSensor) continue; const off = b.position.x - W / 2; if (Math.abs(off) > 240) Body.setVelocity(b, { x: b.velocity.x - Math.sign(off) * 0.3, y: b.velocity.y }); } }, s: [{ x: 150, y: 120 }, { x: W - 150, y: 120 }, { x: W / 2 - 80, y: 120 }, { x: W / 2 + 80, y: 120 }] },
+  { n: 'Lightning Rods', b(m) { addStatic(m, W / 2, 640, W - 160, 40, { color: '#2a3242' }); for (const x of [280, W / 2, W - 280]) addStatic(m, x, 560, 10, 120, { color: '#e3f265' }); addLava(m); m.data.strikeXs = [280, W / 2, W - 280]; }, u(m, now) { updateStrikes(m, now, 2400, 28); } },
+  { n: 'Crosswinds Canyon', b(m) { addStatic(m, 190, 560, 300, 34, { color: '#2a3242' }); addStatic(m, W - 190, 560, 300, 34, { color: '#2a3242' }); addHangingPlatform(m, W / 2 - 160, -10, 300, 140); addHangingPlatform(m, W / 2 + 160, -10, 380, 140); addLava(m); }, u(m, now) { applyWind(Math.sin(now / 1100) * 0.35); }, s: [{ x: 190, y: 120 }, { x: W - 190, y: 120 }, { x: 330, y: 120 }, { x: W - 330, y: 120 }] },
+  { n: 'Static Field', b(m) { addStatic(m, 250, 580, 380, 34, { color: '#2a3242' }); addStatic(m, W - 250, 580, 380, 34, { color: '#2a3242' }); addStatic(m, W / 2, 420, 240, 26, { color: '#2a3242' }); addLava(m); }, u(m, now) { if (now > (m.data.nextZap || 0)) { m.data.nextZap = now + rand(900, 1800); const a = { x: rand(200, W - 200), y: rand(200, 500) }; const b = { x: a.x + rand(-260, 260), y: a.y + rand(-140, 140) }; boltVisual(a.x, a.y, b.x, b.y, '#9ef0f0', 2, 110); for (const q of players) { if (!q.alive) continue; const d = Math.hypot(q.body.position.x - (a.x + b.x) / 2, q.body.position.y - (a.y + b.y) / 2); if (d < 90) damagePlayer(q, 5); } } } },
+  { n: 'Downpour', b(m) { addStatic(m, W / 2, 630, W - 180, 40, { color: '#2a3242' }); addLava(m); }, u(m, now) { updateCrateRain(m, now, 20, 3400); for (let i = 0; i < 2; i++) particles.push({ kind: 'spark', x: rand(0, W), y: rand(0, H - 120), vx: 0, vy: 12, life: 10, maxLife: 10, color: '#6a86b8', r: 1.5 }); } },
+  { n: 'Cliffhanger', b(m) { addStatic(m, 320, 520, 640, 400, { color: '#2a3242' }); addStatic(m, 850, 620, 240, 30, { color: '#2a3242' }); addStatic(m, 1120, 500, 200, 26, { color: '#2a3242' }); addLava(m); }, u(m, now) { applyWind(0.16 + Math.sin(now / 2000) * 0.12); }, s: [{ x: 160, y: 200 }, { x: 480, y: 200 }, { x: 850, y: 120 }, { x: 1120, y: 120 }] },
+  { n: 'Tempest Bridge', b(m) { addStatic(m, 130, 540, 240, 36, { color: '#2a3242' }); addStatic(m, W - 130, 540, 240, 36, { color: '#2a3242' }); buildBridge(m, 250, 620, 440); buildBridge(m, 620, W - 250, 440); addLava(m); }, u(m, now) { applyWind(Math.sin(now / 1300) * 0.3); updateStrikes(m, now, 3600, 20); }, s: [{ x: 130, y: 120 }, { x: W - 130, y: 120 }, { x: 300, y: 120 }, { x: W - 300, y: 120 }] },
+]);
+
+// ============ THEME 10: THE VOID ============
+theme('The Void', { bg: '#0d0a14', stars: true , cover: 'pillar' }, [
+  { n: 'Null Island', cozy: true, b(m) { addStatic(m, W / 2, 560, 460, 40, { color: '#1f1830' }); }, s: [{ x: W / 2 - 160, y: 120 }, { x: W / 2 + 160, y: 120 }, { x: W / 2 - 60, y: 120 }, { x: W / 2 + 60, y: 120 }] },
+  { n: 'Wrap Void', cozy: true, wrap: true, b(m) { addStatic(m, 220, 560, 260, 26, { color: '#1f1830' }); addStatic(m, W / 2, 430, 220, 26, { color: '#1f1830' }); addStatic(m, W - 220, 560, 260, 26, { color: '#1f1830' }); }, s: [{ x: 220, y: 120 }, { x: W - 220, y: 120 }, { x: W / 2 - 60, y: 120 }, { x: W / 2 + 60, y: 120 }] },
+  { n: 'Phantom Floors', b(m) { const xs = [[220, 560], [520, 460], [820, 560], [1080, 440], [W / 2, 640]]; xs.forEach(([x, y], i) => { const b = addStatic(m, x, y, 200, 24, { color: '#3d2f5c' }); b.phantom = { speed: 0.0012, offset: i * 1.9 }; }); addStatic(m, W / 2, 690, 340, 24, { color: '#1f1830' }); }, s: [{ x: W / 2 - 120, y: 120 }, { x: W / 2 + 120, y: 120 }, { x: W / 2 - 40, y: 120 }, { x: W / 2 + 40, y: 120 }] },
+  { n: 'Event Horizon', b(m) { const ring = [[W / 2, 660], [280, 540], [W - 280, 540], [380, 340], [W - 380, 340], [W / 2, 220]]; for (const [x, y] of ring) addStatic(m, x, y, 180, 22, { color: '#1f1830' }); }, u(m) { for (const b of Composite.allBodies(world)) { if (b.isStatic || b.isSensor) continue; const dx = W / 2 - b.position.x, dy = 430 - b.position.y; const d = Math.hypot(dx, dy) || 1; if (d > 60 && d < 500) Body.setVelocity(b, { x: b.velocity.x + (dx / d) * 0.25, y: b.velocity.y + (dy / d) * 0.25 }); } }, s: [{ x: 280, y: 120 }, { x: W - 280, y: 120 }, { x: 380, y: 120 }, { x: W - 380, y: 120 }] },
+  { n: 'Antigrav', gravity: -1.4, b(m) { addStatic(m, W / 2, 100, W - 200, 36, { color: '#1f1830' }); addStatic(m, 260, 260, 240, 26, { color: '#1f1830' }); addStatic(m, W - 260, 260, 240, 26, { color: '#1f1830' }); const top = Bodies.rectangle(W / 2, -40, W * 2, 60, { isStatic: true, isSensor: true, label: 'lava' }); Composite.add(m.composite, top); m.data.voidTop = true; }, s: [{ x: 260, y: 400 }, { x: W - 260, y: 400 }, { x: W / 2 - 80, y: 400 }, { x: W / 2 + 80, y: 400 }] },
+  { n: 'Blink', b(m) { addStatic(m, W / 2, 650, W - 200, 36, { color: '#1f1830' }); addStatic(m, W / 2, 90, W - 200, 36, { color: '#1f1830' }); addStatic(m, 250, 380, 220, 24, { color: '#1f1830' }); addStatic(m, W - 250, 380, 220, 24, { color: '#1f1830' }); }, u(m, now) { const flipped = Math.floor(now / 6000) % 2 === 1; const want = flipped ? -game.baseGravity : game.baseGravity; if (engine.gravity.y !== want) { engine.gravity.y = want; doFlash('#ff4df0', 0.25); setBanner('BLINK', '#ff4df0', 700); } }, s: [{ x: 250, y: 300 }, { x: W - 250, y: 300 }, { x: 420, y: 300 }, { x: W - 420, y: 300 }] },
+  { n: 'Mirror Match', cozy: true, wrap: true, b(m) { addStatic(m, 300, 560, 240, 24, { color: '#1f1830' }); addStatic(m, W - 300, 560, 240, 24, { color: '#1f1830' }); addStatic(m, 300, 340, 200, 22, { color: '#1f1830' }); addStatic(m, W - 300, 340, 200, 22, { color: '#1f1830' }); }, s: [{ x: 300, y: 120 }, { x: W - 300, y: 120 }, { x: 300, y: 260 }, { x: W - 300, y: 260 }] },
+  { n: 'The Maw', b(m) { addStatic(m, 200, 480, 320, 30, { color: '#1f1830' }); addStatic(m, W - 200, 480, 320, 30, { color: '#1f1830' }); addStatic(m, W / 2, 300, 240, 26, { color: '#1f1830' }); }, u(m, now) { for (const b of Composite.allBodies(world)) { if (b.isStatic || b.isSensor) continue; const dx = W / 2 - b.position.x, dy = 720 - b.position.y; const d = Math.hypot(dx, dy) || 1; if (d < 480) Body.setVelocity(b, { x: b.velocity.x + (dx / d) * 0.3, y: b.velocity.y + (dy / d) * 0.3 }); } if (Math.random() < 0.4) particles.push({ kind: 'square', x: W / 2 + rand(-160, 160), y: H - rand(10, 60), vx: 0, vy: 2, life: 18, maxLife: 18, color: '#a55eea', r: 2.5 }); }, s: [{ x: 200, y: 120 }, { x: W - 200, y: 120 }, { x: 340, y: 120 }, { x: W - 340, y: 120 }] },
+  { n: 'Glitch', wrap: true, b(m) { const xs = [[260, 560], [640, 470], [1020, 560], [W / 2, 300]]; xs.forEach(([x, y], i) => { const b = addStatic(m, x, y, 220, 24, { color: '#3d2f5c' }); b.phantom = { speed: 0.0018, offset: i * 2.3 }; }); addStatic(m, W / 2, 680, 400, 24, { color: '#1f1830' }); }, u(m, now) { engine.gravity.y = game.baseGravity * (1 + Math.sin(now / 2600) * 0.5); }, s: [{ x: W / 2 - 140, y: 120 }, { x: W / 2 + 140, y: 120 }, { x: W / 2 - 50, y: 120 }, { x: W / 2 + 50, y: 120 }] },
+  { n: 'Everything', b(m) { addStatic(m, 170, 520, 300, 36, { color: '#1f1830' }); addStatic(m, W - 170, 520, 300, 36, { color: '#1f1830' }); addStatic(m, W / 2, 650, 300, 36, { color: '#1f1830' }); buildCrateStack(m, W / 2, 604, 3, 4); addPendulumBall(m, W / 2, -80, 340, 38); addIcicles(m, [340, 560, 720, 940], 60); buildBridge(m, 320, 560, 470); buildBridge(m, W - 320, W - 560, 470); addLava(m); m.data.lavaBase = H - 22; }, u(m, now, dt) { keepPendulumsSwinging(m); updateIcicles(m, now); applyWind(Math.sin(now / 1700) * 0.18); m.data.lavaY = Math.max(400, m.data.lavaY - 4 * dt / 1000); Body.setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 }); }, s: [{ x: 170, y: 120 }, { x: W - 170, y: 120 }, { x: 320, y: 120 }, { x: W - 320, y: 120 }] },
+]);
+
+// ============ CLASSICS (the original four) ============
+theme('Classic', { bg: '#241d2e' , cover: 'crate' }, [
+  { n: 'Lava Foundry', b(m) { addStatic(m, 170, 520, 340, 40); addStatic(m, W - 170, 520, 340, 40); addStatic(m, W / 2, 660, 260, 40); buildCrateStack(m, W / 2, 612, 4, 7); buildBridge(m, 340, 570, 480); buildBridge(m, W - 340, W - 570, 480); addChandelier(m, W / 2, -10, 190, 30); addBarrels(m, [90, 130, W - 90, W - 130], 480); addLava(m); }, s: [{ x: 120, y: 440 }, { x: W - 120, y: 440 }, { x: 260, y: 440 }, { x: W - 260, y: 440 }] },
+  { n: 'Frost Cavern', icy: true, bg: '#1c2531', b(m) { addStatic(m, 250, 560, 500, 40, { friction: 0.01, color: '#3d5a73' }); addStatic(m, W - 250, 560, 500, 40, { friction: 0.01, color: '#3d5a73' }); addSeesaw(m, W / 2, 590, 240); buildCrateStack(m, 250, 532, 2, 2); buildCrateStack(m, W - 250, 532, 2, 2); addIcicles(m, [180, 330, 480, 640, 800, 950, 1100]); addLava(m); }, u(m, now) { updateIcicles(m, now); }, s: [{ x: 150, y: 480 }, { x: W - 150, y: 480 }, { x: 420, y: 480 }, { x: W - 420, y: 480 }] },
+  { n: 'Rising Lava', bg: '#2b1d22', b(m) { addStatic(m, W / 2, 640, 320, 36); addStatic(m, 240, 500, 240, 32); addStatic(m, W - 240, 500, 240, 32); addStatic(m, W / 2, 380, 260, 32); addStatic(m, 170, 250, 200, 32); addStatic(m, W - 170, 250, 200, 32); addStatic(m, W / 2, 140, 220, 32); buildCrateStack(m, W / 2, 358, 3, 2); addBarrels(m, [240, 280, W - 240, W - 280], 470); addHangingPlatform(m, 460, 30, 130, 130); addHangingPlatform(m, W - 460, 30, 130, 130); addLava(m); }, u(m, now, dt) { m.data.lavaY = Math.max(210, m.data.lavaY - 14 * dt / 1000); Body.setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 }); }, s: [{ x: W / 2 - 100, y: 600 }, { x: W / 2 + 100, y: 600 }, { x: 240, y: 460 }, { x: W - 240, y: 460 }] },
+  { n: 'Pendulum Prime', bg: '#221c2b', b(m) { addStatic(m, W / 2, 645, 660, 40); addStatic(m, 110, 470, 220, 36); addStatic(m, W - 110, 470, 220, 36); buildCrateStack(m, W / 2 + 200, 611, 3, 3); addBarrels(m, [W / 2 - 180, W / 2 - 220], 600); addPendulumBall(m, W / 2, -80, 400); addLava(m); }, u(m) { keepPendulumsSwinging(m); }, s: [{ x: 110, y: 410 }, { x: W - 110, y: 410 }, { x: W / 2 - 240, y: 580 }, { x: W / 2 + 240, y: 580 }] },
+]);
+
+// ============ THEME: WILDWOOD (cover-rich, destructible trees) ============
+theme('Wildwood', { bg: '#182014' , cover: 'tree' }, [
+  { n: 'The Grove', b(m) {
+    addStatic(m, W / 2, 660, W, 44, { color: '#2a3320' });
+    addStatic(m, 250, 500, 300, 26, { color: '#2a3320' });
+    addStatic(m, W - 250, 500, 300, 26, { color: '#2a3320' });
+    addStatic(m, W / 2, 380, 280, 26, { color: '#2a3320' });
+    addTree(m, 430, 638, 0.9); addTree(m, W - 430, 638, 0.9); addTree(m, W / 2, 638, 1.15);
+    addAlcove(m, 150, 638, 170, 100, 1, '#2a3320'); addAlcove(m, W - 150, 638, 170, 100, -1, '#2a3320');
+  }, s: [{ x: 250, y: 430 }, { x: W - 250, y: 430 }, { x: W / 2, y: 300 }, { x: 150, y: 120 }] },
+
+  { n: 'Thicket', cozy: true, b(m) {
+    addStatic(m, W / 2, 660, W, 44, { color: '#2a3320' });
+    addStatic(m, 210, 520, 260, 26, { color: '#2a3320' }); addStatic(m, W - 210, 520, 260, 26, { color: '#2a3320' });
+    for (const x of [300, 560, W - 560, W - 300]) addTree(m, x, 638, 0.7);
+    for (const x of [430, W / 2, W - 430]) addCoverPillar(m, x, 638, 130);
+  }, s: [{ x: 210, y: 460 }, { x: W - 210, y: 460 }, { x: 120, y: 120 }, { x: W - 120, y: 120 }] },
+
+  { n: 'Hollow Log', b(m) {
+    addStatic(m, W / 2, 660, W, 44, { color: '#2a3320' });
+    addStatic(m, W / 2, 470, 540, 60, { color: '#4a3420' });
+    addWallGap(m, 375, 380, 640, 560, 92, 44, '#4a3420'); addWallGap(m, W - 375, 380, 640, 560, 92, 44, '#4a3420');
+    addTree(m, 190, 638, 0.9); addTree(m, W - 190, 638, 0.9);
+    addAlcove(m, W / 2, 638, 210, 92, 1, '#2a3320');
+  }, s: [{ x: 190, y: 120 }, { x: W - 190, y: 120 }, { x: W / 2 - 130, y: 120 }, { x: W / 2 + 130, y: 120 }] },
+
+  { n: 'Ancient Oak', b(m) {
+    addStatic(m, W / 2, 660, W, 44, { color: '#2a3320' });
+    addStatic(m, 220, 470, 240, 26, { color: '#2a3320' }); addStatic(m, W - 220, 470, 240, 26, { color: '#2a3320' });
+    addTree(m, W / 2, 638, 1.7);
+    addCoverPillar(m, 430, 638, 100); addCoverPillar(m, W - 430, 638, 100);
+  }, s: [{ x: 220, y: 410 }, { x: W - 220, y: 410 }, { x: 120, y: 120 }, { x: W - 120, y: 120 }] },
+
+  { n: 'Treetops', b(m) {
+    addStatic(m, 200, 560, 300, 26, { color: '#2a3320' }); addStatic(m, W - 200, 560, 300, 26, { color: '#2a3320' });
+    addStatic(m, W / 2, 440, 260, 26, { color: '#2a3320' });
+    addTree(m, 200, 547, 0.85); addTree(m, W - 200, 547, 0.85); addTree(m, W / 2, 427, 0.8);
+    addLava(m, H - 6);
+  }, s: [{ x: 200, y: 500 }, { x: W - 200, y: 500 }, { x: W / 2, y: 380 }, { x: W / 2, y: 120 }] },
+
+  { n: 'Root Cellar', cozy: true, b(m) {
+    addStatic(m, W / 2, 660, W, 44, { color: '#2a2418' });
+    addStatic(m, W / 2, 380, 720, 26, { color: '#2a2418' });
+    addWallGap(m, 340, 405, 660, 585, 94, 46, '#3a2f20'); addWallGap(m, W - 340, 405, 660, 585, 94, 46, '#3a2f20');
+    addAlcove(m, 150, 638, 160, 96, 1, '#2a2418'); addAlcove(m, W - 150, 638, 160, 96, -1, '#2a2418');
+    addCoverPillar(m, W / 2, 638, 90);
+  }, s: [{ x: 200, y: 330 }, { x: W - 200, y: 330 }, { x: W / 2 - 150, y: 120 }, { x: W / 2 + 150, y: 120 }] },
+]);

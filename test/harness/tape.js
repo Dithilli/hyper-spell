@@ -1,10 +1,7 @@
-import { createRequire } from 'node:module';
 import { makeClock } from './clock.js';
 import { seededRandom } from './seeded-random.js';
 import { hashSnapshot } from './hash.js';
-
-const require = createRequire(import.meta.url);
-const { createSimContext } = require('../../server/sim-context.js');
+import { createSim } from '../../src/platform/node.js';
 
 const TICK_MS = 1000 / 60;
 
@@ -12,7 +9,7 @@ const TICK_MS = 1000 / 60;
 // A frame index beyond the tape's length repeats the last frame.
 export function runTape({ tape, ticks, seed = 12345 }) {
   const clock = makeClock(0);
-  const sim = createSimContext({ clock, random: seededRandom(seed) });
+  const sim = createSim({ clock, random: seededRandom(seed) });
   const b = sim.bridge;
 
   const slots = tape.players.map((p) => b.addPlayer({ name: p.name }));
