@@ -12,7 +12,7 @@
 // need a handle object that presents the same readable surface.
 import Matter from 'matter-js';
 
-const { Common, Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector } = Matter;
+const { Common, Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector, Vertices } = Matter;
 
 let engine = null;
 let root = null;
@@ -34,8 +34,6 @@ export function destroyEngine() {
   engine = null;
   root = null;
 }
-
-export function worldRoot() { return root; }
 
 // matter-js keeps ONE process-global RNG, Common._seed, and Body.create draws
 // from it for every non-static body: `Common.choose([...])` picks a default
@@ -103,7 +101,13 @@ export function applyImpulse(b, j) {
 export function applyForce(b, at, f) { Body.applyForce(b, at, f); }
 
 export function setType(b, type) { Body.setStatic(b, type === 'static'); }
-export function setFixedRotation(b, on) { Body.setInertia(b, on ? Infinity : b.mass * 0.5); }
+// Infinite inertia pins the body upright. Turning it back off recomputes the
+// real inertia from the body's own vertices rather than guessing a number —
+// matter-js does not keep the original, and a plausible-looking fudge here
+// would be a silently wrong body.
+export function setFixedRotation(b, on) {
+  Body.setInertia(b, on ? Infinity : Vertices.inertia(b.vertices, b.mass));
+}
 // Material and filter writes. Trivial here because a matter-js body IS the
 // handle, but they are operations rather than field pokes on purpose: a planck
 // handle has no `frictionAir`, and the 22 call sites that used to assign these

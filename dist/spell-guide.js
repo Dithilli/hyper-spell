@@ -533,12 +533,12 @@
             /* 3 */
             /***/
             (function(module2, exports2, __webpack_require__) {
-              var Vertices = {};
-              module2.exports = Vertices;
+              var Vertices2 = {};
+              module2.exports = Vertices2;
               var Vector2 = __webpack_require__(2);
               var Common2 = __webpack_require__(0);
               (function() {
-                Vertices.create = function(points, body) {
+                Vertices2.create = function(points, body) {
                   var vertices = [];
                   for (var i = 0; i < points.length; i++) {
                     var point = points[i], vertex = {
@@ -552,15 +552,15 @@
                   }
                   return vertices;
                 };
-                Vertices.fromPath = function(path, body) {
+                Vertices2.fromPath = function(path, body) {
                   var pathPattern = /L?\s*([-\d.e]+)[\s,]*([-\d.e]+)*/ig, points = [];
                   path.replace(pathPattern, function(match, x, y) {
                     points.push({ x: parseFloat(x), y: parseFloat(y) });
                   });
-                  return Vertices.create(points, body);
+                  return Vertices2.create(points, body);
                 };
-                Vertices.centre = function(vertices) {
-                  var area = Vertices.area(vertices, true), centre = { x: 0, y: 0 }, cross, temp, j;
+                Vertices2.centre = function(vertices) {
+                  var area = Vertices2.area(vertices, true), centre = { x: 0, y: 0 }, cross, temp, j;
                   for (var i = 0; i < vertices.length; i++) {
                     j = (i + 1) % vertices.length;
                     cross = Vector2.cross(vertices[i], vertices[j]);
@@ -569,7 +569,7 @@
                   }
                   return Vector2.div(centre, 6 * area);
                 };
-                Vertices.mean = function(vertices) {
+                Vertices2.mean = function(vertices) {
                   var average = { x: 0, y: 0 };
                   for (var i = 0; i < vertices.length; i++) {
                     average.x += vertices[i].x;
@@ -577,7 +577,7 @@
                   }
                   return Vector2.div(average, vertices.length);
                 };
-                Vertices.area = function(vertices, signed) {
+                Vertices2.area = function(vertices, signed) {
                   var area = 0, j = vertices.length - 1;
                   for (var i = 0; i < vertices.length; i++) {
                     area += (vertices[j].x - vertices[i].x) * (vertices[j].y + vertices[i].y);
@@ -587,7 +587,7 @@
                     return area / 2;
                   return Math.abs(area) / 2;
                 };
-                Vertices.inertia = function(vertices, mass) {
+                Vertices2.inertia = function(vertices, mass) {
                   var numerator = 0, denominator = 0, v = vertices, cross, j;
                   for (var n = 0; n < v.length; n++) {
                     j = (n + 1) % v.length;
@@ -597,7 +597,7 @@
                   }
                   return mass / 6 * (numerator / denominator);
                 };
-                Vertices.translate = function(vertices, vector, scalar) {
+                Vertices2.translate = function(vertices, vector, scalar) {
                   scalar = typeof scalar !== "undefined" ? scalar : 1;
                   var verticesLength = vertices.length, translateX = vector.x * scalar, translateY = vector.y * scalar, i;
                   for (i = 0; i < verticesLength; i++) {
@@ -606,7 +606,7 @@
                   }
                   return vertices;
                 };
-                Vertices.rotate = function(vertices, angle, point) {
+                Vertices2.rotate = function(vertices, angle, point) {
                   if (angle === 0)
                     return;
                   var cos = Math.cos(angle), sin = Math.sin(angle), pointX = point.x, pointY = point.y, verticesLength = vertices.length, vertex, dx, dy, i;
@@ -619,7 +619,7 @@
                   }
                   return vertices;
                 };
-                Vertices.contains = function(vertices, point) {
+                Vertices2.contains = function(vertices, point) {
                   var pointX = point.x, pointY = point.y, verticesLength = vertices.length, vertex = vertices[verticesLength - 1], nextVertex;
                   for (var i = 0; i < verticesLength; i++) {
                     nextVertex = vertices[i];
@@ -630,10 +630,10 @@
                   }
                   return true;
                 };
-                Vertices.scale = function(vertices, scaleX, scaleY, point) {
+                Vertices2.scale = function(vertices, scaleX, scaleY, point) {
                   if (scaleX === 1 && scaleY === 1)
                     return vertices;
-                  point = point || Vertices.centre(vertices);
+                  point = point || Vertices2.centre(vertices);
                   var vertex, delta;
                   for (var i = 0; i < vertices.length; i++) {
                     vertex = vertices[i];
@@ -643,7 +643,7 @@
                   }
                   return vertices;
                 };
-                Vertices.chamfer = function(vertices, radius, quality, qualityMin, qualityMax) {
+                Vertices2.chamfer = function(vertices, radius, quality, qualityMin, qualityMax) {
                   if (typeof radius === "number") {
                     radius = [radius];
                   } else {
@@ -682,14 +682,14 @@
                   }
                   return newVertices;
                 };
-                Vertices.clockwiseSort = function(vertices) {
-                  var centre = Vertices.mean(vertices);
+                Vertices2.clockwiseSort = function(vertices) {
+                  var centre = Vertices2.mean(vertices);
                   vertices.sort(function(vertexA, vertexB) {
                     return Vector2.angle(centre, vertexA) - Vector2.angle(centre, vertexB);
                   });
                   return vertices;
                 };
-                Vertices.isConvex = function(vertices) {
+                Vertices2.isConvex = function(vertices) {
                   var flag = 0, n = vertices.length, i, j, k, z;
                   if (n < 3)
                     return null;
@@ -713,7 +713,7 @@
                     return null;
                   }
                 };
-                Vertices.hull = function(vertices) {
+                Vertices2.hull = function(vertices) {
                   var upper = [], lower = [], vertex, i;
                   vertices = vertices.slice(0);
                   vertices.sort(function(vertexA, vertexB) {
@@ -745,7 +745,7 @@
             (function(module2, exports2, __webpack_require__) {
               var Body2 = {};
               module2.exports = Body2;
-              var Vertices = __webpack_require__(3);
+              var Vertices2 = __webpack_require__(3);
               var Vector2 = __webpack_require__(2);
               var Sleeping = __webpack_require__(7);
               var Common2 = __webpack_require__(0);
@@ -766,7 +766,7 @@
                     parts: [],
                     plugin: {},
                     angle: 0,
-                    vertices: Vertices.fromPath("L 0 0 L 40 0 L 40 40 L 0 40"),
+                    vertices: Vertices2.fromPath("L 0 0 L 40 0 L 40 40 L 0 40"),
                     position: { x: 0, y: 0 },
                     force: { x: 0, y: 0 },
                     torque: 0,
@@ -846,7 +846,7 @@
                     isSleeping: body.isSleeping,
                     parent: body.parent || body
                   });
-                  Vertices.rotate(body.vertices, body.angle, body.position);
+                  Vertices2.rotate(body.vertices, body.angle, body.position);
                   Axes.rotate(body.axes, body.angle);
                   Bounds.update(body.bounds, body.vertices, body.velocity);
                   Body2.set(body, {
@@ -978,15 +978,15 @@
                   if (vertices[0].body === body) {
                     body.vertices = vertices;
                   } else {
-                    body.vertices = Vertices.create(vertices, body);
+                    body.vertices = Vertices2.create(vertices, body);
                   }
                   body.axes = Axes.fromVertices(body.vertices);
-                  body.area = Vertices.area(body.vertices);
+                  body.area = Vertices2.area(body.vertices);
                   Body2.setMass(body, body.density * body.area);
-                  var centre = Vertices.centre(body.vertices);
-                  Vertices.translate(body.vertices, centre, -1);
-                  Body2.setInertia(body, Body2._inertiaScale * Vertices.inertia(body.vertices, body.mass));
-                  Vertices.translate(body.vertices, body.position);
+                  var centre = Vertices2.centre(body.vertices);
+                  Vertices2.translate(body.vertices, centre, -1);
+                  Body2.setInertia(body, Body2._inertiaScale * Vertices2.inertia(body.vertices, body.mass));
+                  Vertices2.translate(body.vertices, body.position);
                   Bounds.update(body.bounds, body.vertices, body.velocity);
                 };
                 Body2.setParts = function(body, parts, autoHull) {
@@ -1010,10 +1010,10 @@
                     for (i = 0; i < parts.length; i++) {
                       vertices = vertices.concat(parts[i].vertices);
                     }
-                    Vertices.clockwiseSort(vertices);
-                    var hull = Vertices.hull(vertices), hullCentre = Vertices.centre(hull);
+                    Vertices2.clockwiseSort(vertices);
+                    var hull = Vertices2.hull(vertices), hullCentre = Vertices2.centre(hull);
                     Body2.setVertices(body, hull);
-                    Vertices.translate(body.vertices, hullCentre);
+                    Vertices2.translate(body.vertices, hullCentre);
                   }
                   var total = Body2._totalProperties(body);
                   body.area = total.area;
@@ -1055,7 +1055,7 @@
                     var part = body.parts[i];
                     part.position.x += delta.x;
                     part.position.y += delta.y;
-                    Vertices.translate(part.vertices, delta);
+                    Vertices2.translate(part.vertices, delta);
                     Bounds.update(part.bounds, part.vertices, body.velocity);
                   }
                 };
@@ -1071,7 +1071,7 @@
                   for (var i = 0; i < body.parts.length; i++) {
                     var part = body.parts[i];
                     part.angle += delta;
-                    Vertices.rotate(part.vertices, delta, body.position);
+                    Vertices2.rotate(part.vertices, delta, body.position);
                     Axes.rotate(part.axes, delta);
                     Bounds.update(part.bounds, part.vertices, body.velocity);
                     if (i > 0) {
@@ -1135,13 +1135,13 @@
                   point = point || body.position;
                   for (var i = 0; i < body.parts.length; i++) {
                     var part = body.parts[i];
-                    Vertices.scale(part.vertices, scaleX, scaleY, point);
+                    Vertices2.scale(part.vertices, scaleX, scaleY, point);
                     part.axes = Axes.fromVertices(part.vertices);
-                    part.area = Vertices.area(part.vertices);
+                    part.area = Vertices2.area(part.vertices);
                     Body2.setMass(part, body.density * part.area);
-                    Vertices.translate(part.vertices, { x: -part.position.x, y: -part.position.y });
-                    Body2.setInertia(part, Body2._inertiaScale * Vertices.inertia(part.vertices, part.mass));
-                    Vertices.translate(part.vertices, { x: part.position.x, y: part.position.y });
+                    Vertices2.translate(part.vertices, { x: -part.position.x, y: -part.position.y });
+                    Body2.setInertia(part, Body2._inertiaScale * Vertices2.inertia(part.vertices, part.mass));
+                    Vertices2.translate(part.vertices, { x: part.position.x, y: part.position.y });
                     if (i > 0) {
                       totalArea += part.area;
                       totalInertia += part.inertia;
@@ -1181,13 +1181,13 @@
                   body.angle += body.angularVelocity;
                   for (var i = 0; i < body.parts.length; i++) {
                     var part = body.parts[i];
-                    Vertices.translate(part.vertices, body.velocity);
+                    Vertices2.translate(part.vertices, body.velocity);
                     if (i > 0) {
                       part.position.x += body.velocity.x;
                       part.position.y += body.velocity.y;
                     }
                     if (body.angularVelocity !== 0) {
-                      Vertices.rotate(part.vertices, body.angularVelocity, body.position);
+                      Vertices2.rotate(part.vertices, body.angularVelocity, body.position);
                       Axes.rotate(part.axes, body.angularVelocity);
                       if (i > 0) {
                         Vector2.rotateAbout(part.position, body.angularVelocity, body.position, part.position);
@@ -1659,7 +1659,7 @@
             (function(module2, exports2, __webpack_require__) {
               var Collision = {};
               module2.exports = Collision;
-              var Vertices = __webpack_require__(3);
+              var Vertices2 = __webpack_require__(3);
               var Pair = __webpack_require__(9);
               (function() {
                 var _supports = [];
@@ -1728,18 +1728,18 @@
                   collision.penetration.x = normal.x * collision.depth;
                   collision.penetration.y = normal.y * collision.depth;
                   var supportsB = Collision._findSupports(bodyA, bodyB, normal, 1), supportCount = 0;
-                  if (Vertices.contains(bodyA.vertices, supportsB[0])) {
+                  if (Vertices2.contains(bodyA.vertices, supportsB[0])) {
                     supports[supportCount++] = supportsB[0];
                   }
-                  if (Vertices.contains(bodyA.vertices, supportsB[1])) {
+                  if (Vertices2.contains(bodyA.vertices, supportsB[1])) {
                     supports[supportCount++] = supportsB[1];
                   }
                   if (supportCount < 2) {
                     var supportsA = Collision._findSupports(bodyB, bodyA, normal, -1);
-                    if (Vertices.contains(bodyB.vertices, supportsA[0])) {
+                    if (Vertices2.contains(bodyB.vertices, supportsA[0])) {
                       supports[supportCount++] = supportsA[0];
                     }
-                    if (supportCount < 2 && Vertices.contains(bodyB.vertices, supportsA[1])) {
+                    if (supportCount < 2 && Vertices2.contains(bodyB.vertices, supportsA[1])) {
                       supports[supportCount++] = supportsA[1];
                     }
                   }
@@ -1896,7 +1896,7 @@
             (function(module2, exports2, __webpack_require__) {
               var Constraint2 = {};
               module2.exports = Constraint2;
-              var Vertices = __webpack_require__(3);
+              var Vertices2 = __webpack_require__(3);
               var Vector2 = __webpack_require__(2);
               var Sleeping = __webpack_require__(7);
               var Bounds = __webpack_require__(1);
@@ -2036,13 +2036,13 @@
                     Sleeping.set(body, false);
                     for (var j = 0; j < body.parts.length; j++) {
                       var part = body.parts[j];
-                      Vertices.translate(part.vertices, impulse);
+                      Vertices2.translate(part.vertices, impulse);
                       if (j > 0) {
                         part.position.x += impulse.x;
                         part.position.y += impulse.y;
                       }
                       if (impulse.angle !== 0) {
-                        Vertices.rotate(part.vertices, impulse.angle, body.position);
+                        Vertices2.rotate(part.vertices, impulse.angle, body.position);
                         Axes.rotate(part.axes, impulse.angle);
                         if (j > 0) {
                           Vector2.rotateAbout(part.position, impulse.angle, body.position, part.position);
@@ -2107,7 +2107,7 @@
             (function(module2, exports2, __webpack_require__) {
               var Bodies2 = {};
               module2.exports = Bodies2;
-              var Vertices = __webpack_require__(3);
+              var Vertices2 = __webpack_require__(3);
               var Common2 = __webpack_require__(0);
               var Body2 = __webpack_require__(4);
               var Bounds = __webpack_require__(1);
@@ -2118,11 +2118,11 @@
                   var rectangle = {
                     label: "Rectangle Body",
                     position: { x, y },
-                    vertices: Vertices.fromPath("L 0 0 L " + width + " 0 L " + width + " " + height + " L 0 " + height)
+                    vertices: Vertices2.fromPath("L 0 0 L " + width + " 0 L " + width + " " + height + " L 0 " + height)
                   };
                   if (options.chamfer) {
                     var chamfer = options.chamfer;
-                    rectangle.vertices = Vertices.chamfer(
+                    rectangle.vertices = Vertices2.chamfer(
                       rectangle.vertices,
                       chamfer.radius,
                       chamfer.quality,
@@ -2146,11 +2146,11 @@
                   var trapezoid = {
                     label: "Trapezoid Body",
                     position: { x, y },
-                    vertices: Vertices.fromPath(verticesPath)
+                    vertices: Vertices2.fromPath(verticesPath)
                   };
                   if (options.chamfer) {
                     var chamfer = options.chamfer;
-                    trapezoid.vertices = Vertices.chamfer(
+                    trapezoid.vertices = Vertices2.chamfer(
                       trapezoid.vertices,
                       chamfer.radius,
                       chamfer.quality,
@@ -2185,11 +2185,11 @@
                   var polygon = {
                     label: "Polygon Body",
                     position: { x, y },
-                    vertices: Vertices.fromPath(path)
+                    vertices: Vertices2.fromPath(path)
                   };
                   if (options.chamfer) {
                     var chamfer = options.chamfer;
-                    polygon.vertices = Vertices.chamfer(
+                    polygon.vertices = Vertices2.chamfer(
                       polygon.vertices,
                       chamfer.radius,
                       chamfer.quality,
@@ -2214,7 +2214,7 @@
                   }
                   for (v = 0; v < vertexSets.length; v += 1) {
                     vertices = vertexSets[v];
-                    isConvex = Vertices.isConvex(vertices);
+                    isConvex = Vertices2.isConvex(vertices);
                     isConcave = !isConvex;
                     if (isConcave && !canDecomp) {
                       Common2.warnOnce(
@@ -2223,9 +2223,9 @@
                     }
                     if (isConvex || !canDecomp) {
                       if (isConvex) {
-                        vertices = Vertices.clockwiseSort(vertices);
+                        vertices = Vertices2.clockwiseSort(vertices);
                       } else {
-                        vertices = Vertices.hull(vertices);
+                        vertices = Vertices2.hull(vertices);
                       }
                       parts.push({
                         position: { x, y },
@@ -2249,10 +2249,10 @@
                             y: vertices2[1]
                           };
                         });
-                        if (minimumArea > 0 && Vertices.area(chunkVertices) < minimumArea)
+                        if (minimumArea > 0 && Vertices2.area(chunkVertices) < minimumArea)
                           continue;
                         parts.push({
-                          position: Vertices.centre(chunkVertices),
+                          position: Vertices2.centre(chunkVertices),
                           vertices: chunkVertices
                         });
                       }
@@ -2865,7 +2865,7 @@
             (function(module2, exports2, __webpack_require__) {
               var Resolver = {};
               module2.exports = Resolver;
-              var Vertices = __webpack_require__(3);
+              var Vertices2 = __webpack_require__(3);
               var Common2 = __webpack_require__(0);
               var Bounds = __webpack_require__(1);
               (function() {
@@ -2922,7 +2922,7 @@
                   }
                 };
                 Resolver.postSolvePosition = function(bodies) {
-                  var positionWarming = Resolver._positionWarming, bodiesLength = bodies.length, verticesTranslate = Vertices.translate, boundsUpdate = Bounds.update;
+                  var positionWarming = Resolver._positionWarming, bodiesLength = bodies.length, verticesTranslate = Vertices2.translate, boundsUpdate = Bounds.update;
                   for (var i = 0; i < bodiesLength; i++) {
                     var body = bodies[i], positionImpulse = body.positionImpulse, positionImpulseX = positionImpulse.x, positionImpulseY = positionImpulse.y, velocity = body.velocity;
                     body.totalContacts = 0;
@@ -3476,7 +3476,7 @@
             (function(module2, exports2, __webpack_require__) {
               var MouseConstraint = {};
               module2.exports = MouseConstraint;
-              var Vertices = __webpack_require__(3);
+              var Vertices2 = __webpack_require__(3);
               var Sleeping = __webpack_require__(7);
               var Mouse = __webpack_require__(14);
               var Events2 = __webpack_require__(5);
@@ -3539,7 +3539,7 @@
                         if (Bounds.contains(body.bounds, mouse.position) && Detector.canCollide(body.collisionFilter, mouseConstraint.collisionFilter)) {
                           for (var j = body.parts.length > 1 ? 1 : 0; j < body.parts.length; j++) {
                             var part = body.parts[j];
-                            if (Vertices.contains(part.vertices, mouse.position)) {
+                            if (Vertices2.contains(part.vertices, mouse.position)) {
                               constraint.pointA = mouse.position;
                               constraint.bodyB = mouseConstraint.body = body;
                               constraint.pointB = { x: mouse.position.x - body.position.x, y: mouse.position.y - body.position.y };
@@ -3583,7 +3583,7 @@
               var Collision = __webpack_require__(8);
               var Bounds = __webpack_require__(1);
               var Bodies2 = __webpack_require__(12);
-              var Vertices = __webpack_require__(3);
+              var Vertices2 = __webpack_require__(3);
               (function() {
                 Query2.collides = function(body, bodies) {
                   var collisions = [], bodiesLength = bodies.length, bounds = body.bounds, collides = Collision.collides, overlaps = Bounds.overlaps;
@@ -3629,7 +3629,7 @@
                     if (Bounds.contains(body.bounds, point)) {
                       for (var j = body.parts.length === 1 ? 0 : 1; j < body.parts.length; j++) {
                         var part = body.parts[j];
-                        if (Bounds.contains(part.bounds, point) && Vertices.contains(part.vertices, point)) {
+                        if (Bounds.contains(part.bounds, point) && Vertices2.contains(part.vertices, point)) {
                           result.push(body);
                           break;
                         }
@@ -4806,7 +4806,7 @@
 
   // src/sim/phys/matter-backend.js
   var import_matter_js = __toESM(require_matter(), 1);
-  var { Common, Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector } = import_matter_js.default;
+  var { Common, Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector, Vertices } = import_matter_js.default;
   var engine = null;
   var root = null;
   function createCircle(x, y, r, opts) {
@@ -4859,6 +4859,15 @@
   }
   function setType(b, type) {
     Body.setStatic(b, type === "static");
+  }
+  function setFrictionAir(b, v) {
+    b.frictionAir = v;
+  }
+  function setFriction(b, v) {
+    b.friction = v;
+  }
+  function setRestitution(b, v) {
+    b.restitution = v;
   }
   function scaleBody(b, sx, sy) {
     Body.scale(b, sx, sy);
@@ -5539,7 +5548,7 @@
               const q = bossAliveTarget(null);
               if (q) {
                 q.frozenUntil = now + 700;
-                q.body.frictionAir = 1e-3;
+                setFrictionAir(q.body, 1e-3);
               }
             }
             sfx.freeze();
@@ -5695,7 +5704,7 @@
       start(m) {
         m.data.eventIcy = true;
         for (const b of allBodies(m.composite)) {
-          if (b.isStatic && !b.isSensor) b.friction = 0.01;
+          if (b.isStatic && !b.isSensor) setFriction(b, 0.01);
         }
       }
     },
@@ -5761,7 +5770,7 @@
       color: "#ff8fc7",
       start(m) {
         for (const b of allBodies(m.composite)) {
-          if (b.isStatic && !b.isSensor) b.restitution = 0.9;
+          if (b.isStatic && !b.isSensor) setRestitution(b, 0.9);
         }
       }
     },
@@ -5865,7 +5874,7 @@
         if (!q.alive) continue;
         if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 100) {
           q.frozenUntil = Math.max(q.frozenUntil || 0, now + 450);
-          q.body.frictionAir = 1e-3;
+          setFrictionAir(q.body, 1e-3);
         }
       }
       spawnParticles(x, y, "#eaffff", 12, 5, 30);
@@ -7146,7 +7155,7 @@
     doFlash("#bfe8ff", 0.3);
     for (const q of enemiesOf(p)) {
       q.frozenUntil = simNow() + 800 * m;
-      q.body.frictionAir = 1e-3;
+      setFrictionAir(q.body, 1e-3);
     }
   } });
   regSpell("frostnova", {
@@ -7161,7 +7170,7 @@
         const d = Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y);
         if (d < 180 * m) {
           q.frozenUntil = simNow() + 1200 * m;
-          q.body.frictionAir = 1e-3;
+          setFrictionAir(q.body, 1e-3);
           damagePlayer(q, 10 * m);
         }
       }
@@ -7196,7 +7205,7 @@
     cast(p) {
       statusBolt(p, { color: "#9be7ff", r: 5, speed: 19, vy: -3, dmg: 6 }, (q, m) => {
         q.frozenUntil = simNow() + 1e3 * m;
-        q.body.frictionAir = 1e-3;
+        setFrictionAir(q.body, 1e-3);
         sfx.freeze();
       });
     }
@@ -7204,7 +7213,7 @@
   regSpell("permafrost", { name: "Permafrost", color: "#7fd4ff", cooldown: 2800, cast(p) {
     statusBolt(p, { color: "#7fd4ff", r: 9, speed: 10, vy: -3, dmg: 20 }, (q, m) => {
       q.frozenUntil = simNow() + 2600 * m;
-      q.body.frictionAir = 1e-3;
+      setFrictionAir(q.body, 1e-3);
       sfx.freeze();
     });
   } });
@@ -7718,7 +7727,7 @@
       const now = simNow(), dur = 2e3 * m;
       t.frozenUntil = now + dur;
       t.heavyUntil = now + dur;
-      t.body.frictionAir = 1e-3;
+      setFrictionAir(t.body, 1e-3);
       spawnParticles(t.body.position.x, t.body.position.y, "#ffd700", 20, 5);
       spawnText(t.body.position.x, t.body.position.y - 44, "GOLD!", "#ffd700");
       activeEffects.push({ until: now + dur, onEnd() {
@@ -8043,7 +8052,7 @@
       addShake(6);
       for (const q of enemiesOf(p)) {
         q.frozenUntil = simNow() + 1400 * m;
-        q.body.frictionAir = 1e-3;
+        setFrictionAir(q.body, 1e-3);
         damagePlayer(q, 14 * m, p);
         spawnBurst(q.body.position.x, q.body.position.y, "#eaffff", 14, { kind: "spark", speed: 9, r: 2.5 });
         spawnBurst(q.body.position.x, q.body.position.y, "#bfe8ff", 8, { speed: 4, r: 3 });
@@ -8076,7 +8085,7 @@
         base?.(self, other);
         if (other?.label === "player" && other.player.alive) {
           other.player.frozenUntil = simNow() + 700 * m;
-          other.player.body.frictionAir = 1e-3;
+          setFrictionAir(other.player.body, 1e-3);
         }
       };
       const sp = frontPos(p, 90, -6);
@@ -8112,7 +8121,7 @@
       const { hit, pt } = zapRay(p, 38, 10, 3);
       if (hit && hit.label === "player") {
         hit.player.frozenUntil = simNow() + 1e3 * m;
-        hit.player.body.frictionAir = 1e-3;
+        setFrictionAir(hit.player.body, 1e-3);
       }
       const d = aimDir(p, 1, 0);
       const px = Math.max(30, Math.min(W - 30, pt.x - d.x * 16));
@@ -8180,7 +8189,7 @@
       for (const q of enemiesOf(p)) {
         if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 440) {
           q.frozenUntil = simNow() + 800 * m;
-          q.body.frictionAir = 1e-3;
+          setFrictionAir(q.body, 1e-3);
           addVelocity(q.body, { x: p.facing * 6, y: 0 });
         }
       }
@@ -8250,7 +8259,7 @@
               const nw = simNow();
               for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - chunk.position.x, q.body.position.y - chunk.position.y) < 120) {
                 q.frozenUntil = Math.max(q.frozenUntil || 0, nw + 700 * m);
-                q.body.frictionAir = 1e-3;
+                setFrictionAir(q.body, 1e-3);
               }
               spawnBurst(chunk.position.x, chunk.position.y, "#eaffff", 10, { kind: "spark", speed: 7 });
             };
@@ -8408,7 +8417,7 @@
       spawnSingularity(sx, sy, m, p, { selfSafe: true });
       for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - sx, q.body.position.y - sy) < 320) {
         q.frozenUntil = simNow() + 1100 * m;
-        q.body.frictionAir = 1e-3;
+        setFrictionAir(q.body, 1e-3);
       }
       doFlash("#9be7ff", 0.3);
       sfx.freeze();
@@ -8424,7 +8433,7 @@
       p.reflectUntil = Math.max(p.reflectUntil || 0, now + 1900 * m);
       for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 260) {
         q.frozenUntil = now + 900 * m;
-        q.body.frictionAir = 1e-3;
+        setFrictionAir(q.body, 1e-3);
       }
       for (let i = 0; i < 12; i++) {
         const a = i / 12 * Math.PI * 2;
@@ -8610,7 +8619,7 @@
       for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 420) {
         q.frozenUntil = now + 700 * m;
         q.reversedUntil = now + 3e3 * m;
-        q.body.frictionAir = 1e-3;
+        setFrictionAir(q.body, 1e-3);
         spawnBurst(q.body.position.x, q.body.position.y, "#a7d8ff", 12, { speed: 5, r: 2.5 });
       }
       sfx.freeze();
@@ -9462,7 +9471,7 @@
     p.lastHitBy = null;
     clearStatuses(p);
     setPlayerScale(p, 1);
-    p.body.frictionAir = 0.02;
+    setFrictionAir(p.body, 0.02);
     setPosition(p.body, pos);
     setVelocity(p.body, { x: 0, y: 0 });
     setAngularVelocity(p.body, 0);
@@ -9704,7 +9713,7 @@
           if (other && other.label === "player" && other.player.alive) {
             damagePlayer(other.player, 15 * m);
             other.player.frozenUntil = simNow() + 1500 * m;
-            other.frictionAir = 1e-3;
+            setFrictionAir(other, 1e-3);
             sfx.freeze();
           }
         };

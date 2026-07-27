@@ -22,7 +22,6 @@ export {
   // lifecycle
   createEngine,
   destroyEngine,
-  worldRoot,
   resetPhysRandom,
   physRandomSeed,
 
