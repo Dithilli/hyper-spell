@@ -42,6 +42,12 @@ export function updateGhosts(now) {
       }
     } else if (c.cast) {
       // grab if a loose prop is in reach, otherwise the classic gust
+      //
+      // RIM: the reach test was `d < 70` by hand and is `<= 70` through the
+      // facade — one of the three sites in the task 9 conversion that is not
+      // byte-identical (the others are makeZone in spells/core.js and
+      // poltergeist in spells/book.js). A prop whose centre lands exactly 70
+      // away to the last bit of a double is the only one that can tell.
       let best = null, bd = 1e9;
       for (const b of queryRadius(g, 70, { filter: (b) => loose(b) && GHOST_CARRY.has(b.label) && b.mass <= 8 })) {
         const d = Math.hypot(b.position.x - g.x, b.position.y - g.y);

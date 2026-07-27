@@ -891,6 +891,13 @@ regSpell('poltergeist', {
   cast(p) {
     const m = p.mega || 1;
     // gather loose props near the caster; if the arena is bare, conjure some so it always erupts
+    //
+    // RIM: the hand-rolled test here was `< 520` and the facade's is `<= 520`,
+    // one of the three sites in the task 9 conversion that is not byte-identical
+    // (the others are makeZone in spells/core.js and the ghost carry search in
+    // player/ghost.js). It takes a prop whose centre sits exactly 520 away to
+    // the last bit of a double to tell them apart. The inclusive form is also
+    // the one the other nine area spells already wrote, as `if (d > R) continue`.
     const props = queryRadius(p.body.position, 520,
       { filter: (b) => loose(b) && b.label !== 'player' && b.label !== 'boss' });
     if (props.length < 5) {

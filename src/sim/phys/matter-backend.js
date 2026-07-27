@@ -270,6 +270,12 @@ export function queryRay(from, to, opts = {}) {
 // reports t = 0: the old stepping loop found such a body at its very first
 // sample, and a beam must not shoot out through the far wall of the thing it is
 // already buried in.
+//
+// THE ONE EXCEPTION TO THE `normal` CONTRACT. The starts-inside branch returns
+// normal {0, 0}, because there is no crossing and so no face to take a normal
+// from. Every other return carries a real unit normal. No caller reads `normal`
+// today; it is documented here rather than papered over with an invented value,
+// because inventing one would be the sort of plausible lie a later caller acts on.
 function segmentHit(body, from, dx, dy, span) {
   const parts = body.parts;
   let t = Infinity, normal = null;

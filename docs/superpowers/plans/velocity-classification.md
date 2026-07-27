@@ -101,9 +101,9 @@ of Shove.
 - `src/sim/ai/enemies.js:60` — Contact shove throws the target at a stated velocity.
 - `src/sim/spells/book.js:453` — Yank: the target is given a stated velocity toward the caster.
 - `src/sim/spells/book.js:617` — Dash: the caster's velocity is replaced outright.
-- `src/sim/spells/book.js:910` — Vacuum: the target is given a stated velocity toward the caster.
-- `src/sim/spells/book.js:1015` — Grapple: a stated velocity toward the anchor.
-- `src/sim/spells/book.js:1023` — Hook: a stated velocity toward the caster.
+- `src/sim/spells/book.js:917` — Vacuum: the target is given a stated velocity toward the caster.
+- `src/sim/spells/book.js:1022` — Grapple: a stated velocity toward the anchor.
+- `src/sim/spells/book.js:1030` — Hook: a stated velocity toward the caster.
 - `src/sim/spells/fusion.js:523` — Repulse: a position-derived velocity, stated outright.
 - `src/sim/spells/fusion.js:629` — Scatter: a stated velocity on a random heading.
 
@@ -210,7 +210,7 @@ through the position round-trip above.
 - `src/sim/spells/starters.js:46`
 - `src/sim/spells/starters.js:48`
 - `src/sim/spells/starters.js:66`
-- `src/sim/player/ghost.js:124`
+- `src/sim/player/ghost.js:130`
 - `src/sim/spells/book.js:65`
 - `src/sim/spells/book.js:357`
 - `src/sim/spells/book.js:376`
@@ -262,7 +262,7 @@ notice is one nobody has written.
 | `src/sim/tick.js:69` | **push** | axis | `setVelocity` | Saw drive: x is pinned to a constant travel speed, y is left to physics. Not expressible as a delta; stays setVelocity. |
 | `src/sim/player/ghost.js:33` | **override** | absolute | `setVelocity` | Poltergeist release — "a toss, not a throw" states the whole velocity. |
 | `src/sim/player/ghost.js:36` | **override** | absolute | `setVelocity` | Poltergeist carry: a position-derived spring velocity, clamped. Nothing of the prop's own motion survives. |
-| `src/sim/player/ghost.js:124` | **push** | additive | `setVelocity` ¹ | Wisp gust on nearby bodies. |
+| `src/sim/player/ghost.js:130` | **push** | additive | `setVelocity` ¹ | Wisp gust on nearby bodies. |
 | `src/sim/player/controller.js:130` | **controller** | blended | `setVelocity` → `setControlVelocity` (phase 3) | Movement blend: x eased toward the walk target, y untouched. Phase 3 gives this its own setControlVelocity so a character controller can own it. |
 | `src/sim/player/controller.js:137` | **controller** | axis | `setVelocity` → `setControlVelocity` (phase 3) | Jump: y set outright, x preserved. Same owner as the blend above. |
 | `src/sim/player/controller.js:142` | **controller** | axis | `setVelocity` → `setControlVelocity` (phase 3) | Air jump: y set outright, x preserved. |
@@ -329,13 +329,13 @@ notice is one nobody has written.
 | `src/sim/spells/book.js:811` | **push** | blended | `setVelocity` | Bee steering with damping. |
 | `src/sim/spells/book.js:836` | **override** | absolute | `setVelocity` | Saw spawn. |
 | `src/sim/spells/book.js:885` | **push** | additive | `addVelocity` | Chaos scatter: a randomised push on everything loose. |
-| `src/sim/spells/book.js:910` | **override** | absolute | `setVelocity` | Vacuum: the target is given a stated velocity toward the caster. |
-| `src/sim/spells/book.js:933` | **override** | absolute | `setVelocity` | swaphex/teleport reset — brief rule 5. The arriving body starts at rest. |
-| `src/sim/spells/book.js:965` | **push** | additive | `addVelocity` | Melee knockback. |
-| `src/sim/spells/book.js:1015` | **override** | absolute | `setVelocity` | Grapple: a stated velocity toward the anchor. |
-| `src/sim/spells/book.js:1023` | **override** | absolute | `setVelocity` | Hook: a stated velocity toward the caster. |
-| `src/sim/spells/book.js:1038` | **push** | axis | `setVelocity` | Pop up: y stated, x preserved. |
-| `src/sim/spells/book.js:1049` | **push** | axis | `setVelocity` | Slam down: y stated, x preserved. |
+| `src/sim/spells/book.js:917` | **override** | absolute | `setVelocity` | Vacuum: the target is given a stated velocity toward the caster. |
+| `src/sim/spells/book.js:940` | **override** | absolute | `setVelocity` | swaphex/teleport reset — brief rule 5. The arriving body starts at rest. |
+| `src/sim/spells/book.js:972` | **push** | additive | `addVelocity` | Melee knockback. |
+| `src/sim/spells/book.js:1022` | **override** | absolute | `setVelocity` | Grapple: a stated velocity toward the anchor. |
+| `src/sim/spells/book.js:1030` | **override** | absolute | `setVelocity` | Hook: a stated velocity toward the caster. |
+| `src/sim/spells/book.js:1045` | **push** | axis | `setVelocity` | Pop up: y stated, x preserved. |
+| `src/sim/spells/book.js:1056` | **push** | axis | `setVelocity` | Slam down: y stated, x preserved. |
 | `src/sim/spells/fusion.js:252` | **push** | additive | `setVelocity` ¹ | Per-second storm push. |
 | `src/sim/spells/fusion.js:281` | **push** | additive | `addVelocity` | Freeze shove. |
 | `src/sim/spells/fusion.js:354` | **push** | additive | `addVelocity` | Recoil on the caster. |

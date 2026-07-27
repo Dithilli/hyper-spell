@@ -22,7 +22,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as phys from '../src/sim/phys/facade.js';
-import { createWorld, destroyWorld } from '../src/sim/world.js';
+import { column, createWorld, destroyWorld } from '../src/sim/world.js';
 import { groundYAt, raycastHit, shoot, projectiles } from '../src/sim/spells/core.js';
 
 // a player-shaped stub: raycastHit and shoot read position, aimAngle and group
@@ -170,6 +170,51 @@ test('an unobstructed cast still uses the full muzzle offset', () => {
   assert.equal(fb.position.x, 428);
   assert.equal(fb.position.y, 294);
   projectiles.delete(fb);
+  destroyWorld();
+});
+
+// Compound bodies collide through their parts, never through the parent hull
+// matter auto-fits around them, so segmentHit skips parts[0]. Nothing in
+// src/sim builds a compound today, which is exactly why this needs pinning:
+// without it, a ray through the GAP between two parts reports a hit on the hull
+// that spans them. Assembled from facade boxes rather than Body.setParts,
+// because test/module-boundaries.test.js bans Matter namespaces in test/ too.
+test('a ray through the gap in a compound body misses it', () => {
+  createWorld();
+  const left = phys.createBox(200, 300, 80, 80, { isStatic: true });   // x 160..240
+  const right = phys.createBox(600, 300, 80, 80, { isStatic: true });  // x 560..640
+  const hull = phys.createBox(400, 300, 480, 80, { isStatic: true });  // x 160..640 — spans the gap
+  const compound = { type: 'body', parts: [hull, left, right], bounds: hull.bounds };
+  compound.parent = compound;              // matter refuses to add a body that is someone's part
+  for (const part of compound.parts) part.parent = compound;
+  const composite = phys.createComposite();
+  phys.addTo(composite, compound);
+  assert.equal(phys.allBodies(composite).length, 1, 'the compound really is in the world');
+
+  // straight down the gap at x = 400: inside the hull, outside both parts
+  const gap = phys.queryRay({ x: 400, y: 100 }, { x: 400, y: 500 }, { container: composite });
+  assert.equal(gap, null, 'the parent hull is not a collidable outline');
+  // and the parts themselves are still found
+  const onPart = phys.queryRay({ x: 200, y: 100 }, { x: 200, y: 500 }, { container: composite });
+  assert.equal(onPart.body, compound, 'the hit is reported as the compound, not the part');
+  assert.equal(onPart.point.y, 260, 'the top of the left part');
+  destroyWorld();
+});
+
+// column() is unbounded in y on purpose. The loops it replaced — updraft,
+// tornado, firestorm — tested x alone and had no y bound at all, so clipping the
+// column to 0..H would silently drop a crate lobbed over the ceiling and break
+// the equivalence the whole conversion rests on.
+test('column() reaches above the ceiling and below the floor', () => {
+  createWorld();
+  const high = phys.createBox(640, -200, 40, 40, {});  // well above y = 0
+  const low = phys.createBox(640, 900, 40, 40, {});    // well below y = H
+  const aside = phys.createBox(300, 300, 40, 40, {});
+  for (const b of [high, low, aside]) phys.addBody(b);
+  const found = phys.queryRegion(column(600, 680));
+  assert.ok(found.includes(high), 'a body lobbed over the ceiling is still in the column');
+  assert.ok(found.includes(low), 'and one below the floor');
+  assert.ok(!found.includes(aside), 'but not one in a different column');
   destroyWorld();
 });
 
