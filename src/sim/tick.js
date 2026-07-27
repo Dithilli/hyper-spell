@@ -8,7 +8,7 @@ import { random } from './env.js';
 import { rand } from './rng.js';
 import { particles, updateParticles } from './fx.js';
 import { updatePace } from './pace.js';
-import { TICK_MS } from './time.js';
+import { TICK_MS, advanceTick, simNow } from './time.js';
 import { sfx } from './sfx.js';
 import { nameEdit, nameEditEndAt } from './lobby.js';
 import { game, currentMap, minPlayers, setBanner, beginFromLobby, resetMatch } from './match.js';
@@ -95,15 +95,27 @@ export function postPhysics(now) {
 // nothing that draws. The browser loop below calls it every rAF; the dedicated
 // server calls it from its own fixed 60Hz tick (server/sim-host.js) with the
 // draw/rAF half never running.
-// `rawDt` is the caller's measured frame delta, and it is deliberately ignored:
-// with the accumulator in src/sim/tick-loop.js in front of this function every
-// step is exactly TICK_MS, and making that a property of stepSim rather than a
-// promise from each caller is what keeps a hand-rolled driver (the tape harness,
-// server/sim-smoke.js) on the same timestep the game runs. Slow-mo no longer
-// shrinks the step — it slows how fast the loop consumes ticks. Task 4 drops the
-// parameter list entirely.
-export function stepSim(now, rawDt) {
+// stepSim takes no arguments. It used to be handed the caller's wall clock and
+// its measured frame delta; both are now the sim's own business:
+//
+//   * the step size is always TICK_MS. The accumulator in src/sim/tick-loop.js
+//     sits in front of this function, so a measured delta could only ever
+//     disagree with the step actually taken. Making the size a property of
+//     stepSim rather than a promise from each caller is what keeps a
+//     hand-rolled driver (the tape harness, server/sim-smoke.js) on the same
+//     timestep the game runs.
+//   * `now` is simNow() — tick x TICK_MS — and stepSim advances the tick
+//     itself, at the END of the step, so everything inside one step observes
+//     one timestamp and the state a step produces is stamped with the tick it
+//     produced. Neither platform loop advances the tick any more; doing it in
+//     both places would run the clock at double rate.
+//
+// Slow-mo does not shrink the step — it slows how fast the loop consumes ticks,
+// which is exactly why the deadlines below are on simNow() and pace.js's own
+// deadline is not (see the comment there).
+export function stepSim() {
   updatePace();
+  const now = simNow();
   const dt = TICK_MS;
 
   for (const p of players) p.input = p.controller.poll();
@@ -151,4 +163,9 @@ export function stepSim(now, rawDt) {
   // by the pace here as well would slow the sparks twice over.
   updateParticles(1);
   replayRecord(now);
+  // Last: everything above observed `now`, and the state it just produced is
+  // the state AT the next tick. Advancing here rather than at the top is what
+  // keeps `simNow()` inside a step equal to the timestamp the pre-Task-4 loops
+  // handed in, so the substitution moves no hash on its own.
+  advanceTick();
 }

@@ -22,13 +22,13 @@ const fxLog = [];
 const telLog = [];
 let sim = null, b = null, renderCanvas = null;
 
-// the same loop shape as server/sim-host.js: ~60Hz, measured dt clamped at 33ms
-let last = performance.now();
+// the same loop shape as server/sim-host.js: one fixed step per iteration.
+// stepSim takes nothing and keeps its own clock (simNow() = tick x TICK_MS), so
+// the only thing the real clock still decides here is how long each tickFor /
+// tickUntil window runs — which is what lets the round flow's real setTimeouts
+// (src/sim/schedule.js) fire between steps, exactly as they do under SimHost.
 function tick() {
-  const now = performance.now();
-  const rawDt = Math.min(now - last, 33);
-  last = now;
-  b.stepSim(now, rawDt);
+  b.stepSim();
 }
 async function tickFor(ms) {
   const end = performance.now() + ms;
@@ -43,7 +43,7 @@ async function tickUntil(cond, timeoutMs, label) {
   }
   return cond();
 }
-const snapNow = () => b.takeWireSnapshot(performance.now());
+const snapNow = () => b.takeWireSnapshot();
 
 async function main() {
   const { createSim } = await import('../src/platform/node.js');

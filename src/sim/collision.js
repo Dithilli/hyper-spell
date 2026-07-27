@@ -2,7 +2,7 @@
 // Registered against each freshly built engine, so a rebuilt world starts with
 // exactly one listener (js/game.js:358 attached it at script load).
 import { Body, Composite, Events, engine, world, onWorldReset } from './world.js';
-import { performance } from './env.js';
+import { simNow } from './time.js';
 import { pick } from './rng.js';
 import { spawnParticles, spawnText, addShake } from './fx.js';
 import { sfx } from './sfx.js';
@@ -18,7 +18,7 @@ import { damageEnemy } from './ai/enemies.js';
 import { damageDestructible } from './maps/builders.js';
 
 function onCollisionStart({ pairs }) {
-  const now = performance.now();
+  const now = simNow();
   for (const { bodyA, bodyB } of pairs) {
     for (const [a, b] of [[bodyA, bodyB], [bodyB, bodyA]]) {
       if (a.label === 'projectile' && b.label !== 'lava' && projectiles.has(a)) {

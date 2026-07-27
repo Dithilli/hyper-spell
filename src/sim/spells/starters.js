@@ -3,7 +3,7 @@
 // src/sim/content.js can merge them into SPELLS ahead of the other hundred and
 // thirty-six, whatever order the module graph happens to evaluate in.
 import { Body, Composite, world, W } from '../world.js';
-import { performance } from '../env.js';
+import { simNow } from '../time.js';
 import { rand } from '../rng.js';
 import { particles, spawnParticles, addShake, doFlash } from '../fx.js';
 import { slowMo } from '../pace.js';
@@ -77,7 +77,7 @@ export const STARTERS = {
         spawnParticles(self.position.x, self.position.y, '#9be7ff', 10, 4);
         if (other && other.label === 'player' && other.player.alive) {
           damagePlayer(other.player, 15 * m);
-          other.player.frozenUntil = performance.now() + 1500 * m;
+          other.player.frozenUntil = simNow() + 1500 * m;
           other.frictionAir = 0.001;
           sfx.freeze();
         }
@@ -97,7 +97,7 @@ export const STARTERS = {
     cast(p) {
       const m = p.mega || 1;
       const cx = Math.max(120, Math.min(W - 120, p.body.position.x + p.facing * 300));
-      const t0 = performance.now();
+      const t0 = simNow();
       const times = Array.from({ length: Math.round(7 * m) }, (_, i) => t0 + i * 170 + rand(0, 80));
       let spawned = 0;
       activeEffects.push({

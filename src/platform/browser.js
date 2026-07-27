@@ -13,7 +13,7 @@ import { mountMenu } from './menu.js';
 import { loadMap } from '../sim/match.js';
 import { stepSim } from '../sim/tick.js';
 import { createTickLoop } from '../sim/tick-loop.js';
-import { advanceTick } from '../sim/time.js';
+import { simNow } from '../sim/time.js';
 import { draw } from '../render/draw-world.js';
 import { netClientFrame, netMode } from '../net/client.js';
 import { installDebugGlobals } from './debug-globals.js';
@@ -48,14 +48,12 @@ loadMap(0);
 // 144 frames over the same 60 steps a 60Hz one runs, instead of racing ahead of
 // the 60Hz server.
 //
-// The step callback reads `frameNow` rather than calling performance.now()
-// itself so every step in one frame shares that frame's timestamp — the same
-// clock the sim writes all its deadlines on (`performance.now() + 1500` in
-// content). Task 4 moves the whole sim onto simNow() in one coherent change.
-let frameNow = 0;
-const loop = createTickLoop({
-  step: (dt) => { stepSim(frameNow, dt); advanceTick(); },
-});
+// The step callback hands stepSim nothing. The sim keeps its own clock now
+// (simNow() = tick x TICK_MS) and advances the tick itself, so this loop's only
+// job is deciding HOW MANY steps the elapsed real time paid for. The tick is
+// deliberately not advanced here as well — that would run sim time at double
+// rate.
+const loop = createTickLoop({ step: () => stepSim() });
 
 let last = performance.now();
 function frame(now) {
@@ -74,10 +72,25 @@ function frame(now) {
   // burst would swallow the edges. They are what seat a wizard at all.
   scanJoins();
   scanLobbyPads();
-  frameNow = now;
   loop.pump(now - last);
   last = now;
-  draw(now);
+  // draw() is handed SIM time, not the rAF timestamp. The couch renderer is a
+  // view of live sim objects, and almost every `now` it threads is compared
+  // against a sim deadline — `now < p.frozenUntil` (draw-wizard.js:140),
+  // `now < bannerUntil` (hud.js:169), `now - l.at` (the kill feed),
+  // `now - p.casts[s]` (the cooldown rings), and every activeEffect's own
+  // draw(now). Those deadlines are simNow() from this task on, and sim time
+  // runs at paceScale() x real time, so feeding the renderer wall time would
+  // put it (1 - 0.85) x uptime ahead of the sim: about 4.5s adrift after 30s,
+  // 45s after five minutes, at which point no banner and no status overlay
+  // ever draws again. The purely decorative uses of `now` (sine-driven glows)
+  // become tick-quantised as a result, which costs nothing — a frame that ran
+  // no tick redraws an unchanged world anyway.
+  //
+  // The ONLINE branch above is different and keeps wall time: it never runs
+  // stepSim, it interpolates between wire snapshots stamped with its own real
+  // clock, and it drives its cosmetic tick from src/net/client.js.
+  draw(simNow());
   requestAnimationFrame(frame);
 }
 if (harness) globalThis.frame = frame; // the dev harness pages step the loop by hand

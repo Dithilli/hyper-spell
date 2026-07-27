@@ -20,7 +20,7 @@ export function drawReplayOverlay(now) {
 }
 
 export function drawReplay(now) {
-  const f = replayFrameAt(now);
+  const f = replayFrameAt(); // indexes a sim-time tape; it reads simNow() itself
   if (!f) return;
   drawSnapshotWorld(f.snap, f.prev, f.alpha, now);
   ctx.fillStyle = getVignette();

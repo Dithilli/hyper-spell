@@ -2,7 +2,8 @@
 // game.js calls updateWaveMode/startRun/endRun; the enemies themselves are in
 // src/sim/ai/enemies.js.
 import { W, onWorldReset } from './world.js';
-import { performance, random } from './env.js';
+import { random } from './env.js';
+import { simNow } from './time.js';
 import { rand } from './rng.js';
 import { slowMo } from './pace.js';
 import { sfx } from './sfx.js';
@@ -57,7 +58,7 @@ export function queueSpawn(type, tier, at) {
 export function startWave(n) {
   game.wave = n;
   game.waveState = 'active';
-  const now = performance.now();
+  const now = simNow();
   const tier = waveTier(n);
   if (n % 5 === 0) {
     // boss capstone (+ a few adds), reusing the scaled boss system
@@ -115,10 +116,10 @@ export function startRun() {
   loadMap(idx >= 0 ? idx : 0);
   for (const p of players) { clearSpells(p); despawnPlayer(p); spawnPlayer(p, spawnPointFor(p)); }
   game.state = 'PLAY';
-  game.fightAt = performance.now() + 900;
+  game.fightAt = simNow() + 900;
   game.fightShown = false;
   game.bestWave = +(storage.getItem('hs-best-wave') || 0);
-  scheduleTomes(performance.now());
+  scheduleTomes(simNow());
   startWave(1);
 }
 

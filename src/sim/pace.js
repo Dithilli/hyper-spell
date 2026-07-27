@@ -6,12 +6,20 @@
 // Engine.update), which made physics resolution a function of spectacle. Now it
 // scales how fast the tick loop CONSUMES real time — the steps themselves are
 // always exactly TICK_MS. See src/sim/tick-loop.js.
-// The deadline below stays on the env clock, NOT on simNow(). Every one of the
-// 14 slowMo call sites authors `ms` as a real-world duration, and simNow() is
-// the clock this very hitstop slows down — measuring the deadline there makes
-// the beat last ms/scale and feed back on itself (a 90ms freeze at 0.05 held
-// the sim for two seconds). It is the same two-clock error that keeps stepSim
-// on the host clock in this task; Task 4 moves the whole sim across at once.
+// THE ONE DELIBERATE EXCEPTION to "simNow() is the sim's only clock".
+//
+// The deadline below stays on the env clock. Every one of the 14 slowMo call
+// sites authors `ms` as a real-world duration — slowMo(0.05, 90) means 90ms as
+// the player experiences it — and simNow() is the clock this very hitstop slows
+// down. Measuring the deadline there makes the real duration ms/scale and feeds
+// back on itself: a 90ms freeze at 0.05 held the sim for 2000ms (22x), and a
+// 1.1s boss slam for 4.47s. `slowUntil = simNow() + ms * scale` does not fix it
+// either, because updatePace eases `scale` mid-beat.
+//
+// Put another way: pace is a real-time concern BY DEFINITION. It is the thing
+// that makes sim time diverge from real time, so it is the one thing that
+// cannot be measured on sim time. test/fixed-timestep.test.js pins this, and
+// test/module-boundaries.test.js carries a named exemption for this file.
 import { performance } from './env.js';
 import { onWorldReset } from './world.js';
 

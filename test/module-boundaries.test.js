@@ -30,14 +30,40 @@ test('src/sim never imports render, net, or platform', () => {
   assert.deepEqual(offenders, [], `sim must not depend on outer layers:\n${offenders.join('\n')}`);
 });
 
-// unskipped by Task 4 (simNow)
-test.skip('src/sim touches no browser or wall-clock globals', () => {
+// THE ONE EXEMPTION. src/sim/pace.js measures its hitstop on the env clock, and
+// it has to: `ms` at all 14 slowMo call sites is a real-world duration, and
+// simNow() is the clock the hitstop itself slows. Measuring the deadline on sim
+// time makes the beat last ms/scale and feed back on itself — a 90ms freeze
+// held the sim for 2000ms when it was tried. Pace is a real-time concern by
+// definition; it is the thing that MAKES sim time diverge from real time, so it
+// is the one thing that cannot be measured on sim time. See the comment at the
+// top of src/sim/pace.js and the guard in test/fixed-timestep.test.js.
+//
+// The exemption is deliberately narrow: one file, one token. pace.js is still
+// banned from every browser global, and no other file is exempt from anything.
+const CLOCK_EXEMPT = 'src/sim/pace.js';
+const CLOCK_READ = /performance\.now\(/;
+
+test('src/sim touches no browser or wall-clock globals', () => {
   const banned = /\b(document|window|localStorage|navigator|requestAnimationFrame)\b|performance\.now\(/;
   const offenders = [];
+  let exemptedSites = 0;
   for (const file of walk('src/sim')) {
+    const exempt = join(file) === join(CLOCK_EXEMPT);
     readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
-      if (banned.test(line) && !line.trimStart().startsWith('//')) offenders.push(`${file}:${i + 1}  ${line.trim()}`);
+      if (!banned.test(line) || line.trimStart().startsWith('//')) return;
+      // the exemption covers the clock read ONLY, and only where nothing else
+      // on the line is banned
+      if (exempt && CLOCK_READ.test(line) && !banned.test(line.replace(CLOCK_READ, ''))) {
+        exemptedSites++;
+        return;
+      }
+      offenders.push(`${file}:${i + 1}  ${line.trim()}`);
     });
   }
   assert.deepEqual(offenders, [], `sim must be platform-free:\n${offenders.join('\n')}`);
+  // An exemption nobody uses is an exemption nobody notices going stale. If
+  // pace.js ever stops reading the env clock, delete the carve-out above rather
+  // than leaving a hole in the gate.
+  assert.ok(exemptedSites > 0, `${CLOCK_EXEMPT} no longer reads the env clock — drop the exemption`);
 });

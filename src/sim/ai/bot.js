@@ -8,7 +8,8 @@
 // and whether a fusion tome outranks a fistfight. addBot() deals temperaments
 // round-robin so any bot lobby has real variety.
 import { W, H, onWorldReset } from '../world.js';
-import { performance, random } from '../env.js';
+import { random } from '../env.js';
+import { simNow } from '../time.js';
 import { rand, pick } from '../rng.js';
 import { game, currentMap, joinPlayer } from '../match.js';
 import { players, MAX_PLAYERS } from '../player/lifecycle.js';
@@ -242,7 +243,7 @@ export class BotController {
   }
 
   poll() {
-    const now = performance.now();
+    const now = simNow();
     const p = this.player ??= players.find(q => q.controller === this);
     if (!p || !p.alive || (game.state !== 'PLAY' && game.state !== 'LOBBY')) return this.idle();
     if (now > this.nextThink) {

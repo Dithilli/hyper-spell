@@ -1,7 +1,8 @@
 // maps/builders.js — the map registry and the shared builders every map def
 // composes its arena from.
 import { Bodies, Body, Composite, Constraint, world, W, H } from '../world.js';
-import { performance, random } from '../env.js';
+import { random } from '../env.js';
+import { simNow } from '../time.js';
 import { rand, pick } from '../rng.js';
 import { particles, spawnParticles, spawnBurst, addShake } from '../fx.js';
 import { sfx } from '../sfx.js';
@@ -66,7 +67,7 @@ export function breakDestructible(b) {
   for (let i = 0; i < (b.debrisN || 4); i++) {
     const g = Bodies.rectangle(x + rand(-b.w / 3, b.w / 3), y + rand(-b.h / 3, b.h / 3), rand(6, 13), rand(6, 13), { density: 0.001, frictionAir: 0.02, label: 'gib' });
     g.color = b.dcolor;
-    g.dieAt = performance.now() + 2600;
+    g.dieAt = simNow() + 2600;
     Body.setVelocity(g, { x: rand(-6, 6), y: rand(-9, -2) });
     Body.setAngularVelocity(g, rand(-0.5, 0.5));
     gibs.add(g);
@@ -77,7 +78,7 @@ export function breakDestructible(b) {
   // so a chewed-up pillar can cascade. hp<=0 guard above keeps that finite.
   explode(x, y, 80, 10, 9, null);
   if (b.kind === 'ice') {
-    const now = performance.now();
+    const now = simNow();
     for (const q of players) {
       if (!q.alive) continue;
       if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 100) { q.frozenUntil = Math.max(q.frozenUntil || 0, now + 450); q.body.frictionAir = 0.001; }

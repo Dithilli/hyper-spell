@@ -1,7 +1,8 @@
 // match.js — the state machine: round and match flow, the arena currently
 // loaded, and the banner that narrates both.
 import { Composite, Bodies, world, engine, W, H, onWorldReset } from './world.js';
-import { performance, random } from './env.js';
+import { random } from './env.js';
+import { simNow } from './time.js';
 import { rand } from './rng.js';
 import { particles, doFlash } from './fx.js';
 import { slowMo } from './pace.js';
@@ -38,7 +39,7 @@ export let banner = '', bannerColor = '#fff', bannerUntil = 0, bannerHyper = fal
 function baseSetBanner(text, color, ms = 1400, hyper = false) {
   banner = text;
   bannerColor = color;
-  bannerUntil = performance.now() + ms;
+  bannerUntil = simNow() + ms;
   bannerHyper = hyper;
 }
 
@@ -96,11 +97,11 @@ export function startRound(index) {
     spawnPlayer(p, spawnPointFor(p));
   }
   game.state = 'PLAY';
-  game.fightAt = performance.now() + 1100;
+  game.fightAt = simNow() + 1100;
   game.fightShown = false;
-  scheduleTomes(performance.now());
-  if (bossTime) spawnBoss(performance.now());
-  else rollEnvEvent(performance.now());
+  scheduleTomes(simNow());
+  if (bossTime) spawnBoss(simNow());
+  else rollEnvEvent(simNow());
   setBanner(bossTime ? 'BOSS BATTLE' : currentMap.def.name, bossTime ? '#ffd166' : '#e8d5ff', 1000);
 }
 
@@ -130,7 +131,7 @@ export function checkRoundEnd() {
     game.state = 'ROUND_END';
     game.winner = null;
     flushRoundTelemetry();
-    const replayMs = startReplay(performance.now());
+    const replayMs = startReplay(simNow());
     for (const p of players) p.roundWins = 0;
     setBanner(`${game.boss.def.name} PREVAILS — START OVER`, game.boss.def.color, 1800 + replayMs);
     sfx.death();
@@ -145,7 +146,7 @@ export function checkRoundEnd() {
   game.state = 'ROUND_END';
   game.winner = winner;
   flushRoundTelemetry();
-  const replayMs = startReplay(performance.now()); // 0 if the round was too short
+  const replayMs = startReplay(simNow()); // 0 if the round was too short
   if (winner) {
     winner.roundWins++;
     setBanner(`${winner.name} +1`, winner.color, 1800 + replayMs);

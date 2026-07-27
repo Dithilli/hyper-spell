@@ -2,7 +2,7 @@ import { makeClock } from './clock.js';
 import { seededRandom } from './seeded-random.js';
 import { hashSnapshot } from './hash.js';
 import { createSim } from '../../src/platform/node.js';
-import { TICK_MS, advanceTick } from '../../src/sim/time.js';
+import { TICK_MS } from '../../src/sim/time.js';
 
 // input tape format: { players: [{ name }], frames: [ { "0": {m,j,c,c2,b,a}, ... } ] }
 // A frame index beyond the tape's length repeats the last frame.
@@ -25,16 +25,14 @@ export function runTape({ tape, ticks, seed = 12345 }) {
         const msg = frame?.[String(slot)];
         if (msg) b.setInput(slot, msg);
       }
-      b.stepSim(clock.now(), TICK_MS);
-      // the platform loops advance the tick inside their step callback; this rig
-      // is its own loop, so it owns that too. createSim() reset the counter, so
-      // simNow() and this clock hold the same number all the way through — the
-      // coherence Task 4 needs when it moves the sim's deadlines onto simNow().
-      // Nothing in the sim reads simNow() yet, so this cannot move a hash; the
-      // point is that the oracle stays honest when something does.
-      advanceTick();
+      b.stepSim(); // takes nothing, steps TICK_MS, and advances the tick itself
+      // The injected env clock is walked alongside the tick so it holds the same
+      // number simNow() does. Nothing under src/sim reads it any more, but
+      // src/net/server-bridge.js still does — its wire-input staleness window is
+      // a real-time concern — and a frozen clock there would silently change
+      // which inputs the tape counts as fresh.
       clock.advance(TICK_MS);
-      hashes.push(hashSnapshot(b.takeWireSnapshot(clock.now())));
+      hashes.push(hashSnapshot(b.takeWireSnapshot()));
     }
     return hashes;
   } finally {

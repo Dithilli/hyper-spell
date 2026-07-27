@@ -4863,9 +4863,29 @@
     return [a, b];
   }
 
-  // src/sim/env.js
-  var performance2 = globalThis.performance;
-  var random = Math.random;
+  // src/sim/time.js
+  var time_exports = {};
+  __export(time_exports, {
+    MAX_CATCHUP: () => MAX_CATCHUP,
+    TICK_HZ: () => TICK_HZ,
+    TICK_MS: () => TICK_MS,
+    advanceTick: () => advanceTick,
+    currentTick: () => currentTick,
+    resetTick: () => resetTick,
+    simNow: () => simNow,
+    ticks: () => ticks
+  });
+  var TICK_HZ = 60;
+  var TICK_MS = 1e3 / TICK_HZ;
+  var MAX_CATCHUP = 5;
+  var tick = 0;
+  var currentTick = () => tick;
+  var advanceTick = () => ++tick;
+  var resetTick = (t = 0) => {
+    tick = t;
+  };
+  var simNow = () => tick * TICK_MS;
+  var ticks = (ms) => Math.round(ms / TICK_MS);
 
   // src/sim/rng.js
   var rng_exports = {};
@@ -4874,6 +4894,12 @@
     pick: () => pick,
     rand: () => rand
   });
+
+  // src/sim/env.js
+  var performance2 = globalThis.performance;
+  var random = Math.random;
+
+  // src/sim/rng.js
   var rand = (a, b) => a + random() * (b - a);
   var pick = (arr) => arr[Math.floor(random() * arr.length)];
   function makeRng(seed) {
@@ -5434,7 +5460,8 @@
   __export(snapshot_exports, {
     serializeSnapshot: () => serializeSnapshot
   });
-  function serializeSnapshot(now) {
+  function serializeSnapshot() {
+    const now = simNow();
     const flag = (k, on) => on ? { [k]: 1 } : {};
     const ps = players.map((p) => ({
       s: p.slot,
@@ -5576,7 +5603,7 @@
   function replayRecord(now) {
     if (game.state !== "PLAY") return;
     if (++replayFrameCounter % REPLAY.HZ_DIV !== 0) return;
-    replayBuf.push({ t: now, snap: serializeSnapshot(now) });
+    replayBuf.push({ t: now, snap: serializeSnapshot() });
     while (replayBuf.length && replayBuf[0].t < now - REPLAY.BUF_MS) replayBuf.shift();
   }
   function clearReplay() {
@@ -5597,7 +5624,8 @@
     replayBuf.length = 0;
     return REPLAY.LEAD_MS + durMs / REPLAY.SPEED + REPLAY.HOLD_MS;
   }
-  function replayFrameAt(now) {
+  function replayFrameAt() {
+    const now = simNow();
     const r = game.replay;
     if (!r) return null;
     const t = r.frames[0].t + Math.max(0, now - r.playAt) * REPLAY.SPEED;
@@ -5630,7 +5658,7 @@
     fb.owner = null;
     fb.color = color;
     fb.gravityScale = 0.25;
-    fb.expireAt = performance2.now() + 5e3;
+    fb.expireAt = simNow() + 5e3;
     const dm = game.boss?.dmgMult || 1;
     fb.onHit = (self) => explode(self.position.x, self.position.y, boom[0], boom[1], boom[2] * dm, "boss");
     Body.setVelocity(fb, { x: Math.cos(a) * speed, y: Math.sin(a) * speed });
@@ -5983,7 +6011,7 @@
     if (src && src.slot !== void 0) statFor(src).bossDmg += dmg;
     if (src && src.spellId) telBossDmg(src.spellId, dmg);
     bs.hp -= dmg;
-    bs.hurtAt = performance2.now();
+    bs.hurtAt = simNow();
     if (at) spawnParticles(at.x, at.y, bs.def.color, 8, 4);
     if (bs.hp <= 0) slayBoss();
   }
@@ -6004,7 +6032,7 @@
     }
     game.state = "ROUND_END";
     game.winner = null;
-    const replayMs = startReplay(performance2.now());
+    const replayMs = startReplay(simNow());
     setBanner(bs.secret ? `${bs.def.name} RAGE-QUITS` : `${bs.def.name} IS SLAIN!`, "#ffd166", 1800 + replayMs);
     sfx.victory();
     slowMo(0.25, 1100);
@@ -6074,7 +6102,7 @@
     fb.owner = "boss";
     fb.color = color;
     fb.gravityScale = 0.3;
-    fb.expireAt = performance2.now() + 5e3;
+    fb.expireAt = simNow() + 5e3;
     fb.onHit = (self) => explode(self.position.x, self.position.y, boom[0], boom[1], boom[2], "boss");
     Body.setVelocity(fb, { x: Math.cos(a) * speed, y: Math.sin(a) * speed });
     projectiles.add(fb);
@@ -6207,7 +6235,7 @@
   function damageEnemy(e, dmg, at, src) {
     if (!e || e.hp <= 0) return;
     e.hp -= dmg;
-    e.hurtAt = performance2.now();
+    e.hurtAt = simNow();
     if (at) spawnParticles(at.x, at.y, e.color, 6, 4);
     if (e.hp <= 0) killEnemy(e, src);
   }
@@ -6524,7 +6552,7 @@
     for (let i = 0; i < (b.debrisN || 4); i++) {
       const g = Bodies.rectangle(x + rand(-b.w / 3, b.w / 3), y + rand(-b.h / 3, b.h / 3), rand(6, 13), rand(6, 13), { density: 1e-3, frictionAir: 0.02, label: "gib" });
       g.color = b.dcolor;
-      g.dieAt = performance2.now() + 2600;
+      g.dieAt = simNow() + 2600;
       Body.setVelocity(g, { x: rand(-6, 6), y: rand(-9, -2) });
       Body.setAngularVelocity(g, rand(-0.5, 0.5));
       gibs.add(g);
@@ -6532,7 +6560,7 @@
     }
     explode(x, y, 80, 10, 9, null);
     if (b.kind === "ice") {
-      const now = performance2.now();
+      const now = simNow();
       for (const q of players) {
         if (!q.alive) continue;
         if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 100) {
@@ -6882,7 +6910,7 @@
 
   // src/sim/player/controller.js
   function gravDirFor(p) {
-    if (p && performance2.now() < (p.gravityLockUntil || 0)) return p.gravityLockDir;
+    if (p && simNow() < (p.gravityLockUntil || 0)) return p.gravityLockDir;
     return engine.gravity.y < 0 ? -1 : 1;
   }
   function grounded(p) {
@@ -7037,7 +7065,7 @@
     fb.owner = p;
     fb.color = color;
     fb.gravityScale = gravityScale;
-    if (expireMs) fb.expireAt = performance2.now() + expireMs;
+    if (expireMs) fb.expireAt = simNow() + expireMs;
     Body.setVelocity(fb, { x: dir.x * spd, y: dir.y * spd });
     projectiles.add(fb);
     Composite.add(world, fb);
@@ -7052,7 +7080,7 @@
     fb.owner = p;
     fb.color = color;
     fb.gravityScale = 1;
-    fb.expireAt = performance2.now() + expireMs;
+    fb.expireAt = simNow() + expireMs;
     Body.setVelocity(fb, { x: vx, y: vy });
     projectiles.add(fb);
     Composite.add(world, fb);
@@ -7065,7 +7093,7 @@
   function summon(body, { life = 5e3, color, ...flags } = {}) {
     if (color) body.render.fillStyle = color;
     Object.assign(body, flags);
-    body.dieAt = performance2.now() + life;
+    body.dieAt = simNow() + life;
     summons.add(body);
     Composite.add(world, body);
     return body;
@@ -7157,7 +7185,7 @@
       });
     }
     activeEffects.push({
-      until: performance2.now() + life,
+      until: simNow() + life,
       draw(now, ctx2) {
         ctx2.strokeStyle = color;
         ctx2.lineWidth = width;
@@ -7176,7 +7204,7 @@
     return H - 30;
   }
   function zapHit(target, dmg, src) {
-    const now = performance2.now();
+    const now = simNow();
     if (now < (target.wetUntil || 0)) {
       dmg *= 1.6;
       spawnText(target.body.position.x, target.body.position.y - 46, "CONDUCT!", "#9ef0f0");
@@ -7208,7 +7236,7 @@
     doFlash("#a55eea", 0.2);
     spawnRing(x, y, "#a55eea");
     activeEffects.push({
-      until: performance2.now() + 2200 * m,
+      until: simNow() + 2200 * m,
       net: { k: "sing", x, y },
       update() {
         const R = 350 * (1 + (m - 1) * 0.5);
@@ -7268,7 +7296,7 @@
   }
   function makeZone({ x, y, r, life, color, tick: tick2, tickBody, draw: draw2, onEnd }) {
     activeEffects.push({
-      until: performance2.now() + life,
+      until: simNow() + life,
       x,
       y,
       r,
@@ -7500,7 +7528,7 @@
     cooldown: 1100,
     cast(p) {
       const fb = boomBolt(p, { color: "#d2b4de", r: 7, speed: 18, vy: -4, g: 0.2, radius: 110, power: 16, dmg: 26, expireMs: 2400 });
-      fb.bornAt = performance2.now();
+      fb.bornAt = simNow();
       fb.update = (self, now) => {
         if (!self.turned && now - fb.bornAt > 600) {
           self.turned = true;
@@ -7546,7 +7574,7 @@
         fb.stuck = true;
         Body.setStatic(fb, true);
         activeEffects.push({
-          until: performance2.now() + 900,
+          until: simNow() + 900,
           draw(now, ctx2) {
             ctx2.fillStyle = Math.sin(now * 0.03) > 0 ? "#aef05a" : "#fff";
             ctx2.beginPath();
@@ -7580,7 +7608,7 @@
     cast(p) {
       const m = p.mega || 1;
       const { x, y } = p.body.position;
-      const t0 = performance2.now();
+      const t0 = simNow();
       let i = 0;
       activeEffects.push({
         until: t0 + 1e3,
@@ -7598,7 +7626,7 @@
     color: "#ff5e3a",
     cooldown: 1900,
     cast(p) {
-      const t0 = performance2.now();
+      const t0 = simNow();
       let i = 0;
       activeEffects.push({
         until: t0 + 720,
@@ -7698,7 +7726,7 @@
       const gy = groundYAt(x);
       spawnText(x, gy - 44, "\u26A1", "#fff89e");
       spawnParticles(x, gy - 8, "#fff89e", 6, 2, 30);
-      const t0 = performance2.now();
+      const t0 = simNow();
       activeEffects.push({
         until: t0 + 550,
         draw(now, ctx2) {
@@ -7762,7 +7790,7 @@
     cooldown: 3200,
     cast(p) {
       const m = p.mega || 1;
-      const t0 = performance2.now();
+      const t0 = simNow();
       let i = 0;
       activeEffects.push({
         until: t0 + 1300,
@@ -7867,7 +7895,7 @@
       const m = p.mega || 1;
       Body.setVelocity(p.body, { x: p.body.velocity.x, y: 30 });
       const e = {
-        until: performance2.now() + 1600,
+        until: simNow() + 1600,
         update(now) {
           if (!p.alive) {
             e.until = 0;
@@ -7926,7 +7954,7 @@
       const m = p.mega || 1;
       const start = frontPos(p, 60);
       const e = {
-        until: performance2.now() + 3500,
+        until: simNow() + 3500,
         x: start.x,
         vx: p.facing * 2.6,
         net: { k: "tor", x: start.x },
@@ -7958,7 +7986,7 @@
   });
   regSpell("iceshard", { name: "Ice Shard", color: "#bfe8ff", cooldown: 400, cast(p) {
     statusBolt(p, { color: "#bfe8ff", r: 4, speed: 23, vy: -2, dmg: 12 }, (q) => {
-      q.frozenUntil = performance2.now() + 450;
+      q.frozenUntil = simNow() + 450;
     });
   } });
   regSpell("glacier", {
@@ -8020,7 +8048,7 @@
     sfx.freeze();
     doFlash("#bfe8ff", 0.3);
     for (const q of enemiesOf(p)) {
-      q.frozenUntil = performance2.now() + 800 * m;
+      q.frozenUntil = simNow() + 800 * m;
       q.body.frictionAir = 1e-3;
     }
   } });
@@ -8035,7 +8063,7 @@
       for (const q of enemiesOf(p)) {
         const d = Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y);
         if (d < 180 * m) {
-          q.frozenUntil = performance2.now() + 1200 * m;
+          q.frozenUntil = simNow() + 1200 * m;
           q.body.frictionAir = 1e-3;
           damagePlayer(q, 10 * m);
         }
@@ -8059,7 +8087,7 @@
   regSpell("brainfreeze", { name: "Brain Freeze", color: "#ceb4ff", cooldown: 3e3, cast(p) {
     const m = p.mega || 1;
     for (const q of enemiesOf(p)) {
-      q.reversedUntil = performance2.now() + 3e3 * m;
+      q.reversedUntil = simNow() + 3e3 * m;
       spawnText(q.body.position.x, q.body.position.y - 40, "?!", "#ceb4ff");
     }
     sfx.freeze();
@@ -8070,7 +8098,7 @@
     cooldown: 1800,
     cast(p) {
       statusBolt(p, { color: "#9be7ff", r: 5, speed: 19, vy: -3, dmg: 6 }, (q, m) => {
-        q.frozenUntil = performance2.now() + 1e3 * m;
+        q.frozenUntil = simNow() + 1e3 * m;
         q.body.frictionAir = 1e-3;
         sfx.freeze();
       });
@@ -8078,14 +8106,14 @@
   });
   regSpell("permafrost", { name: "Permafrost", color: "#7fd4ff", cooldown: 2800, cast(p) {
     statusBolt(p, { color: "#7fd4ff", r: 9, speed: 10, vy: -3, dmg: 20 }, (q, m) => {
-      q.frozenUntil = performance2.now() + 2600 * m;
+      q.frozenUntil = simNow() + 2600 * m;
       q.body.frictionAir = 1e-3;
       sfx.freeze();
     });
   } });
   regSpell("ignite", { name: "Ignite", color: "#ff8c5a", cooldown: 700, cast(p) {
     statusBolt(p, { color: "#ff8c5a", dmg: 8 }, (q, m) => {
-      q.burnUntil = performance2.now() + 3e3 * m;
+      q.burnUntil = simNow() + 3e3 * m;
     });
   } });
   regSpell("flamewall", {
@@ -8140,7 +8168,7 @@
     cast(p) {
       const dir = aimDir(p, 25, 4);
       Body.setVelocity(p.body, { x: dir.x * 25, y: dir.y * 25 - 2 });
-      p.invulnUntil = performance2.now() + 600;
+      p.invulnUntil = simNow() + 600;
       for (let i = 0; i < 20; i++) particles.push({ kind: "spark", x: p.body.position.x - dir.x * i * 4, y: p.body.position.y - dir.y * i * 4 + rand(-8, 8), vx: -dir.x * rand(2, 6), vy: rand(-2, 2), life: 22, maxLife: 22, color: "#ffb347", r: 2.5 });
     }
   });
@@ -8172,7 +8200,7 @@
           spawnParticles(self.position.x, self.position.y, "#ffe066", 6, 3);
           if (other && other.label === "player") {
             damagePlayer(other.player, 6);
-            other.player.burnUntil = performance2.now() + 1200;
+            other.player.burnUntil = simNow() + 1200;
           }
         };
         fb.update = (self) => {
@@ -8196,7 +8224,7 @@
       const nx = Math.max(30, Math.min(W - 30, p.body.position.x + dir.x * 220));
       const ny = Math.max(40, Math.min(H - 60, p.body.position.y + dir.y * 160));
       Body.setPosition(p.body, { x: nx, y: ny });
-      p.invulnUntil = performance2.now() + 300;
+      p.invulnUntil = simNow() + 300;
       spawnParticles(nx, ny, "#c3b1e1", 14, 5);
       sfx.pickup();
     }
@@ -8213,8 +8241,8 @@
     }
   });
   regSpell("ghostwalk", { name: "Ghost Walk", color: "#e8e8ff", cooldown: 4e3, cast(p) {
-    p.speedUntil = performance2.now() + 1500;
-    p.invulnUntil = performance2.now() + 1500;
+    p.speedUntil = simNow() + 1500;
+    p.invulnUntil = simNow() + 1500;
     spawnText(p.body.position.x, p.body.position.y - 44, "GHOSTLY", "#e8e8ff");
   } });
   regSpell("swaphex", {
@@ -8236,7 +8264,7 @@
   });
   regSpell("timeskip", { name: "Time Skip", color: "#b0e0e6", cooldown: 5e3, cast(p) {
     slowMo(0.35, 1300);
-    p.speedUntil = performance2.now() + 1300;
+    p.speedUntil = simNow() + 1300;
     doFlash("#b0e0e6", 0.2);
   } });
   regSpell("smokebomb", {
@@ -8248,16 +8276,16 @@
       spawnParticles(p.body.position.x, p.body.position.y, "#9a9ab0", 30, 5, 60);
       const nx = Math.max(30, Math.min(W - 30, p.body.position.x - p.facing * 170));
       Body.setPosition(p.body, { x: nx, y: p.body.position.y - 10 });
-      p.invulnUntil = performance2.now() + 400;
+      p.invulnUntil = simNow() + 400;
     }
   });
   regSpell("springheel", { name: "Springheel", color: "#baffc9", cooldown: 5500, cast(p) {
-    p.jumpBoostUntil = performance2.now() + 5e3;
+    p.jumpBoostUntil = simNow() + 5e3;
     spawnText(p.body.position.x, p.body.position.y - 44, "BOING!", "#baffc9");
     sfx.boing();
   } });
   regSpell("featherfall", { name: "Feather Fall", color: "#fffde7", cooldown: 5e3, cast(p) {
-    p.featherUntil = performance2.now() + 4e3;
+    p.featherUntil = simNow() + 4e3;
     spawnText(p.body.position.x, p.body.position.y - 44, "FEATHER-LIGHT", "#fffde7");
   } });
   regSpell("secondwind", { name: "Second Wind", color: "#7bd88f", cooldown: 6e3, cast(p) {
@@ -8265,7 +8293,7 @@
     spawnParticles(p.body.position.x, p.body.position.y, "#7bd88f", 16, 4);
   } });
   regSpell("aegis", { name: "Aegis", color: "#ffd700", cooldown: 6e3, cast(p) {
-    p.invulnUntil = performance2.now() + 2500;
+    p.invulnUntil = simNow() + 2500;
     sfx.pickup();
   } });
   regSpell("cratedrop", {
@@ -8367,7 +8395,7 @@
       const pos = frontPos(p, 120);
       const hive = Bodies.rectangle(pos.x, pos.y - 20, 22, 26, { density: 2e-3, friction: 0.6, label: "hive" });
       summon(hive, { life: 3e3, color: "#e8b647" });
-      const t0 = performance2.now();
+      const t0 = simNow();
       let i = 0;
       activeEffects.push({
         until: t0 + 2200,
@@ -8443,11 +8471,11 @@
     cooldown: 6e3,
     cast(p) {
       p.gravityLockDir = engine.gravity.y < 0 ? -1 : 1;
-      p.gravityLockUntil = performance2.now() + 2500;
+      p.gravityLockUntil = simNow() + 2500;
       engine.gravity.y = -game.baseGravity;
       doFlash("#c084fc", 0.3);
       setBanner("GRAVITY!", "#c084fc", 1e3);
-      activeEffects.push({ until: performance2.now() + 2500, onEnd() {
+      activeEffects.push({ until: simNow() + 2500, onEnd() {
         engine.gravity.y = game.baseGravity;
       } });
     }
@@ -8459,7 +8487,7 @@
     cast() {
       engine.gravity.y = game.baseGravity * 0.3;
       setBanner("LOW GRAVITY", "#d8d8f0", 1e3);
-      activeEffects.push({ until: performance2.now() + 4e3, onEnd() {
+      activeEffects.push({ until: simNow() + 4e3, onEnd() {
         engine.gravity.y = game.baseGravity;
       } });
     }
@@ -8577,7 +8605,7 @@
   regSpell("kingsdecree", { name: "King's Decree", color: "#ffd700", cooldown: 5e3, cast(p) {
     const m = p.mega || 1;
     for (const q of enemiesOf(p)) {
-      q.shrinkUntil = performance2.now() + 4e3 * m;
+      q.shrinkUntil = simNow() + 4e3 * m;
       spawnText(q.body.position.x, q.body.position.y - 44, "SHRUNK", "#ffd700");
     }
     setBanner("BY ROYAL DECREE", "#ffd700", 1100);
@@ -8590,7 +8618,7 @@
       const m = p.mega || 1;
       const t = nearestEnemy(p, 320);
       if (!t) return;
-      const now = performance2.now(), dur = 2e3 * m;
+      const now = simNow(), dur = 2e3 * m;
       t.frozenUntil = now + dur;
       t.heavyUntil = now + dur;
       t.body.frictionAir = 1e-3;
@@ -8613,7 +8641,7 @@
       const pos = frontPos(p, 60);
       const peel = Bodies.rectangle(pos.x, pos.y, 16, 6, { density: 1e-3, friction: 0.05, label: "banana" });
       peel.owner = p;
-      summon(peel, { life: 1e4, color: "#ffe135", armAt: performance2.now() + 700 });
+      summon(peel, { life: 1e4, color: "#ffe135", armAt: simNow() + 700 });
     }
   });
   regSpell("yoink", {
@@ -8647,7 +8675,7 @@
     }
   });
   regSpell("unoreverse", { name: "Uno Reverse", color: "#4ecdff", cooldown: 5e3, cast(p) {
-    p.reflectUntil = performance2.now() + 3e3;
+    p.reflectUntil = simNow() + 3e3;
     spawnText(p.body.position.x, p.body.position.y - 44, "REVERSE!", "#4ecdff");
   } });
   regSpell("balloonhex", {
@@ -8656,7 +8684,7 @@
     cooldown: 2600,
     cast(p) {
       statusBolt(p, { color: "#ff6b81", r: 6, speed: 16, vy: -4, dmg: 5 }, (q, m) => {
-        q.floatyUntil = performance2.now() + 1800 * m;
+        q.floatyUntil = simNow() + 1800 * m;
         Body.setVelocity(q.body, { x: q.body.velocity.x, y: -7 });
         spawnText(q.body.position.x, q.body.position.y - 44, "UP UP", "#ff6b81");
         sfx.boing?.();
@@ -8669,7 +8697,7 @@
     cooldown: 2600,
     cast(p) {
       statusBolt(p, { color: "#5a6b7a", r: 6, speed: 16, vy: -4, dmg: 5 }, (q, m) => {
-        q.heavyUntil = performance2.now() + 2600 * m;
+        q.heavyUntil = simNow() + 2600 * m;
         Body.setVelocity(q.body, { x: q.body.velocity.x, y: 11 });
         spawnText(q.body.position.x, q.body.position.y - 44, "HEAVY", "#5a6b7a");
         sfx.thud?.();
@@ -8678,12 +8706,12 @@
   });
   regSpell("shrinkray", { name: "Shrink Ray", color: "#98fb98", cooldown: 2200, cast(p) {
     statusBolt(p, { color: "#98fb98", dmg: 10 }, (q, m) => {
-      q.shrinkUntil = performance2.now() + 4e3 * m;
+      q.shrinkUntil = simNow() + 4e3 * m;
       spawnText(q.body.position.x, q.body.position.y - 40, "tiny!", "#98fb98");
     });
   } });
   regSpell("growthspurt", { name: "Growth Spurt", color: "#a7e88f", cooldown: 5e3, cast(p) {
-    p.growUntil = performance2.now() + 4e3;
+    p.growUntil = simNow() + 4e3;
     spawnText(p.body.position.x, p.body.position.y - 50, "BIG!", "#a7e88f");
   } });
   regSpell("mirrorcast", {
@@ -8742,7 +8770,7 @@
     cooldown: 3e3,
     cast(p) {
       statusBolt(p, { color: "#ff9ecb", dmg: 5 }, (q, m) => {
-        q.pigUntil = performance2.now() + 3800 * m;
+        q.pigUntil = simNow() + 3800 * m;
         spawnText(q.body.position.x, q.body.position.y - 44, "OINK!", "#ff9ecb");
         sfx.oink();
       });
@@ -8758,7 +8786,7 @@
       const gy = groundYAt(pos.x);
       const rod = Bodies.rectangle(pos.x, gy - 40, 8, 80, { isStatic: true, label: "wall" });
       summon(rod, { life: 5e3, color: "#e3f265" });
-      const t0 = performance2.now();
+      const t0 = simNow();
       let next = t0 + 700;
       activeEffects.push({
         until: t0 + 5e3,
@@ -8781,7 +8809,7 @@
       const gy = groundYAt(pos.x);
       const coil = Bodies.rectangle(pos.x, gy - 25, 14, 50, { isStatic: true, label: "wall" });
       summon(coil, { life: 4e3, color: "#9ef0f0" });
-      const t0 = performance2.now();
+      const t0 = simNow();
       let next = t0 + 400;
       activeEffects.push({
         until: t0 + 4e3,
@@ -8896,7 +8924,7 @@
     p.slotCharges[0] = charges;
     p.slotCharges[1] = null;
     p.casts[0] = 0;
-    p.slotFilledAt[0] = performance2.now();
+    p.slotFilledAt[0] = simNow();
     p.lastCastSlot = 0;
     const { x, y } = p.body.position;
     setBanner("\u26A1 FUSION! " + def.name.toUpperCase(), def.color, 1800, true);
@@ -8922,7 +8950,7 @@
         fb.onHit = () => explode(fb.position.x, fb.position.y, 90 * m, 14 * m, 22 * m, p, { selfSafe: true });
       }
       explode(p.body.position.x, p.body.position.y, 130 * m, 12 * m, 8 * m, p, { selfSafe: true });
-      for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 320 * m) q.burnUntil = performance2.now() + 2500 * m;
+      for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 320 * m) q.burnUntil = simNow() + 2500 * m;
       for (let i = 0; i < 10; i++) {
         const a = i / 10 * Math.PI * 2;
         spawnBurst(p.body.position.x + Math.cos(a) * 30, p.body.position.y + Math.sin(a) * 30, i % 2 ? "#ffd166" : "#ff5e3a", 4, { dir: -Math.PI / 2, spread: 1, speed: 5, up: 4, g: 0.06, life: 46 });
@@ -8942,7 +8970,7 @@
       doFlash("#bfe8ff", 0.35);
       addShake(6);
       for (const q of enemiesOf(p)) {
-        q.frozenUntil = performance2.now() + 1400 * m;
+        q.frozenUntil = simNow() + 1400 * m;
         q.body.frictionAir = 1e-3;
         damagePlayer(q, 14 * m, p);
         spawnBurst(q.body.position.x, q.body.position.y, "#eaffff", 14, { kind: "spark", speed: 9, r: 2.5 });
@@ -8975,7 +9003,7 @@
       fb.onHit = (self, other) => {
         base?.(self, other);
         if (other?.label === "player" && other.player.alive) {
-          other.player.frozenUntil = performance2.now() + 700 * m;
+          other.player.frozenUntil = simNow() + 700 * m;
           other.player.body.frictionAir = 1e-3;
         }
       };
@@ -8999,7 +9027,7 @@
       sfx.lightning();
       doFlash("#ff4df0", 0.3);
       addShake(8);
-      if (hit && hit.label === "player") hit.player.burnUntil = performance2.now() + 2600 * m;
+      if (hit && hit.label === "player") hit.player.burnUntil = simNow() + 2600 * m;
     }
   });
   regHybrid("superconductor", {
@@ -9011,7 +9039,7 @@
       const m = p.mega || 1;
       const { hit, pt } = zapRay(p, 38, 10, 3);
       if (hit && hit.label === "player") {
-        hit.player.frozenUntil = performance2.now() + 1e3 * m;
+        hit.player.frozenUntil = simNow() + 1e3 * m;
         hit.player.body.frictionAir = 1e-3;
       }
       const d = aimDir(p, 1, 0);
@@ -9034,7 +9062,7 @@
       const m = p.mega || 1;
       const start = frontPos(p, 70);
       const e = {
-        until: performance2.now() + 2400,
+        until: simNow() + 2400,
         x: start.x,
         vx: p.facing * 3.2,
         net: { k: "tor", x: start.x, c: "#ff7043" },
@@ -9079,7 +9107,7 @@
       explode(x + p.facing * 260, y, 220, 10 * m, 18 * m, p, { selfSafe: true });
       for (const q of enemiesOf(p)) {
         if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 440) {
-          q.frozenUntil = performance2.now() + 800 * m;
+          q.frozenUntil = simNow() + 800 * m;
           q.body.frictionAir = 1e-3;
           Body.setVelocity(q.body, { x: q.body.velocity.x + p.facing * 6, y: q.body.velocity.y });
         }
@@ -9094,7 +9122,7 @@
     cooldown: 3e3,
     cast(p) {
       const m = p.mega || 1;
-      const t0 = performance2.now();
+      const t0 = simNow();
       let i = 0;
       activeEffects.push({ until: t0 + 950, update(now) {
         if (now > t0 + i * 180 && i < 4) {
@@ -9115,12 +9143,12 @@
       const base = fb.onHit;
       fb.onHit = (self, other) => {
         base?.(self, other);
-        if (other?.label === "player" && other.player.alive) other.player.burnUntil = performance2.now() + 2200 * m;
+        if (other?.label === "player" && other.player.alive) other.player.burnUntil = simNow() + 2200 * m;
         for (let i = 0; i < 4; i++) {
           const blob = dropProjectile(p, self.position.x + rand(-14, 14), self.position.y - 24, { r: 6, vx: rand(-9, 9), vy: rand(-10, -5), color: i % 2 ? "#ff8c5a" : "#ff5e57", density: 3e-3, expireMs: 2600 });
           blob.onHit = (bSelf, bOther) => {
             explode(blob.position.x, blob.position.y, 70 * m, 9 * m, 12 * m, p, { selfSafe: true });
-            if (bOther?.label === "player" && bOther.player.alive) bOther.player.burnUntil = performance2.now() + 1400 * m;
+            if (bOther?.label === "player" && bOther.player.alive) bOther.player.burnUntil = simNow() + 1400 * m;
           };
         }
         spawnBurst(self.position.x, self.position.y, "#ffd166", 14, { dir: -Math.PI / 2, spread: 2, speed: 8, up: 4, g: 0.12, life: 40 });
@@ -9136,7 +9164,7 @@
       const m = p.mega || 1;
       const t = nearestEnemy(p);
       const tx = t ? t.body.position.x : p.body.position.x + p.facing * 300;
-      const t0 = performance2.now();
+      const t0 = simNow();
       let dropped = 0;
       activeEffects.push({
         until: t0 + 900,
@@ -9147,7 +9175,7 @@
             const chunk = dropProjectile(p, rx, -40, { r: rand(10, 15) * Math.min(m, 1.6), vy: rand(15, 19), color: dropped % 2 ? "#eaf6ff" : "#bfe8ff", density: 7e-3 });
             chunk.onHit = () => {
               explode(chunk.position.x, chunk.position.y, 90 * m, 12 * m, 16 * m, p, { selfSafe: true });
-              const nw = performance2.now();
+              const nw = simNow();
               for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - chunk.position.x, q.body.position.y - chunk.position.y) < 120) {
                 q.frozenUntil = Math.max(q.frozenUntil || 0, nw + 700 * m);
                 q.body.frictionAir = 1e-3;
@@ -9157,7 +9185,7 @@
           }
         }
       });
-      for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - tx) < 180) q.heavyUntil = performance2.now() + 1500 * m;
+      for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - tx) < 180) q.heavyUntil = simNow() + 1500 * m;
       addShake(9);
       sfx.freeze?.();
     }
@@ -9185,7 +9213,7 @@
       const sx = p.body.position.x + dir.x * 240, sy = p.body.position.y - 40 + dir.y * 240;
       spawnSingularity(sx, sy, m, p, { selfSafe: true });
       explode(sx, sy, 160, 8 * m, 20 * m, p, { selfSafe: true });
-      for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - sx, q.body.position.y - sy) < 300) q.burnUntil = performance2.now() + 2600 * m;
+      for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - sx, q.body.position.y - sy) < 300) q.burnUntil = simNow() + 2600 * m;
       for (let i = 0; i < 24; i++) {
         const a = i / 24 * Math.PI * 2;
         spawnBurst(sx + Math.cos(a) * 44, sy + Math.sin(a) * 44, i % 3 ? "#ff7043" : "#a55eea", 2, { dir: a + Math.PI / 2, spread: 0.3, speed: 5, g: 0, life: 44 });
@@ -9202,7 +9230,7 @@
       const dir = aimDir(p, 1, 0);
       const sx = p.body.position.x + dir.x * 260, sy = p.body.position.y + dir.y * 260;
       spawnSingularity(sx, sy, m, p, { selfSafe: true });
-      activeEffects.push({ until: performance2.now() + 720, onEnd() {
+      activeEffects.push({ until: simNow() + 720, onEnd() {
         explode(sx, sy, 260, 26 * m, 34 * m, p, { selfSafe: true });
         addShake(12);
       } });
@@ -9249,7 +9277,7 @@
       const m = p.mega || 1;
       const t = nearestEnemy(p);
       const cx = t ? t.body.position.x : p.body.position.x + p.facing * 300;
-      const t0 = performance2.now();
+      const t0 = simNow();
       let dropped = 0;
       activeEffects.push({
         until: t0 + 1100,
@@ -9262,7 +9290,7 @@
           }
         }
       });
-      for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - cx) < 220) q.heavyUntil = performance2.now() + 1800 * m;
+      for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - cx) < 220) q.heavyUntil = simNow() + 1800 * m;
       addShake(11);
       sfx.thud?.();
     }
@@ -9276,7 +9304,7 @@
       const dir = aimDir(p, 1, 0);
       const sx = p.body.position.x + dir.x * 240, sy = p.body.position.y + dir.y * 240;
       spawnSingularity(sx, sy, 1.6 * m, p, { selfSafe: true });
-      activeEffects.push({ until: performance2.now() + 1e3, onEnd() {
+      activeEffects.push({ until: simNow() + 1e3, onEnd() {
         explode(sx, sy, 320, 30 * m, 44 * m, p, { selfSafe: true });
         addShake(16);
         doFlash("#a55eea", 0.4);
@@ -9290,7 +9318,7 @@
     cast(p) {
       const m = p.mega || 1;
       healPlayer(p, 45 * m);
-      p.invulnUntil = performance2.now() + 2200 * m;
+      p.invulnUntil = simNow() + 2200 * m;
       spawnRing(p.body.position.x, p.body.position.y, "#7bd88f");
       spawnParticles(p.body.position.x, p.body.position.y, "#7bd88f", 22, 5);
       spawnText(p.body.position.x, p.body.position.y - 50, "SANCTUARY", "#7bd88f");
@@ -9307,7 +9335,7 @@
       const sx = p.body.position.x + dir.x * 240, sy = p.body.position.y - 30 + dir.y * 240;
       spawnSingularity(sx, sy, m, p, { selfSafe: true });
       for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - sx, q.body.position.y - sy) < 320) {
-        q.frozenUntil = performance2.now() + 1100 * m;
+        q.frozenUntil = simNow() + 1100 * m;
         q.body.frictionAir = 1e-3;
       }
       doFlash("#9be7ff", 0.3);
@@ -9319,7 +9347,7 @@
     color: "#aee4ff",
     cooldown: 3e3,
     cast(p) {
-      const m = p.mega || 1, now = performance2.now();
+      const m = p.mega || 1, now = simNow();
       healPlayer(p, 22 * m);
       p.reflectUntil = Math.max(p.reflectUntil || 0, now + 1900 * m);
       for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 260) {
@@ -9344,7 +9372,7 @@
       const dir = aimDir(p, 1, 0);
       const sx = p.body.position.x + dir.x * 260, sy = p.body.position.y + dir.y * 200;
       spawnSingularity(sx, sy, m, p, { selfSafe: true });
-      const t0 = performance2.now();
+      const t0 = simNow();
       let i = 0;
       activeEffects.push({ until: t0 + 1100, update(now) {
         if (now > t0 + i * 200 && i < 5) {
@@ -9377,7 +9405,7 @@
       const m = p.mega || 1;
       for (let i = 0; i < 6; i++) boomBolt(p, { selfSafe: true, color: "#d8c48a", r: 4, vy: rand(-6, 2), speed: rand(16, 26), radius: 55, power: 12, dmg: 10 });
       for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - p.body.position.x) < 500 && (q.body.position.x - p.body.position.x) * p.facing > 0) {
-        q.reversedUntil = performance2.now() + 1400 * m;
+        q.reversedUntil = simNow() + 1400 * m;
         Body.setVelocity(q.body, { x: q.body.velocity.x + p.facing * 7, y: q.body.velocity.y - 2 });
       }
       spawnParticles(p.body.position.x + p.facing * 120, p.body.position.y, "#d8c48a", 20, 6);
@@ -9391,9 +9419,9 @@
     cast(p) {
       const m = p.mega || 1;
       healPlayer(p, 20 * m);
-      p.speedUntil = performance2.now() + 3e3;
-      p.jumpBoostUntil = performance2.now() + 3e3;
-      p.featherUntil = performance2.now() + 2e3;
+      p.speedUntil = simNow() + 3e3;
+      p.jumpBoostUntil = simNow() + 3e3;
+      p.featherUntil = simNow() + 2e3;
       for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 240) Body.setVelocity(q.body, { x: (q.body.position.x - p.body.position.x) * 0.05 + Math.sign(q.body.position.x - p.body.position.x) * 8, y: -7 });
       spawnText(p.body.position.x, p.body.position.y - 50, "ZEPHYR", "#dfffff");
       spawnParticles(p.body.position.x, p.body.position.y, "#dfffff", 16, 5);
@@ -9413,10 +9441,10 @@
         const dx = cx - q.body.position.x, dy = cy - q.body.position.y, d = Math.hypot(dx, dy) || 1;
         if (d < 400) {
           Body.setVelocity(q.body, { x: q.body.velocity.x + dx / d * 10, y: q.body.velocity.y + dy / d * 6 });
-          q.heavyUntil = performance2.now() + 2e3 * m;
+          q.heavyUntil = simNow() + 2e3 * m;
         }
       }
-      activeEffects.push({ until: performance2.now() + 500, onEnd() {
+      activeEffects.push({ until: simNow() + 500, onEnd() {
         explode(cx, cy, 200, 20 * m, 30 * m, p, { selfSafe: true });
         addShake(12);
       } });
@@ -9430,7 +9458,7 @@
     cast(p) {
       const m = p.mega || 1;
       healPlayer(p, 28 * m);
-      p.invulnUntil = performance2.now() + 1400 * m;
+      p.invulnUntil = simNow() + 1400 * m;
       explode(p.body.position.x, p.body.position.y, 180, 22 * m, 16 * m, p, { selfSafe: true });
       spawnRing(p.body.position.x, p.body.position.y, "#9a8a6a");
       spawnText(p.body.position.x, p.body.position.y - 50, "BULWARK", "#9a8a6a");
@@ -9467,7 +9495,7 @@
     color: "#ff9ff3",
     cooldown: 3600,
     cast(p) {
-      const m = p.mega || 1, now = performance2.now();
+      const m = p.mega || 1, now = simNow();
       for (const q of enemiesOf(p)) {
         const roll = Math.floor(random() * 5);
         if (roll === 0) q.frozenUntil = now + 1e3 * m;
@@ -9490,7 +9518,7 @@
     color: "#ff7ac0",
     cooldown: 2600,
     cast(p) {
-      const m = p.mega || 1, now = performance2.now();
+      const m = p.mega || 1, now = simNow();
       for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 460) {
         q.burnUntil = now + 2600 * m;
         q.shrinkUntil = now + 3e3 * m;
@@ -9506,7 +9534,7 @@
     color: "#a7d8ff",
     cooldown: 2800,
     cast(p) {
-      const m = p.mega || 1, now = performance2.now();
+      const m = p.mega || 1, now = simNow();
       for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 420) {
         q.frozenUntil = now + 700 * m;
         q.reversedUntil = now + 3e3 * m;
@@ -9525,7 +9553,7 @@
       const m = p.mega || 1;
       const { hit } = zapRay(p, 30, 22, 4);
       if (hit && hit.label === "player") {
-        hit.player.reversedUntil = performance2.now() + 2600 * m;
+        hit.player.reversedUntil = simNow() + 2600 * m;
         spawnBurst(hit.position.x, hit.position.y, "#f2e14e", 16, { kind: "spark", speed: 8 });
       }
       doFlash("#ffffff", 0.3);
@@ -9538,7 +9566,7 @@
     color: "#c9f7ff",
     cooldown: 2800,
     cast(p) {
-      const m = p.mega || 1, now = performance2.now(), { x, y } = p.body.position;
+      const m = p.mega || 1, now = simNow(), { x, y } = p.body.position;
       for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 380) {
         q.floatyUntil = now + 2600 * m;
         q.reversedUntil = now + 1600 * m;
@@ -9563,7 +9591,7 @@
       const gy = groundYAt(cx);
       spawnText(cx, gy - 40, "TICK...", "#d8b26a");
       spawnParticles(cx, gy - 12, "#d8b26a", 6, 2, 30);
-      const t0 = performance2.now();
+      const t0 = simNow();
       activeEffects.push({
         until: t0 + 900,
         draw(now, ctx2) {
@@ -9574,7 +9602,7 @@
         },
         onEnd() {
           explode(cx, gy - 10, 170, 22 * m, 28 * m, p, { selfSafe: true });
-          const nw = performance2.now();
+          const nw = simNow();
           for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - cx) < 200 && Math.abs(q.body.position.y - gy) < 160) q.heavyUntil = nw + 2500 * m;
           chaosBurst(cx, gy - 20, 12, { speed: 6, up: 3 });
           addShake(10);
@@ -9606,7 +9634,7 @@
     color: "#c65ba0",
     cooldown: 3600,
     cast(p) {
-      const m = p.mega || 1, now = performance2.now();
+      const m = p.mega || 1, now = simNow();
       let drained = 0;
       for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 440) {
         damagePlayer(q, 16 * m, p);
@@ -10050,7 +10078,7 @@
       this.plan = { move, jump, cast, cast2, aim, block };
     }
     poll() {
-      const now = performance2.now();
+      const now = simNow();
       const p = this.player ??= players.find((q) => q.controller === this);
       if (!p || !p.alive || game.state !== "PLAY" && game.state !== "LOBBY") return this.idle();
       if (now > this.nextThink) {
@@ -10154,6 +10182,7 @@
     const spells = {};
     for (const [id, v] of Object.entries(spellTally)) spells[id] = { ...v };
     const rec = {
+      // wall clock: log stamp, not sim state
       ts: Date.now(),
       ver: GAME_VERSION,
       round: game.totalRounds || 0,
@@ -10334,7 +10363,7 @@
   function startWave(n) {
     game.wave = n;
     game.waveState = "active";
-    const now = performance2.now();
+    const now = simNow();
     const tier = waveTier(n);
     if (n % 5 === 0) {
       game.fightAt = now;
@@ -10393,10 +10422,10 @@
       spawnPlayer(p, spawnPointFor(p));
     }
     game.state = "PLAY";
-    game.fightAt = performance2.now() + 900;
+    game.fightAt = simNow() + 900;
     game.fightShown = false;
     game.bestWave = +(storage.getItem("hs-best-wave") || 0);
-    scheduleTomes(performance2.now());
+    scheduleTomes(simNow());
     startWave(1);
   }
   function endRun() {
@@ -10434,7 +10463,7 @@
   function baseSetBanner(text, color, ms = 1400, hyper = false) {
     banner = text;
     bannerColor = color;
-    bannerUntil = performance2.now() + ms;
+    bannerUntil = simNow() + ms;
     bannerHyper = hyper;
   }
   function loadMap(index) {
@@ -10491,11 +10520,11 @@
       spawnPlayer(p, spawnPointFor(p));
     }
     game.state = "PLAY";
-    game.fightAt = performance2.now() + 1100;
+    game.fightAt = simNow() + 1100;
     game.fightShown = false;
-    scheduleTomes(performance2.now());
-    if (bossTime) spawnBoss(performance2.now());
-    else rollEnvEvent(performance2.now());
+    scheduleTomes(simNow());
+    if (bossTime) spawnBoss(simNow());
+    else rollEnvEvent(simNow());
     setBanner(bossTime ? "BOSS BATTLE" : currentMap.def.name, bossTime ? "#ffd166" : "#e8d5ff", 1e3);
   }
   game.onDeath = (p) => {
@@ -10520,7 +10549,7 @@
       game.state = "ROUND_END";
       game.winner = null;
       flushRoundTelemetry();
-      const replayMs2 = startReplay(performance2.now());
+      const replayMs2 = startReplay(simNow());
       for (const p of players) p.roundWins = 0;
       setBanner(`${game.boss.def.name} PREVAILS \u2014 START OVER`, game.boss.def.color, 1800 + replayMs2);
       sfx.death();
@@ -10535,7 +10564,7 @@
     game.state = "ROUND_END";
     game.winner = winner;
     flushRoundTelemetry();
-    const replayMs = startReplay(performance2.now());
+    const replayMs = startReplay(simNow());
     if (winner) {
       winner.roundWins++;
       setBanner(`${winner.name} +1`, winner.color, 1800 + replayMs);
@@ -10750,7 +10779,7 @@
     spawnText(p.body.position.x, p.body.position.y - 34, `+${Math.round(amt)}`, "#7bd88f");
   }
   function addSpell(p, id) {
-    const now = performance2.now();
+    const now = simNow();
     const locked = (s) => p.slots[s] != null && p.slotCharges[s] > 0;
     let i = p.slots[0] == null ? 0 : p.slots[1] == null ? 1 : p.slotFilledAt[0] <= p.slotFilledAt[1] ? 0 : 1;
     if (locked(i)) i = 1 - i;
@@ -10797,14 +10826,14 @@
     killFeedLines.length = 0;
   }
   function baseAddKillFeed(aName, aColor, bName, bColor, self, aSlot, bSlot) {
-    killFeedLines.push({ a: aName, ac: aColor, b: bName, bc: bColor, self, at: performance2.now() });
+    killFeedLines.push({ a: aName, ac: aColor, b: bName, bc: bColor, self, at: simNow() });
     if (killFeedLines.length > 5) killFeedLines.shift();
   }
   function creditKill(victim) {
     statFor(victim).deaths++;
     telDeath(victim.spellId);
     const hit = victim.lastHitBy;
-    const killer = hit && performance2.now() - hit.at < 4e3 ? hit.player : null;
+    const killer = hit && simNow() - hit.at < 4e3 ? hit.player : null;
     if (killer === victim) {
       statFor(victim).selfKills++;
       addKillFeed(victim.name, victim.color, null, null, true, victim.slot, victim.slot);
@@ -10853,7 +10882,7 @@
   // src/sim/player/combat.js
   function damagePlayer(p, amt, src) {
     if (!p || !p.alive) return;
-    const now = performance2.now();
+    const now = simNow();
     if (now < (p.invulnUntil || 0)) {
       spawnText(p.body.position.x, p.body.position.y - 34, "BLOCKED", "#e8d5ff");
       return;
@@ -10883,7 +10912,7 @@
     const s = p.sizeScale || 1;
     const hat = Bodies.polygon(x, y - 22 * s, 3, 8, { density: 8e-4, frictionAir: 0.02, angle: -Math.PI / 2, label: "gib" });
     hat.color = p.hat;
-    hat.dieAt = performance2.now() + 3500;
+    hat.dieAt = simNow() + 3500;
     Body.setVelocity(hat, { x: p.body.velocity.x * 0.5 + rand(-3, 3), y: -7 * (engine.gravity.y < 0 ? -1 : 1) });
     Body.setAngularVelocity(hat, rand(-0.4, 0.4));
     gibs.add(hat);
@@ -10904,7 +10933,7 @@
     for (let i = 0; i < 6; i++) {
       const gib = Bodies.rectangle(x, y, 14, 4, { density: 1e-3, frictionAir: 0.01, label: "gib" });
       gib.color = p.color;
-      gib.dieAt = performance2.now() + 3e3;
+      gib.dieAt = simNow() + 3e3;
       Body.setVelocity(gib, { x: (random() - 0.5) * 16, y: -6 - random() * 8 });
       Body.setAngularVelocity(gib, (random() - 0.5) * 0.6);
       gibs.add(gib);
@@ -10991,7 +11020,7 @@
           spawnParticles(self.position.x, self.position.y, "#9be7ff", 10, 4);
           if (other && other.label === "player" && other.player.alive) {
             damagePlayer(other.player, 15 * m);
-            other.player.frozenUntil = performance2.now() + 1500 * m;
+            other.player.frozenUntil = simNow() + 1500 * m;
             other.frictionAir = 1e-3;
             sfx.freeze();
           }
@@ -11015,7 +11044,7 @@
       cast(p) {
         const m = p.mega || 1;
         const cx = Math.max(120, Math.min(W - 120, p.body.position.x + p.facing * 300));
-        const t0 = performance2.now();
+        const t0 = simNow();
         const times = Array.from({ length: Math.round(7 * m) }, (_, i) => t0 + i * 170 + rand(0, 80));
         let spawned = 0;
         activeEffects.push({
@@ -14575,7 +14604,7 @@
         localStorage.setItem(nameEdit.storeKey, nameEdit.buffer);
       }
       setNameEdit(null);
-      setNameEditEndAt(performance2.now());
+      setNameEditEndAt(simNow());
     }
   }
   function fightSecretBoss(id) {
@@ -14603,15 +14632,15 @@
       spawnPlayer(p, spawnPointFor(p));
     }
     game.state = "PLAY";
-    game.fightAt = performance2.now() + 900;
+    game.fightAt = simNow() + 900;
     game.fightShown = false;
-    scheduleTomes(performance2.now());
-    const bs = spawnBoss(performance2.now(), { bossId: id });
+    scheduleTomes(simNow());
+    const bs = spawnBoss(simNow(), { bossId: id });
     setBanner("\u2694  " + (bs && bs.def ? bs.def.name : "SECRET BOSS") + "  \u2694", bs && bs.def ? bs.def.color : "#ffd166", 1500, true);
   }
   function scanJoins() {
     if (game.state === "VICTORY" || game.state === "RUN_OVER" || players.length >= MAX_PLAYERS) return;
-    if (nameEdit || performance2.now() < nameEditEndAt + 350) return;
+    if (nameEdit || simNow() < nameEditEndAt + 350) return;
     for (const kc of kbControllers) {
       if (kc.assigned) continue;
       if (kc.poll().castPressed) {
@@ -14668,10 +14697,10 @@
           localStorage.setItem(nameEdit.storeKey, nameEdit.buffer);
         }
         setNameEdit(null);
-        setNameEditEndAt(performance2.now());
+        setNameEditEndAt(simNow());
       } else if (e.code === "Escape") {
         setNameEdit(null);
-        setNameEditEndAt(performance2.now());
+        setNameEditEndAt(simNow());
       } else if (e.code === "Backspace") {
         nameEdit.buffer = nameEdit.buffer.slice(0, -1);
       } else if (e.key.length === 1 && nameEdit.buffer.length < 12) {
@@ -14696,13 +14725,6 @@
       if (game.state === "LOBBY" && (e.code === "Equal" || e.code === "Minus")) setWins(game.winsNeeded + (e.code === "Equal" ? 1 : -1));
     });
   }
-
-  // src/sim/time.js
-  var TICK_HZ = 60;
-  var TICK_MS = 1e3 / TICK_HZ;
-  var MAX_CATCHUP = 5;
-  var tick = 0;
-  var advanceTick = () => ++tick;
 
   // src/sim/tick-loop.js
   var STEP_EPS = 1e-9;
@@ -15565,7 +15587,7 @@
     ctx.textAlign = "center";
   }
   function drawReplay(now) {
-    const f = replayFrameAt(now);
+    const f = replayFrameAt();
     if (!f) return;
     drawSnapshotWorld(f.snap, f.prev, f.alpha, now);
     ctx.fillStyle = getVignette();
@@ -16632,7 +16654,7 @@
     drawFxLite(snap.fxLite, now);
     if (includeLocalFx) {
       for (const eff of activeEffects) eff.draw?.(now, ctx, artkit_exports);
-      for (let i = activeEffects.length - 1; i >= 0; i--) if (now > activeEffects[i].until) activeEffects.splice(i, 1);
+      for (let i = activeEffects.length - 1; i >= 0; i--) if (simNow() > activeEffects[i].until) activeEffects.splice(i, 1);
       drawParticles();
     }
     const ghosts = snap.ps.map((gp) => ghostPlayer(gp, prevPs[gp.s], alpha, now));
@@ -16918,6 +16940,7 @@
   var fxLoop = createTickLoop({ step: () => {
     updatePace();
     updateParticles(1);
+    advanceTick();
   } });
   var lastFxAt = null;
   function netClientFrame(now) {
@@ -16987,7 +17010,7 @@
       }
     }
     if (snap.bs) drawBossBar(snap.bs.n, snap.bs.c, snap.bs.hp, snap.bs.mhp);
-    drawKillFeed(now);
+    drawKillFeed(simNow());
     const spacing = Math.min(300, (W - 220) / Math.max(snap.ps.length - 1, 1));
     snap.ps.forEach((gp, i) => {
       const x = snap.ps.length === 1 ? 150 : W / 2 + (i - (snap.ps.length - 1) / 2) * spacing;
@@ -17012,7 +17035,7 @@
       }
       drawPlayerSpells(x, [gp.s0 ?? null, gp.s1 ?? null], [gp.c0 || 0, gp.c1 || 0], gp.mc || 0, [gp.h0 ?? null, gp.h1 ?? null]);
     });
-    if (now < bannerUntil) {
+    if (simNow() < bannerUntil) {
       if (bannerHyper) {
         const pulse = 1 + 0.12 * Math.sin(now * 0.03);
         ctx.save();
@@ -17243,7 +17266,7 @@
 
   // src/sim/collision.js
   function onCollisionStart({ pairs }) {
-    const now = performance2.now();
+    const now = simNow();
     for (const { bodyA, bodyB } of pairs) {
       for (const [a, b] of [[bodyA, bodyB], [bodyB, bodyA]]) {
         if (a.label === "projectile" && b.label !== "lava" && projectiles.has(a)) {
@@ -17410,8 +17433,9 @@
       }
     }
   }
-  function stepSim(now, rawDt) {
+  function stepSim() {
     updatePace();
+    const now = simNow();
     const dt = TICK_MS;
     for (const p of players) p.input = p.controller.poll();
     if (game.state === "LOBBY" && players.length >= minPlayers() && !nameEdit && now > nameEditEndAt + 350 && players.some((p) => p.input.startPressed)) beginFromLobby();
@@ -17449,11 +17473,18 @@
     postPhysics(now);
     updateParticles(1);
     replayRecord(now);
+    advanceTick();
   }
 
   // src/platform/debug-globals.js
   var MODULES = [
+    // time is published for the same reason the rest is: since simNow() became
+    // the sim's only clock, a harness page that wants to move the game forward
+    // has to advance the TICK. Mocking globalThis.performance.now no longer does
+    // anything to sim state (wave-test.html and wave-play.html still do, and are
+    // stale for it).
     world_exports,
+    time_exports,
     rng_exports,
     fx_exports,
     pace_exports,
@@ -17524,13 +17555,7 @@
   if (harness) installDebugGlobals();
   else mountMenu();
   loadMap(0);
-  var frameNow = 0;
-  var loop = createTickLoop({
-    step: (dt) => {
-      stepSim(frameNow, dt);
-      advanceTick();
-    }
-  });
+  var loop = createTickLoop({ step: () => stepSim() });
   var last = performance.now();
   function frame(now) {
     if (netMode2() === "online") {
@@ -17541,10 +17566,9 @@
     }
     scanJoins();
     scanLobbyPads();
-    frameNow = now;
     loop.pump(now - last);
     last = now;
-    draw(now);
+    draw(simNow());
     requestAnimationFrame(frame);
   }
   if (harness) globalThis.frame = frame;

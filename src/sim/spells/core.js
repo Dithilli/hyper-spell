@@ -5,7 +5,8 @@
 // global ctx, which is what keeps sim/ free of a render/ import. Task 13 turns
 // them into emitted events and the drawing moves out entirely.
 import { Bodies, Body, Composite, Query, world, engine, W, H, onWorldReset } from '../world.js';
-import { performance, random } from '../env.js';
+import { random } from '../env.js';
+import { simNow } from '../time.js';
 import { rand } from '../rng.js';
 import {
   particles, spawnParticles, spawnRing, spawnText, addShake, doFlash,
@@ -48,7 +49,7 @@ export function shoot(p, { r, speed, vy = 0, color, density = 0.002, restitution
   fb.owner = p;
   fb.color = color;
   fb.gravityScale = gravityScale;
-  if (expireMs) fb.expireAt = performance.now() + expireMs;
+  if (expireMs) fb.expireAt = simNow() + expireMs;
   Body.setVelocity(fb, { x: dir.x * spd, y: dir.y * spd });
   projectiles.add(fb);
   Composite.add(world, fb);
@@ -61,7 +62,7 @@ export function dropProjectile(p, x, y, { r = 10, vx = 0, vy = 12, color, densit
   fb.owner = p;
   fb.color = color;
   fb.gravityScale = 1;
-  fb.expireAt = performance.now() + expireMs;
+  fb.expireAt = simNow() + expireMs;
   Body.setVelocity(fb, { x: vx, y: vy });
   projectiles.add(fb);
   Composite.add(world, fb);
@@ -76,7 +77,7 @@ export function removeProjectile(fb) {
 export function summon(body, { life = 5000, color, ...flags } = {}) {
   if (color) body.render.fillStyle = color;
   Object.assign(body, flags);
-  body.dieAt = performance.now() + life;
+  body.dieAt = simNow() + life;
   summons.add(body);
   Composite.add(world, body);
   return body;
@@ -174,7 +175,7 @@ function baseBoltVisual(x0, y0, x1, y1, color = '#fff89e', width = 3, life = 130
     });
   }
   activeEffects.push({
-    until: performance.now() + life,
+    until: simNow() + life,
     draw(now, ctx) {
       ctx.strokeStyle = color;
       ctx.lineWidth = width;
@@ -198,7 +199,7 @@ export function groundYAt(x) {
 // lightning CONDUCTION synergy: a Wet target takes amplified damage and the bolt
 // arcs on to the nearest other wizard. Used by the beam primitives (zapRay).
 export function zapHit(target, dmg, src) {
-  const now = performance.now();
+  const now = simNow();
   if (now < (target.wetUntil || 0)) {
     dmg *= 1.6;
     spawnText(target.body.position.x, target.body.position.y - 46, 'CONDUCT!', '#9ef0f0');
@@ -229,7 +230,7 @@ export function spawnSingularity(x, y, m = 1, owner = null, opts = {}) {
   doFlash('#a55eea', 0.2);
   spawnRing(x, y, '#a55eea');
   activeEffects.push({
-    until: performance.now() + 2200 * m,
+    until: simNow() + 2200 * m,
     net: { k: 'sing', x, y },
     update() {
       const R = 350 * (1 + (m - 1) * 0.5);
@@ -280,7 +281,7 @@ export function spawnSingularity(x, y, m = 1, owner = null, opts = {}) {
 // circular zone effect: calls tick(player) for alive players inside, every frame
 export function makeZone({ x, y, r, life, color, tick, tickBody, draw, onEnd }) {
   activeEffects.push({
-    until: performance.now() + life,
+    until: simNow() + life,
     x, y, r,
     net: { k: 'zone', x, y, r, c: color },
     update(now) {

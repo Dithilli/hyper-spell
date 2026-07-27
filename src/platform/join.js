@@ -4,7 +4,12 @@
 // js/game.js registered these listeners at script load; attachLobbyKeys() is now
 // an explicit call the browser entry makes. The name-edit state itself lives in
 // src/sim/lobby.js, because stepSim and the lobby panel both read it.
-import { performance } from '../sim/env.js';
+// simNow(), not the wall clock: everything this file timestamps is SIM state
+// read back inside stepSim — nameEditEndAt (src/sim/tick.js:122), game.fightAt,
+// the tome schedule and the boss's own beat. Sim time runs at paceScale() x
+// real time, so a wall-clock stamp here would sit (1 - 0.85) x uptime in the
+// sim's future and the lockout/banner would never expire.
+import { simNow } from '../sim/time.js';
 import { pick } from '../sim/rng.js';
 import { netMode } from '../sim/net-mode.js';
 import {
@@ -59,7 +64,7 @@ export function padWheelInput(edge) {
   if (edge(9) || edge(3)) { // START / Y: confirm
     if (nameEdit.buffer) { nameEdit.p.name = nameEdit.buffer; localStorage.setItem(nameEdit.storeKey, nameEdit.buffer); }
     setNameEdit(null);
-    setNameEditEndAt(performance.now()); // brief lockout so the confirm press isn't reused to start
+    setNameEditEndAt(simNow()); // brief lockout so the confirm press isn't reused to start
   }
 }
 
@@ -79,16 +84,16 @@ export function fightSecretBoss(id) {
   loadMap(idx);
   for (const p of players) { clearSpells(p); despawnPlayer(p); spawnPlayer(p, spawnPointFor(p)); }
   game.state = 'PLAY';
-  game.fightAt = performance.now() + 900;
+  game.fightAt = simNow() + 900;
   game.fightShown = false;
-  scheduleTomes(performance.now());
-  const bs = spawnBoss(performance.now(), { bossId: id });
+  scheduleTomes(simNow());
+  const bs = spawnBoss(simNow(), { bossId: id });
   setBanner('⚔  ' + (bs && bs.def ? bs.def.name : 'SECRET BOSS') + '  ⚔', bs && bs.def ? bs.def.color : '#ffd166', 1500, true);
 }
 
 export function scanJoins() {
   if (game.state === 'VICTORY' || game.state === 'RUN_OVER' || players.length >= MAX_PLAYERS) return;
-  if (nameEdit || performance.now() < nameEditEndAt + 350) return; // typing a name, not joining
+  if (nameEdit || simNow() < nameEditEndAt + 350) return; // typing a name, not joining
   for (const kc of kbControllers) {
     if (kc.assigned) continue;
     if (kc.poll().castPressed) {
@@ -150,10 +155,10 @@ export function attachLobbyKeys() {
         localStorage.setItem(nameEdit.storeKey, nameEdit.buffer);
       }
       setNameEdit(null);
-      setNameEditEndAt(performance.now()); // brief join/start lockout so this keypress isn't reused
+      setNameEditEndAt(simNow()); // brief join/start lockout so this keypress isn't reused
     } else if (e.code === 'Escape') {
       setNameEdit(null);
-      setNameEditEndAt(performance.now());
+      setNameEditEndAt(simNow());
     } else if (e.code === 'Backspace') {
       nameEdit.buffer = nameEdit.buffer.slice(0, -1);
     } else if (e.key.length === 1 && nameEdit.buffer.length < 12) {

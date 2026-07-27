@@ -11,7 +11,7 @@
 // begins one from its own keyboard (M then Space). This lets a spectator host render
 // a networked Alinea fighting the waves.
 import { Bodies, Body, Composite, world, onWorldReset } from '../world.js';
-import { performance } from '../env.js';
+import { simNow } from '../time.js';
 import { rand } from '../rng.js';
 import { spawnParticles, spawnRing, addShake } from '../fx.js';
 import { sfx } from '../sfx.js';
@@ -35,7 +35,7 @@ export function enemyBolt(from, target, { speed = 9, r = 7, color = '#ff8c5a', s
   fb.owner = 'boss';
   fb.color = color;
   fb.gravityScale = 0.3;
-  fb.expireAt = performance.now() + 5000;
+  fb.expireAt = simNow() + 5000;
   fb.onHit = self => explode(self.position.x, self.position.y, boom[0], boom[1], boom[2], 'boss');
   Body.setVelocity(fb, { x: Math.cos(a) * speed, y: Math.sin(a) * speed });
   projectiles.add(fb);
@@ -162,7 +162,7 @@ export function spawnEnemy(type, x, y, tier = 1) {
 export function damageEnemy(e, dmg, at, src) {
   if (!e || e.hp <= 0) return;
   e.hp -= dmg;
-  e.hurtAt = performance.now();
+  e.hurtAt = simNow();
   if (at) spawnParticles(at.x, at.y, e.color, 6, 4);
   if (e.hp <= 0) killEnemy(e, src);
 }

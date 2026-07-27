@@ -7,6 +7,7 @@
 // pages use. Nothing in src/ reads it: it is a dev affordance, not an API, and
 // the pages are its only consumers.
 import * as world from '../sim/world.js';
+import * as time from '../sim/time.js';
 import * as rng from '../sim/rng.js';
 import * as fx from '../sim/fx.js';
 import * as pace from '../sim/pace.js';
@@ -52,7 +53,12 @@ import * as gamepad from './input-gamepad.js';
 import * as join from './join.js';
 
 const MODULES = [
-  world, rng, fx, pace, sfxTable, lobby, awards, telemetry, match, tick,
+  // time is published for the same reason the rest is: since simNow() became
+  // the sim's only clock, a harness page that wants to move the game forward
+  // has to advance the TICK. Mocking globalThis.performance.now no longer does
+  // anything to sim state (wave-test.html and wave-play.html still do, and are
+  // stale for it).
+  world, time, rng, fx, pace, sfxTable, lobby, awards, telemetry, match, tick,
   snapshot, replay, events, waves, pickups, storage, lifecycle, combat, status,
   controllerMod, ghost, spellCore, registry, tiers, fusion, builders, extras,
   boss, enemyAi, bot, artkit, canvas, drawWorld, hud, drawWizard, drawPickups,

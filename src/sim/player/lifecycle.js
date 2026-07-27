@@ -1,7 +1,7 @@
 // player/lifecycle.js — the roster: who exists, how they are built, where they
 // spawn, and which spells they hold.
 import { Bodies, Body, Composite, world, W, onWorldReset } from '../world.js';
-import { performance } from '../env.js';
+import { simNow } from '../time.js';
 import { spawnParticles, spawnText } from '../fx.js';
 import { IDLE_INPUT } from '../input-contract.js';
 import { currentMap } from '../match.js';
@@ -129,7 +129,7 @@ export function healPlayer(p, amt) {
 // Returns the slot index used (-1 if nothing could be replaced). Fusion (Phase 4b)
 // hooks off the resulting pair.
 export function addSpell(p, id) {
-  const now = performance.now();
+  const now = simNow();
   // a charged fusion is precious — a stray tome grab must never overwrite it.
   // Route the new spell to the other hand; the slot frees itself at burnout.
   const locked = s => p.slots[s] != null && p.slotCharges[s] > 0;

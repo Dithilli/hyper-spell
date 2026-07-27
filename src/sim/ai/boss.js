@@ -4,7 +4,8 @@
 // summons ghost path to LAN clients, its HP bar via the snapshot's `bs` field.
 // The boss art lives in src/render/draw-boss.js.
 import { Bodies, Body, Composite, world, engine, W, H } from '../world.js';
-import { performance, random } from '../env.js';
+import { random } from '../env.js';
+import { simNow } from '../time.js';
 import { rand, pick } from '../rng.js';
 import {
   spawnParticles, spawnRing, spawnText, spawnBurst, addShake, doFlash,
@@ -42,7 +43,7 @@ export function bossBolt(from, target, { speed = 10, r = 8, color, spread = 0, b
   fb.owner = null;
   fb.color = color;
   fb.gravityScale = 0.25;
-  fb.expireAt = performance.now() + 5000;
+  fb.expireAt = simNow() + 5000;
   const dm = game.boss?.dmgMult || 1; // later/enraged bosses hit harder
   fb.onHit = self => explode(self.position.x, self.position.y, boom[0], boom[1], boom[2] * dm, 'boss');
   Body.setVelocity(fb, { x: Math.cos(a) * speed, y: Math.sin(a) * speed });
@@ -374,7 +375,7 @@ export function damageBoss(dmg, at, src) {
   if (src && src.slot !== undefined) statFor(src).bossDmg += dmg;
   if (src && src.spellId) telBossDmg(src.spellId, dmg); // balance: boss damage per spell
   bs.hp -= dmg;
-  bs.hurtAt = performance.now();
+  bs.hurtAt = simNow();
   if (at) spawnParticles(at.x, at.y, bs.def.color, 8, 4);
   if (bs.hp <= 0) slayBoss();
 }
@@ -398,7 +399,7 @@ export function slayBoss() {
   }
   game.state = 'ROUND_END';
   game.winner = null;
-  const replayMs = startReplay(performance.now());
+  const replayMs = startReplay(simNow());
   setBanner(bs.secret ? `${bs.def.name} RAGE-QUITS` : `${bs.def.name} IS SLAIN!`, '#ffd166', 1800 + replayMs);
   sfx.victory();
   slowMo(0.25, 1100);

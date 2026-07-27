@@ -14,6 +14,7 @@ import {
   spawnBurst, setSpawnBurst, spawnText, setSpawnText,
 } from '../sim/fx.js';
 import { slowMo, setSlowMo } from '../sim/pace.js';
+import { simNow } from '../sim/time.js';
 import { sfx } from '../sim/sfx.js';
 import { addKillFeed, setAddKillFeed } from '../sim/awards.js';
 import { setPostTelemetry } from '../sim/telemetry.js';
@@ -99,15 +100,18 @@ function wrapServerFx(emitFx) {
 }
 
 // ---- snapshot / killcam (port of net.js netHostTick, minus the emit) ----
-function takeWireSnapshot(now) {
+// No `now`: both serializers read simNow() now. Handing them the host's real
+// clock (server/sim-host.js used to) would compare sim-time deadlines against
+// wall time, so every status flag would read false and every cooldown ready.
+function takeWireSnapshot() {
   if (game.replay) {
-    const f = replayFrameAt(now);
+    const f = replayFrameAt();
     // in the browser, drawReplay clears the finished tape; headless nobody
     // draws, so the serializer owns that cleanup or the killcam never ends
     if (f && !f.done) return { t: 'snap', ...f.snap, st: 'ROUND_END', rp: 1 };
     game.replay = null;
   }
-  return { t: 'snap', ...serializeSnapshot(now) };
+  return { t: 'snap', ...serializeSnapshot() };
 }
 
 // ---- command surface (driven by server/room.js) ----
@@ -224,7 +228,7 @@ export function installServerBridge(opts = {}) {
 
   return {
     GAME_VERSION,
-    stepSim: (now, rawDt) => stepSim(now, rawDt),
+    stepSim: () => stepSim(),
     takeWireSnapshot,
     addPlayer: serverAddPlayer,
     removePlayer: serverRemovePlayer,
@@ -248,6 +252,18 @@ export function installServerBridge(opts = {}) {
     packSource: () => globalThis.__hsContentSource || null, // decrypted module, once unlocked
     playerCount: () => players.length,
     minPlayers: () => minPlayers(),
+    // --- test-only surface. Not reachable from the wire protocol; room.js never
+    // calls these. Kept here so tests can assert sim behaviour without importing
+    // sim internals directly.
+    debugFreeze: (slot, ms) => {
+      const p = players.find((q) => q.slot === slot);
+      if (p) p.frozenUntil = simNow() + ms;
+    },
+    debugIsFrozen: (slot) => {
+      const p = players.find((q) => q.slot === slot);
+      return !!p && simNow() < (p.frozenUntil || 0);
+    },
+    debugSetPace: (s) => slowMo(s, 1e9),
     // diagnostics for the smoke harness / leak audit
     audit: () => ({
       bodies: Composite.allBodies(world).length,

@@ -16,6 +16,7 @@ updateParticles,
 } from '../sim/fx.js';
 import { slowMo, updatePace } from '../sim/pace.js';
 import { createTickLoop } from '../sim/tick-loop.js';
+import { advanceTick, simNow } from '../sim/time.js';
 import { netMode as currentNetMode, setNetMode } from '../sim/net-mode.js';
 import { cleanName } from '../sim/lobby.js';
 import {
@@ -347,7 +348,18 @@ function drawOnlineLobby(snap, now) {
 // come at worst every TICK_MS/0.05 = 333ms. Below ~4fps every gap is discarded,
 // nothing pumps and the pace does sit still — it resumes easing on the first
 // frame back under 250ms.
-const fxLoop = createTickLoop({ step: () => { updatePace(); updateParticles(1); } });
+//
+// advanceTick() runs in here too, for the same reason updatePace() does. A
+// client never calls stepSim, so without this its simNow() would sit at 0
+// forever — and applyFx writes SIM-time deadlines into shared sim modules on
+// every broadcast: setBanner stamps `bannerUntil = simNow() + ms`, addKillFeed
+// stamps `at: simNow()`, boltVisual stamps `until: simNow() + life`. A dead
+// clock means every one of those is already expired the instant it lands, so
+// no banner, no kill feed and no lightning would ever render online. Ticking
+// the same accumulator gives the client a sim clock at the host's own cadence
+// (paceScale() x real time), which is all these purely local durations need —
+// they are set and read on this machine, never compared against the server's.
+const fxLoop = createTickLoop({ step: () => { updatePace(); updateParticles(1); advanceTick(); } });
 let lastFxAt = null;
 
 export function netClientFrame(now) {
@@ -430,7 +442,7 @@ export function netClientFrame(now) {
     }
   }
   if (snap.bs) drawBossBar(snap.bs.n, snap.bs.c, snap.bs.hp, snap.bs.mhp);
-  drawKillFeed(now);
+  drawKillFeed(simNow()); // the feed's `at` stamps are sim time (src/sim/awards.js)
   const spacing = Math.min(300, (W - 220) / Math.max(snap.ps.length - 1, 1));
   snap.ps.forEach((gp, i) => {
     const x = snap.ps.length === 1 ? 150 : W / 2 + (i - (snap.ps.length - 1) / 2) * spacing;
@@ -452,7 +464,7 @@ export function netClientFrame(now) {
     }
     drawPlayerSpells(x, [gp.s0 ?? null, gp.s1 ?? null], [gp.c0 || 0, gp.c1 || 0], gp.mc || 0, [gp.h0 ?? null, gp.h1 ?? null]);
   });
-  if (now < bannerUntil) {
+  if (simNow() < bannerUntil) { // bannerUntil is sim time; `now` below is only animation phase
     if (bannerHyper) {
       const pulse = 1 + 0.12 * Math.sin(now * 0.03);
       ctx.save();

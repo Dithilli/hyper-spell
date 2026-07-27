@@ -1,7 +1,8 @@
 // player/controller.js — the per-frame movement, jump, aim and cast pass: the
 // bridge between a controller's input and the physics body.
 import { Body, Composite, Query, world, engine, W, H } from '../world.js';
-import { performance, random } from '../env.js';
+import { random } from '../env.js';
+import { simNow } from '../time.js';
 import { rand } from '../rng.js';
 import { spawnParticles, addShake } from '../fx.js';
 import { sfx } from '../sfx.js';
@@ -14,7 +15,7 @@ import { tryBlock } from './status.js';
 
 // gravity direction as this player experiences it (Gravity Flip spares its caster)
 export function gravDirFor(p) {
-  if (p && performance.now() < (p.gravityLockUntil || 0)) return p.gravityLockDir;
+  if (p && simNow() < (p.gravityLockUntil || 0)) return p.gravityLockDir;
   return engine.gravity.y < 0 ? -1 : 1;
 }
 

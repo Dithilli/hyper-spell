@@ -10,12 +10,10 @@
 const { performance } = require('perf_hooks');
 let createSim = null;
 let createTickLoop = null;
-let advanceTick = null;
 async function loadSimFactory() {
   if (!createSim) {
     ({ createSim } = await import('../src/platform/node.js'));
     ({ createTickLoop } = await import('../src/sim/tick-loop.js'));
-    ({ advanceTick } = await import('../src/sim/time.js'));
   }
   return createSim;
 }
@@ -52,18 +50,15 @@ class SimHost {
     // MAX_CATCHUP, and anything beyond that is reported rather than silently
     // run slow. Rebuilt fresh in every start() so a crash never inherits a
     // stale backlog.
-    let stepNow = this.last;
-    this.loop = createTickLoop({
-      step: (dt) => { this.bridge.stepSim(stepNow, dt); advanceTick(); },
-    });
+    // stepSim takes nothing and advances the sim's own tick: the host's wall
+    // clock decides HOW MANY steps the elapsed time paid for, and nothing else.
+    // It must not advance the tick here as well — that would run sim time at
+    // double rate.
+    this.loop = createTickLoop({ step: () => this.bridge.stepSim() });
     let next = performance.now() + TICK_MS;
     const loop = () => {
       const now = performance.now();
       try {
-        // stepSim's `now` stays the host's real clock: the sim writes its
-        // deadlines with performance.now() and Task 4 is what moves them to
-        // simNow(). Only the STEP SIZE is fixed here.
-        stepNow = now;
         const { dropped } = this.loop.pump(now - this.last);
         this.last = now;
         if (dropped > 0) this.droppedMs += dropped;
@@ -92,7 +87,9 @@ class SimHost {
       if (now - this.lastSnapAt >= SNAP_MS) {
         this.lastSnapAt = now;
         try {
-          const snap = this.bridge.takeWireSnapshot(now);
+          // no `now`: the serializer reads simNow(), because every deadline it
+          // compares (frozenUntil, cooldowns, the killcam tape) is sim time
+          const snap = this.bridge.takeWireSnapshot();
           if (snap) this.opts.onSnapshot?.(snap);
         } catch (err) {
           this.crash(err);

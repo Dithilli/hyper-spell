@@ -4,7 +4,8 @@
 // module header below and the effect draw() closures, which now take the render
 // surface as an argument instead of reaching for a global ctx.
 import { Bodies, Body, Composite, world, engine, W, H } from '../world.js';
-import { performance, random } from '../env.js';
+import { random } from '../env.js';
+import { simNow } from '../time.js';
 import { rand, pick } from '../rng.js';
 import { particles, spawnParticles, spawnRing, spawnText, addShake, doFlash } from '../fx.js';
 import { slowMo } from '../pace.js';
@@ -127,7 +128,7 @@ regSpell('boomerang', {
   name: 'Boomerang Orb', color: '#d2b4de', cooldown: 1100,
   cast(p) {
     const fb = boomBolt(p, { color: '#d2b4de', r: 7, speed: 18, vy: -4, g: 0.2, radius: 110, power: 16, dmg: 26, expireMs: 2400 });
-    fb.bornAt = performance.now();
+    fb.bornAt = simNow();
     fb.update = (self, now) => {
       if (!self.turned && now - fb.bornAt > 600) { self.turned = true; Body.setVelocity(self, { x: -self.velocity.x, y: self.velocity.y - 2 }); }
     };
@@ -162,7 +163,7 @@ regSpell('sticky', {
       fb.stuck = true;
       Body.setStatic(fb, true);
       activeEffects.push({
-        until: performance.now() + 900,
+        until: simNow() + 900,
         draw(now, ctx) { ctx.fillStyle = Math.sin(now * 0.03) > 0 ? '#aef05a' : '#fff'; ctx.beginPath(); ctx.arc(fb.position.x, fb.position.y, 4, 0, Math.PI * 2); ctx.fill(); },
         onEnd() { removeProjectile(fb); explode(fb.position.x, fb.position.y, 160 * m, 24 * m, 40 * m, p); },
       });
@@ -184,7 +185,7 @@ regSpell('firecrackers', {
   cast(p) {
     const m = p.mega || 1;
     const { x, y } = p.body.position;
-    const t0 = performance.now();
+    const t0 = simNow();
     let i = 0;
     activeEffects.push({
       until: t0 + 1000,
@@ -197,7 +198,7 @@ regSpell('firecrackers', {
 regSpell('dragonbreath', {
   name: "Dragon's Breath", color: '#ff5e3a', cooldown: 1900,
   cast(p) {
-    const t0 = performance.now();
+    const t0 = simNow();
     let i = 0;
     activeEffects.push({
       until: t0 + 720,
@@ -276,7 +277,7 @@ regSpell('skysmite', {
     const gy = groundYAt(x);
     spawnText(x, gy - 44, '⚡', '#fff89e');
     spawnParticles(x, gy - 8, '#fff89e', 6, 2, 30);
-    const t0 = performance.now();
+    const t0 = simNow();
     activeEffects.push({
       until: t0 + 550,
       draw(now, ctx) {
@@ -320,7 +321,7 @@ regSpell('stormcall', {
   name: 'Storm Call', color: '#d9e650', cooldown: 3200,
   cast(p) {
     const m = p.mega || 1;
-    const t0 = performance.now();
+    const t0 = simNow();
     let i = 0;
     activeEffects.push({
       until: t0 + 1300,
@@ -403,7 +404,7 @@ regSpell('slam', {
     const m = p.mega || 1;
     Body.setVelocity(p.body, { x: p.body.velocity.x, y: 30 });
     const e = {
-      until: performance.now() + 1600,
+      until: simNow() + 1600,
       update(now) {
         if (!p.alive) { e.until = 0; return; }
         if (now > (e.armAt ?? (e.armAt = now + 120)) && grounded(p) && p.body.velocity.y > -1) {
@@ -449,7 +450,7 @@ regSpell('tornado', {
     const m = p.mega || 1;
     const start = frontPos(p, 60);
     const e = {
-      until: performance.now() + 3500,
+      until: simNow() + 3500,
       x: start.x, vx: p.facing * 2.6,
       net: { k: 'tor', x: start.x },
       update() {
@@ -480,7 +481,7 @@ regSpell('tornado', {
 });
 
 // ============ ICE & CONTROL ============
-regSpell('iceshard', { name: 'Ice Shard', color: '#bfe8ff', cooldown: 400, cast(p) { statusBolt(p, { color: '#bfe8ff', r: 4, speed: 23, vy: -2, dmg: 12 }, (q) => { q.frozenUntil = performance.now() + 450; }); } });
+regSpell('iceshard', { name: 'Ice Shard', color: '#bfe8ff', cooldown: 400, cast(p) { statusBolt(p, { color: '#bfe8ff', r: 4, speed: 23, vy: -2, dmg: 12 }, (q) => { q.frozenUntil = simNow() + 450; }); } });
 regSpell('glacier', {
   name: 'Glacier', color: '#9be7ff', cooldown: 2600,
   cast(p) {
@@ -523,7 +524,7 @@ regSpell('snowball', {
     fb.contactDamage = 8 * m;
   },
 });
-regSpell('flashfreeze', { name: 'Flash Freeze', color: '#e0f7ff', cooldown: 3400, cast(p) { const m = p.mega || 1; sfx.freeze(); doFlash('#bfe8ff', 0.3); for (const q of enemiesOf(p)) { q.frozenUntil = performance.now() + 800 * m; q.body.frictionAir = 0.001; } } });
+regSpell('flashfreeze', { name: 'Flash Freeze', color: '#e0f7ff', cooldown: 3400, cast(p) { const m = p.mega || 1; sfx.freeze(); doFlash('#bfe8ff', 0.3); for (const q of enemiesOf(p)) { q.frozenUntil = simNow() + 800 * m; q.body.frictionAir = 0.001; } } });
 regSpell('frostnova', {
   name: 'Frost Nova', color: '#aee4ff', cooldown: 2400,
   cast(p) {
@@ -532,7 +533,7 @@ regSpell('frostnova', {
     sfx.freeze();
     for (const q of enemiesOf(p)) {
       const d = Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y);
-      if (d < 180 * m) { q.frozenUntil = performance.now() + 1200 * m; q.body.frictionAir = 0.001; damagePlayer(q, 10 * m); }
+      if (d < 180 * m) { q.frozenUntil = simNow() + 1200 * m; q.body.frictionAir = 0.001; damagePlayer(q, 10 * m); }
     }
   },
 });
@@ -548,22 +549,22 @@ regSpell('icicledrop', {
     sfx.freeze();
   },
 });
-regSpell('brainfreeze', { name: 'Brain Freeze', color: '#ceb4ff', cooldown: 3000, cast(p) { const m = p.mega || 1; for (const q of enemiesOf(p)) { q.reversedUntil = performance.now() + 3000 * m; spawnText(q.body.position.x, q.body.position.y - 40, '?!', '#ceb4ff'); } sfx.freeze(); } });
+regSpell('brainfreeze', { name: 'Brain Freeze', color: '#ceb4ff', cooldown: 3000, cast(p) { const m = p.mega || 1; for (const q of enemiesOf(p)) { q.reversedUntil = simNow() + 3000 * m; spawnText(q.body.position.x, q.body.position.y - 40, '?!', '#ceb4ff'); } sfx.freeze(); } });
 // was auto-freezing the nearest wizard at ANY range — now a bolt that must land
 regSpell('coldsnap', {
   name: 'Cold Snap', color: '#9be7ff', cooldown: 1800,
   cast(p) {
     statusBolt(p, { color: '#9be7ff', r: 5, speed: 19, vy: -3, dmg: 6 }, (q, m) => {
-      q.frozenUntil = performance.now() + 1000 * m;
+      q.frozenUntil = simNow() + 1000 * m;
       q.body.frictionAir = 0.001;
       sfx.freeze();
     });
   },
 });
-regSpell('permafrost', { name: 'Permafrost', color: '#7fd4ff', cooldown: 2800, cast(p) { statusBolt(p, { color: '#7fd4ff', r: 9, speed: 10, vy: -3, dmg: 20 }, (q, m) => { q.frozenUntil = performance.now() + 2600 * m; q.body.frictionAir = 0.001; sfx.freeze(); }); } });
+regSpell('permafrost', { name: 'Permafrost', color: '#7fd4ff', cooldown: 2800, cast(p) { statusBolt(p, { color: '#7fd4ff', r: 9, speed: 10, vy: -3, dmg: 20 }, (q, m) => { q.frozenUntil = simNow() + 2600 * m; q.body.frictionAir = 0.001; sfx.freeze(); }); } });
 
 // ============ FIRE & STATUS ============
-regSpell('ignite', { name: 'Ignite', color: '#ff8c5a', cooldown: 700, cast(p) { statusBolt(p, { color: '#ff8c5a', dmg: 8 }, (q, m) => { q.burnUntil = performance.now() + 3000 * m; }); } });
+regSpell('ignite', { name: 'Ignite', color: '#ff8c5a', cooldown: 700, cast(p) { statusBolt(p, { color: '#ff8c5a', dmg: 8 }, (q, m) => { q.burnUntil = simNow() + 3000 * m; }); } });
 regSpell('flamewall', {
   name: 'Flame Wall', color: '#ff5e3a', cooldown: 3000,
   cast(p) {
@@ -595,7 +596,7 @@ regSpell('phoenixdash', {
   cast(p) {
     const dir = aimDir(p, 25, 4);
     Body.setVelocity(p.body, { x: dir.x * 25, y: dir.y * 25 - 2 });
-    p.invulnUntil = performance.now() + 600;
+    p.invulnUntil = simNow() + 600;
     for (let i = 0; i < 20; i++) particles.push({ kind: 'spark', x: p.body.position.x - dir.x * i * 4, y: p.body.position.y - dir.y * i * 4 + rand(-8, 8), vx: -dir.x * rand(2, 6), vy: rand(-2, 2), life: 22, maxLife: 22, color: '#ffb347', r: 2.5 });
   },
 });
@@ -621,7 +622,7 @@ regSpell('fireflies', {
       const fb = shoot(p, { r: 3, speed: rand(6, 10), vy: rand(-8, 0), color: '#ffe066', gravityScale: 0, expireMs: 3500 });
       fb.onHit = (self, other) => {
         spawnParticles(self.position.x, self.position.y, '#ffe066', 6, 3);
-        if (other && other.label === 'player') { damagePlayer(other.player, 6); other.player.burnUntil = performance.now() + 1200; }
+        if (other && other.label === 'player') { damagePlayer(other.player, 6); other.player.burnUntil = simNow() + 1200; }
       };
       fb.update = (self) => {
         const t = nearestEnemy(p, 1e9, self.position);
@@ -643,7 +644,7 @@ regSpell('blink', {
     const nx = Math.max(30, Math.min(W - 30, p.body.position.x + dir.x * 220));
     const ny = Math.max(40, Math.min(H - 60, p.body.position.y + dir.y * 160));
     Body.setPosition(p.body, { x: nx, y: ny });
-    p.invulnUntil = performance.now() + 300;
+    p.invulnUntil = simNow() + 300;
     spawnParticles(nx, ny, '#c3b1e1', 14, 5);
     sfx.pickup();
   },
@@ -656,7 +657,7 @@ regSpell('rocketleap', {
     Body.setVelocity(p.body, { x: p.body.velocity.x, y: -26 });
   },
 });
-regSpell('ghostwalk', { name: 'Ghost Walk', color: '#e8e8ff', cooldown: 4000, cast(p) { p.speedUntil = performance.now() + 1500; p.invulnUntil = performance.now() + 1500; spawnText(p.body.position.x, p.body.position.y - 44, 'GHOSTLY', '#e8e8ff'); } });
+regSpell('ghostwalk', { name: 'Ghost Walk', color: '#e8e8ff', cooldown: 4000, cast(p) { p.speedUntil = simNow() + 1500; p.invulnUntil = simNow() + 1500; spawnText(p.body.position.x, p.body.position.y - 44, 'GHOSTLY', '#e8e8ff'); } });
 regSpell('swaphex', {
   name: 'Swap Hex', color: '#f5b7ff', cooldown: 3200,
   cast(p) {
@@ -672,22 +673,22 @@ regSpell('swaphex', {
     sfx.pickup();
   },
 });
-regSpell('timeskip', { name: 'Time Skip', color: '#b0e0e6', cooldown: 5000, cast(p) { slowMo(0.35, 1300); p.speedUntil = performance.now() + 1300; doFlash('#b0e0e6', 0.2); } });
+regSpell('timeskip', { name: 'Time Skip', color: '#b0e0e6', cooldown: 5000, cast(p) { slowMo(0.35, 1300); p.speedUntil = simNow() + 1300; doFlash('#b0e0e6', 0.2); } });
 regSpell('smokebomb', {
   name: 'Smoke Bomb', color: '#9a9ab0', cooldown: 1800, selfMove: true,
   cast(p) {
     spawnParticles(p.body.position.x, p.body.position.y, '#9a9ab0', 30, 5, 60);
     const nx = Math.max(30, Math.min(W - 30, p.body.position.x - p.facing * 170));
     Body.setPosition(p.body, { x: nx, y: p.body.position.y - 10 });
-    p.invulnUntil = performance.now() + 400;
+    p.invulnUntil = simNow() + 400;
   },
 });
-regSpell('springheel', { name: 'Springheel', color: '#baffc9', cooldown: 5500, cast(p) { p.jumpBoostUntil = performance.now() + 5000; spawnText(p.body.position.x, p.body.position.y - 44, 'BOING!', '#baffc9'); sfx.boing(); } });
+regSpell('springheel', { name: 'Springheel', color: '#baffc9', cooldown: 5500, cast(p) { p.jumpBoostUntil = simNow() + 5000; spawnText(p.body.position.x, p.body.position.y - 44, 'BOING!', '#baffc9'); sfx.boing(); } });
 // its own gentle status, NOT floaty — floaty is 1.5x anti-gravity (net lift, the
 // balloon-hex drift), which made a self-buff hurl its caster into the sky
-regSpell('featherfall', { name: 'Feather Fall', color: '#fffde7', cooldown: 5000, cast(p) { p.featherUntil = performance.now() + 4000; spawnText(p.body.position.x, p.body.position.y - 44, 'FEATHER-LIGHT', '#fffde7'); } });
+regSpell('featherfall', { name: 'Feather Fall', color: '#fffde7', cooldown: 5000, cast(p) { p.featherUntil = simNow() + 4000; spawnText(p.body.position.x, p.body.position.y - 44, 'FEATHER-LIGHT', '#fffde7'); } });
 regSpell('secondwind', { name: 'Second Wind', color: '#7bd88f', cooldown: 6000, cast(p) { healPlayer(p, 35); spawnParticles(p.body.position.x, p.body.position.y, '#7bd88f', 16, 4); } });
-regSpell('aegis', { name: 'Aegis', color: '#ffd700', cooldown: 6000, cast(p) { p.invulnUntil = performance.now() + 2500; sfx.pickup(); } });
+regSpell('aegis', { name: 'Aegis', color: '#ffd700', cooldown: 6000, cast(p) { p.invulnUntil = simNow() + 2500; sfx.pickup(); } });
 
 // ============ SUMMONS ============
 regSpell('cratedrop', {
@@ -773,7 +774,7 @@ regSpell('beehive', {
     const pos = frontPos(p, 120);
     const hive = Bodies.rectangle(pos.x, pos.y - 20, 22, 26, { density: 0.002, friction: 0.6, label: 'hive' });
     summon(hive, { life: 3000, color: '#e8b647' });
-    const t0 = performance.now();
+    const t0 = simNow();
     let i = 0;
     activeEffects.push({
       until: t0 + 2200,
@@ -840,11 +841,11 @@ regSpell('gravflip', {
   cast(p) {
     // the world flips — except the caster, who keeps their footing
     p.gravityLockDir = engine.gravity.y < 0 ? -1 : 1;
-    p.gravityLockUntil = performance.now() + 2500;
+    p.gravityLockUntil = simNow() + 2500;
     engine.gravity.y = -game.baseGravity;
     doFlash('#c084fc', 0.3);
     setBanner('GRAVITY!', '#c084fc', 1000);
-    activeEffects.push({ until: performance.now() + 2500, onEnd() { engine.gravity.y = game.baseGravity; } });
+    activeEffects.push({ until: simNow() + 2500, onEnd() { engine.gravity.y = game.baseGravity; } });
   },
 });
 regSpell('moongrav', {
@@ -852,7 +853,7 @@ regSpell('moongrav', {
   cast() {
     engine.gravity.y = game.baseGravity * 0.3;
     setBanner('LOW GRAVITY', '#d8d8f0', 1000);
-    activeEffects.push({ until: performance.now() + 4000, onEnd() { engine.gravity.y = game.baseGravity; } });
+    activeEffects.push({ until: simNow() + 4000, onEnd() { engine.gravity.y = game.baseGravity; } });
   },
 });
 regSpell('earthquake', {
@@ -947,14 +948,14 @@ regSpell('confetti', {
     sfx.squeak();
   },
 });
-regSpell('kingsdecree', { name: "King's Decree", color: '#ffd700', cooldown: 5000, cast(p) { const m = p.mega || 1; for (const q of enemiesOf(p)) { q.shrinkUntil = performance.now() + 4000 * m; spawnText(q.body.position.x, q.body.position.y - 44, 'SHRUNK', '#ffd700'); } setBanner('BY ROYAL DECREE', '#ffd700', 1100); } });
+regSpell('kingsdecree', { name: "King's Decree", color: '#ffd700', cooldown: 5000, cast(p) { const m = p.mega || 1; for (const q of enemiesOf(p)) { q.shrinkUntil = simNow() + 4000 * m; spawnText(q.body.position.x, q.body.position.y - 44, 'SHRUNK', '#ffd700'); } setBanner('BY ROYAL DECREE', '#ffd700', 1100); } });
 regSpell('midas', {
   name: 'Midas Touch', color: '#ffd700', cooldown: 3400,
   cast(p) {
     const m = p.mega || 1;
     const t = nearestEnemy(p, 320);
     if (!t) return;
-    const now = performance.now(), dur = 2000 * m;
+    const now = simNow(), dur = 2000 * m;
     t.frozenUntil = now + dur;
     t.heavyUntil = now + dur; // solid gold — heavy
     t.body.frictionAir = 0.001;
@@ -978,7 +979,7 @@ regSpell('banana', {
     const pos = frontPos(p, 60);
     const peel = Bodies.rectangle(pos.x, pos.y, 16, 6, { density: 0.001, friction: 0.05, label: 'banana' });
     peel.owner = p;
-    summon(peel, { life: 10000, color: '#ffe135', armAt: performance.now() + 700 });
+    summon(peel, { life: 10000, color: '#ffe135', armAt: simNow() + 700 });
   },
 });
 regSpell('yoink', {
@@ -1006,7 +1007,7 @@ regSpell('yoink', {
     }
   },
 });
-regSpell('unoreverse', { name: 'Uno Reverse', color: '#4ecdff', cooldown: 5000, cast(p) { p.reflectUntil = performance.now() + 3000; spawnText(p.body.position.x, p.body.position.y - 44, 'REVERSE!', '#4ecdff'); } });
+regSpell('unoreverse', { name: 'Uno Reverse', color: '#4ecdff', cooldown: 5000, cast(p) { p.reflectUntil = simNow() + 3000; spawnText(p.body.position.x, p.body.position.y - 44, 'REVERSE!', '#4ecdff'); } });
 // balloon/anchor were auto-hitting the nearest wizard at ANY range with nothing
 // to dodge — overpowered. Now they're bolts like every other hex: the shot has
 // to actually land, so you can dodge it or parry it right back.
@@ -1014,7 +1015,7 @@ regSpell('balloonhex', {
   name: 'Balloon Hex', color: '#ff6b81', cooldown: 2600,
   cast(p) {
     statusBolt(p, { color: '#ff6b81', r: 6, speed: 16, vy: -4, dmg: 5 }, (q, m) => {
-      q.floatyUntil = performance.now() + 1800 * m;
+      q.floatyUntil = simNow() + 1800 * m;
       Body.setVelocity(q.body, { x: q.body.velocity.x, y: -7 });
       spawnText(q.body.position.x, q.body.position.y - 44, 'UP UP', '#ff6b81');
       sfx.boing?.();
@@ -1025,15 +1026,15 @@ regSpell('anchorhex', {
   name: 'Anchor Hex', color: '#5a6b7a', cooldown: 2600,
   cast(p) {
     statusBolt(p, { color: '#5a6b7a', r: 6, speed: 16, vy: -4, dmg: 5 }, (q, m) => {
-      q.heavyUntil = performance.now() + 2600 * m;
+      q.heavyUntil = simNow() + 2600 * m;
       Body.setVelocity(q.body, { x: q.body.velocity.x, y: 11 });
       spawnText(q.body.position.x, q.body.position.y - 44, 'HEAVY', '#5a6b7a');
       sfx.thud?.();
     });
   },
 });
-regSpell('shrinkray', { name: 'Shrink Ray', color: '#98fb98', cooldown: 2200, cast(p) { statusBolt(p, { color: '#98fb98', dmg: 10 }, (q, m) => { q.shrinkUntil = performance.now() + 4000 * m; spawnText(q.body.position.x, q.body.position.y - 40, 'tiny!', '#98fb98'); }); } });
-regSpell('growthspurt', { name: 'Growth Spurt', color: '#a7e88f', cooldown: 5000, cast(p) { p.growUntil = performance.now() + 4000; spawnText(p.body.position.x, p.body.position.y - 50, 'BIG!', '#a7e88f'); } });
+regSpell('shrinkray', { name: 'Shrink Ray', color: '#98fb98', cooldown: 2200, cast(p) { statusBolt(p, { color: '#98fb98', dmg: 10 }, (q, m) => { q.shrinkUntil = simNow() + 4000 * m; spawnText(q.body.position.x, q.body.position.y - 40, 'tiny!', '#98fb98'); }); } });
+regSpell('growthspurt', { name: 'Growth Spurt', color: '#a7e88f', cooldown: 5000, cast(p) { p.growUntil = simNow() + 4000; spawnText(p.body.position.x, p.body.position.y - 50, 'BIG!', '#a7e88f'); } });
 regSpell('mirrorcast', {
   name: 'Mirror Cast', color: '#dcdcf0', cooldown: 1200,
   cast(p) {
@@ -1082,7 +1083,7 @@ regSpell('pigmorph', {
   name: 'Pig Morph', color: '#ff9ecb', cooldown: 3000,
   cast(p) {
     statusBolt(p, { color: '#ff9ecb', dmg: 5 }, (q, m) => {
-      q.pigUntil = performance.now() + 3800 * m; // long enough to actually be a pig (no casting)
+      q.pigUntil = simNow() + 3800 * m; // long enough to actually be a pig (no casting)
       spawnText(q.body.position.x, q.body.position.y - 44, 'OINK!', '#ff9ecb');
       sfx.oink();
     });
@@ -1096,7 +1097,7 @@ regSpell('lightningrod', {
     const gy = groundYAt(pos.x);
     const rod = Bodies.rectangle(pos.x, gy - 40, 8, 80, { isStatic: true, label: 'wall' });
     summon(rod, { life: 5000, color: '#e3f265' });
-    const t0 = performance.now();
+    const t0 = simNow();
     let next = t0 + 700;
     activeEffects.push({
       until: t0 + 5000,
@@ -1117,7 +1118,7 @@ regSpell('teslacoil', {
     const gy = groundYAt(pos.x);
     const coil = Bodies.rectangle(pos.x, gy - 25, 14, 50, { isStatic: true, label: 'wall' });
     summon(coil, { life: 4000, color: '#9ef0f0' });
-    const t0 = performance.now();
+    const t0 = simNow();
     let next = t0 + 400;
     activeEffects.push({
       until: t0 + 4000,

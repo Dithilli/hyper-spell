@@ -8,7 +8,6 @@ import { hashSnapshot } from './harness/hash.js';
 import { makeClock } from './harness/clock.js';
 import { seededRandom } from './harness/seeded-random.js';
 import { createSim } from '../src/platform/node.js';
-import { advanceTick } from '../src/sim/time.js';
 
 // The complete set of fields the digest is allowed to skip. Written out here on
 // purpose: adding an exclusion to hash.js must break this test and force the
@@ -110,10 +109,9 @@ test('the live snapshot carries no field the digest is blind to', () => {
         const msg = frame?.[String(slot)];
         if (msg) bridge.setInput(slot, msg);
       }
-      bridge.stepSim(clock.now(), 1000 / 60);
-      advanceTick(); // this rig is its own tick loop — see test/harness/tape.js
-      clock.advance(1000 / 60);
-      const snap = bridge.takeWireSnapshot(clock.now());
+      bridge.stepSim();
+      clock.advance(1000 / 60); // keeps the env clock alongside simNow() — see test/harness/tape.js
+      const snap = bridge.takeWireSnapshot();
       for (const k of Object.keys(snap)) seenTop.add(k);
       for (const p of snap.ps) for (const k of Object.keys(p)) if (p[k] !== undefined) seenPs.add(k);
       for (const b of snap.bodies) for (const k of Object.keys(b)) if (b[k] !== undefined) seenBody.add(k);

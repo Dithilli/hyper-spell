@@ -2,7 +2,7 @@
 // ceremony. Stats live per slot and reset when a fresh match starts (first round
 // out of the lobby). The kill feed and the awards panel are drawn in
 // src/render/hud.js; what is here is the ledger behind them.
-import { performance } from './env.js';
+import { simNow } from './time.js';
 import { onWorldReset } from './world.js';
 import { players } from './player/lifecycle.js';
 import { telDeath, telKill } from './telemetry.js';
@@ -26,7 +26,7 @@ export function resetMatchStats() {
 // The trailing slots aren't rendered — they let headless clients (Alinea)
 // attribute kills exactly instead of guessing by proximity.
 function baseAddKillFeed(aName, aColor, bName, bColor, self, aSlot, bSlot) {
-  killFeedLines.push({ a: aName, ac: aColor, b: bName, bc: bColor, self, at: performance.now() });
+  killFeedLines.push({ a: aName, ac: aColor, b: bName, bc: bColor, self, at: simNow() });
   if (killFeedLines.length > 5) killFeedLines.shift();
 }
 
@@ -35,7 +35,7 @@ export function creditKill(victim) {
   statFor(victim).deaths++;
   telDeath(victim.spellId); // balance: which spell the victim was holding when they died
   const hit = victim.lastHitBy;
-  const killer = hit && performance.now() - hit.at < 4000 ? hit.player : null;
+  const killer = hit && simNow() - hit.at < 4000 ? hit.player : null;
   if (killer === victim) {
     statFor(victim).selfKills++;
     addKillFeed(victim.name, victim.color, null, null, true, victim.slot, victim.slot);

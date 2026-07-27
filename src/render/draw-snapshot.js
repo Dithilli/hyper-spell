@@ -8,6 +8,7 @@ import { currentMap } from '../sim/match.js';
 import { players, gibs } from '../sim/player/lifecycle.js';
 import { tomes, hats } from '../sim/pickups.js';
 import { activeEffects, projectiles, summons } from '../sim/spells/core.js';
+import { simNow } from '../sim/time.js';
 import { SPELLS } from '../sim/spells/registry.js';
 import { particles } from '../sim/fx.js';
 import { drawParticles } from './fx.js';
@@ -211,7 +212,11 @@ export function drawSnapshotWorld(snap, snapPrev, alpha, now, includeLocalFx = f
   drawFxLite(snap.fxLite, now);
   if (includeLocalFx) {
     for (const eff of activeEffects) eff.draw?.(now, ctx, art); // boltVisuals arrive via fx events
-    for (let i = activeEffects.length - 1; i >= 0; i--) if (now > activeEffects[i].until) activeEffects.splice(i, 1);
+    // `until` is sim time (src/sim/spells/core.js), so the expiry test reads
+    // simNow() rather than the `now` threaded through for animation phase. The
+    // couch path already passes simNow() here; the online client passes its
+    // wall clock, which would expire every boltVisual the frame after it landed.
+    for (let i = activeEffects.length - 1; i >= 0; i--) if (simNow() > activeEffects[i].until) activeEffects.splice(i, 1);
     drawParticles();
   }
 

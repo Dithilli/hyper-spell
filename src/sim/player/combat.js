@@ -1,6 +1,7 @@
 // player/combat.js — taking damage, losing the hat, and dying.
 import { Bodies, Body, Composite, world, engine } from '../world.js';
-import { performance, random } from '../env.js';
+import { random } from '../env.js';
+import { simNow } from '../time.js';
 import { rand } from '../rng.js';
 import { spawnParticles, spawnText, addShake, doFlash } from '../fx.js';
 import { slowMo } from '../pace.js';
@@ -12,7 +13,7 @@ import { gibs, MAX_HP } from './lifecycle.js';
 
 export function damagePlayer(p, amt, src) {
   if (!p || !p.alive) return;
-  const now = performance.now();
+  const now = simNow();
   if (now < (p.invulnUntil || 0)) {
     spawnText(p.body.position.x, p.body.position.y - 34, 'BLOCKED', '#e8d5ff');
     return;
@@ -46,7 +47,7 @@ export function knockHatOff(p) {
   const s = p.sizeScale || 1;
   const hat = Bodies.polygon(x, y - 22 * s, 3, 8, { density: 0.0008, frictionAir: 0.02, angle: -Math.PI / 2, label: 'gib' });
   hat.color = p.hat;
-  hat.dieAt = performance.now() + 3500;
+  hat.dieAt = simNow() + 3500;
   Body.setVelocity(hat, { x: p.body.velocity.x * 0.5 + rand(-3, 3), y: -7 * (engine.gravity.y < 0 ? -1 : 1) });
   Body.setAngularVelocity(hat, rand(-0.4, 0.4));
   gibs.add(hat);
@@ -68,7 +69,7 @@ export function killPlayer(p) {
   for (let i = 0; i < 6; i++) {
     const gib = Bodies.rectangle(x, y, 14, 4, { density: 0.001, frictionAir: 0.01, label: 'gib' });
     gib.color = p.color;
-    gib.dieAt = performance.now() + 3000;
+    gib.dieAt = simNow() + 3000;
     Body.setVelocity(gib, { x: (random() - 0.5) * 16, y: -6 - random() * 8 });
     Body.setAngularVelocity(gib, (random() - 0.5) * 0.6);
     gibs.add(gib);

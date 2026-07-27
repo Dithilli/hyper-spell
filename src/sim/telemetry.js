@@ -75,6 +75,7 @@ export function flushRoundTelemetry() {
   const spells = {};
   for (const [id, v] of Object.entries(spellTally)) spells[id] = { ...v };
   const rec = {
+    // wall clock: log stamp, not sim state
     ts: Date.now(),
     ver: GAME_VERSION,
     round: game.totalRounds || 0,

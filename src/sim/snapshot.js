@@ -13,8 +13,15 @@ import { tomes, hats } from './pickups.js';
 import { projectiles, summons, activeEffects } from './spells/core.js';
 import { SPELLS } from './spells/registry.js';
 import { BotController } from './ai/bot.js';
+import { simNow } from './time.js';
 
-export function serializeSnapshot(now) {
+// No `now` parameter: every deadline compared below (frozenUntil, casts[],
+// lastCast, …) is written on simNow(), so the serializer reads the same clock.
+// It used to be handed the host's wall clock by src/net/server-bridge.js, which
+// after this task would have reported every status flag false and every
+// cooldown ready.
+export function serializeSnapshot() {
+  const now = simNow();
   // status flags ride the wire only when SET — readers treat a missing field
   // as falsy, and most wizards most frames are not frozen/floaty/piggy/etc.
   const flag = (k, on) => (on ? { [k]: 1 } : {});

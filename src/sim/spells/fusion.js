@@ -9,7 +9,8 @@
 // header below and the effect draw() closures, which now take the render surface
 // as an argument instead of reaching for a global ctx.
 import { Bodies, Body, Composite, world, W, H } from '../world.js';
-import { performance, random } from '../env.js';
+import { random } from '../env.js';
+import { simNow } from '../time.js';
 import { rand } from '../rng.js';
 import {
   spawnParticles, spawnRing, spawnText, addShake, doFlash, spawnBurst,
@@ -109,7 +110,7 @@ export function tryFuse(p) {
   const charges = hybridCharges(def); // power-scaled: heavier hybrid, fewer casts
   p.slots[0] = id; p.slots[1] = null;
   p.slotCharges[0] = charges; p.slotCharges[1] = null;
-  p.casts[0] = 0; p.slotFilledAt[0] = performance.now();
+  p.casts[0] = 0; p.slotFilledAt[0] = simNow();
   p.lastCastSlot = 0;
   const { x, y } = p.body.position;
   setBanner('⚡ FUSION! ' + def.name.toUpperCase(), def.color, 1800, true);
@@ -138,7 +139,7 @@ regHybrid('inferno', {
       fb.onHit = () => explode(fb.position.x, fb.position.y, 90 * m, 14 * m, 22 * m, p, { selfSafe: true });
     }
     explode(p.body.position.x, p.body.position.y, 130 * m, 12 * m, 8 * m, p, { selfSafe: true });
-    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 320 * m) q.burnUntil = performance.now() + 2500 * m;
+    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 320 * m) q.burnUntil = simNow() + 2500 * m;
     // bespoke: a ring of rising embers
     for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; spawnBurst(p.body.position.x + Math.cos(a) * 30, p.body.position.y + Math.sin(a) * 30, i % 2 ? '#ffd166' : '#ff5e3a', 4, { dir: -Math.PI / 2, spread: 1, speed: 5, up: 4, g: 0.06, life: 46 }); }
     doFlash('#ff5e3a', 0.3); addShake(7); sfx.cast();
@@ -150,7 +151,7 @@ regHybrid('absolutezero', {
     const m = p.mega || 1;
     sfx.freeze(); doFlash('#bfe8ff', 0.35); addShake(6);
     for (const q of enemiesOf(p)) {
-      q.frozenUntil = performance.now() + 1400 * m;
+      q.frozenUntil = simNow() + 1400 * m;
       q.body.frictionAir = 0.001;
       damagePlayer(q, 14 * m, p);
       // bespoke: a burst of jagged ice shards flung outward
@@ -177,7 +178,7 @@ regHybrid('steamburst', {
     const base = fb.onHit;
     fb.onHit = (self, other) => {
       base?.(self, other);
-      if (other?.label === 'player' && other.player.alive) { other.player.frozenUntil = performance.now() + 700 * m; other.player.body.frictionAir = 0.001; }
+      if (other?.label === 'player' && other.player.alive) { other.player.frozenUntil = simNow() + 700 * m; other.player.body.frictionAir = 0.001; }
     };
     // bespoke: billowing steam that rises and lingers
     const sp = frontPos(p, 90, -6);
@@ -195,7 +196,7 @@ regHybrid('plasmalance', {
     const d = aimDir(p, 1, 0);
     for (let i = 1; i <= 8; i++) spawnBurst(p.body.position.x + d.x * i * 90, p.body.position.y - 6 + d.y * i * 90, i % 2 ? '#ff4df0' : '#ffd6fb', 3, { kind: 'spark', speed: 5, r: 2 });
     sfx.lightning(); doFlash('#ff4df0', 0.3); addShake(8);
-    if (hit && hit.label === 'player') hit.player.burnUntil = performance.now() + 2600 * m; // burn rides the lance
+    if (hit && hit.label === 'player') hit.player.burnUntil = simNow() + 2600 * m; // burn rides the lance
   },
 });
 regHybrid('superconductor', {
@@ -208,7 +209,7 @@ regHybrid('superconductor', {
     // clients see the pillar too.
     const { hit, pt } = zapRay(p, 38, 10, 3);
     if (hit && hit.label === 'player') {
-      hit.player.frozenUntil = performance.now() + 1000 * m;
+      hit.player.frozenUntil = simNow() + 1000 * m;
       hit.player.body.frictionAir = 0.001;
     }
     const d = aimDir(p, 1, 0);
@@ -229,7 +230,7 @@ regHybrid('firestorm', {
     // channel (tinted) so LAN clients watch the same funnel roam.
     const start = frontPos(p, 70);
     const e = {
-      until: performance.now() + 2400,
+      until: simNow() + 2400,
       x: start.x, vx: p.facing * 3.2,
       net: { k: 'tor', x: start.x, c: '#ff7043' },
       update(now) {
@@ -269,7 +270,7 @@ regHybrid('howlingblizzard', {
     explode(x + p.facing * 260, y, 220, 10 * m, 18 * m, p, { selfSafe: true });
     for (const q of enemiesOf(p)) {
       if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 440) {
-        q.frozenUntil = performance.now() + 800 * m; q.body.frictionAir = 0.001;
+        q.frozenUntil = simNow() + 800 * m; q.body.frictionAir = 0.001;
         Body.setVelocity(q.body, { x: q.body.velocity.x + p.facing * 6, y: q.body.velocity.y });
       }
     }
@@ -280,7 +281,7 @@ regHybrid('thunderstorm', {
   name: 'Thunderstorm', color: '#d9e650', cooldown: 3000,
   cast(p) {
     const m = p.mega || 1;
-    const t0 = performance.now(); let i = 0;
+    const t0 = simNow(); let i = 0;
     activeEffects.push({ until: t0 + 950, update(now) { if (now > t0 + i * 180 && i < 4) { i++; skyBolt(rand(80, W - 80), 22, p, m, { selfSafe: true }); } } });
     sfx.lightning();
   },
@@ -296,12 +297,12 @@ regHybrid('moltenmeteor', {
     const base = fb.onHit;
     fb.onHit = (self, other) => {
       base?.(self, other);
-      if (other?.label === 'player' && other.player.alive) other.player.burnUntil = performance.now() + 2200 * m;
+      if (other?.label === 'player' && other.player.alive) other.player.burnUntil = simNow() + 2200 * m;
       for (let i = 0; i < 4; i++) {
         const blob = dropProjectile(p, self.position.x + rand(-14, 14), self.position.y - 24, { r: 6, vx: rand(-9, 9), vy: rand(-10, -5), color: i % 2 ? '#ff8c5a' : '#ff5e57', density: 0.003, expireMs: 2600 });
         blob.onHit = (bSelf, bOther) => {
           explode(blob.position.x, blob.position.y, 70 * m, 9 * m, 12 * m, p, { selfSafe: true });
-          if (bOther?.label === 'player' && bOther.player.alive) bOther.player.burnUntil = performance.now() + 1400 * m;
+          if (bOther?.label === 'player' && bOther.player.alive) bOther.player.burnUntil = simNow() + 1400 * m;
         };
       }
       spawnBurst(self.position.x, self.position.y, '#ffd166', 14, { dir: -Math.PI / 2, spread: 2, speed: 8, up: 4, g: 0.12, life: 40 });
@@ -317,7 +318,7 @@ regHybrid('avalanche', {
     const tx = t ? t.body.position.x : p.body.position.x + p.facing * 300;
     // real snowpack falls (same fix as rockslide — no more invisible air-bursts):
     // ice chunks crash down, blast on impact, and flash-freeze whoever's close
-    const t0 = performance.now();
+    const t0 = simNow();
     let dropped = 0;
     activeEffects.push({
       until: t0 + 900,
@@ -328,14 +329,14 @@ regHybrid('avalanche', {
           const chunk = dropProjectile(p, rx, -40, { r: rand(10, 15) * Math.min(m, 1.6), vy: rand(15, 19), color: dropped % 2 ? '#eaf6ff' : '#bfe8ff', density: 0.007 });
           chunk.onHit = () => {
             explode(chunk.position.x, chunk.position.y, 90 * m, 12 * m, 16 * m, p, { selfSafe: true });
-            const nw = performance.now();
+            const nw = simNow();
             for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - chunk.position.x, q.body.position.y - chunk.position.y) < 120) { q.frozenUntil = Math.max(q.frozenUntil || 0, nw + 700 * m); q.body.frictionAir = 0.001; }
             spawnBurst(chunk.position.x, chunk.position.y, '#eaffff', 10, { kind: 'spark', speed: 7 });
           };
         }
       },
     });
-    for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - tx) < 180) q.heavyUntil = performance.now() + 1500 * m;
+    for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - tx) < 180) q.heavyUntil = simNow() + 1500 * m;
     addShake(9); sfx.freeze?.();
   },
 });
@@ -356,7 +357,7 @@ regHybrid('blacksun', {
     const sx = p.body.position.x + dir.x * 240, sy = p.body.position.y - 40 + dir.y * 240;
     spawnSingularity(sx, sy, m, p, { selfSafe: true });
     explode(sx, sy, 160, 8 * m, 20 * m, p, { selfSafe: true });
-    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - sx, q.body.position.y - sy) < 300) q.burnUntil = performance.now() + 2600 * m;
+    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - sx, q.body.position.y - sy) < 300) q.burnUntil = simNow() + 2600 * m;
     // bespoke: a corona of violet fire swirling around a black core
     for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2; spawnBurst(sx + Math.cos(a) * 44, sy + Math.sin(a) * 44, i % 3 ? '#ff7043' : '#a55eea', 2, { dir: a + Math.PI / 2, spread: 0.3, speed: 5, g: 0, life: 44 }); }
     doFlash('#a55eea', 0.3);
@@ -369,7 +370,7 @@ regHybrid('eventhorizon', {
     const dir = aimDir(p, 1, 0);
     const sx = p.body.position.x + dir.x * 260, sy = p.body.position.y + dir.y * 260;
     spawnSingularity(sx, sy, m, p, { selfSafe: true });
-    activeEffects.push({ until: performance.now() + 720, onEnd() { explode(sx, sy, 260, 26 * m, 34 * m, p, { selfSafe: true }); addShake(12); } });
+    activeEffects.push({ until: simNow() + 720, onEnd() { explode(sx, sy, 260, 26 * m, 34 * m, p, { selfSafe: true }); addShake(12); } });
   },
 });
 regHybrid('soulflame', {
@@ -409,7 +410,7 @@ regHybrid('rockslide', {
     // the mountain actually comes down: a stagger of real boulders rains on the
     // target's column and detonates on impact (the old version air-burst at
     // sky height and visibly did nothing)
-    const t0 = performance.now();
+    const t0 = simNow();
     let dropped = 0;
     activeEffects.push({
       until: t0 + 1100,
@@ -422,7 +423,7 @@ regHybrid('rockslide', {
         }
       },
     });
-    for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - cx) < 220) q.heavyUntil = performance.now() + 1800 * m;
+    for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - cx) < 220) q.heavyUntil = simNow() + 1800 * m;
     addShake(11); sfx.thud?.();
   },
 });
@@ -433,7 +434,7 @@ regHybrid('bigcrunch', {
     const dir = aimDir(p, 1, 0);
     const sx = p.body.position.x + dir.x * 240, sy = p.body.position.y + dir.y * 240;
     spawnSingularity(sx, sy, 1.6 * m, p, { selfSafe: true });
-    activeEffects.push({ until: performance.now() + 1000, onEnd() { explode(sx, sy, 320, 30 * m, 44 * m, p, { selfSafe: true }); addShake(16); doFlash('#a55eea', 0.4); } });
+    activeEffects.push({ until: simNow() + 1000, onEnd() { explode(sx, sy, 320, 30 * m, 44 * m, p, { selfSafe: true }); addShake(16); doFlash('#a55eea', 0.4); } });
   },
 });
 regHybrid('sanctuary', {
@@ -441,7 +442,7 @@ regHybrid('sanctuary', {
   cast(p) {
     const m = p.mega || 1;
     healPlayer(p, 45 * m);
-    p.invulnUntil = performance.now() + 2200 * m;
+    p.invulnUntil = simNow() + 2200 * m;
     spawnRing(p.body.position.x, p.body.position.y, '#7bd88f');
     spawnParticles(p.body.position.x, p.body.position.y, '#7bd88f', 22, 5);
     spawnText(p.body.position.x, p.body.position.y - 50, 'SANCTUARY', '#7bd88f'); sfx.pickup?.();
@@ -456,14 +457,14 @@ regHybrid('frozenstar', {
     const dir = aimDir(p, 1, 0);
     const sx = p.body.position.x + dir.x * 240, sy = p.body.position.y - 30 + dir.y * 240;
     spawnSingularity(sx, sy, m, p, { selfSafe: true });
-    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - sx, q.body.position.y - sy) < 320) { q.frozenUntil = performance.now() + 1100 * m; q.body.frictionAir = 0.001; }
+    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - sx, q.body.position.y - sy) < 320) { q.frozenUntil = simNow() + 1100 * m; q.body.frictionAir = 0.001; }
     doFlash('#9be7ff', 0.3); sfx.freeze();
   },
 });
 regHybrid('frostward', {
   name: 'Frost Ward', color: '#aee4ff', cooldown: 3000,
   cast(p) {
-    const m = p.mega || 1, now = performance.now();
+    const m = p.mega || 1, now = simNow();
     // a true ward now: heal + a mirror of ice that flings incoming spells back
     // at the sender (the parry reflect, held longer), while anyone who presses
     // in close locks up solid. The reflect shimmer is netted (rf flag).
@@ -483,7 +484,7 @@ regHybrid('ionstorm', {
     const dir = aimDir(p, 1, 0);
     const sx = p.body.position.x + dir.x * 260, sy = p.body.position.y + dir.y * 200;
     spawnSingularity(sx, sy, m, p, { selfSafe: true });
-    const t0 = performance.now(); let i = 0;
+    const t0 = simNow(); let i = 0;
     activeEffects.push({ until: t0 + 1100, update(now) { if (now > t0 + i * 200 && i < 5) { i++; skyBolt(sx + rand(-120, 120), 18, p, m, { selfSafe: true }); } } });
     doFlash('#9ef0f0', 0.25);
   },
@@ -502,7 +503,7 @@ regHybrid('sandstorm', {
   cast(p) {
     const m = p.mega || 1;
     for (let i = 0; i < 6; i++) boomBolt(p, { selfSafe: true, color: '#d8c48a', r: 4, vy: rand(-6, 2), speed: rand(16, 26), radius: 55, power: 12, dmg: 10 });
-    for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - p.body.position.x) < 500 && (q.body.position.x - p.body.position.x) * p.facing > 0) { q.reversedUntil = performance.now() + 1400 * m; Body.setVelocity(q.body, { x: q.body.velocity.x + p.facing * 7, y: q.body.velocity.y - 2 }); }
+    for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - p.body.position.x) < 500 && (q.body.position.x - p.body.position.x) * p.facing > 0) { q.reversedUntil = simNow() + 1400 * m; Body.setVelocity(q.body, { x: q.body.velocity.x + p.facing * 7, y: q.body.velocity.y - 2 }); }
     spawnParticles(p.body.position.x + p.facing * 120, p.body.position.y, '#d8c48a', 20, 6); sfx.cast();
   },
 });
@@ -511,7 +512,7 @@ regHybrid('zephyr', {
   cast(p) {
     const m = p.mega || 1;
     healPlayer(p, 20 * m);
-    p.speedUntil = performance.now() + 3000; p.jumpBoostUntil = performance.now() + 3000; p.featherUntil = performance.now() + 2000; // gentle glide, not balloon lift
+    p.speedUntil = simNow() + 3000; p.jumpBoostUntil = simNow() + 3000; p.featherUntil = simNow() + 2000; // gentle glide, not balloon lift
     for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 240) Body.setVelocity(q.body, { x: (q.body.position.x - p.body.position.x) * 0.05 + Math.sign(q.body.position.x - p.body.position.x) * 8, y: -7 });
     spawnText(p.body.position.x, p.body.position.y - 50, 'ZEPHYR', '#dfffff'); spawnParticles(p.body.position.x, p.body.position.y, '#dfffff', 16, 5); sfx.boing?.();
   },
@@ -525,9 +526,9 @@ regHybrid('gravitywell', {
     const cy = t ? t.body.position.y : p.body.position.y;
     for (const q of enemiesOf(p)) {
       const dx = cx - q.body.position.x, dy = cy - q.body.position.y, d = Math.hypot(dx, dy) || 1;
-      if (d < 400) { Body.setVelocity(q.body, { x: q.body.velocity.x + (dx / d) * 10, y: q.body.velocity.y + (dy / d) * 6 }); q.heavyUntil = performance.now() + 2000 * m; }
+      if (d < 400) { Body.setVelocity(q.body, { x: q.body.velocity.x + (dx / d) * 10, y: q.body.velocity.y + (dy / d) * 6 }); q.heavyUntil = simNow() + 2000 * m; }
     }
-    activeEffects.push({ until: performance.now() + 500, onEnd() { explode(cx, cy, 200, 20 * m, 30 * m, p, { selfSafe: true }); addShake(12); } });
+    activeEffects.push({ until: simNow() + 500, onEnd() { explode(cx, cy, 200, 20 * m, 30 * m, p, { selfSafe: true }); addShake(12); } });
     spawnRing(cx, cy, '#7a6a9a');
   },
 });
@@ -536,7 +537,7 @@ regHybrid('bulwark', {
   cast(p) {
     const m = p.mega || 1;
     healPlayer(p, 28 * m);
-    p.invulnUntil = performance.now() + 1400 * m;
+    p.invulnUntil = simNow() + 1400 * m;
     explode(p.body.position.x, p.body.position.y, 180, 22 * m, 16 * m, p, { selfSafe: true }); // stone shockwave shoves foes off
     spawnRing(p.body.position.x, p.body.position.y, '#9a8a6a'); spawnText(p.body.position.x, p.body.position.y - 50, 'BULWARK', '#9a8a6a'); addShake(8);
   },
@@ -566,7 +567,7 @@ function chaosBurst(x, y, count = 14, o = {}) {
 regHybrid('pandemonium', {
   name: 'Pandemonium', color: '#ff9ff3', cooldown: 3600,
   cast(p) {
-    const m = p.mega || 1, now = performance.now();
+    const m = p.mega || 1, now = simNow();
     for (const q of enemiesOf(p)) {
       const roll = Math.floor(random() * 5);
       if (roll === 0) q.frozenUntil = now + 1000 * m;
@@ -583,7 +584,7 @@ regHybrid('pandemonium', {
 regHybrid('hexfire', {
   name: 'Hexfire', color: '#ff7ac0', cooldown: 2600,
   cast(p) {
-    const m = p.mega || 1, now = performance.now();
+    const m = p.mega || 1, now = simNow();
     for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 460) {
       q.burnUntil = now + 2600 * m; q.shrinkUntil = now + 3000 * m; damagePlayer(q, 12 * m, p);
       spawnBurst(q.body.position.x, q.body.position.y, '#ff7ac0', 10, { speed: 5, up: 3, g: 0.1 });
@@ -594,7 +595,7 @@ regHybrid('hexfire', {
 regHybrid('coldfeet', {
   name: 'Cold Feet', color: '#a7d8ff', cooldown: 2800,
   cast(p) {
-    const m = p.mega || 1, now = performance.now();
+    const m = p.mega || 1, now = simNow();
     for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 420) {
       q.frozenUntil = now + 700 * m; q.reversedUntil = now + 3000 * m; q.body.frictionAir = 0.001;
       spawnBurst(q.body.position.x, q.body.position.y, '#a7d8ff', 12, { speed: 5, r: 2.5 });
@@ -607,14 +608,14 @@ regHybrid('joybuzzer', {
   cast(p) {
     const m = p.mega || 1;
     const { hit } = zapRay(p, 30, 22, 4);
-    if (hit && hit.label === 'player') { hit.player.reversedUntil = performance.now() + 2600 * m; spawnBurst(hit.position.x, hit.position.y, '#f2e14e', 16, { kind: 'spark', speed: 8 }); }
+    if (hit && hit.label === 'player') { hit.player.reversedUntil = simNow() + 2600 * m; spawnBurst(hit.position.x, hit.position.y, '#f2e14e', 16, { kind: 'spark', speed: 8 }); }
     doFlash('#ffffff', 0.3); addShake(7); sfx.lightning();
   },
 });
 regHybrid('whirligig', {
   name: 'Whirligig', color: '#c9f7ff', cooldown: 2800,
   cast(p) {
-    const m = p.mega || 1, now = performance.now(), { x, y } = p.body.position;
+    const m = p.mega || 1, now = simNow(), { x, y } = p.body.position;
     for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 380) {
       q.floatyUntil = now + 2600 * m; q.reversedUntil = now + 1600 * m;
       const ang = Math.atan2(q.body.position.y - y, q.body.position.x - x) + Math.PI / 2;
@@ -635,7 +636,7 @@ regHybrid('boobytrap', {
     const gy = groundYAt(cx);
     spawnText(cx, gy - 40, 'TICK...', '#d8b26a');
     spawnParticles(cx, gy - 12, '#d8b26a', 6, 2, 30);
-    const t0 = performance.now();
+    const t0 = simNow();
     activeEffects.push({
       until: t0 + 900,
       draw(now, ctx) {
@@ -644,7 +645,7 @@ regHybrid('boobytrap', {
       },
       onEnd() {
         explode(cx, gy - 10, 170, 22 * m, 28 * m, p, { selfSafe: true });
-        const nw = performance.now();
+        const nw = simNow();
         for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - cx) < 200 && Math.abs(q.body.position.y - gy) < 160) q.heavyUntil = nw + 2500 * m;
         chaosBurst(cx, gy - 20, 12, { speed: 6, up: 3 });
         addShake(10); sfx.thud?.();
@@ -669,7 +670,7 @@ regHybrid('realityglitch', {
 regHybrid('voodoo', {
   name: 'Voodoo', color: '#c65ba0', cooldown: 3600,
   cast(p) {
-    const m = p.mega || 1, now = performance.now();
+    const m = p.mega || 1, now = simNow();
     let drained = 0;
     for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 440) {
       damagePlayer(q, 16 * m, p); q.shrinkUntil = now + 3500 * m; drained++;

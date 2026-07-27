@@ -4,6 +4,7 @@
 import { onWorldReset } from './world.js';
 import { game } from './match.js';
 import { serializeSnapshot } from './snapshot.js';
+import { simNow } from './time.js';
 
 export const REPLAY = {
   BUF_MS: 3400,   // ring buffer horizon
@@ -20,7 +21,7 @@ let replayFrameCounter = 0;
 export function replayRecord(now) {
   if (game.state !== 'PLAY') return;
   if (++replayFrameCounter % REPLAY.HZ_DIV !== 0) return;
-  replayBuf.push({ t: now, snap: serializeSnapshot(now) });
+  replayBuf.push({ t: now, snap: serializeSnapshot() });
   while (replayBuf.length && replayBuf[0].t < now - REPLAY.BUF_MS) replayBuf.shift();
 }
 
@@ -45,8 +46,14 @@ export function startReplay(now) {
   return REPLAY.LEAD_MS + durMs / REPLAY.SPEED + REPLAY.HOLD_MS;
 }
 
-// bracketing frames + lerp alpha at the replay's current (slowed) time
-export function replayFrameAt(now) {
+// bracketing frames + lerp alpha at the replay's current (slowed) time.
+// Takes no `now`: the tape's timestamps and `playAt` are sim time, so the only
+// clock that can index into them is simNow(). Its two callers are both outside
+// sim/ (src/net/server-bridge.js, src/render/replay.js) and used to pass their
+// own wall clock, which would now drift off the tape by (1 - paceScale()) of
+// however long the process had been up.
+export function replayFrameAt() {
+  const now = simNow();
   const r = game.replay;
   if (!r) return null;
   const t = r.frames[0].t + Math.max(0, now - r.playAt) * REPLAY.SPEED;
