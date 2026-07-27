@@ -1615,10 +1615,10 @@
                     }
                   }
                 };
-                Sleeping.afterCollisions = function(pairs) {
+                Sleeping.afterCollisions = function(pairs2) {
                   var motionSleepThreshold = Sleeping._motionSleepThreshold;
-                  for (var i = 0; i < pairs.length; i++) {
-                    var pair = pairs[i];
+                  for (var i = 0; i < pairs2.length; i++) {
+                    var pair = pairs2[i];
                     if (!pair.isActive)
                       continue;
                     var collision = pair.collision, bodyA = collision.bodyA.parent, bodyB = collision.bodyB.parent;
@@ -1690,7 +1690,7 @@
                     supports: []
                   };
                 };
-                Collision.collides = function(bodyA, bodyB, pairs) {
+                Collision.collides = function(bodyA, bodyB, pairs2) {
                   Collision._overlapAxes(_overlapAB, bodyA.vertices, bodyB.vertices, bodyA.axes);
                   if (_overlapAB.overlap <= 0) {
                     return null;
@@ -1699,7 +1699,7 @@
                   if (_overlapBA.overlap <= 0) {
                     return null;
                   }
-                  var pair = pairs && pairs.table[Pair.id(bodyA, bodyB)], collision;
+                  var pair = pairs2 && pairs2.table[Pair.id(bodyA, bodyB)], collision;
                   if (!pair) {
                     collision = Collision.create(bodyA, bodyB);
                     collision.collided = true;
@@ -2318,7 +2318,7 @@
                   detector.bodies = [];
                 };
                 Detector.collisions = function(detector) {
-                  var collisions = [], pairs = detector.pairs, bodies = detector.bodies, bodiesLength = bodies.length, canCollide = Detector.canCollide, collides = Collision.collides, i, j;
+                  var collisions = [], pairs2 = detector.pairs, bodies = detector.bodies, bodiesLength = bodies.length, canCollide = Detector.canCollide, collides = Collision.collides, i, j;
                   bodies.sort(Detector._compareBoundsX);
                   for (i = 0; i < bodiesLength; i++) {
                     var bodyA = bodies[i], boundsA = bodyA.bounds, boundXMax = bodyA.bounds.max.x, boundYMax = bodyA.bounds.max.y, boundYMin = bodyA.bounds.min.y, bodyAStatic = bodyA.isStatic || bodyA.isSleeping, partsALength = bodyA.parts.length, partsASingle = partsALength === 1;
@@ -2338,7 +2338,7 @@
                       }
                       var partsBLength = bodyB.parts.length;
                       if (partsASingle && partsBLength === 1) {
-                        var collision = collides(bodyA, bodyB, pairs);
+                        var collision = collides(bodyA, bodyB, pairs2);
                         if (collision) {
                           collisions.push(collision);
                         }
@@ -2351,7 +2351,7 @@
                             if (boundsA.min.x > boundsB.max.x || boundsA.max.x < boundsB.min.x || boundsA.max.y < boundsB.min.y || boundsA.min.y > boundsB.max.y) {
                               continue;
                             }
-                            var collision = collides(partA, partB, pairs);
+                            var collision = collides(partA, partB, pairs2);
                             if (collision) {
                               collisions.push(collision);
                             }
@@ -2508,13 +2508,13 @@
                     Common2.warn("Plugin.register:", Plugin.toString(plugin), "does not implement all required fields.");
                   }
                   if (plugin.name in Plugin._registry) {
-                    var registered = Plugin._registry[plugin.name], pluginVersion = Plugin.versionParse(plugin.version).number, registeredVersion = Plugin.versionParse(registered.version).number;
+                    var registered2 = Plugin._registry[plugin.name], pluginVersion = Plugin.versionParse(plugin.version).number, registeredVersion = Plugin.versionParse(registered2.version).number;
                     if (pluginVersion > registeredVersion) {
-                      Common2.warn("Plugin.register:", Plugin.toString(registered), "was upgraded to", Plugin.toString(plugin));
+                      Common2.warn("Plugin.register:", Plugin.toString(registered2), "was upgraded to", Plugin.toString(plugin));
                       Plugin._registry[plugin.name] = plugin;
                     } else if (pluginVersion < registeredVersion) {
-                      Common2.warn("Plugin.register:", Plugin.toString(registered), "can not be downgraded to", Plugin.toString(plugin));
-                    } else if (plugin !== registered) {
+                      Common2.warn("Plugin.register:", Plugin.toString(registered2), "can not be downgraded to", Plugin.toString(plugin));
+                    } else if (plugin !== registered2) {
                       Common2.warn("Plugin.register:", Plugin.toString(plugin), "is already registered to different plugin object");
                     }
                   } else {
@@ -2590,19 +2590,19 @@
                     if (Plugin.isPlugin(dependency)) {
                       Plugin.register(dependency);
                     }
-                    var parsed = Plugin.dependencyParse(dependency), resolved = Plugin.resolve(dependency);
-                    if (resolved && !Plugin.versionSatisfies(resolved.version, parsed.range)) {
+                    var parsed = Plugin.dependencyParse(dependency), resolved2 = Plugin.resolve(dependency);
+                    if (resolved2 && !Plugin.versionSatisfies(resolved2.version, parsed.range)) {
                       Common2.warn(
                         "Plugin.dependencies:",
-                        Plugin.toString(resolved),
+                        Plugin.toString(resolved2),
                         "does not satisfy",
                         Plugin.toString(parsed),
                         "used by",
                         Plugin.toString(parsedBase) + "."
                       );
-                      resolved._warned = true;
+                      resolved2._warned = true;
                       module3._warned = true;
-                    } else if (!resolved) {
+                    } else if (!resolved2) {
                       Common2.warn(
                         "Plugin.dependencies:",
                         Plugin.toString(dependency),
@@ -2750,7 +2750,7 @@
                 };
                 Engine2.update = function(engine2, delta) {
                   var startTime = Common2.now();
-                  var world = engine2.world, detector = engine2.detector, pairs = engine2.pairs, timing = engine2.timing, timestamp = timing.timestamp, i;
+                  var world = engine2.world, detector = engine2.detector, pairs2 = engine2.pairs, timing = engine2.timing, timestamp = timing.timestamp, i;
                   delta = typeof delta !== "undefined" ? delta : Common2._baseDelta;
                   delta *= timing.timeScale;
                   timing.timestamp += delta;
@@ -2778,15 +2778,15 @@
                   Constraint2.postSolveAll(allBodies2);
                   detector.pairs = engine2.pairs;
                   var collisions = Detector.collisions(detector);
-                  Pairs.update(pairs, collisions, timestamp);
+                  Pairs.update(pairs2, collisions, timestamp);
                   if (engine2.enableSleeping)
-                    Sleeping.afterCollisions(pairs.list);
-                  if (pairs.collisionStart.length > 0)
-                    Events2.trigger(engine2, "collisionStart", { pairs: pairs.collisionStart });
+                    Sleeping.afterCollisions(pairs2.list);
+                  if (pairs2.collisionStart.length > 0)
+                    Events2.trigger(engine2, "collisionStart", { pairs: pairs2.collisionStart });
                   var positionDamping = Common2.clamp(20 / engine2.positionIterations, 0, 1);
-                  Resolver.preSolvePosition(pairs.list);
+                  Resolver.preSolvePosition(pairs2.list);
                   for (i = 0; i < engine2.positionIterations; i++) {
-                    Resolver.solvePosition(pairs.list, delta, positionDamping);
+                    Resolver.solvePosition(pairs2.list, delta, positionDamping);
                   }
                   Resolver.postSolvePosition(allBodies2);
                   Constraint2.preSolveAll(allBodies2);
@@ -2794,15 +2794,15 @@
                     Constraint2.solveAll(allConstraints, delta);
                   }
                   Constraint2.postSolveAll(allBodies2);
-                  Resolver.preSolveVelocity(pairs.list);
+                  Resolver.preSolveVelocity(pairs2.list);
                   for (i = 0; i < engine2.velocityIterations; i++) {
-                    Resolver.solveVelocity(pairs.list, delta);
+                    Resolver.solveVelocity(pairs2.list, delta);
                   }
                   Engine2._bodiesUpdateVelocities(allBodies2);
-                  if (pairs.collisionActive.length > 0)
-                    Events2.trigger(engine2, "collisionActive", { pairs: pairs.collisionActive });
-                  if (pairs.collisionEnd.length > 0)
-                    Events2.trigger(engine2, "collisionEnd", { pairs: pairs.collisionEnd });
+                  if (pairs2.collisionActive.length > 0)
+                    Events2.trigger(engine2, "collisionActive", { pairs: pairs2.collisionActive });
+                  if (pairs2.collisionEnd.length > 0)
+                    Events2.trigger(engine2, "collisionEnd", { pairs: pairs2.collisionEnd });
                   Engine2._bodiesClearForces(allBodies2);
                   Events2.trigger(engine2, "afterUpdate", event);
                   engine2.timing.lastElapsed = Common2.now() - startTime;
@@ -2879,10 +2879,10 @@
                 Resolver._positionWarming = 0.8;
                 Resolver._frictionNormalMultiplier = 5;
                 Resolver._frictionMaxStatic = Number.MAX_VALUE;
-                Resolver.preSolvePosition = function(pairs) {
-                  var i, pair, activeCount, pairsLength = pairs.length;
+                Resolver.preSolvePosition = function(pairs2) {
+                  var i, pair, activeCount, pairsLength = pairs2.length;
                   for (i = 0; i < pairsLength; i++) {
-                    pair = pairs[i];
+                    pair = pairs2[i];
                     if (!pair.isActive)
                       continue;
                     activeCount = pair.activeContacts.length;
@@ -2890,10 +2890,10 @@
                     pair.collision.parentB.totalContacts += activeCount;
                   }
                 };
-                Resolver.solvePosition = function(pairs, delta, damping) {
-                  var i, pair, collision, bodyA, bodyB, normal, contactShare, positionImpulse, positionDampen = Resolver._positionDampen * (damping || 1), slopDampen = Common2.clamp(delta / Common2._baseDelta, 0, 1), pairsLength = pairs.length;
+                Resolver.solvePosition = function(pairs2, delta, damping) {
+                  var i, pair, collision, bodyA, bodyB, normal, contactShare, positionImpulse, positionDampen = Resolver._positionDampen * (damping || 1), slopDampen = Common2.clamp(delta / Common2._baseDelta, 0, 1), pairsLength = pairs2.length;
                   for (i = 0; i < pairsLength; i++) {
-                    pair = pairs[i];
+                    pair = pairs2[i];
                     if (!pair.isActive || pair.isSensor)
                       continue;
                     collision = pair.collision;
@@ -2903,7 +2903,7 @@
                     pair.separation = normal.x * (bodyB.positionImpulse.x + collision.penetration.x - bodyA.positionImpulse.x) + normal.y * (bodyB.positionImpulse.y + collision.penetration.y - bodyA.positionImpulse.y);
                   }
                   for (i = 0; i < pairsLength; i++) {
-                    pair = pairs[i];
+                    pair = pairs2[i];
                     if (!pair.isActive || pair.isSensor)
                       continue;
                     collision = pair.collision;
@@ -2950,10 +2950,10 @@
                     }
                   }
                 };
-                Resolver.preSolveVelocity = function(pairs) {
-                  var pairsLength = pairs.length, i, j;
+                Resolver.preSolveVelocity = function(pairs2) {
+                  var pairsLength = pairs2.length, i, j;
                   for (i = 0; i < pairsLength; i++) {
-                    var pair = pairs[i];
+                    var pair = pairs2[i];
                     if (!pair.isActive || pair.isSensor)
                       continue;
                     var contacts = pair.activeContacts, contactsLength = contacts.length, collision = pair.collision, bodyA = collision.parentA, bodyB = collision.parentB, normal = collision.normal, tangent = collision.tangent;
@@ -2975,10 +2975,10 @@
                     }
                   }
                 };
-                Resolver.solveVelocity = function(pairs, delta) {
-                  var timeScale = delta / Common2._baseDelta, timeScaleSquared = timeScale * timeScale, timeScaleCubed = timeScaleSquared * timeScale, restingThresh = -Resolver._restingThresh * timeScale, restingThreshTangent = Resolver._restingThreshTangent, frictionNormalMultiplier = Resolver._frictionNormalMultiplier * timeScale, frictionMaxStatic = Resolver._frictionMaxStatic, pairsLength = pairs.length, tangentImpulse, maxFriction, i, j;
+                Resolver.solveVelocity = function(pairs2, delta) {
+                  var timeScale = delta / Common2._baseDelta, timeScaleSquared = timeScale * timeScale, timeScaleCubed = timeScaleSquared * timeScale, restingThresh = -Resolver._restingThresh * timeScale, restingThreshTangent = Resolver._restingThreshTangent, frictionNormalMultiplier = Resolver._frictionNormalMultiplier * timeScale, frictionMaxStatic = Resolver._frictionMaxStatic, pairsLength = pairs2.length, tangentImpulse, maxFriction, i, j;
                   for (i = 0; i < pairsLength; i++) {
-                    var pair = pairs[i];
+                    var pair = pairs2[i];
                     if (!pair.isActive || pair.isSensor)
                       continue;
                     var collision = pair.collision, bodyA = collision.parentA, bodyB = collision.parentB, bodyAVelocity = bodyA.velocity, bodyBVelocity = bodyB.velocity, normalX = collision.normal.x, normalY = collision.normal.y, tangentX = collision.tangent.x, tangentY = collision.tangent.y, contacts = pair.activeContacts, contactsLength = contacts.length, contactShare = 1 / contactsLength, inverseMassTotal = bodyA.inverseMass + bodyB.inverseMass, friction = pair.friction * pair.frictionStatic * frictionNormalMultiplier;
@@ -3063,8 +3063,8 @@
                     collisionEnd: []
                   }, options);
                 };
-                Pairs.update = function(pairs, collisions, timestamp) {
-                  var pairsList = pairs.list, pairsListLength = pairsList.length, pairsTable = pairs.table, collisionsLength = collisions.length, collisionStart = pairs.collisionStart, collisionEnd = pairs.collisionEnd, collisionActive = pairs.collisionActive, collision, pairIndex, pair, i;
+                Pairs.update = function(pairs2, collisions, timestamp) {
+                  var pairsList = pairs2.list, pairsListLength = pairsList.length, pairsTable = pairs2.table, collisionsLength = collisions.length, collisionStart = pairs2.collisionStart, collisionEnd = pairs2.collisionEnd, collisionActive = pairs2.collisionActive, collision, pairIndex, pair, i;
                   collisionStart.length = 0;
                   collisionEnd.length = 0;
                   collisionActive.length = 0;
@@ -3108,13 +3108,13 @@
                     delete pairsTable[pair.id];
                   }
                 };
-                Pairs.clear = function(pairs) {
-                  pairs.table = {};
-                  pairs.list.length = 0;
-                  pairs.collisionStart.length = 0;
-                  pairs.collisionActive.length = 0;
-                  pairs.collisionEnd.length = 0;
-                  return pairs;
+                Pairs.clear = function(pairs2) {
+                  pairs2.table = {};
+                  pairs2.list.length = 0;
+                  pairs2.collisionStart.length = 0;
+                  pairs2.collisionActive.length = 0;
+                  pairs2.collisionEnd.length = 0;
+                  return pairs2;
                 };
               })();
             }),
@@ -3462,16 +3462,16 @@
                   }
                 };
                 Grid._createActivePairsList = function(grid) {
-                  var pair, gridPairs = grid.pairs, pairKeys = Common2.keys(gridPairs), pairKeysLength = pairKeys.length, pairs = [], k;
+                  var pair, gridPairs = grid.pairs, pairKeys = Common2.keys(gridPairs), pairKeysLength = pairKeys.length, pairs2 = [], k;
                   for (k = 0; k < pairKeysLength; k++) {
                     pair = gridPairs[pairKeys[k]];
                     if (pair[2] > 0) {
-                      pairs.push(pair);
+                      pairs2.push(pair);
                     } else {
                       delete gridPairs[pairKeys[k]];
                     }
                   }
-                  return pairs;
+                  return pairs2;
                 };
               })();
             }),
@@ -4332,11 +4332,11 @@
                     }
                   }
                 };
-                Render.collisions = function(render, pairs, context) {
+                Render.collisions = function(render, pairs2, context) {
                   var c = context, options = render.options, pair, collision, corrected, bodyA, bodyB, i, j;
                   c.beginPath();
-                  for (i = 0; i < pairs.length; i++) {
-                    pair = pairs[i];
+                  for (i = 0; i < pairs2.length; i++) {
+                    pair = pairs2[i];
                     if (!pair.isActive)
                       continue;
                     collision = pair.collision;
@@ -4352,8 +4352,8 @@
                   }
                   c.fill();
                   c.beginPath();
-                  for (i = 0; i < pairs.length; i++) {
-                    pair = pairs[i];
+                  for (i = 0; i < pairs2.length; i++) {
+                    pair = pairs2[i];
                     if (!pair.isActive)
                       continue;
                     collision = pair.collision;
@@ -4379,11 +4379,11 @@
                   c.lineWidth = 1;
                   c.stroke();
                 };
-                Render.separations = function(render, pairs, context) {
+                Render.separations = function(render, pairs2, context) {
                   var c = context, options = render.options, pair, collision, corrected, bodyA, bodyB, i, j;
                   c.beginPath();
-                  for (i = 0; i < pairs.length; i++) {
-                    pair = pairs[i];
+                  for (i = 0; i < pairs2.length; i++) {
+                    pair = pairs2[i];
                     if (!pair.isActive)
                       continue;
                     collision = pair.collision;
@@ -5370,6 +5370,62 @@
     toggleMode: () => toggleMode
   });
 
+  // src/sim/cooldown.js
+  var pairs = /* @__PURE__ */ new Map();
+  var keyOf = (a, b) => a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
+  var pairCooldown = {
+    // True if this pair may act now, in which case the gate closes for `ms`.
+    // ASKING IS TAKING: call it last in a condition, after everything else that
+    // could veto the hit, which is exactly where the stamp assignments it
+    // replaced sat.
+    //
+    // THE BOUNDARY. `<` means the gate opens on tick T + ticks(ms) — a 700ms gate
+    // taken on tick T is open again 42 ticks later, the duration as authored.
+    // That is what `p._bossHurtAt` and `b._touchAt` did (`now < stamp` → skip),
+    // and those two are polled EVERY TICK from the boss and enemy update loops,
+    // so their reopening tick is observed every time the gate is used. The other
+    // three wrote `now > stamp`, which held one tick longer; they are driven by
+    // collisionStart, which only fires when a contact is newly formed, so their
+    // reopening tick is almost never the tick a contact actually lands on.
+    // Unifying has to pick one, and this picks the one that is both the authored
+    // duration and faithful where the difference is observable. Neither choice
+    // moves either golden tape — both were run.
+    //
+    // The `?? 0` default falls out of the same choice: at tick 0 the gate is
+    // open, as it was for the two `<` sites.
+    ready(a, b, ms) {
+      const t = currentTick();
+      const key = keyOf(a, b);
+      if (t < (pairs.get(key) ?? 0)) return false;
+      pairs.set(key, t + ticks(ms));
+      return true;
+    },
+    // A gate scoped to ONE entity rather than to a pair — `ready(x, x, ms)`.
+    //
+    // Four of the five stamps had this shape and it has to be kept: `a._cdAt`
+    // gated the falling anvil against every wizard at once, not against one of
+    // them, so the anvil hit whoever it reached first and nobody else for 400ms.
+    // Re-keying those on (attacker, victim) would let the same anvil hit a second
+    // wizard inside the same window — a livelier game, and a different one.
+    readySelf(x, ms) {
+      return pairCooldown.ready(x, x, ms);
+    },
+    clear() {
+      pairs.clear();
+    },
+    // For tests and diagnostics. Unlike the per-body stamps this replaced, an
+    // entry does not die with its body — it lives until loadMap clears the map.
+    // Measured over the 4,200-tick three-round tape the peak is 5 entries and the
+    // count at every round boundary is 5 or fewer, so the round-boundary clear is
+    // the whole of the story and there is no sweep here to justify. The bound is
+    // one entry per body that has ever LANDED a gated hit this round, not per
+    // body and not per contact.
+    get size() {
+      return pairs.size;
+    }
+  };
+  onWorldReset(() => pairs.clear());
+
   // src/sim/schedule.js
   var seq = 0;
   var entries = [];
@@ -5900,13 +5956,12 @@
     return fb;
   }
   var bcd = (bs, min, max) => rand(min, max) / (bs.rate || 1);
-  function bossTouchAll(bs, now, dmg, pad = 8) {
+  function bossTouchAll(bs, dmg, pad = 8) {
     const bb = bs.body.bounds;
     for (const p of players) {
-      if (!p.alive || now < (p._bossHurtAt || 0)) continue;
+      if (!p.alive) continue;
       const q = p.body.position;
-      if (q.x > bb.min.x - pad && q.x < bb.max.x + pad && q.y > bb.min.y - pad && q.y < bb.max.y + pad) {
-        p._bossHurtAt = now + 700;
+      if (q.x > bb.min.x - pad && q.x < bb.max.x + pad && q.y > bb.min.y - pad && q.y < bb.max.y + pad && pairCooldown.readySelf(p.body, 700)) {
         damagePlayer(p, dmg * (bs.dmgMult || 1));
         const away = Math.sign(q.x - bs.body.position.x) || pick([-1, 1]);
         setVelocity(p.body, { x: away * 8, y: -6 });
@@ -5945,7 +6000,7 @@
             fb.onHit = (self) => explode(self.position.x, self.position.y, 85, 13, 13 * bs.dmgMult, "boss");
           }
         }
-        bossTouchAll(bs, now, 10);
+        bossTouchAll(bs, 10);
       }
     },
     {
@@ -5983,7 +6038,7 @@
           }
           spawnText(b.position.x, b.position.y - 50, "RISE!", "#c084fc");
         }
-        bossTouchAll(bs, now, 8);
+        bossTouchAll(bs, 8);
       }
     },
     {
@@ -6019,7 +6074,7 @@
           explode(b.position.x, b.position.y + 30, 140, 20, 16 * bs.dmgMult, "boss");
           addShake(14);
         }
-        bossTouchAll(bs, now, 12);
+        bossTouchAll(bs, 12);
       }
     },
     {
@@ -6067,7 +6122,7 @@
             bs.tentacles.splice(bs.tentacles.indexOf(tn), 1);
           }
         }
-        bossTouchAll(bs, now, 10);
+        bossTouchAll(bs, 10);
       }
     }
   ];
@@ -6149,7 +6204,7 @@
             sfx.lightning();
           }
         }
-        bossTouchAll(bs, now, rizz ? 10 : 12);
+        bossTouchAll(bs, rizz ? 10 : 12);
       }
     },
     {
@@ -6203,7 +6258,7 @@
             sfx.cast();
           }
         }
-        bossTouchAll(bs, now, de ? 9 : 12);
+        bossTouchAll(bs, de ? 9 : 12);
       }
     }
   ];
@@ -6342,13 +6397,11 @@
     addBody(fb);
     return fb;
   }
-  function enemyStrike(b, e, now, reach = 34) {
-    if (now < (b._touchAt || 0)) return;
+  function enemyStrike(b, e, reach = 34) {
     const t = bossAliveTarget(b.position);
     if (!t) return;
     const q = t.body.position;
-    if (Math.abs(q.x - b.position.x) < reach && Math.abs(q.y - b.position.y) < 44) {
-      b._touchAt = now + 700;
+    if (Math.abs(q.x - b.position.x) < reach && Math.abs(q.y - b.position.y) < 44 && pairCooldown.readySelf(b, 700)) {
       damagePlayer(t, e.dmg);
       const away = Math.sign(q.x - b.position.x) || 1;
       setVelocity(t.body, { x: away * 6, y: -5 });
@@ -6378,7 +6431,7 @@
       },
       ai(e, b, now) {
         enemyChase(b, now, { speed: 1.15 });
-        enemyStrike(b, e, now, 36);
+        enemyStrike(b, e, 36);
       }
     },
     // ranged: hangs back and fires bolts, backpedals when crowded
@@ -6419,7 +6472,7 @@
           b._hopAt = now + rand(320, 560);
           setVelocity(b, { x: dir * rand(3, 5.5), y: -7 });
         }
-        enemyStrike(b, e, now, 20);
+        enemyStrike(b, e, 20);
       }
     },
     // heavy: slow, tanky, leaps and slams the ground for an AoE shock
@@ -6445,7 +6498,7 @@
           explode(b.position.x, b.position.y + 24, 110, 14, e.dmg, "boss");
           addShake(10);
         }
-        enemyStrike(b, e, now, 44);
+        enemyStrike(b, e, 44);
       }
     }
   };
@@ -10158,8 +10211,8 @@
     fallDanger(me, dir, vx = 0) {
       const aheadX = Math.max(20, Math.min(W - 20, me.x + dir * (42 + Math.abs(vx) * 10)));
       const gAhead = groundYAt(aheadX);
-      const lava = currentMap.data.lavaY;
-      if (lava != null && gAhead > lava - 24) return true;
+      const lava2 = currentMap.data.lavaY;
+      if (lava2 != null && gAhead > lava2 - 24) return true;
       if (gAhead >= H - 31) return true;
       return gAhead - me.y > 300;
     }
@@ -10267,8 +10320,8 @@
       if (move && this.fallDanger(me, move, p.body.velocity.x)) {
         const landX = Math.max(24, Math.min(W - 24, me.x + move * 135));
         const gLand = groundYAt(landX);
-        const lava = currentMap.data.lavaY;
-        const safeLanding = (lava == null || gLand < lava - 24) && gLand - me.y < 240 && gLand - me.y > -140;
+        const lava2 = currentMap.data.lavaY;
+        const safeLanding = (lava2 == null || gLand < lava2 - 24) && gLand - me.y < 240 && gLand - me.y > -140;
         if (safeLanding && grounded2) jump = true;
         else move = 0;
       }
@@ -10723,6 +10776,7 @@
     summons.clear();
     activeEffects.length = 0;
     particles.length = 0;
+    pairCooldown.clear();
     if (currentMap) removeBody(currentMap.composite);
     const def = MAPS[index];
     const m = { def, composite: createComposite(), data: {} };
@@ -13268,15 +13322,15 @@
   }
   function drawStoryBackdrop(ctx2, o) {
     const W2 = o.W, H2 = o.H, now = o.now || 0, base = o.bg || "#241d2e";
-    const icy = !!o.icy, lava = o.lavaY != null, space = !!o.stars, acid = !!o.acid;
-    const biome = icy ? { accent: "#bfe8ff", far: mix(base, "#0a1830", 0.5), near: "#233a54", rim: rgba("#eafaff", 0.5), sharp: 2, freq: 0.016 } : lava ? { accent: acid ? "#c5f97d" : "#ff8c5a", far: mix(base, "#160608", 0.5), near: "#2a1518", rim: rgba(acid ? "#c5f97d" : "#ff8c5a", 0.55), sharp: 1.4, freq: 0.011 } : space ? { accent: "#c8b8ff", far: mix(base, "#0a0818", 0.5), near: shade(base, -0.5), rim: rgba("#c8b8ff", 0.3), sharp: 1, freq: 0.01 } : { accent: "#b98cff", far: mix(base, "#0c0818", 0.4), near: shade(base, -0.45), rim: rgba("#b98cff", 0.28), sharp: 2.4, freq: 0.02 };
+    const icy = !!o.icy, lava2 = o.lavaY != null, space = !!o.stars, acid = !!o.acid;
+    const biome = icy ? { accent: "#bfe8ff", far: mix(base, "#0a1830", 0.5), near: "#233a54", rim: rgba("#eafaff", 0.5), sharp: 2, freq: 0.016 } : lava2 ? { accent: acid ? "#c5f97d" : "#ff8c5a", far: mix(base, "#160608", 0.5), near: "#2a1518", rim: rgba(acid ? "#c5f97d" : "#ff8c5a", 0.55), sharp: 1.4, freq: 0.011 } : space ? { accent: "#c8b8ff", far: mix(base, "#0a0818", 0.5), near: shade(base, -0.5), rim: rgba("#c8b8ff", 0.3), sharp: 1, freq: 0.01 } : { accent: "#b98cff", far: mix(base, "#0c0818", 0.4), near: shade(base, -0.45), rim: rgba("#b98cff", 0.28), sharp: 2.4, freq: 0.02 };
     const vg = ctx2.createLinearGradient(0, -30, 0, H2 + 30);
     vg.addColorStop(0, mix(shade(base, 0.14), biome.accent, 0.14));
     vg.addColorStop(0.5, base);
-    vg.addColorStop(1, lava ? mix(shade(base, -0.2), biome.accent, 0.22) : shade(base, -0.32));
+    vg.addColorStop(1, lava2 ? mix(shade(base, -0.2), biome.accent, 0.22) : shade(base, -0.32));
     ctx2.fillStyle = vg;
     ctx2.fillRect(-30, -30, W2 + 60, H2 + 60);
-    if (!lava) {
+    if (!lava2) {
       const cx = space ? W2 * 0.78 : W2 * 0.2, cy = H2 * 0.24, cr = space ? 54 : 44;
       glowOrb(ctx2, cx, cy, cr * 2.2, biome.accent, 0.14);
       const mg = ctx2.createRadialGradient(cx - cr * 0.3, cy - cr * 0.3, cr * 0.2, cx, cy, cr);
@@ -13357,7 +13411,7 @@
         ctx2.stroke();
       }
     }
-    if (lava) {
+    if (lava2) {
       const lg = ctx2.createLinearGradient(0, H2, 0, H2 - 220);
       lg.addColorStop(0, rgba(biome.accent, 0.4));
       lg.addColorStop(1, rgba(biome.accent, 0));
@@ -17512,108 +17566,134 @@
   }
 
   // src/sim/collision.js
-  function onCollisionStart(pairs) {
-    const now = simNow();
-    for (const { bodyA, bodyB } of pairs) {
-      for (const [a, b] of [[bodyA, bodyB], [bodyB, bodyA]]) {
-        if (a.label === "projectile" && b.label !== "lava" && projectiles.has(a)) {
-          if (b.label === "vine") killVine(b);
-          if (b.label === "boss" && a.owner) damageBoss(22, a.position, a.owner);
-          if (b.label === "enemy" && a.owner && a.owner !== "boss") damageEnemy(b.enemy, 22, a.position, a.owner);
-          if (b.label === "decoy") {
-            spawnParticles(b.position.x, b.position.y, "#e8d5ff", 16, 5);
-            removeSummon(b);
-          }
-          if (b.label === "destructible") damageDestructible(b, 12);
-          if (b.label === "player" && now < (b.player.reflectUntil || 0)) {
-            setVelocity(a, { x: -a.velocity.x * 1.1, y: -Math.abs(a.velocity.y) * 0.5 - 2 });
-            setFilter(a, { group: b.player.group });
-            a.owner = b.player;
-            spawnParticles(a.position.x, a.position.y, "#4ecdff", 8, 4);
-          } else if (!a.noContactBoom) {
-            if (!a.keepOnHit) projectiles.delete(a);
-            a.onHit?.(a, b);
-            if (!a.keepOnHit) removeBody(a);
-          }
-        }
-        if (a.contactDamage && b.label === "player" && b.player !== a.owner) {
-          const relSpeed = Math.hypot(a.velocity.x - b.velocity.x, a.velocity.y - b.velocity.y);
-          if (relSpeed > 3 && now > (a._cdAt || 0)) {
-            a._cdAt = now + 400;
-            damagePlayer(b.player, a.contactDamage * Math.min(1, relSpeed / 10), a.owner);
-          }
-        }
-        if (a.contactExplode && b.label === "player" && b.player !== a.owner) {
-          const ce = a.contactExplode;
-          const pos = { ...a.position };
-          removeSummon(a);
-          projectiles.delete(a);
-          explode(pos.x, pos.y, ce.radius, ce.power, ce.dmg, a.owner);
-        }
-        if (a.label === "banana" && b.label === "player" && summons.has(a) && now > (a.armAt || 0)) {
-          const q = b.player;
-          statFor(q).slips++;
-          q.slipUntil = now + 1e3;
-          setAngularVelocity(q.body, pick([-1, 1]) * 0.8);
-          setVelocity(q.body, { x: q.body.velocity.x * 1.5, y: q.body.velocity.y - 4 });
-          spawnText(q.body.position.x, q.body.position.y - 40, "SLIP!", "#ffe135");
-          removeSummon(a);
-          sfx.squeak();
-        }
-        if (a.label === "player" && b.label === "player") {
-          const big = a.player, small = b.player;
-          if ((big.sizeScale || 1) >= 1.6 && (big.sizeScale || 1) > (small.sizeScale || 1) + 0.3 && big.body.position.y < small.body.position.y - 6 && big.body.velocity.y > 2 && small.alive && now > (small._stompAt || 0)) {
-            small._stompAt = now + 600;
-            damagePlayer(small, 12 + Math.round(((big.sizeScale || 1) - 1) * 22), big);
-            setVelocity(small.body, { x: small.body.velocity.x, y: 7 });
-            setVelocity(big.body, { x: big.body.velocity.x, y: -9 });
-            addShake(6);
-            sfx.thud?.();
-            spawnParticles(small.body.position.x, small.body.position.y - 10, "#a7e88f", 14, 6);
-            spawnText(small.body.position.x, small.body.position.y - 44, "STOMP!", "#a7e88f");
-          }
-        }
-        if (a.label === "tramp" && b.label === "player") {
-          setVelocity(b, { x: b.velocity.x, y: -20 });
-          b.player.airJumps = 1;
-          spawnParticles(b.position.x, b.position.y + 14, "#ff8fc7", 10, 5);
-          addShake(3);
-          sfx.boing?.();
-        }
-        if (a.label === "tome" && b.label === "player") pickupTome(a, b.player);
-        if (a.label === "hat" && b.label === "player") pickupHat(a, b.player);
-        if (a.label === "icicle" && !a.isStatic && b.label === "player" && !a.dmgDone) {
-          a.dmgDone = true;
-          damagePlayer(b.player, 60);
-          addShake(6);
-        }
-        if (a.label === "spikes" && b.label === "player") {
-          const q = b.player;
-          if (now > (q.lastSpikeAt || 0)) {
-            q.lastSpikeAt = now + 600;
-            damagePlayer(q, 20);
-            setVelocity(q.body, { x: q.body.velocity.x, y: -9 });
-          }
-        }
-        if (b.label === "lava") {
-          if (a.label === "player") killPlayer(a.player);
-          else if (a.label === "boss") {
-            if (!a.isStatic) setVelocity(a, { x: a.velocity.x, y: -14 });
-          } else if (!a.isStatic) {
-            spawnParticles(a.position.x, a.position.y, currentMap.data.acid ? "#9be15d" : "#ff5e57", 8, 4);
-            projectiles.delete(a);
-            tomes.delete(a);
-            hats.delete(a);
-            gibs.delete(a);
-            summons.delete(a);
-            removeBody(a, true);
-          }
-        }
-      }
-    }
+  var ANY = "*";
+  var registered = [];
+  var resolved = /* @__PURE__ */ new Map();
+  function rule(labelA, labelB, fn) {
+    registered.push({ labelA, labelB, fn });
+    resolved.clear();
   }
+  function rulesFor(a, b) {
+    const key = `${a}|${b}`;
+    let list = resolved.get(key);
+    if (!list) {
+      list = registered.filter((r) => (r.labelA === ANY || r.labelA === a) && (r.labelB === ANY || r.labelB === b)).map((r) => r.fn);
+      resolved.set(key, list);
+    }
+    return list;
+  }
+  function applyRules(a, b) {
+    const fns = rulesFor(a.label, b.label);
+    for (let i = 0; i < fns.length; i++) fns[i](a, b);
+  }
+  function dispatchContact(bodyA, bodyB) {
+    applyRules(bodyA, bodyB);
+    applyRules(bodyB, bodyA);
+  }
+  rule("projectile", ANY, function projectileHit(a, b) {
+    if (b.label === "lava" || !projectiles.has(a)) return;
+    if (b.label === "vine") killVine(b);
+    if (b.label === "boss" && a.owner) damageBoss(22, a.position, a.owner);
+    if (b.label === "enemy" && a.owner && a.owner !== "boss") damageEnemy(b.enemy, 22, a.position, a.owner);
+    if (b.label === "decoy") {
+      spawnParticles(b.position.x, b.position.y, "#e8d5ff", 16, 5);
+      removeSummon(b);
+    }
+    if (b.label === "destructible") damageDestructible(b, 12);
+    if (b.label === "player" && simNow() < (b.player.reflectUntil || 0)) {
+      setVelocity(a, { x: -a.velocity.x * 1.1, y: -Math.abs(a.velocity.y) * 0.5 - 2 });
+      setFilter(a, { group: b.player.group });
+      a.owner = b.player;
+      spawnParticles(a.position.x, a.position.y, "#4ecdff", 8, 4);
+    } else if (!a.noContactBoom) {
+      if (!a.keepOnHit) projectiles.delete(a);
+      a.onHit?.(a, b);
+      if (!a.keepOnHit) removeBody(a);
+    }
+  });
+  rule(ANY, "player", function contactDamage(a, b) {
+    if (!a.contactDamage || b.player === a.owner) return;
+    const relSpeed = Math.hypot(a.velocity.x - b.velocity.x, a.velocity.y - b.velocity.y);
+    if (relSpeed > 3 && pairCooldown.readySelf(a, 400)) {
+      damagePlayer(b.player, a.contactDamage * Math.min(1, relSpeed / 10), a.owner);
+    }
+  });
+  rule(ANY, "player", function contactExplode(a, b) {
+    if (!a.contactExplode || b.player === a.owner) return;
+    const ce = a.contactExplode;
+    const pos = { ...a.position };
+    removeSummon(a);
+    projectiles.delete(a);
+    explode(pos.x, pos.y, ce.radius, ce.power, ce.dmg, a.owner);
+  });
+  rule("banana", "player", function bananaSlip(a, b) {
+    const now = simNow();
+    if (!summons.has(a) || now <= (a.armAt || 0)) return;
+    const q = b.player;
+    statFor(q).slips++;
+    q.slipUntil = now + 1e3;
+    setAngularVelocity(q.body, pick([-1, 1]) * 0.8);
+    setVelocity(q.body, { x: q.body.velocity.x * 1.5, y: q.body.velocity.y - 4 });
+    spawnText(q.body.position.x, q.body.position.y - 40, "SLIP!", "#ffe135");
+    removeSummon(a);
+    sfx.squeak();
+  });
+  rule("player", "player", function stomp(a, b) {
+    const big = a.player, small = b.player;
+    if ((big.sizeScale || 1) >= 1.6 && (big.sizeScale || 1) > (small.sizeScale || 1) + 0.3 && big.body.position.y < small.body.position.y - 6 && big.body.velocity.y > 2 && small.alive && pairCooldown.readySelf(small.body, 600)) {
+      damagePlayer(small, 12 + Math.round(((big.sizeScale || 1) - 1) * 22), big);
+      setVelocity(small.body, { x: small.body.velocity.x, y: 7 });
+      setVelocity(big.body, { x: big.body.velocity.x, y: -9 });
+      addShake(6);
+      sfx.thud?.();
+      spawnParticles(small.body.position.x, small.body.position.y - 10, "#a7e88f", 14, 6);
+      spawnText(small.body.position.x, small.body.position.y - 44, "STOMP!", "#a7e88f");
+    }
+  });
+  rule("tramp", "player", function trampoline(a, b) {
+    setVelocity(b, { x: b.velocity.x, y: -20 });
+    b.player.airJumps = 1;
+    spawnParticles(b.position.x, b.position.y + 14, "#ff8fc7", 10, 5);
+    addShake(3);
+    sfx.boing?.();
+  });
+  rule("tome", "player", function tomePickup(a, b) {
+    pickupTome(a, b.player);
+  });
+  rule("hat", "player", function hatPickup(a, b) {
+    pickupHat(a, b.player);
+  });
+  rule("icicle", "player", function icicleFall(a, b) {
+    if (a.isStatic || a.dmgDone) return;
+    a.dmgDone = true;
+    damagePlayer(b.player, 60);
+    addShake(6);
+  });
+  rule("spikes", "player", function spikes(a, b) {
+    const q = b.player;
+    if (pairCooldown.readySelf(q.body, 600)) {
+      damagePlayer(q, 20);
+      setVelocity(q.body, { x: q.body.velocity.x, y: -9 });
+    }
+  });
+  rule(ANY, "lava", function lava(a, b) {
+    if (a.label === "player") killPlayer(a.player);
+    else if (a.label === "boss") {
+      if (!a.isStatic) setVelocity(a, { x: a.velocity.x, y: -14 });
+    } else if (!a.isStatic) {
+      spawnParticles(a.position.x, a.position.y, currentMap.data.acid ? "#9be15d" : "#ff5e57", 8, 4);
+      projectiles.delete(a);
+      tomes.delete(a);
+      hats.delete(a);
+      gibs.delete(a);
+      summons.delete(a);
+      removeBody(a, true);
+    }
+  });
   onWorldReset(() => {
-    onContact(onCollisionStart);
+    onContact((pairs2) => {
+      for (const { bodyA, bodyB } of pairs2) dispatchContact(bodyA, bodyB);
+    });
   });
 
   // src/sim/tick.js

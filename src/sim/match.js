@@ -4,6 +4,7 @@ import { W, H, onWorldReset } from './world.js';
 import { addBody, addTo, createBox, createComposite, removeBody, setGravityY } from './phys/facade.js';
 import { simNow } from './time.js';
 import { simRandom, rand, reseed } from './rng.js';
+import { pairCooldown } from './cooldown.js';
 import { particles, doFlash } from './fx.js';
 import { slowMo } from './pace.js';
 import { sfx } from './sfx.js';
@@ -56,6 +57,10 @@ export function loadMap(index) {
   summons.clear();
   activeEffects.length = 0;
   particles.length = 0;
+  // Every contact gate goes with the round. The bodies most of them are keyed
+  // on have just been removed above, but the wizards' have not — a player
+  // object outlives the round, and its stomp/spike gates used to outlive it too.
+  pairCooldown.clear();
   if (currentMap) removeBody(currentMap.composite);
   const def = MAPS[index];
   const m = { def, composite: createComposite(), data: {} };

@@ -1611,10 +1611,10 @@
                     }
                   }
                 };
-                Sleeping.afterCollisions = function(pairs) {
+                Sleeping.afterCollisions = function(pairs2) {
                   var motionSleepThreshold = Sleeping._motionSleepThreshold;
-                  for (var i = 0; i < pairs.length; i++) {
-                    var pair = pairs[i];
+                  for (var i = 0; i < pairs2.length; i++) {
+                    var pair = pairs2[i];
                     if (!pair.isActive)
                       continue;
                     var collision = pair.collision, bodyA = collision.bodyA.parent, bodyB = collision.bodyB.parent;
@@ -1686,7 +1686,7 @@
                     supports: []
                   };
                 };
-                Collision.collides = function(bodyA, bodyB, pairs) {
+                Collision.collides = function(bodyA, bodyB, pairs2) {
                   Collision._overlapAxes(_overlapAB, bodyA.vertices, bodyB.vertices, bodyA.axes);
                   if (_overlapAB.overlap <= 0) {
                     return null;
@@ -1695,7 +1695,7 @@
                   if (_overlapBA.overlap <= 0) {
                     return null;
                   }
-                  var pair = pairs && pairs.table[Pair.id(bodyA, bodyB)], collision;
+                  var pair = pairs2 && pairs2.table[Pair.id(bodyA, bodyB)], collision;
                   if (!pair) {
                     collision = Collision.create(bodyA, bodyB);
                     collision.collided = true;
@@ -2314,7 +2314,7 @@
                   detector.bodies = [];
                 };
                 Detector.collisions = function(detector) {
-                  var collisions = [], pairs = detector.pairs, bodies = detector.bodies, bodiesLength = bodies.length, canCollide = Detector.canCollide, collides = Collision.collides, i, j;
+                  var collisions = [], pairs2 = detector.pairs, bodies = detector.bodies, bodiesLength = bodies.length, canCollide = Detector.canCollide, collides = Collision.collides, i, j;
                   bodies.sort(Detector._compareBoundsX);
                   for (i = 0; i < bodiesLength; i++) {
                     var bodyA = bodies[i], boundsA = bodyA.bounds, boundXMax = bodyA.bounds.max.x, boundYMax = bodyA.bounds.max.y, boundYMin = bodyA.bounds.min.y, bodyAStatic = bodyA.isStatic || bodyA.isSleeping, partsALength = bodyA.parts.length, partsASingle = partsALength === 1;
@@ -2334,7 +2334,7 @@
                       }
                       var partsBLength = bodyB.parts.length;
                       if (partsASingle && partsBLength === 1) {
-                        var collision = collides(bodyA, bodyB, pairs);
+                        var collision = collides(bodyA, bodyB, pairs2);
                         if (collision) {
                           collisions.push(collision);
                         }
@@ -2347,7 +2347,7 @@
                             if (boundsA.min.x > boundsB.max.x || boundsA.max.x < boundsB.min.x || boundsA.max.y < boundsB.min.y || boundsA.min.y > boundsB.max.y) {
                               continue;
                             }
-                            var collision = collides(partA, partB, pairs);
+                            var collision = collides(partA, partB, pairs2);
                             if (collision) {
                               collisions.push(collision);
                             }
@@ -2746,7 +2746,7 @@
                 };
                 Engine2.update = function(engine2, delta) {
                   var startTime = Common2.now();
-                  var world = engine2.world, detector = engine2.detector, pairs = engine2.pairs, timing = engine2.timing, timestamp = timing.timestamp, i;
+                  var world = engine2.world, detector = engine2.detector, pairs2 = engine2.pairs, timing = engine2.timing, timestamp = timing.timestamp, i;
                   delta = typeof delta !== "undefined" ? delta : Common2._baseDelta;
                   delta *= timing.timeScale;
                   timing.timestamp += delta;
@@ -2774,15 +2774,15 @@
                   Constraint2.postSolveAll(allBodies2);
                   detector.pairs = engine2.pairs;
                   var collisions = Detector.collisions(detector);
-                  Pairs.update(pairs, collisions, timestamp);
+                  Pairs.update(pairs2, collisions, timestamp);
                   if (engine2.enableSleeping)
-                    Sleeping.afterCollisions(pairs.list);
-                  if (pairs.collisionStart.length > 0)
-                    Events2.trigger(engine2, "collisionStart", { pairs: pairs.collisionStart });
+                    Sleeping.afterCollisions(pairs2.list);
+                  if (pairs2.collisionStart.length > 0)
+                    Events2.trigger(engine2, "collisionStart", { pairs: pairs2.collisionStart });
                   var positionDamping = Common2.clamp(20 / engine2.positionIterations, 0, 1);
-                  Resolver.preSolvePosition(pairs.list);
+                  Resolver.preSolvePosition(pairs2.list);
                   for (i = 0; i < engine2.positionIterations; i++) {
-                    Resolver.solvePosition(pairs.list, delta, positionDamping);
+                    Resolver.solvePosition(pairs2.list, delta, positionDamping);
                   }
                   Resolver.postSolvePosition(allBodies2);
                   Constraint2.preSolveAll(allBodies2);
@@ -2790,15 +2790,15 @@
                     Constraint2.solveAll(allConstraints, delta);
                   }
                   Constraint2.postSolveAll(allBodies2);
-                  Resolver.preSolveVelocity(pairs.list);
+                  Resolver.preSolveVelocity(pairs2.list);
                   for (i = 0; i < engine2.velocityIterations; i++) {
-                    Resolver.solveVelocity(pairs.list, delta);
+                    Resolver.solveVelocity(pairs2.list, delta);
                   }
                   Engine2._bodiesUpdateVelocities(allBodies2);
-                  if (pairs.collisionActive.length > 0)
-                    Events2.trigger(engine2, "collisionActive", { pairs: pairs.collisionActive });
-                  if (pairs.collisionEnd.length > 0)
-                    Events2.trigger(engine2, "collisionEnd", { pairs: pairs.collisionEnd });
+                  if (pairs2.collisionActive.length > 0)
+                    Events2.trigger(engine2, "collisionActive", { pairs: pairs2.collisionActive });
+                  if (pairs2.collisionEnd.length > 0)
+                    Events2.trigger(engine2, "collisionEnd", { pairs: pairs2.collisionEnd });
                   Engine2._bodiesClearForces(allBodies2);
                   Events2.trigger(engine2, "afterUpdate", event);
                   engine2.timing.lastElapsed = Common2.now() - startTime;
@@ -2875,10 +2875,10 @@
                 Resolver._positionWarming = 0.8;
                 Resolver._frictionNormalMultiplier = 5;
                 Resolver._frictionMaxStatic = Number.MAX_VALUE;
-                Resolver.preSolvePosition = function(pairs) {
-                  var i, pair, activeCount, pairsLength = pairs.length;
+                Resolver.preSolvePosition = function(pairs2) {
+                  var i, pair, activeCount, pairsLength = pairs2.length;
                   for (i = 0; i < pairsLength; i++) {
-                    pair = pairs[i];
+                    pair = pairs2[i];
                     if (!pair.isActive)
                       continue;
                     activeCount = pair.activeContacts.length;
@@ -2886,10 +2886,10 @@
                     pair.collision.parentB.totalContacts += activeCount;
                   }
                 };
-                Resolver.solvePosition = function(pairs, delta, damping) {
-                  var i, pair, collision, bodyA, bodyB, normal, contactShare, positionImpulse, positionDampen = Resolver._positionDampen * (damping || 1), slopDampen = Common2.clamp(delta / Common2._baseDelta, 0, 1), pairsLength = pairs.length;
+                Resolver.solvePosition = function(pairs2, delta, damping) {
+                  var i, pair, collision, bodyA, bodyB, normal, contactShare, positionImpulse, positionDampen = Resolver._positionDampen * (damping || 1), slopDampen = Common2.clamp(delta / Common2._baseDelta, 0, 1), pairsLength = pairs2.length;
                   for (i = 0; i < pairsLength; i++) {
-                    pair = pairs[i];
+                    pair = pairs2[i];
                     if (!pair.isActive || pair.isSensor)
                       continue;
                     collision = pair.collision;
@@ -2899,7 +2899,7 @@
                     pair.separation = normal.x * (bodyB.positionImpulse.x + collision.penetration.x - bodyA.positionImpulse.x) + normal.y * (bodyB.positionImpulse.y + collision.penetration.y - bodyA.positionImpulse.y);
                   }
                   for (i = 0; i < pairsLength; i++) {
-                    pair = pairs[i];
+                    pair = pairs2[i];
                     if (!pair.isActive || pair.isSensor)
                       continue;
                     collision = pair.collision;
@@ -2946,10 +2946,10 @@
                     }
                   }
                 };
-                Resolver.preSolveVelocity = function(pairs) {
-                  var pairsLength = pairs.length, i, j;
+                Resolver.preSolveVelocity = function(pairs2) {
+                  var pairsLength = pairs2.length, i, j;
                   for (i = 0; i < pairsLength; i++) {
-                    var pair = pairs[i];
+                    var pair = pairs2[i];
                     if (!pair.isActive || pair.isSensor)
                       continue;
                     var contacts = pair.activeContacts, contactsLength = contacts.length, collision = pair.collision, bodyA = collision.parentA, bodyB = collision.parentB, normal = collision.normal, tangent = collision.tangent;
@@ -2971,10 +2971,10 @@
                     }
                   }
                 };
-                Resolver.solveVelocity = function(pairs, delta) {
-                  var timeScale = delta / Common2._baseDelta, timeScaleSquared = timeScale * timeScale, timeScaleCubed = timeScaleSquared * timeScale, restingThresh = -Resolver._restingThresh * timeScale, restingThreshTangent = Resolver._restingThreshTangent, frictionNormalMultiplier = Resolver._frictionNormalMultiplier * timeScale, frictionMaxStatic = Resolver._frictionMaxStatic, pairsLength = pairs.length, tangentImpulse, maxFriction, i, j;
+                Resolver.solveVelocity = function(pairs2, delta) {
+                  var timeScale = delta / Common2._baseDelta, timeScaleSquared = timeScale * timeScale, timeScaleCubed = timeScaleSquared * timeScale, restingThresh = -Resolver._restingThresh * timeScale, restingThreshTangent = Resolver._restingThreshTangent, frictionNormalMultiplier = Resolver._frictionNormalMultiplier * timeScale, frictionMaxStatic = Resolver._frictionMaxStatic, pairsLength = pairs2.length, tangentImpulse, maxFriction, i, j;
                   for (i = 0; i < pairsLength; i++) {
-                    var pair = pairs[i];
+                    var pair = pairs2[i];
                     if (!pair.isActive || pair.isSensor)
                       continue;
                     var collision = pair.collision, bodyA = collision.parentA, bodyB = collision.parentB, bodyAVelocity = bodyA.velocity, bodyBVelocity = bodyB.velocity, normalX = collision.normal.x, normalY = collision.normal.y, tangentX = collision.tangent.x, tangentY = collision.tangent.y, contacts = pair.activeContacts, contactsLength = contacts.length, contactShare = 1 / contactsLength, inverseMassTotal = bodyA.inverseMass + bodyB.inverseMass, friction = pair.friction * pair.frictionStatic * frictionNormalMultiplier;
@@ -3059,8 +3059,8 @@
                     collisionEnd: []
                   }, options);
                 };
-                Pairs.update = function(pairs, collisions, timestamp) {
-                  var pairsList = pairs.list, pairsListLength = pairsList.length, pairsTable = pairs.table, collisionsLength = collisions.length, collisionStart = pairs.collisionStart, collisionEnd = pairs.collisionEnd, collisionActive = pairs.collisionActive, collision, pairIndex, pair, i;
+                Pairs.update = function(pairs2, collisions, timestamp) {
+                  var pairsList = pairs2.list, pairsListLength = pairsList.length, pairsTable = pairs2.table, collisionsLength = collisions.length, collisionStart = pairs2.collisionStart, collisionEnd = pairs2.collisionEnd, collisionActive = pairs2.collisionActive, collision, pairIndex, pair, i;
                   collisionStart.length = 0;
                   collisionEnd.length = 0;
                   collisionActive.length = 0;
@@ -3104,13 +3104,13 @@
                     delete pairsTable[pair.id];
                   }
                 };
-                Pairs.clear = function(pairs) {
-                  pairs.table = {};
-                  pairs.list.length = 0;
-                  pairs.collisionStart.length = 0;
-                  pairs.collisionActive.length = 0;
-                  pairs.collisionEnd.length = 0;
-                  return pairs;
+                Pairs.clear = function(pairs2) {
+                  pairs2.table = {};
+                  pairs2.list.length = 0;
+                  pairs2.collisionStart.length = 0;
+                  pairs2.collisionActive.length = 0;
+                  pairs2.collisionEnd.length = 0;
+                  return pairs2;
                 };
               })();
             }),
@@ -3458,16 +3458,16 @@
                   }
                 };
                 Grid._createActivePairsList = function(grid) {
-                  var pair, gridPairs = grid.pairs, pairKeys = Common2.keys(gridPairs), pairKeysLength = pairKeys.length, pairs = [], k;
+                  var pair, gridPairs = grid.pairs, pairKeys = Common2.keys(gridPairs), pairKeysLength = pairKeys.length, pairs2 = [], k;
                   for (k = 0; k < pairKeysLength; k++) {
                     pair = gridPairs[pairKeys[k]];
                     if (pair[2] > 0) {
-                      pairs.push(pair);
+                      pairs2.push(pair);
                     } else {
                       delete gridPairs[pairKeys[k]];
                     }
                   }
-                  return pairs;
+                  return pairs2;
                 };
               })();
             }),
@@ -4328,11 +4328,11 @@
                     }
                   }
                 };
-                Render.collisions = function(render, pairs, context) {
+                Render.collisions = function(render, pairs2, context) {
                   var c = context, options = render.options, pair, collision, corrected, bodyA, bodyB, i, j;
                   c.beginPath();
-                  for (i = 0; i < pairs.length; i++) {
-                    pair = pairs[i];
+                  for (i = 0; i < pairs2.length; i++) {
+                    pair = pairs2[i];
                     if (!pair.isActive)
                       continue;
                     collision = pair.collision;
@@ -4348,8 +4348,8 @@
                   }
                   c.fill();
                   c.beginPath();
-                  for (i = 0; i < pairs.length; i++) {
-                    pair = pairs[i];
+                  for (i = 0; i < pairs2.length; i++) {
+                    pair = pairs2[i];
                     if (!pair.isActive)
                       continue;
                     collision = pair.collision;
@@ -4375,11 +4375,11 @@
                   c.lineWidth = 1;
                   c.stroke();
                 };
-                Render.separations = function(render, pairs, context) {
+                Render.separations = function(render, pairs2, context) {
                   var c = context, options = render.options, pair, collision, corrected, bodyA, bodyB, i, j;
                   c.beginPath();
-                  for (i = 0; i < pairs.length; i++) {
-                    pair = pairs[i];
+                  for (i = 0; i < pairs2.length; i++) {
+                    pair = pairs2[i];
                     if (!pair.isActive)
                       continue;
                     collision = pair.collision;
@@ -5099,6 +5099,62 @@
   for (const key of SFX_KEYS) sfx[key] = () => {
   };
 
+  // src/sim/cooldown.js
+  var pairs = /* @__PURE__ */ new Map();
+  var keyOf = (a, b) => a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
+  var pairCooldown = {
+    // True if this pair may act now, in which case the gate closes for `ms`.
+    // ASKING IS TAKING: call it last in a condition, after everything else that
+    // could veto the hit, which is exactly where the stamp assignments it
+    // replaced sat.
+    //
+    // THE BOUNDARY. `<` means the gate opens on tick T + ticks(ms) — a 700ms gate
+    // taken on tick T is open again 42 ticks later, the duration as authored.
+    // That is what `p._bossHurtAt` and `b._touchAt` did (`now < stamp` → skip),
+    // and those two are polled EVERY TICK from the boss and enemy update loops,
+    // so their reopening tick is observed every time the gate is used. The other
+    // three wrote `now > stamp`, which held one tick longer; they are driven by
+    // collisionStart, which only fires when a contact is newly formed, so their
+    // reopening tick is almost never the tick a contact actually lands on.
+    // Unifying has to pick one, and this picks the one that is both the authored
+    // duration and faithful where the difference is observable. Neither choice
+    // moves either golden tape — both were run.
+    //
+    // The `?? 0` default falls out of the same choice: at tick 0 the gate is
+    // open, as it was for the two `<` sites.
+    ready(a, b, ms) {
+      const t = currentTick();
+      const key = keyOf(a, b);
+      if (t < (pairs.get(key) ?? 0)) return false;
+      pairs.set(key, t + ticks(ms));
+      return true;
+    },
+    // A gate scoped to ONE entity rather than to a pair — `ready(x, x, ms)`.
+    //
+    // Four of the five stamps had this shape and it has to be kept: `a._cdAt`
+    // gated the falling anvil against every wizard at once, not against one of
+    // them, so the anvil hit whoever it reached first and nobody else for 400ms.
+    // Re-keying those on (attacker, victim) would let the same anvil hit a second
+    // wizard inside the same window — a livelier game, and a different one.
+    readySelf(x, ms) {
+      return pairCooldown.ready(x, x, ms);
+    },
+    clear() {
+      pairs.clear();
+    },
+    // For tests and diagnostics. Unlike the per-body stamps this replaced, an
+    // entry does not die with its body — it lives until loadMap clears the map.
+    // Measured over the 4,200-tick three-round tape the peak is 5 entries and the
+    // count at every round boundary is 5 or fewer, so the round-boundary clear is
+    // the whole of the story and there is no sweep here to justify. The bound is
+    // one entry per body that has ever LANDED a gated hit this round, not per
+    // body and not per contact.
+    get size() {
+      return pairs.size;
+    }
+  };
+  onWorldReset(() => pairs.clear());
+
   // src/sim/schedule.js
   var seq = 0;
   var entries = [];
@@ -5335,13 +5391,12 @@
     return fb;
   }
   var bcd = (bs, min, max) => rand(min, max) / (bs.rate || 1);
-  function bossTouchAll(bs, now, dmg, pad = 8) {
+  function bossTouchAll(bs, dmg, pad = 8) {
     const bb = bs.body.bounds;
     for (const p of players) {
-      if (!p.alive || now < (p._bossHurtAt || 0)) continue;
+      if (!p.alive) continue;
       const q = p.body.position;
-      if (q.x > bb.min.x - pad && q.x < bb.max.x + pad && q.y > bb.min.y - pad && q.y < bb.max.y + pad) {
-        p._bossHurtAt = now + 700;
+      if (q.x > bb.min.x - pad && q.x < bb.max.x + pad && q.y > bb.min.y - pad && q.y < bb.max.y + pad && pairCooldown.readySelf(p.body, 700)) {
         damagePlayer(p, dmg * (bs.dmgMult || 1));
         const away = Math.sign(q.x - bs.body.position.x) || pick([-1, 1]);
         setVelocity(p.body, { x: away * 8, y: -6 });
@@ -5380,7 +5435,7 @@
             fb.onHit = (self) => explode(self.position.x, self.position.y, 85, 13, 13 * bs.dmgMult, "boss");
           }
         }
-        bossTouchAll(bs, now, 10);
+        bossTouchAll(bs, 10);
       }
     },
     {
@@ -5418,7 +5473,7 @@
           }
           spawnText(b.position.x, b.position.y - 50, "RISE!", "#c084fc");
         }
-        bossTouchAll(bs, now, 8);
+        bossTouchAll(bs, 8);
       }
     },
     {
@@ -5454,7 +5509,7 @@
           explode(b.position.x, b.position.y + 30, 140, 20, 16 * bs.dmgMult, "boss");
           addShake(14);
         }
-        bossTouchAll(bs, now, 12);
+        bossTouchAll(bs, 12);
       }
     },
     {
@@ -5502,7 +5557,7 @@
             bs.tentacles.splice(bs.tentacles.indexOf(tn), 1);
           }
         }
-        bossTouchAll(bs, now, 10);
+        bossTouchAll(bs, 10);
       }
     }
   ];
@@ -5584,7 +5639,7 @@
             sfx.lightning();
           }
         }
-        bossTouchAll(bs, now, rizz ? 10 : 12);
+        bossTouchAll(bs, rizz ? 10 : 12);
       }
     },
     {
@@ -5638,7 +5693,7 @@
             sfx.cast();
           }
         }
-        bossTouchAll(bs, now, de ? 9 : 12);
+        bossTouchAll(bs, de ? 9 : 12);
       }
     }
   ];
@@ -9391,6 +9446,7 @@
     summons.clear();
     activeEffects.length = 0;
     particles.length = 0;
+    pairCooldown.clear();
     if (currentMap) removeBody(currentMap.composite);
     const def = MAPS[index];
     const m = { def, composite: createComposite(), data: {} };

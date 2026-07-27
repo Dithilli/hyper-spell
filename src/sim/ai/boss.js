@@ -10,6 +10,7 @@ import {
 } from '../phys/facade.js';
 import { simNow } from '../time.js';
 import { simRandom, rand, pick } from '../rng.js';
+import { pairCooldown } from '../cooldown.js';
 import {
   spawnParticles, spawnRing, spawnText, spawnBurst, addShake, doFlash,
 } from '../fx.js';
@@ -59,14 +60,16 @@ export function bossBolt(from, target, { speed = 10, r = 8, color, spread = 0, b
 // the interval, so tier-3 fights fire noticeably faster than the first boss.
 const bcd = (bs, min, max) => rand(min, max) / (bs.rate || 1);
 
-// hurt wizards who press against the boss's body
-export function bossTouchAll(bs, now, dmg, pad = 8) {
+// hurt wizards who press against the boss's body. The 700ms gate is on the
+// WIZARD (it was `p._bossHurtAt`), so it holds across whatever is currently
+// wearing the boss body.
+export function bossTouchAll(bs, dmg, pad = 8) {
   const bb = bs.body.bounds;
   for (const p of players) {
-    if (!p.alive || now < (p._bossHurtAt || 0)) continue;
+    if (!p.alive) continue;
     const q = p.body.position;
-    if (q.x > bb.min.x - pad && q.x < bb.max.x + pad && q.y > bb.min.y - pad && q.y < bb.max.y + pad) {
-      p._bossHurtAt = now + 700;
+    if (q.x > bb.min.x - pad && q.x < bb.max.x + pad && q.y > bb.min.y - pad && q.y < bb.max.y + pad
+      && pairCooldown.readySelf(p.body, 700)) {
       damagePlayer(p, dmg * (bs.dmgMult || 1));
       const away = Math.sign(q.x - bs.body.position.x) || pick([-1, 1]);
       setVelocity(p.body, { x: away * 8, y: -6 });
@@ -105,7 +108,7 @@ export const BOSSES = [
           fb.onHit = self => explode(self.position.x, self.position.y, 85, 13, 13 * bs.dmgMult, 'boss');
         }
       }
-      bossTouchAll(bs, now, 10);
+      bossTouchAll(bs, 10);
     },
   },
   {
@@ -138,7 +141,7 @@ export const BOSSES = [
         }
         spawnText(b.position.x, b.position.y - 50, 'RISE!', '#c084fc');
       }
-      bossTouchAll(bs, now, 8);
+      bossTouchAll(bs, 8);
     },
   },
   {
@@ -172,7 +175,7 @@ export const BOSSES = [
         explode(b.position.x, b.position.y + 30, 140, 20, 16 * bs.dmgMult, 'boss');
         addShake(14);
       }
-      bossTouchAll(bs, now, 12);
+      bossTouchAll(bs, 12);
     },
   },
   {
@@ -216,7 +219,7 @@ export const BOSSES = [
         }
         if (age > 2100) { removeSummon(tn.b); bs.tentacles.splice(bs.tentacles.indexOf(tn), 1); }
       }
-      bossTouchAll(bs, now, 10);
+      bossTouchAll(bs, 10);
     },
   },
 ];
@@ -296,7 +299,7 @@ export const SECRET_BOSSES = [
           sfx.lightning();
         }
       }
-      bossTouchAll(bs, now, rizz ? 10 : 12);
+      bossTouchAll(bs, rizz ? 10 : 12);
     },
   },
   {
@@ -336,7 +339,7 @@ export const SECRET_BOSSES = [
           sfx.cast();
         }
       }
-      bossTouchAll(bs, now, de ? 9 : 12);
+      bossTouchAll(bs, de ? 9 : 12);
     },
   },
 ];

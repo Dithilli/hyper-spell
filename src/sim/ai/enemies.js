@@ -16,6 +16,7 @@ import {
 } from '../phys/facade.js';
 import { simNow } from '../time.js';
 import { rand } from '../rng.js';
+import { pairCooldown } from '../cooldown.js';
 import { spawnParticles, spawnRing, addShake } from '../fx.js';
 import { sfx } from '../sfx.js';
 import { game } from '../match.js';
@@ -48,13 +49,17 @@ export function enemyBolt(from, target, { speed = 9, r = 7, color = '#ff8c5a', s
 
 // a melee swing: if a wizard is within reach, hit them once per the enemy's own
 // cooldown (a swarm of 5 = 5 staggered swings, not one shared machine-gun).
-export function enemyStrike(b, e, now, reach = 34) {
-  if (now < (b._touchAt || 0)) return;
+export function enemyStrike(b, e, reach = 34) {
   const t = bossAliveTarget(b.position);
   if (!t) return;
   const q = t.body.position;
-  if (Math.abs(q.x - b.position.x) < reach && Math.abs(q.y - b.position.y) < 44) {
-    b._touchAt = now + 700;
+  // The 700ms gate is on the ENEMY (it was `b._touchAt`): one swing per enemy
+  // per window, whoever is in reach. bossAliveTarget with a position is a pure
+  // nearest-of-the-living search, so looking the target up before asking the
+  // gate — rather than after, as the old early return did — costs the search
+  // and changes nothing else.
+  if (Math.abs(q.x - b.position.x) < reach && Math.abs(q.y - b.position.y) < 44
+    && pairCooldown.readySelf(b, 700)) {
     damagePlayer(t, e.dmg);
     const away = Math.sign(q.x - b.position.x) || 1;
     setVelocity(t.body, { x: away * 6, y: -5 });
@@ -84,7 +89,7 @@ export const ENEMY_TYPES = {
   swordsman: {
     color: '#5b5470', hp: 40, dmg: 12,
     make(x, y) { return createBox(x, y, 26, 44, { density: 0.012, friction: 0.6, frictionAir: 0.02, restitution: 0, label: 'enemy', chamfer: { radius: 6 } }); },
-    ai(e, b, now) { enemyChase(b, now, { speed: 1.15 }); enemyStrike(b, e, now, 36); },
+    ai(e, b, now) { enemyChase(b, now, { speed: 1.15 }); enemyStrike(b, e, 36); },
   },
   // ranged: hangs back and fires bolts, backpedals when crowded
   archer: {
@@ -117,7 +122,7 @@ export const ENEMY_TYPES = {
         b._hopAt = now + rand(320, 560);
         setVelocity(b, { x: dir * rand(3, 5.5), y: -7 });
       }
-      enemyStrike(b, e, now, 20);
+      enemyStrike(b, e, 20);
     },
   },
   // heavy: slow, tanky, leaps and slams the ground for an AoE shock
@@ -139,7 +144,7 @@ export const ENEMY_TYPES = {
         explode(b.position.x, b.position.y + 24, 110, 14, e.dmg, 'boss');
         addShake(10);
       }
-      enemyStrike(b, e, now, 44);
+      enemyStrike(b, e, 44);
     },
   },
 };

@@ -96,9 +96,9 @@ of Shove.
 
 - `src/sim/player/ghost.js:33` — Poltergeist release — "a toss, not a throw" states the whole velocity.
 - `src/sim/player/ghost.js:36` — Poltergeist carry: a position-derived spring velocity, clamped. Nothing of the prop's own motion survives.
-- `src/sim/ai/boss.js:72` — Boss slam shockwave throws the player at a stated velocity.
-- `src/sim/ai/boss.js:214` — Tentacle punt: the player is thrown at a stated velocity.
-- `src/sim/ai/enemies.js:60` — Contact shove throws the target at a stated velocity.
+- `src/sim/ai/boss.js:75` — Boss slam shockwave throws the player at a stated velocity.
+- `src/sim/ai/boss.js:217` — Tentacle punt: the player is thrown at a stated velocity.
+- `src/sim/ai/enemies.js:65` — Contact shove throws the target at a stated velocity.
 - `src/sim/spells/book.js:453` — Yank: the target is given a stated velocity toward the caster.
 - `src/sim/spells/book.js:617` — Dash: the caster's velocity is replaced outright.
 - `src/sim/spells/book.js:917` — Vacuum: the target is given a stated velocity toward the caster.
@@ -113,7 +113,7 @@ so converting them to `applyImpulse` would rebalance them exactly as it would
 rebalance the 66 pushes. The push/override line is about *whether prior motion
 survives*, not about whether mass matters. Mass matters at none of the 107.
 
-The 4 AI-drive sites (`src/sim/tick.js:63`, `src/sim/ai/boss.js:167`, `src/sim/ai/enemies.js:118`, `src/sim/ai/enemies.js:134`) are the milder version of the same call:
+The 4 AI-drive sites (`src/sim/tick.js:63`, `src/sim/ai/boss.js:170`, `src/sim/ai/enemies.js:123`, `src/sim/ai/enemies.js:139`) are the milder version of the same call:
 they read `b.velocity.y` only to ask "am I on the ground?". A guard read is not
 an input to the value, so they are overrides.
 
@@ -267,36 +267,36 @@ notice is one nobody has written.
 | `src/sim/player/controller.js:137` | **controller** | axis | `setVelocity` → `setControlVelocity` (phase 3) | Jump: y set outright, x preserved. Same owner as the blend above. |
 | `src/sim/player/controller.js:142` | **controller** | axis | `setVelocity` → `setControlVelocity` (phase 3) | Air jump: y set outright, x preserved. |
 | `src/sim/player/lifecycle.js:116` | **override** | absolute | `setVelocity` | spawnPlayer — brief rule 5. A respawn must not inherit the corpse's momentum. |
-| `src/sim/collision.js:32` | **push** | blended | `setVelocity` | Reflect: the bolt's own velocity is negated and damped. Reads the current velocity, so it is a push, but the sign flip means it cannot be a delta. |
-| `src/sim/collision.js:61` | **push** | blended | `setVelocity` | Banana slip: x amplified 1.5x, y kicked up. The x scaling keeps it out of addVelocity. |
-| `src/sim/collision.js:74` | **push** | axis | `setVelocity` | Stomp — the victim is driven down at a fixed speed, x preserved. |
-| `src/sim/collision.js:75` | **push** | axis | `setVelocity` | Stomp — the stomper bounces off the landing at a fixed speed. |
-| `src/sim/collision.js:83` | **push** | axis | `setVelocity` | Trampoline fling: a fixed launch speed, horizontal motion preserved. |
-| `src/sim/collision.js:101` | **push** | axis | `setVelocity` | Spikes: a fixed pop upward, horizontal motion preserved. |
-| `src/sim/collision.js:106` | **push** | axis | `setVelocity` | Bosses shrug off lava with a fixed upward pop. |
+| `src/sim/collision.js:105` | **push** | blended | `setVelocity` | Reflect: the bolt's own velocity is negated and damped. Reads the current velocity, so it is a push, but the sign flip means it cannot be a delta. |
+| `src/sim/collision.js:144` | **push** | blended | `setVelocity` | Banana slip: x amplified 1.5x, y kicked up. The x scaling keeps it out of addVelocity. |
+| `src/sim/collision.js:159` | **push** | axis | `setVelocity` | Stomp — the victim is driven down at a fixed speed, x preserved. |
+| `src/sim/collision.js:160` | **push** | axis | `setVelocity` | Stomp — the stomper bounces off the landing at a fixed speed. |
+| `src/sim/collision.js:169` | **push** | axis | `setVelocity` | Trampoline fling: a fixed launch speed, horizontal motion preserved. |
+| `src/sim/collision.js:192` | **push** | axis | `setVelocity` | Spikes: a fixed pop upward, horizontal motion preserved. |
+| `src/sim/collision.js:198` | **push** | axis | `setVelocity` | Bosses shrug off lava with a fixed upward pop. |
 | `src/sim/events.js:129` | **push** | additive | `addVelocity` | Windstorm event: a per-second push on every loose body. |
 | `src/sim/events.js:153` | **override** | absolute | `setVelocity` | Critter spawn at the arena edge. |
-| `src/sim/ai/boss.js:52` | **override** | absolute | `setVelocity` | Boss projectile launch. |
-| `src/sim/ai/boss.js:72` | **override** | absolute | `setVelocity` | Boss slam shockwave throws the player at a stated velocity. |
-| `src/sim/ai/boss.js:90` | **push** | blended | `setVelocity` | Flier chase: 0.92 damping plus a steering term. Damping is a scale, not a delta. |
-| `src/sim/ai/boss.js:119` | **push** | blended | `setVelocity` | Hover bob: damping plus a sine drive. |
-| `src/sim/ai/boss.js:155` | **override** | absolute | `setVelocity` | Boss reset to rest before a teleport. |
-| `src/sim/ai/boss.js:161` | **push** | blended | `setVelocity` | Ground charge: 0.8 damping plus a directional drive, y untouched. |
-| `src/sim/ai/boss.js:167` | **override** | absolute | `setVelocity` | Leap: the whole launch velocity is stated. |
-| `src/sim/ai/boss.js:214` | **override** | absolute | `setVelocity` | Tentacle punt: the player is thrown at a stated velocity. |
-| `src/sim/ai/boss.js:246` | **push** | blended | `setVelocity` | Chase steering with damping. |
-| `src/sim/ai/boss.js:256` | **push** | axis | `setVelocity` | Vacuum pull: x added to, y stated outright. |
-| `src/sim/ai/boss.js:276` | **push** | blended | `setVelocity` | Chase steering with damping. |
-| `src/sim/ai/boss.js:316` | **push** | blended | `setVelocity` | Drift with damping plus sine drive. |
-| `src/sim/ai/boss.js:317` | **push** | axis | `setVelocity` | Ceiling clamp: y stated, x preserved. |
-| `src/sim/ai/boss.js:318` | **push** | axis | `setVelocity` | Floor clamp: y stated, x preserved. |
-| `src/sim/ai/enemies.js:43` | **override** | absolute | `setVelocity` | Enemy projectile launch. |
-| `src/sim/ai/enemies.js:60` | **override** | absolute | `setVelocity` | Contact shove throws the target at a stated velocity. |
-| `src/sim/ai/enemies.js:71` | **push** | blended | `setVelocity` | Walk drive: 0.8 damping plus a directional term, y untouched. |
-| `src/sim/ai/enemies.js:75` | **push** | axis | `setVelocity` | Enemy jump: y stated, x preserved. |
-| `src/sim/ai/enemies.js:100` | **push** | blended | `setVelocity` | Walk drive with damping. |
-| `src/sim/ai/enemies.js:118` | **override** | absolute | `setVelocity` | Hop: the whole launch velocity is stated. |
-| `src/sim/ai/enemies.js:134` | **override** | absolute | `setVelocity` | Leap: the whole launch velocity is stated. |
+| `src/sim/ai/boss.js:53` | **override** | absolute | `setVelocity` | Boss projectile launch. |
+| `src/sim/ai/boss.js:75` | **override** | absolute | `setVelocity` | Boss slam shockwave throws the player at a stated velocity. |
+| `src/sim/ai/boss.js:93` | **push** | blended | `setVelocity` | Flier chase: 0.92 damping plus a steering term. Damping is a scale, not a delta. |
+| `src/sim/ai/boss.js:122` | **push** | blended | `setVelocity` | Hover bob: damping plus a sine drive. |
+| `src/sim/ai/boss.js:158` | **override** | absolute | `setVelocity` | Boss reset to rest before a teleport. |
+| `src/sim/ai/boss.js:164` | **push** | blended | `setVelocity` | Ground charge: 0.8 damping plus a directional drive, y untouched. |
+| `src/sim/ai/boss.js:170` | **override** | absolute | `setVelocity` | Leap: the whole launch velocity is stated. |
+| `src/sim/ai/boss.js:217` | **override** | absolute | `setVelocity` | Tentacle punt: the player is thrown at a stated velocity. |
+| `src/sim/ai/boss.js:249` | **push** | blended | `setVelocity` | Chase steering with damping. |
+| `src/sim/ai/boss.js:259` | **push** | axis | `setVelocity` | Vacuum pull: x added to, y stated outright. |
+| `src/sim/ai/boss.js:279` | **push** | blended | `setVelocity` | Chase steering with damping. |
+| `src/sim/ai/boss.js:319` | **push** | blended | `setVelocity` | Drift with damping plus sine drive. |
+| `src/sim/ai/boss.js:320` | **push** | axis | `setVelocity` | Ceiling clamp: y stated, x preserved. |
+| `src/sim/ai/boss.js:321` | **push** | axis | `setVelocity` | Floor clamp: y stated, x preserved. |
+| `src/sim/ai/enemies.js:44` | **override** | absolute | `setVelocity` | Enemy projectile launch. |
+| `src/sim/ai/enemies.js:65` | **override** | absolute | `setVelocity` | Contact shove throws the target at a stated velocity. |
+| `src/sim/ai/enemies.js:76` | **push** | blended | `setVelocity` | Walk drive: 0.8 damping plus a directional term, y untouched. |
+| `src/sim/ai/enemies.js:80` | **push** | axis | `setVelocity` | Enemy jump: y stated, x preserved. |
+| `src/sim/ai/enemies.js:105` | **push** | blended | `setVelocity` | Walk drive with damping. |
+| `src/sim/ai/enemies.js:123` | **override** | absolute | `setVelocity` | Hop: the whole launch velocity is stated. |
+| `src/sim/ai/enemies.js:139` | **override** | absolute | `setVelocity` | Leap: the whole launch velocity is stated. |
 | `src/sim/maps/builders.js:75` | **override** | absolute | `setVelocity` | Destructible debris spawn. |
 | `src/sim/maps/builders.js:312` | **override** | absolute | `setVelocity` | Pendulum kick-off — the initial shove on a fresh ball. |
 | `src/sim/maps/builders.js:320` | **push** | additive | `addVelocity` | Pendulum keep-swinging: a per-second nudge toward centre. |
