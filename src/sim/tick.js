@@ -5,8 +5,8 @@
 // (server/sim-host.js) drives the same loop with the draw half never running.
 import { W, H } from './world.js';
 import {
-  allBodies, applyForce, gravityScale, gravityY, physStep, removeBody, setAngle,
-  setAngularVelocity, setPosition, setVelocity,
+  allBodies, applyForce, gravityScale, gravityY, physStep, removeBody,
+  setAngle, setAngularVelocity, setFilter, setPosition, setVelocity,
 } from './phys/facade.js';
 import { simRandom, rand } from './rng.js';
 import { particles, updateParticles } from './fx.js';
@@ -162,7 +162,7 @@ export function stepSim() {
       const solid = Math.sin(now * b.phantom.speed + b.phantom.offset) > -0.2;
       if (solid !== b.phantomSolid) {
         b.phantomSolid = solid;
-        b.collisionFilter.mask = solid ? 0xFFFFFFFF : 0;
+        setFilter(b, { mask: solid ? 0xFFFFFFFF : 0 });
       }
     }
   }

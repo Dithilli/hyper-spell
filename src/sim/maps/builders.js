@@ -2,9 +2,9 @@
 // composes its arena from.
 import { W, H } from '../world.js';
 import {
-  addBody as addWorldBody, addTo, addVelocity, allBodies, createBox, createCircle,
-  createJoint, createPolygon, removeFrom, setAngularVelocity, setPosition, setType,
-  setVelocity,
+  addBody as addWorldBody, addTo, addVelocity, allBodies, createBox,
+  createCircle, createJoint, createPolygon, removeFrom, setAngularVelocity,
+  setFrictionAir, setPosition, setType, setVelocity,
 } from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
 import { simRandom, rand, pick } from '../rng.js';
@@ -85,7 +85,7 @@ export function breakDestructible(b) {
     const now = simNow();
     for (const q of players) {
       if (!q.alive) continue;
-      if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 100) { q.frozenUntil = Math.max(q.frozenUntil || 0, now + 450); q.body.frictionAir = 0.001; }
+      if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 100) { q.frozenUntil = Math.max(q.frozenUntil || 0, now + 450); setFrictionAir(q.body, 0.001); }
     }
     spawnParticles(x, y, '#eaffff', 12, 5, 30);
     sfx.freeze?.();

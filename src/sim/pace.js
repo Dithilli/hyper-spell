@@ -3,7 +3,7 @@
 // slowMo is the one cosmetic that is also simulation, so the server both calls
 // it and broadcasts it. What it scales changed with the fixed timestep: it used
 // to shrink the timestep handed to the solver (a 0.05 hitstop meant an 0.8ms
-// Engine.update), which made physics resolution a function of spectacle. Now it
+// physStep), which made physics resolution a function of spectacle. Now it
 // scales how fast the tick loop CONSUMES real time — the steps themselves are
 // always exactly TICK_MS. See src/sim/tick-loop.js.
 // THE ONE DELIBERATE EXCEPTION to "simNow() is the sim's only clock".

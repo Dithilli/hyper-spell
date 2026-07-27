@@ -6,7 +6,8 @@
 import { W, H } from '../world.js';
 import {
   addVelocity, allBodies, createBox, createCircle, createPolygon, gravityY,
-  removeBody, setAngularVelocity, setGravityY, setPosition, setType, setVelocity,
+  removeBody, setAngularVelocity, setFrictionAir, setGravityY, setPosition,
+  setType, setVelocity,
 } from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
 import { simRandom, rand, pick } from '../rng.js';
@@ -538,7 +539,7 @@ regSpell('snowball', {
     fb.contactDamage = 8 * m;
   },
 });
-regSpell('flashfreeze', { name: 'Flash Freeze', color: '#e0f7ff', cooldown: 3400, cast(p) { const m = p.mega || 1; sfx.freeze(); doFlash('#bfe8ff', 0.3); for (const q of enemiesOf(p)) { q.frozenUntil = simNow() + 800 * m; q.body.frictionAir = 0.001; } } });
+regSpell('flashfreeze', { name: 'Flash Freeze', color: '#e0f7ff', cooldown: 3400, cast(p) { const m = p.mega || 1; sfx.freeze(); doFlash('#bfe8ff', 0.3); for (const q of enemiesOf(p)) { q.frozenUntil = simNow() + 800 * m; setFrictionAir(q.body, 0.001); } } });
 regSpell('frostnova', {
   name: 'Frost Nova', color: '#aee4ff', cooldown: 2400,
   cast(p) {
@@ -547,7 +548,7 @@ regSpell('frostnova', {
     sfx.freeze();
     for (const q of enemiesOf(p)) {
       const d = Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y);
-      if (d < 180 * m) { q.frozenUntil = simNow() + 1200 * m; q.body.frictionAir = 0.001; damagePlayer(q, 10 * m); }
+      if (d < 180 * m) { q.frozenUntil = simNow() + 1200 * m; setFrictionAir(q.body, 0.001); damagePlayer(q, 10 * m); }
     }
   },
 });
@@ -570,12 +571,12 @@ regSpell('coldsnap', {
   cast(p) {
     statusBolt(p, { color: '#9be7ff', r: 5, speed: 19, vy: -3, dmg: 6 }, (q, m) => {
       q.frozenUntil = simNow() + 1000 * m;
-      q.body.frictionAir = 0.001;
+      setFrictionAir(q.body, 0.001);
       sfx.freeze();
     });
   },
 });
-regSpell('permafrost', { name: 'Permafrost', color: '#7fd4ff', cooldown: 2800, cast(p) { statusBolt(p, { color: '#7fd4ff', r: 9, speed: 10, vy: -3, dmg: 20 }, (q, m) => { q.frozenUntil = simNow() + 2600 * m; q.body.frictionAir = 0.001; sfx.freeze(); }); } });
+regSpell('permafrost', { name: 'Permafrost', color: '#7fd4ff', cooldown: 2800, cast(p) { statusBolt(p, { color: '#7fd4ff', r: 9, speed: 10, vy: -3, dmg: 20 }, (q, m) => { q.frozenUntil = simNow() + 2600 * m; setFrictionAir(q.body, 0.001); sfx.freeze(); }); } });
 
 // ============ FIRE & STATUS ============
 regSpell('ignite', { name: 'Ignite', color: '#ff8c5a', cooldown: 700, cast(p) { statusBolt(p, { color: '#ff8c5a', dmg: 8 }, (q, m) => { q.burnUntil = simNow() + 3000 * m; }); } });
@@ -972,7 +973,7 @@ regSpell('midas', {
     const now = simNow(), dur = 2000 * m;
     t.frozenUntil = now + dur;
     t.heavyUntil = now + dur; // solid gold — heavy
-    t.body.frictionAir = 0.001;
+    setFrictionAir(t.body, 0.001);
     spawnParticles(t.body.position.x, t.body.position.y, '#ffd700', 20, 5);
     spawnText(t.body.position.x, t.body.position.y - 44, 'GOLD!', '#ffd700');
     // the golden statue shatters when it wears off, for bonus damage

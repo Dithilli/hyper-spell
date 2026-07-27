@@ -2,8 +2,8 @@
 // bridge between a controller's input and the physics body.
 import { W, H } from '../world.js';
 import {
-  applyForce, gravityScale, gravityY, queryRegion, setAngle, setAngularVelocity,
-  setPosition, setVelocity,
+  applyForce, gravityScale, gravityY, queryRegion, setAngle,
+  setAngularVelocity, setFrictionAir, setPosition, setVelocity,
 } from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
 import { simRandom, rand } from '../rng.js';
@@ -66,7 +66,7 @@ export function updatePlayers(now) {
     }
 
     if (p.wasFrozen && !frozen) {
-      body.frictionAir = 0.02;
+      setFrictionAir(body, 0.02);
       spawnParticles(body.position.x, body.position.y, '#9be7ff', 10, 4);
       p.wetUntil = now + 4500; // just thawed → Wet (conducts lightning)
     }

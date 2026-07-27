@@ -4,8 +4,8 @@
 // (drawn in src/render/draw-env.js).
 import { W, H } from './world.js';
 import {
-  addTo, addVelocity, allBodies, createBox, createCircle, gravityY, removeFrom,
-  setGravityY, setVelocity,
+  addTo, addVelocity, allBodies, createBox, createCircle, gravityY,
+  removeFrom, setFriction, setGravityY, setRestitution, setVelocity,
 } from './phys/facade.js';
 import { simRandom, rand, pick } from './rng.js';
 import { perSecond } from './time.js';
@@ -81,7 +81,7 @@ export const ENV_EVENTS = [
     start(m) {
       m.data.eventIcy = true;
       for (const b of allBodies(m.composite)) {
-        if (b.isStatic && !b.isSensor) b.friction = 0.01;
+        if (b.isStatic && !b.isSensor) setFriction(b, 0.01);
       }
     },
   },
@@ -135,7 +135,7 @@ export const ENV_EVENTS = [
     id: 'rubber', name: 'RUBBER WORLD', color: '#ff8fc7',
     start(m) {
       for (const b of allBodies(m.composite)) {
-        if (b.isStatic && !b.isSensor) b.restitution = 0.9;
+        if (b.isStatic && !b.isSensor) setRestitution(b, 0.9);
       }
     },
   },

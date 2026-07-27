@@ -5,8 +5,8 @@
 // The boss art lives in src/render/draw-boss.js.
 import { W, H } from '../world.js';
 import {
-  addBody, applyForce, createBox, createCircle, gravityScale, gravityY, setAngle,
-  setAngularVelocity, setPosition, setVelocity,
+  addBody, applyForce, createBox, createCircle, gravityScale, gravityY,
+  setAngle, setAngularVelocity, setFrictionAir, setPosition, setVelocity,
 } from '../phys/facade.js';
 import { simNow } from '../time.js';
 import { simRandom, rand, pick } from '../rng.js';
@@ -322,7 +322,7 @@ export const SECRET_BOSSES = [
           bs.nextDe = now + bcd(bs, 1500, 1500);
           const t = bossAliveTarget(b.position);
           if (t) bossBolt(b.position, t, { speed: 13, r: 7, color: '#9ec9ff', boom: [55, 8, 12] });
-          if (simRandom() < 0.4) { const q = bossAliveTarget(null); if (q) { q.frozenUntil = now + 700; q.body.frictionAir = 0.001; } }
+          if (simRandom() < 0.4) { const q = bossAliveTarget(null); if (q) { q.frozenUntil = now + 700; setFrictionAir(q.body, 0.001); } }
           sfx.freeze();
         }
       } else {

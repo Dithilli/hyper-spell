@@ -104,12 +104,23 @@ export function applyForce(b, at, f) { Body.applyForce(b, at, f); }
 
 export function setType(b, type) { Body.setStatic(b, type === 'static'); }
 export function setFixedRotation(b, on) { Body.setInertia(b, on ? Infinity : b.mass * 0.5); }
+// Material and filter writes. Trivial here because a matter-js body IS the
+// handle, but they are operations rather than field pokes on purpose: a planck
+// handle has no `frictionAir`, and the 22 call sites that used to assign these
+// directly would have been 22 things the backend swap silently missed.
 export function setFrictionAir(b, v) { b.frictionAir = v; }
 export function setFriction(b, v) { b.friction = v; }
 export function setRestitution(b, v) { b.restitution = v; }
-export function setGravityScale(b, s) { b.gravityScale = s; }
 export function setFixtureEnabled(b, on) { b.isSensor = !on; }
 export function setFilter(b, filter) { Object.assign(b.collisionFilter, filter); }
+
+// NOT a matter-js property: 0.19 has no per-body gravity scale, so `gravityScale`
+// is a tag this game invented and src/sim/tick.js reads back to apply a
+// counter-force by hand. It is declared here because a planck backend has the
+// real thing and phase 2 should route through one name — but the ~8 sites that
+// tag a projectile still assign `fb.gravityScale` directly, because today that
+// is gameplay bookkeeping and routing it through physics would be a lie.
+export function setGravityScale(b, s) { b.gravityScale = s; }
 
 // Relative scale, applied cumulatively — matter-js's own Body.scale semantics.
 // Prefer rescaleBody(): repeated Body.scale drifts vertices and mass (defect

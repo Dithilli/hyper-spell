@@ -3,7 +3,7 @@
 import { W, onWorldReset } from '../world.js';
 import {
   addBody, allBodies, createCircle, newCollisionGroup, removeBody, scaleBody,
-  setAngle, setAngularVelocity, setPosition, setVelocity,
+  setAngle, setAngularVelocity, setFrictionAir, setPosition, setVelocity,
 } from '../phys/facade.js';
 import { simNow } from '../time.js';
 import { spawnParticles, spawnText } from '../fx.js';
@@ -109,7 +109,7 @@ export function spawnPlayer(p, pos) {
   p.lastHitBy = null;
   clearStatuses(p);
   setPlayerScale(p, 1);
-  p.body.frictionAir = 0.02;
+  setFrictionAir(p.body, 0.02);
   setPosition(p.body, pos);
   setVelocity(p.body, { x: 0, y: 0 });
   setAngularVelocity(p.body, 0);

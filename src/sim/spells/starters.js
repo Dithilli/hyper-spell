@@ -3,7 +3,7 @@
 // src/sim/content.js can merge them into SPELLS ahead of the other hundred and
 // thirty-six, whatever order the module graph happens to evaluate in.
 import { W } from '../world.js';
-import { addVelocity, allBodies, setVelocity } from '../phys/facade.js';
+import { addVelocity, allBodies, setFrictionAir, setVelocity } from '../phys/facade.js';
 import { simNow } from '../time.js';
 import { rand } from '../rng.js';
 import { particles, spawnParticles, addShake, doFlash } from '../fx.js';
@@ -79,7 +79,7 @@ export const STARTERS = {
         if (other && other.label === 'player' && other.player.alive) {
           damagePlayer(other.player, 15 * m);
           other.player.frozenUntil = simNow() + 1500 * m;
-          other.frictionAir = 0.001;
+          setFrictionAir(other, 0.001);
           sfx.freeze();
         }
       };

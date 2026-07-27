@@ -2,7 +2,7 @@
 // Registered against each freshly built engine, so a rebuilt world starts with
 // exactly one listener (js/game.js:358 attached it at script load).
 import { onWorldReset } from './world.js';
-import { onContact, removeBody, setAngularVelocity, setVelocity } from './phys/facade.js';
+import { onContact, removeBody, setAngularVelocity, setFilter, setVelocity } from './phys/facade.js';
 import { simNow } from './time.js';
 import { pick } from './rng.js';
 import { spawnParticles, spawnText, addShake } from './fx.js';
@@ -30,7 +30,7 @@ function onCollisionStart(pairs) {
         if (b.label === 'destructible') damageDestructible(b, 12); // bolts chip cover, not just explosions
         if (b.label === 'player' && now < (b.player.reflectUntil || 0)) {
           setVelocity(a, { x: -a.velocity.x * 1.1, y: -Math.abs(a.velocity.y) * 0.5 - 2 });
-          a.collisionFilter.group = b.player.group;
+          setFilter(a, { group: b.player.group });
           a.owner = b.player;
           spawnParticles(a.position.x, a.position.y, '#4ecdff', 8, 4);
         } else if (!a.noContactBoom) {
