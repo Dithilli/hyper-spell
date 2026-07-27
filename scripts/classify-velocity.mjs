@@ -16,10 +16,10 @@ const C = {
   ],
   'src/sim/spells/starters.js': [
     ['push', 'additive', 'Blast recoil on the caster: velocity minus a facing-scaled kick.'],
-    ['override', 'absolute', 'Projectile launch — the bolt is given its muzzle velocity outright.'],
-    ['push', 'additive', 'Gust shoves whatever it catches. The mass-independent push, verbatim.'],
-    ['push', 'additive', 'Gust self-recoil on the caster.'],
-    ['push', 'additive', 'Melee knockback added to the victim\'s motion.'],
+    ['push', 'blended', 'Gust REDIRECTS an in-flight bolt: `spd = Math.hypot(b.velocity.x, b.velocity.y)` two lines up, then the same speed on a new heading. Reads its own velocity — a push, not a launch. Classified override on first pass; the read is off-line, which is exactly why the audit had to look past the write itself.'],
+    ['push', 'additive', 'Gust shoves whatever it catches. The mass-independent push, verbatim.', false],
+    ['push', 'additive', 'Gust self-recoil on the caster.', false],
+    ['push', 'additive', 'Melee knockback added to the victim\'s motion.', false],
   ],
   'src/sim/tick.js': [
     ['override', 'absolute', 'Critter hop: the AI states the whole velocity each hop.'],
@@ -28,7 +28,7 @@ const C = {
   'src/sim/player/ghost.js': [
     ['override', 'absolute', 'Poltergeist release — "a toss, not a throw" states the whole velocity.'],
     ['override', 'absolute', 'Poltergeist carry: a position-derived spring velocity, clamped. Nothing of the prop\'s own motion survives.'],
-    ['push', 'additive', 'Wisp gust on nearby bodies.'],
+    ['push', 'additive', 'Wisp gust on nearby bodies.', false],
   ],
   'src/sim/player/controller.js': [
     ['controller', 'blended', 'Movement blend: x eased toward the walk target, y untouched. Phase 3 gives this its own setControlVelocity so a character controller can own it.'],
@@ -85,22 +85,22 @@ const C = {
     ['override', 'absolute', 'Rolling boulder spawn at the arena edge.'],
   ],
   'src/sim/spells/book.js': [
-    ['push', 'additive', 'boomBolt blast knockback.'],
+    ['push', 'additive', 'boomBolt blast knockback.', false],
     ['push', 'blended', 'Homing Wisp steering: 0.9 damping plus a seek term.'],
     ['push', 'blended', 'Boomerang Orb turnaround: x negated. Reads its own velocity, cannot be a delta.'],
     ['push', 'axis', 'Wobble Hex: y is a sine of time, x preserved.'],
     ['push', 'additive', 'Cannon recoil on the caster.'],
     ['push', 'additive', 'Chain lightning knockback.'],
     ['push', 'additive', 'Recoil on the caster.'],
-    ['push', 'additive', 'Directional blast on everything in range.'],
+    ['push', 'additive', 'Directional blast on everything in range.', false],
     ['push', 'additive', 'Shove — the canonical mass-independent push. An anvil goes as far as a wizard.'],
-    ['push', 'additive', 'Radial pull.'],
-    ['push', 'additive', 'Radial pull, weaker variant.'],
+    ['push', 'additive', 'Radial pull.', false],
+    ['push', 'additive', 'Radial pull, weaker variant.', false],
     ['push', 'additive', 'Uppercut: pure upward delta, x untouched (dx = 0).'],
     ['push', 'axis', 'Ground pound: y slammed to a fixed speed, x preserved.'],
     ['push', 'additive', 'Sustained per-second attraction field.'],
     ['override', 'absolute', 'Yank: the target is given a stated velocity toward the caster.'],
-    ['push', 'additive', 'Per-second storm push.'],
+    ['push', 'additive', 'Per-second storm push.', false],
     ['override', 'absolute', 'Icicle spawn drop.'],
     ['override', 'absolute', 'Dash: the caster\'s velocity is replaced outright.'],
     ['push', 'blended', 'Seeker steering with damping.'],
@@ -120,7 +120,7 @@ const C = {
     ['push', 'axis', 'Slam down: y stated, x preserved.'],
   ],
   'src/sim/spells/fusion.js': [
-    ['push', 'additive', 'Per-second storm push.'],
+    ['push', 'additive', 'Per-second storm push.', false],
     ['push', 'additive', 'Freeze shove.'],
     ['push', 'additive', 'Recoil on the caster.'],
     ['push', 'axis', 'Blast: x added to, y stated outright.'],
@@ -133,8 +133,8 @@ const C = {
   'src/sim/spells/core.js': [
     ['override', 'absolute', 'Bolt launch — the muzzle velocity.'],
     ['override', 'absolute', 'Bolt launch — the muzzle velocity, gravity-flip aware.'],
-    ['push', 'additive', 'explode() — the single most-used push in the game. Mass-independent so a blast reads the same whatever it catches.'],
-    ['push', 'additive', 'Singularity: a per-second radial pull plus a tangential term.'],
+    ['push', 'additive', 'explode() — the single most-used push in the game. Mass-independent so a blast reads the same whatever it catches.', false],
+    ['push', 'additive', 'Singularity: a per-second radial pull plus a tangential term.', false],
   ],
   'src/sim/maps/book.js': [
     ['push', 'additive', 'Updraft Canyon: a per-second lift, x untouched (dx = 0).'],
@@ -155,6 +155,8 @@ const RE = /(?:Body\.setVelocity|\baddVelocity|(?<!Body\.)\bsetVelocity)\s*\(/;
 
 const rows = [];
 const tally = { push: 0, override: 0, controller: 0 };
+const exactAdds = [], inexactAdds = [];
+let clampExempt = 0;
 const forms = {};
 for (const [file, sites] of Object.entries(C)) {
   const lines = readFileSync(file, 'utf8').split('\n');
@@ -168,11 +170,58 @@ for (const [file, sites] of Object.entries(C)) {
   if (found.length !== sites.length) {
     throw new Error(`${file}: expected ${sites.length} sites, found ${found.length}`);
   }
-  sites.forEach(([cls, form, why], i) => {
+  // Self-check. A push is a write whose value derives from the body's OWN
+  // current velocity; an override is one that does not. Getting this backwards
+  // in either direction is a silent content rebalance, which is the whole
+  // reason the table exists — so it is asserted, not eyeballed.
+  //
+  // It looks at the write STATEMENT (which may span lines), plus any local
+  // assigned from the target's velocity in the three lines above it. That
+  // second clause is not hypothetical: src/sim/spells/starters.js:44 writes
+  // `{ x: dir.x * spd, … }` where `spd = Math.hypot(b.velocity.x, …)` sits two
+  // lines up, and the first pass called it an override because of it.
+  sites.forEach(([cls, form], i) => {
+    const at = found[i].line - 1;
+    const target = lines[at].match(/(?:addVelocity|setVelocity)\(\s*([\w.[\]]+)\s*,/)?.[1];
+    const esc = target?.replace(/[.[\]]/g, '\\$&');
+
+    let stmt = '', depth = 0;
+    for (let k = at; k < lines.length; k++) {
+      stmt += lines[k] + '\n';
+      for (const ch of lines[k]) depth += ch === '(' ? 1 : ch === ')' ? -1 : 0;
+      if (k > at || depth <= 0) if (depth <= 0) break;
+    }
+
+    const ownRead = esc && new RegExp(`${esc}\\.velocity\\.[xy]\\b`);
+    const above = lines.slice(Math.max(0, at - 3), at);
+    const viaLocal = esc && above.some((l) => {
+      const decl = l.match(/(?:const|let|var)\s+(\w+)\s*=(.*)$/);
+      return decl && new RegExp(`\\b${decl[1]}\\b`).test(stmt)
+        && new RegExp(`${esc}\\.velocity`).test(decl[2]);
+    });
+
+    // An addVelocity call reads its own velocity by construction — the read
+    // moved into the facade, which is the point of the operation.
+    const readsOwn = /\baddVelocity\(/.test(lines[at]) || (!!ownRead && ownRead.test(stmt)) || !!viaLocal;
+    // THE ONE EXEMPTION: brief rule 4. A conveyor reads b.velocity.x and then
+    // clamps it to ±9, so the belt states what the velocity is allowed to be
+    // rather than adding to it — override despite the read. Marked in the table
+    // as override/blended, which is a combination nothing else uses; the count
+    // is asserted below so the carve-out cannot quietly widen.
+    if (cls === 'override' && form === 'blended') { clampExempt++; return; }
+    if ((cls !== 'override') !== readsOwn) {
+      throw new Error(`${file}:${found[i].line} classified ${cls} but readsOwn=${readsOwn} `
+        + `(target=${target}) — re-read the site before changing the table`);
+    }
+  });
+
+  sites.forEach(([cls, form, why, exact = true], i) => {
     tally[cls]++;
     forms[form] = (forms[form] || 0) + 1;
     const call = cls === 'controller' ? '`setVelocity` → `setControlVelocity` (phase 3)'
-      : form === 'additive' ? '`addVelocity`' : '`setVelocity`';
+      : form === 'additive' && exact ? '`addVelocity`'
+        : form === 'additive' ? '`setVelocity` ¹' : '`setVelocity`';
+    if (form === 'additive') (exact ? exactAdds : inexactAdds).push(`${file}:${found[i].line}`);
     let snippet = found[i].text;
     if (snippet.length > 150) snippet = snippet.slice(0, 147) + '…';
     rows.push(`| \`${file}:${found[i].line}\` | **${cls}** | ${form} | ${call} | ${why} |`);
@@ -187,8 +236,15 @@ const header = readFileSync('scripts/classify-velocity-header.md', 'utf8')
   .replaceAll('%%ADDITIVE%%', forms.additive)
   .replaceAll('%%BLENDED%%', forms.blended)
   .replaceAll('%%AXIS%%', forms.axis)
-  .replaceAll('%%ABSOLUTE%%', forms.absolute);
+  .replaceAll('%%ABSOLUTE%%', forms.absolute)
+  .replaceAll('%%ADDVELOCITY%%', exactAdds.length)
+  .replaceAll('%%REASSOC%%', inexactAdds.length)
+  .replaceAll('%%REASSOCLIST%%', inexactAdds.map((s) => `- \`${s}\``).join('\n'));
 
 writeFileSync('docs/superpowers/plans/velocity-classification.md',
   header + '\n' + rows.join('\n') + '\n');
-console.log(tally, forms, 'rows', rows.length);
+if (clampExempt !== 3) {
+  throw new Error(`expected exactly 3 conveyor clamps exempt from the push audit, saw ${clampExempt}`);
+}
+
+console.log(tally, forms, { addVelocity: exactAdds.length, reassoc: inexactAdds.length }, 'rows', rows.length);
