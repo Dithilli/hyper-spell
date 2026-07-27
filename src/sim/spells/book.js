@@ -3,7 +3,11 @@
 // Content file: moved verbatim from js/spellbook.js. The only edits are the
 // module header below and the effect draw() closures, which now take the render
 // surface as an argument instead of reaching for a global ctx.
-import { Bodies, Body, Composite, world, engine, W, H } from '../world.js';
+import { W, H } from '../world.js';
+import {
+  addVelocity, allBodies, createBox, createCircle, createPolygon, gravityY,
+  removeBody, setAngularVelocity, setGravityY, setPosition, setType, setVelocity,
+} from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
 import { simRandom, rand, pick } from '../rng.js';
 import { particles, spawnParticles, spawnRing, spawnText, addShake, doFlash } from '../fx.js';
@@ -57,14 +61,14 @@ export function zapRay(p, dmg, imp, width = 3, angOff = 0) {
   boltVisual(from.x, from.y, pt.x, pt.y, '#fff89e', width * m);
   spawnParticles(pt.x, pt.y, '#fff89e', 10, 5);
   if (hit && !hit.isStatic) {
-    Body.setVelocity(hit, { x: hit.velocity.x + dir.x * imp * m, y: hit.velocity.y + dir.y * imp * m - imp * 0.2 * m });
+    setVelocity(hit, { x: hit.velocity.x + dir.x * imp * m, y: hit.velocity.y + dir.y * imp * m - imp * 0.2 * m });
     if (hit.label === 'player') zapHit(hit.player, dmg * m, p); // CONDUCTION on Wet targets
   }
   return { hit, pt };
 }
 
 function summonCritter(p, o = {}) {
-  const b = Bodies.circle(
+  const b = createCircle(
     o.x ?? p.body.position.x + p.facing * 34,
     o.y ?? p.body.position.y - 10,
     o.r ?? 8,
@@ -116,7 +120,7 @@ regSpell('homing', {
       const dx = t.body.position.x - self.position.x, dy = t.body.position.y - self.position.y;
       const d = Math.hypot(dx, dy) || 1;
       const sp = 13;
-      Body.setVelocity(self, {
+      setVelocity(self, {
         x: self.velocity.x * 0.9 + (dx / d) * sp * 0.14,
         y: self.velocity.y * 0.9 + (dy / d) * sp * 0.14,
       });
@@ -129,7 +133,7 @@ regSpell('boomerang', {
     const fb = boomBolt(p, { color: '#d2b4de', r: 7, speed: 18, vy: -4, g: 0.2, radius: 110, power: 16, dmg: 26, expireMs: 2400 });
     fb.bornAt = simNow();
     fb.update = (self, now) => {
-      if (!self.turned && now - fb.bornAt > 600) { self.turned = true; Body.setVelocity(self, { x: -self.velocity.x, y: self.velocity.y - 2 }); }
+      if (!self.turned && now - fb.bornAt > 600) { self.turned = true; setVelocity(self, { x: -self.velocity.x, y: self.velocity.y - 2 }); }
     };
   },
 });
@@ -138,14 +142,14 @@ regSpell('wobble', {
   name: 'Wobble Hex', color: '#e69bff', cooldown: 900,
   cast(p) {
     const fb = boomBolt(p, { color: '#e69bff', r: 6, speed: 15, vy: 0, g: 0, radius: 110, power: 16, dmg: 24, expireMs: 2500 });
-    fb.update = (self, now) => Body.setVelocity(self, { x: self.velocity.x, y: Math.sin(now * 0.02) * 6 });
+    fb.update = (self, now) => setVelocity(self, { x: self.velocity.x, y: Math.sin(now * 0.02) * 6 });
   },
 });
 regSpell('landmine', {
   name: 'Landmine', color: '#b8b8b8', cooldown: 2000,
   cast(p) {
     const m = p.mega || 1;
-    const b = Bodies.rectangle(p.body.position.x + p.facing * 30, p.body.position.y + 8, 16, 8, { density: 0.003, friction: 0.9, label: 'mine' });
+    const b = createBox(p.body.position.x + p.facing * 30, p.body.position.y + 8, 16, 8, { density: 0.003, friction: 0.9, label: 'mine' });
     b.owner = p;
     b.mineBlast = { radius: 130 * m, power: 20 * m, dmg: 35 * m };
     summon(b, { life: 12000, color: '#b8b8b8' });
@@ -160,7 +164,7 @@ regSpell('sticky', {
     fb.onHit = () => {
       if (fb.stuck) return;
       fb.stuck = true;
-      Body.setStatic(fb, true);
+      setType(fb, 'static');
       activeEffects.push({
         until: simNow() + 900,
         draw(now, ctx) { ctx.fillStyle = Math.sin(now * 0.03) > 0 ? '#aef05a' : '#fff'; ctx.beginPath(); ctx.arc(fb.position.x, fb.position.y, 4, 0, Math.PI * 2); ctx.fill(); },
@@ -214,7 +218,7 @@ regSpell('cannonball', {
     const fb = shoot(p, { r: 13 * m, speed: 24, vy: -1, color: '#3d3d4d', gravityScale: 0.9, density: 0.012, restitution: 0.3, expireMs: 4000 });
     fb.noContactBoom = true;
     fb.contactDamage = 30 * m;
-    Body.setVelocity(p.body, { x: p.body.velocity.x - p.facing * 5, y: p.body.velocity.y });
+    addVelocity(p.body, { x: -p.facing * 5, y: 0 });
   },
 });
 regSpell('bowling', {
@@ -259,7 +263,7 @@ regSpell('chain', {
       hitSet.add(best);
       boltVisual(from.x, from.y - 8, best.body.position.x, best.body.position.y, '#e3f265', 3 * m);
       damagePlayer(best, dmg * m);
-      Body.setVelocity(best.body, { x: best.body.velocity.x + rand(-6, 6), y: best.body.velocity.y - 8 });
+      addVelocity(best.body, { x: rand(-6, 6), y: -8 });
       from = best.body.position;
       dmg -= 10;
     }
@@ -300,7 +304,7 @@ regSpell('disintegrate', {
     boltVisual(x + dir.x * 16, y - 6 + dir.y * 16, x + dir.x * 1500, y - 6 + dir.y * 1500, '#ff4df0', 5 * m, 180);
     sfx.lightning();
     doFlash('#ff4df0', 0.2);
-    for (const b of [...Composite.allBodies(world)]) {
+    for (const b of [...allBodies()]) {
       if (b.isStatic || b.isSensor || b === p.body) continue;
       const rx = b.position.x - x, ry = b.position.y - (y - 6);
       const t = rx * dir.x + ry * dir.y;
@@ -312,7 +316,7 @@ regSpell('disintegrate', {
       if (b.label === 'boss') { damageBoss(30 * m, b.position, p); continue; }
       spawnParticles(b.position.x, b.position.y, '#ff4df0', 8, 4);
       projectiles.delete(b); gibs.delete(b); tomes.delete(b); hats.delete(b); summons.delete(b);
-      Composite.remove(world, b, true);
+      removeBody(b, true);
     }
   },
 });
@@ -337,34 +341,34 @@ regSpell('railgun', {
     boltVisual(x + dir.x * 16, y - 6 + dir.y * 16, x + dir.x * 1500, y - 6 + dir.y * 1500, '#9ef0f0', 4 * m, 160);
     sfx.lightning();
     addShake(8);
-    Body.setVelocity(p.body, { x: p.body.velocity.x - dir.x * 8, y: p.body.velocity.y - dir.y * 5 });
-    for (const b of Composite.allBodies(world)) {
+    addVelocity(p.body, { x: -dir.x * 8, y: -dir.y * 5 });
+    for (const b of allBodies()) {
       if (b.isStatic || b.isSensor || b === p.body) continue;
       const rx = b.position.x - x, ry = b.position.y - (y - 6);
       const t = rx * dir.x + ry * dir.y;
       if (t < 0 || t > 1500) continue;
       if (Math.abs(rx * dir.y - ry * dir.x) > 28) continue;
-      Body.setVelocity(b, { x: b.velocity.x + dir.x * 30 * m, y: b.velocity.y + dir.y * 30 * m - 4 });
+      setVelocity(b, { x: b.velocity.x + dir.x * 30 * m, y: b.velocity.y + dir.y * 30 * m - 4 });
       if (b.label === 'player') damagePlayer(b.player, 40 * m);
     }
   },
 });
 
 // ============ PUSH, PULL & AIR ============
-regSpell('shove', { name: 'Shove', color: '#f0e6d2', cooldown: 500, cast(p) { const m = p.mega || 1; const t = nearestEnemy(p, 130); if (t) { Body.setVelocity(t.body, { x: t.body.velocity.x + p.facing * 26 * m, y: t.body.velocity.y - 6 }); damagePlayer(t, 5 * m); } spawnParticles(frontPos(p, 40).x, p.body.position.y, '#f0e6d2', 8, 5); } });
+regSpell('shove', { name: 'Shove', color: '#f0e6d2', cooldown: 500, cast(p) { const m = p.mega || 1; const t = nearestEnemy(p, 130); if (t) { addVelocity(t.body, { x: p.facing * 26 * m, y: -6 }); damagePlayer(t, 5 * m); } spawnParticles(frontPos(p, 40).x, p.body.position.y, '#f0e6d2', 8, 5); } });
 regSpell('cyclone', {
   name: 'Cyclone', color: '#c8f7f7', cooldown: 1400,
   cast(p) {
     const m = p.mega || 1;
     const { x, y } = p.body.position;
     spawnRing(x, y, '#c8f7f7');
-    for (const b of Composite.allBodies(world)) {
+    for (const b of allBodies()) {
       if (b.isStatic || b.isSensor || b === p.body) continue;
       const dx = b.position.x - x, dy = b.position.y - y;
       const d = Math.hypot(dx, dy);
       if (d > 220 * m || d === 0) continue;
       const s = (1 - d / (220 * m)) * 20 * m;
-      Body.setVelocity(b, { x: b.velocity.x + (dx / d) * s, y: b.velocity.y + (dy / d) * s - 4 });
+      setVelocity(b, { x: b.velocity.x + (dx / d) * s, y: b.velocity.y + (dy / d) * s - 4 });
     }
   },
 });
@@ -373,13 +377,13 @@ regSpell('vortexpull', {
   cast(p) {
     const m = p.mega || 1;
     const { x, y } = p.body.position;
-    for (const b of Composite.allBodies(world)) {
+    for (const b of allBodies()) {
       if (b.isStatic || b.isSensor || b === p.body) continue;
       const dx = x - b.position.x, dy = y - b.position.y;
       const d = Math.hypot(dx, dy);
       if (d > 260 * m || d === 0) continue;
       const s = (1 - d / (260 * m)) * 16 * m;
-      Body.setVelocity(b, { x: b.velocity.x + (dx / d) * s, y: b.velocity.y + (dy / d) * s - 2 });
+      setVelocity(b, { x: b.velocity.x + (dx / d) * s, y: b.velocity.y + (dy / d) * s - 2 });
     }
     spawnRing(x, y, '#b58aff');
   },
@@ -389,10 +393,10 @@ regSpell('updraft', {
   cast(p) {
     const m = p.mega || 1;
     const x = p.body.position.x;
-    for (const b of Composite.allBodies(world)) {
+    for (const b of allBodies()) {
       if (b.isStatic || b.isSensor) continue;
       if (Math.abs(b.position.x - x) > 130 * m) continue;
-      Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y - 18 * m });
+      addVelocity(b, { x: 0, y: -18 * m });
     }
     for (let i = 0; i < 16; i++) particles.push({ kind: 'spark', x: x + rand(-100, 100), y: rand(100, H - 60), vx: 0, vy: -rand(8, 14), life: 20, maxLife: 20, color: '#e0ffff', r: 2 });
   },
@@ -401,7 +405,7 @@ regSpell('slam', {
   name: 'Seismic Slam', color: '#d1a054', cooldown: 2200,
   cast(p) {
     const m = p.mega || 1;
-    Body.setVelocity(p.body, { x: p.body.velocity.x, y: 30 });
+    setVelocity(p.body, { x: p.body.velocity.x, y: 30 });
     const e = {
       until: simNow() + 1600,
       update(now) {
@@ -429,7 +433,7 @@ regSpell('repulsor', {
         // makeZone's tick fires every tick for the zone's whole life, so these
         // are sustained per-frame magnitudes like the singularity's, not a
         // one-shot cast impulse
-        Body.setVelocity(q.body, { x: q.body.velocity.x + (dx / d) * perSecond(2.4), y: q.body.velocity.y + (dy / d) * perSecond(1.2) });
+        addVelocity(q.body, { x: (dx / d) * perSecond(2.4), y: (dy / d) * perSecond(1.2) });
       },
     });
   },
@@ -441,7 +445,7 @@ regSpell('magnetpalm', {
     if (!t) return;
     const dx = p.body.position.x - t.body.position.x, dy = p.body.position.y - t.body.position.y;
     const d = Math.hypot(dx, dy) || 1;
-    Body.setVelocity(t.body, { x: (dx / d) * 18, y: (dy / d) * 18 - 3 });
+    setVelocity(t.body, { x: (dx / d) * 18, y: (dy / d) * 18 - 3 });
     damagePlayer(t, 5);
     boltVisual(p.body.position.x, p.body.position.y - 6, t.body.position.x, t.body.position.y, '#ff9ecb', 2, 100);
   },
@@ -459,7 +463,7 @@ regSpell('tornado', {
         e.x += e.vx;
         e.net.x = e.x;
         if (e.x < 40 || e.x > W - 40) e.vx = -e.vx;
-        for (const b of Composite.allBodies(world)) {
+        for (const b of allBodies()) {
           if (b.isStatic || b.isSensor) continue;
           const dx = b.position.x - e.x;
           if (Math.abs(dx) > 120 * m) continue;
@@ -471,7 +475,7 @@ regSpell('tornado', {
           // ratio is 1), and still better than leaving half the expression in
           // frame units; revisit if TICK_HZ ever moves. Same in fusion.js's
           // firestorm.
-          Body.setVelocity(b, { x: b.velocity.x - Math.sign(dx) * perSecond(0.9) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.5) * m });
+          setVelocity(b, { x: b.velocity.x - Math.sign(dx) * perSecond(0.9) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.5) * m });
         }
       },
       draw(now, ctx) {
@@ -497,7 +501,7 @@ regSpell('glacier', {
   cast(p) {
     const m = p.mega || 1;
     const pos = frontPos(p, 70);
-    const wall = Bodies.rectangle(pos.x, pos.y - 30, 26 * m, 120 * m, { isStatic: true, friction: 0.01, label: 'wall' });
+    const wall = createBox(pos.x, pos.y - 30, 26 * m, 120 * m, { isStatic: true, friction: 0.01, label: 'wall' });
     summon(wall, { life: 4500, color: '#9be7ff' });
     sfx.freeze();
   },
@@ -552,9 +556,9 @@ regSpell('icicledrop', {
   cast(p) {
     const m = p.mega || 1;
     for (const q of enemiesOf(p)) {
-      const ice = Bodies.polygon(q.body.position.x + rand(-20, 20), Math.max(30, q.body.position.y - 260), 3, 16 * m, { angle: Math.PI / 2, density: 0.006, label: 'critter' });
+      const ice = createPolygon(q.body.position.x + rand(-20, 20), Math.max(30, q.body.position.y - 260), 3, 16 * m, { angle: Math.PI / 2, density: 0.006, label: 'critter' });
       summon(ice, { life: 3000, color: '#bfe8ff', contactDamage: 25 * m });
-      Body.setVelocity(ice, { x: 0, y: 6 });
+      setVelocity(ice, { x: 0, y: 6 });
     }
     sfx.freeze();
   },
@@ -605,7 +609,7 @@ regSpell('phoenixdash', {
   name: 'Phoenix Dash', color: '#ffb347', cooldown: 2000, selfMove: true,
   cast(p) {
     const dir = aimDir(p, 25, 4);
-    Body.setVelocity(p.body, { x: dir.x * 25, y: dir.y * 25 - 2 });
+    setVelocity(p.body, { x: dir.x * 25, y: dir.y * 25 - 2 });
     p.invulnUntil = simNow() + 600;
     for (let i = 0; i < 20; i++) particles.push({ kind: 'spark', x: p.body.position.x - dir.x * i * 4, y: p.body.position.y - dir.y * i * 4 + rand(-8, 8), vx: -dir.x * rand(2, 6), vy: rand(-2, 2), life: 22, maxLife: 22, color: '#ffb347', r: 2.5 });
   },
@@ -639,7 +643,7 @@ regSpell('fireflies', {
         if (!t) return;
         const dx = t.body.position.x - self.position.x, dy = t.body.position.y - self.position.y;
         const d = Math.hypot(dx, dy) || 1;
-        Body.setVelocity(self, { x: self.velocity.x * 0.92 + (dx / d) * 1.6, y: self.velocity.y * 0.92 + (dy / d) * 1.6 });
+        setVelocity(self, { x: self.velocity.x * 0.92 + (dx / d) * 1.6, y: self.velocity.y * 0.92 + (dy / d) * 1.6 });
       };
     }
   },
@@ -653,7 +657,7 @@ regSpell('blink', {
     const dir = aimDir(p, 1, 0);
     const nx = Math.max(30, Math.min(W - 30, p.body.position.x + dir.x * 220));
     const ny = Math.max(40, Math.min(H - 60, p.body.position.y + dir.y * 160));
-    Body.setPosition(p.body, { x: nx, y: ny });
+    setPosition(p.body, { x: nx, y: ny });
     p.invulnUntil = simNow() + 300;
     spawnParticles(nx, ny, '#c3b1e1', 14, 5);
     sfx.pickup();
@@ -664,7 +668,7 @@ regSpell('rocketleap', {
   cast(p) {
     const m = p.mega || 1;
     explode(p.body.position.x, p.body.position.y + 16, 120 * m, 18 * m, 15 * m, p);
-    Body.setVelocity(p.body, { x: p.body.velocity.x, y: -26 });
+    setVelocity(p.body, { x: p.body.velocity.x, y: -26 });
   },
 });
 regSpell('ghostwalk', { name: 'Ghost Walk', color: '#e8e8ff', cooldown: 4000, cast(p) { p.speedUntil = simNow() + 1500; p.invulnUntil = simNow() + 1500; spawnText(p.body.position.x, p.body.position.y - 44, 'GHOSTLY', '#e8e8ff'); } });
@@ -675,8 +679,8 @@ regSpell('swaphex', {
     if (!others.length) return;
     const t = pick(others);
     const a = { ...p.body.position }, b = { ...t.body.position };
-    Body.setPosition(p.body, b);
-    Body.setPosition(t.body, a);
+    setPosition(p.body, b);
+    setPosition(t.body, a);
     spawnParticles(a.x, a.y, '#f5b7ff', 12, 5);
     spawnParticles(b.x, b.y, '#f5b7ff', 12, 5);
     spawnText(b.x, b.y - 44, 'SWAP!', '#f5b7ff');
@@ -689,7 +693,7 @@ regSpell('smokebomb', {
   cast(p) {
     spawnParticles(p.body.position.x, p.body.position.y, '#9a9ab0', 30, 5, 60);
     const nx = Math.max(30, Math.min(W - 30, p.body.position.x - p.facing * 170));
-    Body.setPosition(p.body, { x: nx, y: p.body.position.y - 10 });
+    setPosition(p.body, { x: nx, y: p.body.position.y - 10 });
     p.invulnUntil = simNow() + 400;
   },
 });
@@ -706,10 +710,10 @@ regSpell('cratedrop', {
   cast(p) {
     const pos = frontPos(p, 190);
     for (let i = 0; i < 3; i++) {
-      const crate = Bodies.rectangle(pos.x + (i - 1) * 34, -40 - i * 30, 26, 26, { density: 0.003, friction: 0.4, label: 'crate' });
+      const crate = createBox(pos.x + (i - 1) * 34, -40 - i * 30, 26, 26, { density: 0.003, friction: 0.4, label: 'crate' });
       crate.owner = p;
       summon(crate, { life: 9000, contactDamage: 14 }); // heavy enough to crush on impact
-      Body.setVelocity(crate, { x: 0, y: 9 });           // drop fast
+      setVelocity(crate, { x: 0, y: 9 });           // drop fast
     }
   },
 });
@@ -719,7 +723,7 @@ regSpell('anvil', {
     const m = p.mega || 1;
     const t = nearestEnemy(p);
     const x = t ? t.body.position.x : frontPos(p, 200).x;
-    const anvil = Bodies.rectangle(x, -40, 44 * m, 26 * m, { density: 0.02, friction: 0.8, label: 'anvil' });
+    const anvil = createBox(x, -40, 44 * m, 26 * m, { density: 0.02, friction: 0.8, label: 'anvil' });
     summon(anvil, { life: 5000, color: '#2f2f3a', contactDamage: 55 * m });
     sfx.clang();
   },
@@ -730,7 +734,7 @@ regSpell('piano', {
     const m = p.mega || 1;
     const t = nearestEnemy(p);
     const x = t ? t.body.position.x : frontPos(p, 200).x;
-    const piano = Bodies.rectangle(x, -60, 84 * m, 44 * m, { density: 0.018, friction: 0.8, label: 'piano' });
+    const piano = createBox(x, -60, 84 * m, 44 * m, { density: 0.018, friction: 0.8, label: 'piano' });
     summon(piano, { life: 5500, color: '#14141c', contactDamage: 80 * m });
     sfx.clang();
     setBanner('🎹', '#fff', 700);
@@ -740,10 +744,10 @@ regSpell('bouncycastle', {
   name: 'Bouncy Castle', color: '#ffb3de', cooldown: 3000,
   cast(p) {
     for (let i = 0; i < 3; i++) {
-      const ball = Bodies.circle(p.body.position.x + p.facing * (50 + i * 30), p.body.position.y - 40 - i * 20, 14, { density: 0.001, restitution: 1.35, friction: 0.01, label: 'bouncy' });
+      const ball = createCircle(p.body.position.x + p.facing * (50 + i * 30), p.body.position.y - 40 - i * 20, 14, { density: 0.001, restitution: 1.35, friction: 0.01, label: 'bouncy' });
       ball.owner = p;
       summon(ball, { life: 6000, color: '#ffb3de', contactDamage: 13 });
-      Body.setVelocity(ball, { x: p.facing * rand(6, 12), y: -rand(3, 9) });
+      setVelocity(ball, { x: p.facing * rand(6, 12), y: -rand(3, 9) });
     }
     sfx.boing();
   },
@@ -753,7 +757,7 @@ regSpell('stonewall', {
   cast(p) {
     const m = p.mega || 1;
     const pos = frontPos(p, 80);
-    const wall = Bodies.rectangle(pos.x, pos.y - 30, 30 * m, 130 * m, { isStatic: true, friction: 0.6, label: 'wall' });
+    const wall = createBox(pos.x, pos.y - 30, 30 * m, 130 * m, { isStatic: true, friction: 0.6, label: 'wall' });
     summon(wall, { life: 5500, color: '#6b6b7a' });
   },
 });
@@ -762,7 +766,7 @@ regSpell('trampoline', {
   cast(p) {
     const pos = frontPos(p, 90);
     const gy = groundYAt(pos.x);
-    const tramp = Bodies.rectangle(pos.x, gy - 8, 100, 14, { isStatic: true, restitution: 0.4, friction: 0.1, label: 'tramp' });
+    const tramp = createBox(pos.x, gy - 8, 100, 14, { isStatic: true, restitution: 0.4, friction: 0.1, label: 'tramp' });
     summon(tramp, { life: 7000, color: '#ff8fc7' });
     sfx.boing();
   },
@@ -771,10 +775,10 @@ regSpell('decoy', {
   name: 'Mirror Image', color: '#e8d5ff', cooldown: 3400,
   cast(p) {
     for (const dir of [-1, 1]) {
-      const d = Bodies.circle(p.body.position.x + dir * 40, p.body.position.y - 10, 15, { density: 0.004, friction: 0.05, restitution: 0.2, label: 'decoy' });
+      const d = createCircle(p.body.position.x + dir * 40, p.body.position.y - 10, 15, { density: 0.004, friction: 0.05, restitution: 0.2, label: 'decoy' });
       d.decoyOf = p;
       summon(d, { life: 5000 });
-      Body.setVelocity(d, { x: dir * rand(3, 7), y: -5 });
+      setVelocity(d, { x: dir * rand(3, 7), y: -5 });
     }
   },
 });
@@ -782,7 +786,7 @@ regSpell('beehive', {
   name: 'Beehive', color: '#e8b647', cooldown: 4200,
   cast(p) {
     const pos = frontPos(p, 120);
-    const hive = Bodies.rectangle(pos.x, pos.y - 20, 22, 26, { density: 0.002, friction: 0.6, label: 'hive' });
+    const hive = createBox(pos.x, pos.y - 20, 22, 26, { density: 0.002, friction: 0.6, label: 'hive' });
     summon(hive, { life: 3000, color: '#e8b647' });
     const t0 = simNow();
     let i = 0;
@@ -792,14 +796,14 @@ regSpell('beehive', {
         if (now > t0 + i * 260 && i < 8) {
           i++;
           const bee = shoot(p, { r: 2.5, speed: rand(4, 7), vy: rand(-6, -2), color: '#ffe066', gravityScale: 0, expireMs: 3000 });
-          Body.setPosition(bee, { x: hive.position.x, y: hive.position.y - 10 });
+          setPosition(bee, { x: hive.position.x, y: hive.position.y - 10 });
           bee.onHit = (self, other) => { if (other && other.label === 'player') damagePlayer(other.player, 7, p); };
           bee.update = (self) => {
             const t = nearestEnemy(p, 1e9, self.position);
             if (!t) return;
             const dx = t.body.position.x - self.position.x, dy = t.body.position.y - self.position.y;
             const d = Math.hypot(dx, dy) || 1;
-            Body.setVelocity(self, { x: self.velocity.x * 0.9 + (dx / d) * 1.8, y: self.velocity.y * 0.9 + (dy / d) * 1.8 });
+            setVelocity(self, { x: self.velocity.x * 0.9 + (dx / d) * 1.8, y: self.velocity.y * 0.9 + (dy / d) * 1.8 });
           };
         }
       },
@@ -812,7 +816,7 @@ regSpell('boulder', {
     const m = p.mega || 1;
     const t = nearestEnemy(p);
     const x = t ? t.body.position.x + rand(-40, 40) : frontPos(p, 220).x;
-    const rock = Bodies.circle(x, -50, 26 * m, { density: 0.012, friction: 0.4, restitution: 0.2, label: 'boulderS' });
+    const rock = createCircle(x, -50, 26 * m, { density: 0.012, friction: 0.4, restitution: 0.2, label: 'boulderS' });
     summon(rock, { life: 6000, color: '#5a5245', contactDamage: 35 * m });
   },
 });
@@ -820,12 +824,12 @@ regSpell('sawblade', {
   name: 'Sawblade', color: '#c0c0cc', cooldown: 2400,
   cast(p) {
     const m = p.mega || 1;
-    const saw = Bodies.circle(p.body.position.x + p.facing * 36, p.body.position.y, 15 * m, { density: 0.004, friction: 0.9, restitution: 0.4, label: 'saw' });
+    const saw = createCircle(p.body.position.x + p.facing * 36, p.body.position.y, 15 * m, { density: 0.004, friction: 0.9, restitution: 0.4, label: 'saw' });
     saw.owner = p;
     saw.sawDir = p.facing;
     summon(saw, { life: 3500, color: '#c0c0cc', contactDamage: 18 * m });
-    Body.setVelocity(saw, { x: p.facing * 13, y: -2 });
-    Body.setAngularVelocity(saw, p.facing * 0.9);
+    setVelocity(saw, { x: p.facing * 13, y: -2 });
+    setAngularVelocity(saw, p.facing * 0.9);
   },
 });
 regSpell('blackcat', {
@@ -850,20 +854,20 @@ regSpell('gravflip', {
   name: 'Gravity Flip', color: '#c084fc', cooldown: 6000,
   cast(p) {
     // the world flips — except the caster, who keeps their footing
-    p.gravityLockDir = engine.gravity.y < 0 ? -1 : 1;
+    p.gravityLockDir = gravityY() < 0 ? -1 : 1;
     p.gravityLockUntil = simNow() + 2500;
-    engine.gravity.y = -game.baseGravity;
+    setGravityY(-game.baseGravity);
     doFlash('#c084fc', 0.3);
     setBanner('GRAVITY!', '#c084fc', 1000);
-    activeEffects.push({ until: simNow() + 2500, onEnd() { engine.gravity.y = game.baseGravity; } });
+    activeEffects.push({ until: simNow() + 2500, onEnd() { setGravityY(game.baseGravity); } });
   },
 });
 regSpell('moongrav', {
   name: 'Moon Gravity', color: '#d8d8f0', cooldown: 6000,
   cast() {
-    engine.gravity.y = game.baseGravity * 0.3;
+    setGravityY(game.baseGravity * 0.3);
     setBanner('LOW GRAVITY', '#d8d8f0', 1000);
-    activeEffects.push({ until: simNow() + 4000, onEnd() { engine.gravity.y = game.baseGravity; } });
+    activeEffects.push({ until: simNow() + 4000, onEnd() { setGravityY(game.baseGravity); } });
   },
 });
 regSpell('earthquake', {
@@ -871,9 +875,9 @@ regSpell('earthquake', {
   cast(p) {
     addShake(24);
     sfx.explosion();
-    for (const b of Composite.allBodies(world)) {
+    for (const b of allBodies()) {
       if (b.isStatic || b.isSensor) continue;
-      Body.setVelocity(b, { x: b.velocity.x + rand(-8, 8), y: b.velocity.y - rand(2, 10) });
+      addVelocity(b, { x: rand(-8, 8), y: -rand(2, 10) });
     }
   },
 });
@@ -882,11 +886,11 @@ regSpell('poltergeist', {
   cast(p) {
     const m = p.mega || 1;
     // gather loose props near the caster; if the arena is bare, conjure some so it always erupts
-    let loose = Composite.allBodies(world).filter(b => !b.isStatic && !b.isSensor && b.label !== 'player' && b.label !== 'boss'
+    let loose = allBodies().filter(b => !b.isStatic && !b.isSensor && b.label !== 'player' && b.label !== 'boss'
       && Math.hypot(b.position.x - p.body.position.x, b.position.y - p.body.position.y) < 520);
     if (loose.length < 5) {
       for (let i = 0; i < 6; i++) {
-        const junk = Bodies.polygon(p.body.position.x + rand(-70, 70), p.body.position.y - rand(20, 90), pick([3, 4, 5, 6]), rand(9, 16), { density: 0.0025, frictionAir: 0.01, label: 'ball' });
+        const junk = createPolygon(p.body.position.x + rand(-70, 70), p.body.position.y - rand(20, 90), pick([3, 4, 5, 6]), rand(9, 16), { density: 0.0025, frictionAir: 0.01, label: 'ball' });
         junk.color = '#b39ddb'; junk.owner = p;
         summon(junk, { life: 4000, color: '#b39ddb', contactDamage: 12 * m });
         loose.push(junk);
@@ -898,7 +902,7 @@ regSpell('poltergeist', {
       if (!t) break;
       const dx = t.body.position.x - b.position.x, dy = t.body.position.y - b.position.y;
       const d = Math.hypot(dx, dy) || 1;
-      Body.setVelocity(b, { x: (dx / d) * 18, y: (dy / d) * 18 - 3 });
+      setVelocity(b, { x: (dx / d) * 18, y: (dy / d) * 18 - 3 });
       if (simRandom() < 0.5) spawnParticles(b.position.x, b.position.y, '#b39ddb', 3, 2, 16);
     }
   },
@@ -920,8 +924,8 @@ regSpell('chaostheory', {
     for (const q of players) {
       if (!q.alive) continue;
       spawnParticles(q.body.position.x, q.body.position.y, '#ff4df0', 10, 4);
-      Body.setPosition(q.body, { x: rand(100, W - 100), y: rand(80, 300) });
-      Body.setVelocity(q.body, { x: 0, y: 0 });
+      setPosition(q.body, { x: rand(100, W - 100), y: rand(80, 300) });
+      setVelocity(q.body, { x: 0, y: 0 });
       spawnParticles(q.body.position.x, q.body.position.y, '#ff4df0', 10, 4);
     }
   },
@@ -953,7 +957,7 @@ regSpell('confetti', {
     }
     const t = nearestEnemy(p, 200 * m);
     if (t && Math.sign(t.body.position.x - p.body.position.x) === p.facing) {
-      Body.setVelocity(t.body, { x: t.body.velocity.x + p.facing * 14 * m, y: t.body.velocity.y - 5 });
+      addVelocity(t.body, { x: p.facing * 14 * m, y: -5 });
     }
     sfx.squeak();
   },
@@ -987,7 +991,7 @@ regSpell('banana', {
   name: 'Banana Peel', color: '#ffe135', cooldown: 1400,
   cast(p) {
     const pos = frontPos(p, 60);
-    const peel = Bodies.rectangle(pos.x, pos.y, 16, 6, { density: 0.001, friction: 0.05, label: 'banana' });
+    const peel = createBox(pos.x, pos.y, 16, 6, { density: 0.001, friction: 0.05, label: 'banana' });
     peel.owner = p;
     summon(peel, { life: 10000, color: '#ffe135', armAt: simNow() + 700 });
   },
@@ -1003,7 +1007,7 @@ regSpell('yoink', {
     if (target) {
       const dx = p.body.position.x - target.position.x, dy = p.body.position.y - target.position.y;
       const d = Math.hypot(dx, dy) || 1;
-      Body.setVelocity(target, { x: (dx / d) * 20, y: (dy / d) * 20 - 2 });
+      setVelocity(target, { x: (dx / d) * 20, y: (dy / d) * 20 - 2 });
       boltVisual(p.body.position.x, p.body.position.y, target.position.x, target.position.y, '#7ae7c7', 2, 100);
       spawnText(p.body.position.x, p.body.position.y - 44, 'YOINK!', '#7ae7c7');
     } else {
@@ -1011,7 +1015,7 @@ regSpell('yoink', {
       if (t) {
         const dx = p.body.position.x - t.body.position.x, dy = p.body.position.y - t.body.position.y;
         const d = Math.hypot(dx, dy) || 1;
-        Body.setVelocity(t.body, { x: (dx / d) * 16, y: (dy / d) * 16 - 3 });
+        setVelocity(t.body, { x: (dx / d) * 16, y: (dy / d) * 16 - 3 });
         spawnText(p.body.position.x, p.body.position.y - 44, 'YOINK!', '#7ae7c7');
       }
     }
@@ -1026,7 +1030,7 @@ regSpell('balloonhex', {
   cast(p) {
     statusBolt(p, { color: '#ff6b81', r: 6, speed: 16, vy: -4, dmg: 5 }, (q, m) => {
       q.floatyUntil = simNow() + 1800 * m;
-      Body.setVelocity(q.body, { x: q.body.velocity.x, y: -7 });
+      setVelocity(q.body, { x: q.body.velocity.x, y: -7 });
       spawnText(q.body.position.x, q.body.position.y - 44, 'UP UP', '#ff6b81');
       sfx.boing?.();
     });
@@ -1037,7 +1041,7 @@ regSpell('anchorhex', {
   cast(p) {
     statusBolt(p, { color: '#5a6b7a', r: 6, speed: 16, vy: -4, dmg: 5 }, (q, m) => {
       q.heavyUntil = simNow() + 2600 * m;
-      Body.setVelocity(q.body, { x: q.body.velocity.x, y: 11 });
+      setVelocity(q.body, { x: q.body.velocity.x, y: 11 });
       spawnText(q.body.position.x, q.body.position.y - 44, 'HEAVY', '#5a6b7a');
       sfx.thud?.();
     });
@@ -1105,7 +1109,7 @@ regSpell('lightningrod', {
     const m = p.mega || 1;
     const pos = frontPos(p, 140);
     const gy = groundYAt(pos.x);
-    const rod = Bodies.rectangle(pos.x, gy - 40, 8, 80, { isStatic: true, label: 'wall' });
+    const rod = createBox(pos.x, gy - 40, 8, 80, { isStatic: true, label: 'wall' });
     summon(rod, { life: 5000, color: '#e3f265' });
     const t0 = simNow();
     let next = t0 + 700;
@@ -1126,7 +1130,7 @@ regSpell('teslacoil', {
     const m = p.mega || 1;
     const pos = frontPos(p, 110);
     const gy = groundYAt(pos.x);
-    const coil = Bodies.rectangle(pos.x, gy - 25, 14, 50, { isStatic: true, label: 'wall' });
+    const coil = createBox(pos.x, gy - 25, 14, 50, { isStatic: true, label: 'wall' });
     summon(coil, { life: 4000, color: '#9ef0f0' });
     const t0 = simNow();
     let next = t0 + 400;
@@ -1154,7 +1158,7 @@ regSpell('kitchensink', {
     const fb = shoot(p, { r: 14 * m, speed: 18, vy: -5, color: '#d8d8e0', gravityScale: 0.8, density: 0.015, restitution: 0.3, expireMs: 3000 });
     fb.noContactBoom = true;
     fb.contactDamage = 45 * m;
-    Body.setAngularVelocity(fb, p.facing * 0.5);
+    setAngularVelocity(fb, p.facing * 0.5);
     sfx.clang();
     spawnText(p.body.position.x, p.body.position.y - 50, 'EVERYTHING!', '#d8d8e0');
   },
