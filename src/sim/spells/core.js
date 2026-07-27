@@ -4,7 +4,11 @@
 // closures now take the render surface as an argument instead of reaching for a
 // global ctx, which is what keeps sim/ free of a render/ import. Task 13 turns
 // them into emitted events and the drawing moves out entirely.
-import { Bodies, Body, Composite, Query, world, engine, W, H, onWorldReset } from '../world.js';
+import { W, H, onWorldReset } from '../world.js';
+import {
+  addBody, allBodies, allJoints, createCircle, gravityY, queryPoint, removeBody,
+  removeFrom, setAngularVelocity, setVelocity,
+} from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
 import { simRandom, rand } from '../rng.js';
 import {
@@ -41,7 +45,7 @@ export function shoot(p, { r, speed, vy = 0, color, density = 0.002, restitution
   const { x, y } = p.body.position;
   const dir = angle != null ? { x: Math.cos(angle), y: Math.sin(angle) } : aimDir(p, speed, vy);
   const spd = Math.hypot(speed, vy);
-  const fb = Bodies.circle(x + dir.x * 28, y - 6 + dir.y * 16, r, {
+  const fb = createCircle(x + dir.x * 28, y - 6 + dir.y * 16, r, {
     density, frictionAir: 0, restitution, label: 'projectile',
     collisionFilter: { group: p.group },
   });
@@ -49,28 +53,28 @@ export function shoot(p, { r, speed, vy = 0, color, density = 0.002, restitution
   fb.color = color;
   fb.gravityScale = gravityScale;
   if (expireMs) fb.expireAt = simNow() + expireMs;
-  Body.setVelocity(fb, { x: dir.x * spd, y: dir.y * spd });
+  setVelocity(fb, { x: dir.x * spd, y: dir.y * spd });
   projectiles.add(fb);
-  Composite.add(world, fb);
+  addBody(fb);
   return fb;
 }
 
 export function dropProjectile(p, x, y, { r = 10, vx = 0, vy = 12, color, density = 0.004, expireMs = 6000 }) {
-  if (engine.gravity.y < 0) { y = H - y; vy = -vy; } // "sky" is below when gravity flips
-  const fb = Bodies.circle(x, y, r, { density, frictionAir: 0, label: 'projectile' });
+  if (gravityY() < 0) { y = H - y; vy = -vy; } // "sky" is below when gravity flips
+  const fb = createCircle(x, y, r, { density, frictionAir: 0, label: 'projectile' });
   fb.owner = p;
   fb.color = color;
   fb.gravityScale = 1;
   fb.expireAt = simNow() + expireMs;
-  Body.setVelocity(fb, { x: vx, y: vy });
+  setVelocity(fb, { x: vx, y: vy });
   projectiles.add(fb);
-  Composite.add(world, fb);
+  addBody(fb);
   return fb;
 }
 
 export function removeProjectile(fb) {
   projectiles.delete(fb);
-  Composite.remove(world, fb);
+  removeBody(fb);
 }
 
 export function summon(body, { life = 5000, color, ...flags } = {}) {
@@ -78,7 +82,7 @@ export function summon(body, { life = 5000, color, ...flags } = {}) {
   Object.assign(body, flags);
   body.dieAt = simNow() + life;
   summons.add(body);
-  Composite.add(world, body);
+  addBody(body);
   return body;
 }
 
@@ -86,7 +90,7 @@ export function removeSummon(b) {
   if (!summons.has(b)) return;
   summons.delete(b);
   spawnParticles(b.position.x, b.position.y, b.render.fillStyle || '#e8d5ff', 6, 3, 20);
-  Composite.remove(world, b);
+  removeBody(b);
 }
 
 export function enemiesOf(p) {
@@ -109,7 +113,7 @@ export function explode(x, y, radius = 150, power = 22, damage = 0, owner = null
   spawnParticles(x, y, '#ffb347', 26, 9);
   spawnParticles(x, y, '#ff5e57', 18, 7);
   if (power >= 18) doFlash('#ffb347', 0.12);
-  for (const body of Composite.allBodies(world)) {
+  for (const body of allBodies()) {
     const dx = body.position.x - x, dy = body.position.y - y;
     const d = Math.hypot(dx, dy);
     if (d > radius || d === 0) continue;
@@ -122,11 +126,11 @@ export function explode(x, y, radius = 150, power = 22, damage = 0, owner = null
       continue;
     }
     const s = 1 - d / radius;
-    Body.setVelocity(body, {
+    setVelocity(body, {
       x: body.velocity.x + (dx / d) * power * s,
       y: body.velocity.y + (dy / d) * power * s - 4 * s,
     });
-    Body.setAngularVelocity(body, body.angularVelocity + (simRandom() - 0.5) * 0.4);
+    setAngularVelocity(body, body.angularVelocity + (simRandom() - 0.5) * 0.4);
     if (body.label === 'player' && damage) {
       const dmg = damage * (1 - d / (radius * 1.15));
       // your own blast normally costs you half damage (rocket-jumps are a gamble),
@@ -139,10 +143,10 @@ export function explode(x, y, radius = 150, power = 22, damage = 0, owner = null
       damageEnemy(body.enemy, damage * (1 - d / (radius * 1.15)), body.position, owner);
     }
   }
-  for (const c of Composite.allConstraints(currentMap.composite)) {
+  for (const c of allJoints(currentMap.composite)) {
     if (c.label !== 'breakable') continue;
     const pos = (c.bodyA || c.bodyB).position;
-    if (Math.hypot(pos.x - x, pos.y - y) < radius * 0.75) Composite.remove(currentMap.composite, c);
+    if (Math.hypot(pos.x - x, pos.y - y) < radius * 0.75) removeFrom(currentMap.composite, c);
   }
 }
 
@@ -153,12 +157,12 @@ export function raycastHit(p, angOff = 0) {
     dir = { x: Math.cos(a), y: Math.sin(a) };
   }
   const from = { x: p.body.position.x + dir.x * 22, y: p.body.position.y - 6 + dir.y * 14 };
-  const candidates = Composite.allBodies(world).filter(b =>
+  const candidates = allBodies().filter(b =>
     b !== p.body && !b.isSensor && b.label !== 'gib' && b.label !== 'projectile' && b.collisionFilter.mask !== 0);
   for (let d = 0; d < 1400; d += 10) {
     const pt = { x: from.x + dir.x * d, y: from.y + dir.y * d };
     if (pt.x < -40 || pt.x > W + 40 || pt.y < -60 || pt.y > H + 40) break;
-    const hit = Query.point(candidates, pt)[0];
+    const hit = queryPoint(pt, { bodies: candidates })[0];
     if (hit) return { hit, pt, from, dir };
   }
   return { hit: null, pt: { x: from.x + dir.x * 1400, y: from.y + dir.y * 1400 }, from, dir };
@@ -187,10 +191,10 @@ function baseBoltVisual(x0, y0, x1, y1, color = '#fff89e', width = 3, life = 130
 }
 
 export function groundYAt(x) {
-  const candidates = Composite.allBodies(world).filter(b =>
+  const candidates = allBodies().filter(b =>
     b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0);
   for (let y = 0; y < H; y += 12) {
-    if (Query.point(candidates, { x, y })[0]) return y;
+    if (queryPoint({ x, y }, { bodies: candidates })[0]) return y;
   }
   return H - 30;
 }
@@ -233,7 +237,7 @@ export function spawnSingularity(x, y, m = 1, owner = null, opts = {}) {
     net: { k: 'sing', x, y },
     update() {
       const R = 350 * (1 + (m - 1) * 0.5);
-      for (const b of Composite.allBodies(world)) {
+      for (const b of allBodies()) {
         if (b.isStatic || b.isSensor) continue;
         const dx = x - b.position.x, dy = y - b.position.y;
         const d = Math.hypot(dx, dy);
@@ -243,21 +247,21 @@ export function spawnSingularity(x, y, m = 1, owner = null, opts = {}) {
           else if (b.label !== 'boss') { // never consume the boss body — it would strand game.boss
             spawnParticles(b.position.x, b.position.y, '#a55eea', 6, 3);
             projectiles.delete(b); gibs.delete(b); tomes.delete(b); hats.delete(b); summons.delete(b);
-            Composite.remove(world, b, true);
+            removeBody(b, true);
           }
           continue;
         }
         const s = 1 - d / R;
         const pull = perSecond(0.9) * s, tang = perSecond(0.35) * s;
-        Body.setVelocity(b, {
+        setVelocity(b, {
           x: b.velocity.x + (dx / d) * pull + (-dy / d) * tang,
           y: b.velocity.y + (dy / d) * pull + (dx / d) * tang,
         });
       }
-      for (const c of Composite.allConstraints(currentMap.composite)) {
+      for (const c of allJoints(currentMap.composite)) {
         if (c.label !== 'breakable') continue;
         const pos = (c.bodyA || c.bodyB).position;
-        if (Math.hypot(pos.x - x, pos.y - y) < 140) Composite.remove(currentMap.composite, c);
+        if (Math.hypot(pos.x - x, pos.y - y) < 140) removeFrom(currentMap.composite, c);
       }
       if (simRandom() < 0.6) {
         const a = rand(0, Math.PI * 2), dd = rand(60, 180);
@@ -291,7 +295,7 @@ export function makeZone({ x, y, r, life, color, tick, tickBody, draw, onEnd }) 
         }
       }
       if (tickBody) {
-        for (const b of Composite.allBodies(world)) {
+        for (const b of allBodies()) {
           if (b.isStatic || b.isSensor) continue;
           if (Math.hypot(b.position.x - x, b.position.y - y) < r) tickBody(b, now);
         }

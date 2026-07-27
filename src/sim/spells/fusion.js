@@ -8,7 +8,8 @@
 // Content file: moved verbatim from js/hybrids.js. The only edits are the module
 // header below and the effect draw() closures, which now take the render surface
 // as an argument instead of reaching for a global ctx.
-import { Bodies, Body, Composite, world, W, H } from '../world.js';
+import { W, H } from '../world.js';
+import { addVelocity, allBodies, createBox, setPosition, setVelocity } from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
 import { simRandom, rand } from '../rng.js';
 import {
@@ -213,7 +214,7 @@ regHybrid('superconductor', {
     }
     const d = aimDir(p, 1, 0);
     const px = Math.max(30, Math.min(W - 30, pt.x - d.x * 16));
-    const pillar = Bodies.rectangle(px, pt.y - 42, 26 * Math.min(m, 1.5), 110 * Math.min(m, 1.5), { isStatic: true, friction: 0.01, label: 'wall' });
+    const pillar = createBox(px, pt.y - 42, 26 * Math.min(m, 1.5), 110 * Math.min(m, 1.5), { isStatic: true, friction: 0.01, label: 'wall' });
     summon(pillar, { life: 3500, color: '#bfe8ff' });
     spawnBurst(pt.x, pt.y, '#eaffff', 14, { kind: 'spark', speed: 8, r: 2 });
     spawnBurst(px, pt.y - 70, '#9ef0f0', 10, { speed: 3, up: 2, g: 0.04, life: 40 });
@@ -236,7 +237,7 @@ regHybrid('firestorm', {
         e.x += e.vx;
         e.net.x = e.x;
         if (e.x < 50 || e.x > W - 50) e.vx = -e.vx;
-        for (const b of Composite.allBodies(world)) {
+        for (const b of allBodies()) {
           if (b.isStatic || b.isSensor) continue;
           if (b.label === 'player' && b.player === p) continue; // never eats the caster
           const dx = b.position.x - e.x;
@@ -244,7 +245,7 @@ regHybrid('firestorm', {
           // the rand() term scales linearly like the rest, which is not the
           // variance-preserving form for a random walk — see the note on the
           // tornado in spells/book.js. Inert while TICK_HZ is 60.
-          Body.setVelocity(b, { x: b.velocity.x - Math.sign(dx || 1) * perSecond(0.8) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.6) * m });
+          setVelocity(b, { x: b.velocity.x - Math.sign(dx || 1) * perSecond(0.8) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.6) * m });
           if (b.label === 'player' && b.player.alive) b.player.burnUntil = Math.max(b.player.burnUntil || 0, now + 900 * m);
         }
       },
@@ -273,7 +274,7 @@ regHybrid('howlingblizzard', {
     for (const q of enemiesOf(p)) {
       if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 440) {
         q.frozenUntil = simNow() + 800 * m; q.body.frictionAir = 0.001;
-        Body.setVelocity(q.body, { x: q.body.velocity.x + p.facing * 6, y: q.body.velocity.y });
+        addVelocity(q.body, { x: p.facing * 6, y: 0 });
       }
     }
     spawnParticles(x + p.facing * 200, y, '#d8f4ff', 22, 6); sfx.freeze();
@@ -346,7 +347,7 @@ regHybrid('teslashrapnel', {
   name: 'Tesla Shrapnel', color: '#c0c0cc', cooldown: 2200, beam: true,
   cast(p) {
     zapRay(p, 44, 30, 4); addShake(9);
-    Body.setVelocity(p.body, { x: p.body.velocity.x - p.facing * 8, y: p.body.velocity.y - 4 });
+    addVelocity(p.body, { x: -p.facing * 8, y: -4 });
     for (let i = 0; i < 3; i++) boomBolt(p, { selfSafe: true, color: '#c0c0cc', r: 4, vy: rand(-6, 0), speed: rand(18, 26), radius: 60, power: 12, dmg: 12 });
     sfx.lightning();
   },
@@ -397,7 +398,7 @@ regHybrid('maelstrom', {
     const { x, y } = p.body.position;
     for (const q of enemiesOf(p)) {
       const dx = x - q.body.position.x, dy = y - 120 - q.body.position.y, d = Math.hypot(dx, dy) || 1;
-      Body.setVelocity(q.body, { x: q.body.velocity.x + (dx / d) * 9, y: -6 + (dy / d) * 4 });
+      setVelocity(q.body, { x: q.body.velocity.x + (dx / d) * 9, y: -6 + (dy / d) * 4 });
       damagePlayer(q, 10 * m, p);
     }
     spawnRing(x, y, '#c8f7f7'); spawnParticles(x, y, '#c8f7f7', 24, 7); addShake(7); sfx.cast();
@@ -505,7 +506,7 @@ regHybrid('sandstorm', {
   cast(p) {
     const m = p.mega || 1;
     for (let i = 0; i < 6; i++) boomBolt(p, { selfSafe: true, color: '#d8c48a', r: 4, vy: rand(-6, 2), speed: rand(16, 26), radius: 55, power: 12, dmg: 10 });
-    for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - p.body.position.x) < 500 && (q.body.position.x - p.body.position.x) * p.facing > 0) { q.reversedUntil = simNow() + 1400 * m; Body.setVelocity(q.body, { x: q.body.velocity.x + p.facing * 7, y: q.body.velocity.y - 2 }); }
+    for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - p.body.position.x) < 500 && (q.body.position.x - p.body.position.x) * p.facing > 0) { q.reversedUntil = simNow() + 1400 * m; addVelocity(q.body, { x: p.facing * 7, y: -2 }); }
     spawnParticles(p.body.position.x + p.facing * 120, p.body.position.y, '#d8c48a', 20, 6); sfx.cast();
   },
 });
@@ -515,7 +516,7 @@ regHybrid('zephyr', {
     const m = p.mega || 1;
     healPlayer(p, 20 * m);
     p.speedUntil = simNow() + 3000; p.jumpBoostUntil = simNow() + 3000; p.featherUntil = simNow() + 2000; // gentle glide, not balloon lift
-    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 240) Body.setVelocity(q.body, { x: (q.body.position.x - p.body.position.x) * 0.05 + Math.sign(q.body.position.x - p.body.position.x) * 8, y: -7 });
+    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 240) setVelocity(q.body, { x: (q.body.position.x - p.body.position.x) * 0.05 + Math.sign(q.body.position.x - p.body.position.x) * 8, y: -7 });
     spawnText(p.body.position.x, p.body.position.y - 50, 'ZEPHYR', '#dfffff'); spawnParticles(p.body.position.x, p.body.position.y, '#dfffff', 16, 5); sfx.boing?.();
   },
 });
@@ -528,7 +529,7 @@ regHybrid('gravitywell', {
     const cy = t ? t.body.position.y : p.body.position.y;
     for (const q of enemiesOf(p)) {
       const dx = cx - q.body.position.x, dy = cy - q.body.position.y, d = Math.hypot(dx, dy) || 1;
-      if (d < 400) { Body.setVelocity(q.body, { x: q.body.velocity.x + (dx / d) * 10, y: q.body.velocity.y + (dy / d) * 6 }); q.heavyUntil = simNow() + 2000 * m; }
+      if (d < 400) { addVelocity(q.body, { x: (dx / d) * 10, y: (dy / d) * 6 }); q.heavyUntil = simNow() + 2000 * m; }
     }
     activeEffects.push({ until: simNow() + 500, onEnd() { explode(cx, cy, 200, 20 * m, 30 * m, p, { selfSafe: true }); addShake(12); } });
     spawnRing(cx, cy, '#7a6a9a');
@@ -575,7 +576,7 @@ regHybrid('pandemonium', {
       if (roll === 0) q.frozenUntil = now + 1000 * m;
       else if (roll === 1) q.reversedUntil = now + 2500 * m;
       else if (roll === 2) q.shrinkUntil = now + 3500 * m;
-      else if (roll === 3) { q.floatyUntil = now + 2500 * m; Body.setVelocity(q.body, { x: q.body.velocity.x, y: -9 }); }
+      else if (roll === 3) { q.floatyUntil = now + 2500 * m; setVelocity(q.body, { x: q.body.velocity.x, y: -9 }); }
       else q.heavyUntil = now + 2500 * m;
       chaosBurst(q.body.position.x, q.body.position.y, 12, { speed: 5, up: 2 });
     }
@@ -621,7 +622,7 @@ regHybrid('whirligig', {
     for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 380) {
       q.floatyUntil = now + 2600 * m; q.reversedUntil = now + 1600 * m;
       const ang = Math.atan2(q.body.position.y - y, q.body.position.x - x) + Math.PI / 2;
-      Body.setVelocity(q.body, { x: Math.cos(ang) * 10, y: -8 });
+      setVelocity(q.body, { x: Math.cos(ang) * 10, y: -8 });
     }
     for (let i = 0; i < 20; i++) { const a = (i / 20) * Math.PI * 2; spawnBurst(x + Math.cos(a) * 40, y + Math.sin(a) * 40, '#c9f7ff', 2, { dir: a + Math.PI / 2, spread: 0.4, speed: 6, up: 0 }); }
     sfx.boing?.();
@@ -663,7 +664,7 @@ regHybrid('realityglitch', {
     const sx = p.body.position.x + dir.x * 240, sy = p.body.position.y + dir.y * 240;
     spawnSingularity(sx, sy, m, p, { selfSafe: true });
     for (const q of enemiesOf(p)) {
-      Body.setPosition(q.body, { x: rand(120, W - 120), y: rand(120, 360) }); // blink them somewhere random
+      setPosition(q.body, { x: rand(120, W - 120), y: rand(120, 360) }); // blink them somewhere random
       chaosBurst(q.body.position.x, q.body.position.y, 12, { speed: 6 });
     }
     doFlash('#b06bff', 0.35); slowMo(0.4, 260); sfx.freeze();
