@@ -96,7 +96,8 @@ function realMsHeldBy(scale, ms) {
   return realNow;
 }
 
-test('a hitstop lasts the milliseconds it was given, on the clock that authored them', () => {
+test('a hitstop lasts the milliseconds it was given, on the clock that authored them', (t) => {
+  t.after(() => setClock(null)); // unconditional: a failed assertion must not leave the module clock stubbed
   // Every one of the 14 slowMo call sites writes a real-world duration:
   // spells/book.js:243 asks for a 90ms freeze, ai/boss.js:404 for 1100ms.
   // Measuring that deadline on simNow() — the clock the hitstop itself slows —
@@ -114,6 +115,35 @@ test('a hitstop lasts the milliseconds it was given, on the clock that authored 
     `a harder freeze lasted disproportionately longer (${Math.round(mild)}ms → ${Math.round(severe)}ms)`,
   );
 
-  setClock(null); // hand the module clock back to the platform
-  assert.ok(BASE_PACE === 0.85, 'base pace is unchanged content');
+  assert.equal(BASE_PACE, 0.85, 'base pace is unchanged content');
+});
+
+test('an online client eases back from a broadcast hitstop, like the host does', async (t) => {
+  // An online client never runs stepSim (src/platform/browser.js:62 returns
+  // early), and stepSim is the only caller of updatePace. But the client's
+  // fxLoop takes the default pace = paceScale, and applyFx replays the server's
+  // slowMo into the same shared pace module — so without an ease of its own the
+  // first broadcast hitstop pins the client's pace forever and its particles
+  // crawl at one update per 333ms for the rest of the session. That is A8
+  // failing in the module that was supposed to close it.
+  const { netClientFrame } = await import('../src/net/client.js');
+  let realNow = 0;
+  setClock({ now: () => realNow });
+  t.after(() => setClock(null));
+
+  slowMo(0.05, 90); // exactly what applyFx does at src/net/client.js:256
+  assert.equal(paceScale(), 0.05, 'the broadcast landed');
+
+  for (let i = 0; i < 600; i++) { // ten seconds of a 60Hz display
+    realNow += TICK_MS;
+    // The client's draw half needs a real 2d context and throws headless. The
+    // fx/pace half runs before it, which is the path under test — if it ever
+    // moved below the draw calls, the pace would stay pinned and this fails.
+    try { netClientFrame(realNow); } catch { /* headless: canvas ctx is null */ }
+  }
+
+  assert.ok(
+    paceScale() > BASE_PACE * 0.99,
+    `client pace never recovered from the broadcast hitstop (stuck at ${paceScale()})`,
+  );
 });

@@ -16914,7 +16914,10 @@
       controlsLine: wave ? "M switches back to VERSUS \xB7 co-op: everyone fights the waves together \xB7 B adds a bot" : `M = WAVE SURVIVAL \xB7 1\u20139 sets win target (${snap.wn}) \xB7 B adds a bot \xB7 R resets`
     });
   }
-  var fxLoop = createTickLoop({ step: () => updateParticles(1) });
+  var fxLoop = createTickLoop({ step: () => {
+    updatePace();
+    updateParticles(1);
+  } });
   var lastFxAt = null;
   function netClientFrame(now) {
     sendInput.call(sendInput, now);

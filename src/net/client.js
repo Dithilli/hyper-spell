@@ -14,7 +14,7 @@ particles, shake, setShake, flashColor, flashAlpha, setFlashAlpha,
 spawnParticles, spawnRing, spawnText, spawnBurst, addShake, doFlash,
 updateParticles,
 } from '../sim/fx.js';
-import { slowMo } from '../sim/pace.js';
+import { slowMo, updatePace } from '../sim/pace.js';
 import { createTickLoop } from '../sim/tick-loop.js';
 import { netMode as currentNetMode, setNetMode } from '../sim/net-mode.js';
 import { cleanName } from '../sim/lobby.js';
@@ -334,7 +334,17 @@ function drawOnlineLobby(snap, now) {
 // display than on a 60Hz one. The same accumulator the sim uses gives them a
 // fixed 60Hz cadence, and because it keeps the default pace, a slowMo the
 // server broadcasts slows the sparks here exactly as it does on the host.
-const fxLoop = createTickLoop({ step: () => updateParticles(1) });
+//
+// updatePace() runs INSIDE the step, not once per frame, because that is where
+// stepSim runs it (src/sim/tick.js:106) and this loop is the client's only
+// stand-in for stepSim — an online client returns early at
+// src/platform/browser.js:62 and never reaches the sim at all. Easing per frame
+// instead would recover ~5.7× faster than the host during a hard hitstop (60
+// frames/sec against 3 ticks/sec), so the client's sparks would be back to full
+// speed while the host was still in slow motion. Note the ease can never stall:
+// slowMo only ever sets a scale ≥ 0.05 and updatePace only ever raises it, so
+// ticks keep arriving at worst every TICK_MS/0.05 = 333ms.
+const fxLoop = createTickLoop({ step: () => { updatePace(); updateParticles(1); } });
 let lastFxAt = null;
 
 export function netClientFrame(now) {
