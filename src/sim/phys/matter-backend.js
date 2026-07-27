@@ -12,7 +12,7 @@
 // need a handle object that presents the same readable surface.
 import Matter from 'matter-js';
 
-const { Common, Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector, Vertices } = Matter;
+const { Common, Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector } = Matter;
 
 let engine = null;
 let root = null;
@@ -82,6 +82,23 @@ export function setAngularVelocity(b, w) { Body.setAngularVelocity(b, w); }
 
 // Authoritative override: the body's previous velocity is discarded. Spawns,
 // launches, teleports and resets.
+//
+// READ THIS BEFORE WRITING A SECOND BACKEND. matter-js does NOT store the
+// vector you hand it. Body.setVelocity is Verlet: it writes
+// `positionPrev = position - v * timeScale` and then reads the velocity back
+// out as `(position - positionPrev) / timeScale`. Subtracting a ~1e1 velocity
+// from a ~1e3 arena coordinate and adding it back loses low bits, so the value
+// the body ends up with differs from `v` in **99.7% of writes** (measured over
+// 100k writes at realistic arena positions: mean absolute error 3.2e-14, max
+// 1.1e-13).
+//
+// The golden tape therefore encodes matter's position round-trip, not the
+// velocities this simulation asks for. A planck backend implementing this as
+// `setLinearVelocity(v)` — the CORRECT implementation — stores the exact vector
+// and so diverges from the tape immediately, at every one of the 107 velocity
+// writes. Bit-exact A/B parity through this operation is probably not
+// attainable; see the "first-order hazard" section of
+// docs/superpowers/plans/velocity-classification.md.
 export function setVelocity(b, v) { Body.setVelocity(b, v); }
 
 // GAMEPLAY PUSH. Mass-independent BY DESIGN — see spec §5.3. A Gust shoves an
@@ -100,13 +117,39 @@ export function applyImpulse(b, j) {
 
 export function applyForce(b, at, f) { Body.applyForce(b, at, f); }
 
-export function setType(b, type) { Body.setStatic(b, type === 'static'); }
-// Infinite inertia pins the body upright. Turning it back off recomputes the
-// real inertia from the body's own vertices rather than guessing a number —
-// matter-js does not keep the original, and a plausible-looking fudge here
-// would be a silently wrong body.
+// matter-js bodies are static or dynamic; there is no kinematic type. planck
+// has a real one, so silently mapping 'kinematic' onto dynamic would make the
+// two backends disagree the first time anyone used it, in a way nothing would
+// catch. Refuse instead. (The game's moving platforms are static bodies driven
+// by setPosition, which is the kinematic behaviour without the type.)
+export function setType(b, type) {
+  if (type === 'kinematic') {
+    throw new Error("setType: matter-js has no kinematic body type. Drive a static body with setPosition, or add real support to both backends.");
+  }
+  Body.setStatic(b, type === 'static');
+}
+
+// Infinite inertia pins the body upright.
+//
+// Releasing it restores the inertia the body had when it was pinned, stashed
+// here — matter-js does not keep one, and it cannot be recomputed after the
+// fact. `Vertices.inertia(b.vertices, b.mass)` LOOKS like the recomputation and
+// is not: matter measures inertia from centroid-relative vertices and then
+// multiplies by Body._inertiaScale (4), while b.vertices are world-space. That
+// gives 0.25x the true value at the origin and 455x at (900, 400) — an error
+// that grows with how far the body has walked from (0,0), which is the most
+// treacherous shape a wrong number can have.
+//
+// A body released without ever having been pinned has nothing to restore, so
+// this leaves it alone rather than inventing a figure.
 export function setFixedRotation(b, on) {
-  Body.setInertia(b, on ? Infinity : Vertices.inertia(b.vertices, b.mass));
+  if (on) {
+    if (b.__inertiaBeforePin === undefined) b.__inertiaBeforePin = b.inertia;
+    Body.setInertia(b, Infinity);
+  } else if (b.__inertiaBeforePin !== undefined) {
+    Body.setInertia(b, b.__inertiaBeforePin);
+    b.__inertiaBeforePin = undefined;
+  }
 }
 
 // Material and filter writes. Trivial here because a matter-js body IS the
@@ -119,13 +162,17 @@ export function setRestitution(b, v) { b.restitution = v; }
 export function setFixtureEnabled(b, on) { b.isSensor = !on; }
 export function setFilter(b, filter) { Object.assign(b.collisionFilter, filter); }
 
-// NOT a matter-js property: 0.19 has no per-body gravity scale, so `gravityScale`
-// is a tag this game invented and src/sim/tick.js reads back to apply a
-// counter-force by hand. It is declared here because a planck backend has the
-// real thing and phase 2 should route through one name — but the ~8 sites that
-// tag a projectile still assign `fb.gravityScale` directly, because today that
-// is gameplay bookkeeping and routing it through physics would be a lie.
-export function setGravityScale(b, s) { b.gravityScale = s; }
+// PER-BODY, and not a matter-js property: 0.19 has no per-body gravity scale,
+// so `gravityScale` is a tag this game invented and src/sim/tick.js reads back
+// to apply a counter-force by hand. Declared because planck has the real thing
+// and phase 2 should route through one name — but the 5 sites that tag a
+// projectile still assign `fb.gravityScale` directly, because today that is
+// gameplay bookkeeping and routing it through physics would be a lie.
+//
+// Named setBodyGravityScale, not setGravityScale, so it cannot be mistaken for
+// a pair with worldGravityScale() below — that one reads the WORLD's
+// gravity.scale and has nothing to do with this.
+export function setBodyGravityScale(b, s) { b.gravityScale = s; }
 
 // Relative scale, applied cumulatively — matter-js's own Body.scale semantics.
 // Prefer rescaleBody(): repeated Body.scale drifts vertices and mass (defect
@@ -151,7 +198,8 @@ export function setGravity(v) {
 }
 export function setGravityY(y) { engine.gravity.y = y; }
 export function gravityY() { return engine.gravity.y; }
-export function gravityScale() { return engine.gravity.scale; }
+// The WORLD's gravity scale (matter's engine.gravity.scale), not a body's.
+export function worldGravityScale() { return engine.gravity.scale; }
 
 // ------------------------------------------------------------------ queries
 

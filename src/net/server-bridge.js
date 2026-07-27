@@ -5,7 +5,7 @@
 // installServerBridge is handed.
 import { performance } from '../sim/env.js';
 import { W, H } from '../sim/world.js';
-import { allBodies, gravityScale } from '../sim/phys/facade.js';
+import { allBodies, worldGravityScale } from '../sim/phys/facade.js';
 import { GAME_VERSION } from '../version.js';
 import { avatarVariant } from '../render/artkit.js';
 import {
@@ -202,7 +202,7 @@ function serverWorldInfo() {
   return {
     t: 'world',
     world: {
-      W, H, gravity: game.baseGravity, gravityScale: gravityScale(), tickMs: 16.7,
+      W, H, gravity: game.baseGravity, gravityScale: worldGravityScale(), tickMs: 16.7,
       snapshotHz: 30, inputHz: 60, staleMs: 2000,
       playerRadius: 15, playerFrictionAir: 0.02,
       moveSpeed: 7, jumpVy: -15, airJumpVy: -13,

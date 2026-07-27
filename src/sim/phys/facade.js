@@ -54,7 +54,7 @@ export {
   setFrictionAir,
   setFriction,
   setRestitution,
-  setGravityScale,
+  setBodyGravityScale,
   setFixtureEnabled,
   setFilter,
   scaleBody,
@@ -64,7 +64,7 @@ export {
   setGravity,
   setGravityY,
   gravityY,
-  gravityScale,
+  worldGravityScale,
 
   // queries
   queryRay,

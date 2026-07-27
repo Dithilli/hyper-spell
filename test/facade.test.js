@@ -77,3 +77,85 @@ test('the region, radius and capsule queries agree about a body in front of them
   assert.deepEqual(phys.queryPoint({ x: 100, y: 100 }), [near]);
   destroyWorld();
 });
+
+// setFixedRotation(b, false) had no caller and a wrong implementation: it
+// recomputed inertia with Vertices.inertia over WORLD-space vertices and
+// without matter's _inertiaScale, which is 0.25x the truth at the origin and
+// 455x at (900, 400) — an error that grows with distance from (0,0), so it
+// would have looked fine in any test written near the origin. Hence the two
+// positions here.
+test('setFixedRotation restores the inertia it pinned, wherever the body is', () => {
+  createWorld();
+  for (const [x, y] of [[0, 0], [900, 400]]) {
+    const b = phys.createBox(x, y, 40, 40, { density: 0.004 });
+    phys.addBody(b);
+    const before = b.inertia;
+    phys.setFixedRotation(b, true);
+    assert.equal(b.inertia, Infinity, 'pinning must stop rotation dead');
+    phys.setFixedRotation(b, false);
+    assert.equal(b.inertia, before, `released inertia must be the pinned one at (${x}, ${y})`);
+  }
+  destroyWorld();
+});
+
+test('releasing a body that was never pinned invents nothing', () => {
+  createWorld();
+  const b = phys.createBox(900, 400, 40, 40, { density: 0.004 });
+  phys.addBody(b);
+  const before = b.inertia;
+  phys.setFixedRotation(b, false);
+  assert.equal(b.inertia, before);
+  destroyWorld();
+});
+
+// matter-js has static and dynamic; planck has a real kinematic type. Mapping
+// 'kinematic' onto dynamic here would make the two backends disagree the first
+// time anyone used it, silently.
+test('setType refuses kinematic rather than pretending', () => {
+  createWorld();
+  const b = phys.createBox(100, 100, 20, 20, {});
+  phys.addBody(b);
+  phys.setType(b, 'static');
+  assert.equal(b.isStatic, true);
+  phys.setType(b, 'dynamic');
+  assert.equal(b.isStatic, false);
+  assert.throws(() => phys.setType(b, 'kinematic'), /no kinematic body type/);
+  destroyWorld();
+});
+
+// The tape encodes matter's Verlet round-trip, not the velocities the game asks
+// for: Body.setVelocity stores positionPrev = position - v and reads v back out
+// as a subtraction, which loses low bits at arena-scale coordinates. A second
+// backend that stores the exact vector is MORE correct and diverges everywhere.
+// Pinned here so that fact is executable rather than folklore.
+test('setVelocity does not store the vector it is given — the parity hazard', () => {
+  createWorld();
+  const b = phys.createCircle(0, 0, 15, { density: 0.004 });
+  phys.addBody(b);
+  // mulberry32, deterministic — but drawn twice per number to fill all 53
+  // mantissa bits. That detail is the test: a 32-bit-derived value has no low
+  // bits to lose and round-trips exactly, so a lazier generator would report
+  // 0% and hide the hazard entirely. Real velocities are the end of long
+  // arithmetic chains and carry full precision.
+  let a = 0x9e3779b9;
+  const u32 = () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return (t ^ (t >>> 14)) >>> 0;
+  };
+  const rnd = () => ((u32() >>> 5) * 2 ** 26 + (u32() >>> 6)) / 2 ** 53;
+  let inexact = 0;
+  const N = 2000;
+  for (let i = 0; i < N; i++) {
+    const v = { x: (rnd() - 0.5) * 30, y: (rnd() - 0.5) * 30 };
+    phys.setPosition(b, { x: rnd() * 1280, y: rnd() * 720 });
+    phys.setVelocity(b, v);
+    if (phys.velocityOf(b).x !== v.x || phys.velocityOf(b).y !== v.y) inexact++;
+  }
+  // measured at 99.7% over 100k writes; the floor is well clear of the 0% a
+  // backend that stores the vector exactly would produce
+  assert.ok(inexact / N > 0.9,
+    `matter round-trips velocity through positionPrev; expected nearly all writes inexact, saw ${inexact}/${N}`);
+  destroyWorld();
+});

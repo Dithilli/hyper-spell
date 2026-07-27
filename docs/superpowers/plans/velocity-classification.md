@@ -82,10 +82,10 @@ authoritative gameplay throw.** The 38 overrides break down as:
 | **authoritative gameplay throw** | **12** | an effect that deliberately *discards* the target's momentum and states a new one |
 
 The first three groups are 22 sites, which is the brief's ~25. The overshoot is
-the last two groups, and the substantial one is the twelve throws. They are
+the last two groups, and the substantial one is the 12 throws. They are
 listed below by name because they are the borderline calls of this whole table.
 
-### The twelve borderline sites
+### The 12 borderline sites
 
 Each of these acts on a body that is already moving, and each replaces its
 velocity outright rather than adding to it. A designer would call several of
@@ -94,30 +94,28 @@ value written is not a function of the value that was there.** Yank the same
 enemy twice and they end up at the same velocity both times, which is not true
 of Shove.
 
-- `src/sim/ai/boss.js:72` — boss slam knockback on the player
-- `src/sim/ai/boss.js:214` — tentacle punt
-- `src/sim/ai/enemies.js:60` — enemy contact shove
-- `src/sim/player/ghost.js:33` — poltergeist release ("a toss, not a throw")
-- `src/sim/player/ghost.js:36` — poltergeist carry, a position-derived spring
-- `src/sim/spells/book.js:448` — Magnet Palm yank
-- `src/sim/spells/book.js:612` — Phoenix Dash (`selfMove: true`; discarding the
-  caster's momentum is the spell)
-- `src/sim/spells/book.js:905` — telekinesis fling
-- `src/sim/spells/book.js:1010` — Yoink
-- `src/sim/spells/book.js:1018` — the hook
-- `src/sim/spells/fusion.js:519` — Zephyr repulse
-- `src/sim/spells/fusion.js:625` — Whirligig
+- `src/sim/player/ghost.js:33` — Poltergeist release — "a toss, not a throw" states the whole velocity.
+- `src/sim/player/ghost.js:36` — Poltergeist carry: a position-derived spring velocity, clamped. Nothing of the prop's own motion survives.
+- `src/sim/ai/boss.js:72` — Boss slam shockwave throws the player at a stated velocity.
+- `src/sim/ai/boss.js:214` — Tentacle punt: the player is thrown at a stated velocity.
+- `src/sim/ai/enemies.js:60` — Contact shove throws the target at a stated velocity.
+- `src/sim/spells/book.js:449` — Yank: the target is given a stated velocity toward the caster.
+- `src/sim/spells/book.js:613` — Dash: the caster's velocity is replaced outright.
+- `src/sim/spells/book.js:906` — Vacuum: the target is given a stated velocity toward the caster.
+- `src/sim/spells/book.js:1011` — Grapple: a stated velocity toward the anchor.
+- `src/sim/spells/book.js:1019` — Hook: a stated velocity toward the caster.
+- `src/sim/spells/fusion.js:522` — Repulse: a position-derived velocity, stated outright.
+- `src/sim/spells/fusion.js:628` — Scatter: a stated velocity on a random heading.
 
-**This does not weaken the task's central finding.** Every one of the twelve is
+**This does not weaken the task's central finding.** Every one of the 12 is
 *already* mass-independent — no expression in any of them divides by `b.mass` —
 so converting them to `applyImpulse` would rebalance them exactly as it would
 rebalance the 66 pushes. The push/override line is about *whether prior motion
 survives*, not about whether mass matters. Mass matters at none of the 107.
 
-The four AI-drive sites (`src/sim/tick.js:63`, `src/sim/ai/boss.js:167`,
-`src/sim/ai/enemies.js:118`, `src/sim/ai/enemies.js:134`) are the milder version
-of the same call: they read `b.velocity.y` only to ask "am I on the ground?".
-A guard read is not an input to the value, so they are overrides.
+The 4 AI-drive sites (`src/sim/tick.js:63`, `src/sim/ai/boss.js:167`, `src/sim/ai/enemies.js:118`, `src/sim/ai/enemies.js:134`) are the milder version of the same call:
+they read `b.velocity.y` only to ask "am I on the ground?". A guard read is not
+an input to the value, so they are overrides.
 
 ### Deliberate departures from the brief's five pattern rules
 
@@ -133,7 +131,64 @@ A guard read is not an input to the value, so they are overrides.
   spawn, not a push. "Reads a velocity" is not the test; "reads *its own*
   velocity" is.
 
-### ¹ The twelve additive pushes that could not become `addVelocity` yet
+## Two floating-point hazards for phase 2, in order of size
+
+Phase 2 swaps matter-js for planck.js behind this facade and A/B-diffs the
+golden tape. Both hazards below make a *correct* planck implementation disagree
+with the tape. The first is much the larger, and it was found second — the
+document previously led with the smaller one, which would have sent a reader
+chasing the wrong mechanism.
+
+### First-order: matter does not store the velocity you give it
+
+`Body.setVelocity` is Verlet. It does not keep a velocity vector; it writes a
+previous position and derives velocity from the gap:
+
+```js
+positionPrev.x = position.x - v.x * timeScale;
+velocity.x     = (position.x - positionPrev.x) / timeScale;
+```
+
+Subtracting a ~1e1 velocity from a ~1e3 arena coordinate and adding it back
+loses low bits. Measured over 100k writes at realistic arena positions:
+
+| | differs | mean error | max error |
+|---|---|---|---|
+| **`setVelocity` position round-trip** | **99.7% of writes** | 3.2e-14 | 1.1e-13 |
+| delta re-association (below) | 31% of writes | 5.3e-16 | 7.1e-15 |
+
+The round-trip is roughly 60× the mean error of the re-association one, and it
+applies to **all 107 velocity writes rather than 12**. (It is exact for
+low-entropy values — a velocity of `2.5` survives it — so a probe built on
+round numbers will report 0% and hide it. Real velocities are the end of long
+arithmetic chains and carry all 53 mantissa bits.
+`test/facade.test.js` pins this, generator and all.)
+
+**What this means for A/B parity.** The golden tape encodes matter's position
+round-trip, not the velocities this simulation asks for. A planck backend
+implementing `setVelocity` as `setLinearVelocity(v)` — **the correct
+implementation** — stores the exact vector and therefore diverges from the tape
+at the first velocity write, and at every one after it. There is no bug to fix
+in that backend; the tape is simply a recording of a different arithmetic.
+
+So **bit-exact A/B parity through this facade is probably not attainable**, and
+planning for it may be planning for something that cannot happen. Phase 2 should
+expect to need one of:
+
+- a **tolerance-based** comparison (per-tick position/velocity within an epsilon
+  that grows with the run) instead of a hash match, accepting that a chaotic
+  brawler will eventually diverge macroscopically from a 1e-14 seed and that the
+  useful question is *how many ticks until it does*;
+- or a deliberate **bug-for-bug** planck `setVelocity` that reproduces the
+  position round-trip, which buys tape equality at the cost of writing matter's
+  accident into the new backend permanently;
+- or **re-recording the tape** against planck and keeping the matter tape as a
+  historical artefact, which abandons the parity check that motivated the swap.
+
+That is a decision phase 2 has to make deliberately, and it is better made now
+than discovered on the first diff.
+
+### Second-order: ¹ the 12 additive pushes that could not become `addVelocity`
 
 22 of the 34 additive sites are `addVelocity` today. The other 12 are marked
 `setVelocity ¹` in the table below. They are additive in intent and additive in
@@ -144,15 +199,13 @@ arithmetic, but hoisting the delta out would re-associate the floating point:
     addVelocity(dv)  is   v.y + (A - B)
 ```
 
-Those are different doubles about 31% of the time (measured, 200k samples of
-plausible in-game magnitudes), and this simulation is bit-exact by contract —
-the golden tape would move, which task 8 is not allowed to do. Converting them
-belongs to a task whose contract permits re-recording the tape.
+Different doubles 31% of the time, which is enough to move the tape within a few
+hundred ticks — and task 8 is not allowed to do that. Converting them belongs to
+a task whose contract permits re-recording.
 
-**This is a live hazard for phase 2, not a footnote.** A planck backend that
-implements the push as `body.setLinearVelocity(v.add(dv))` is doing the
-right physics and will still diverge from the tape, because the association
-differs. When the A/B diff shows a body drifting by ~1e-16 per push, this is why.
+The obvious workaround does not work either: two sequential `addVelocity` calls
+*look* like they preserve the association, and do not, because each one goes
+through the position round-trip above.
 
 - `src/sim/spells/starters.js:47`
 - `src/sim/spells/starters.js:49`
@@ -166,6 +219,32 @@ differs. When the A/B diff shows a body drifting by ~1e-16 per push, this is why
 - `src/sim/spells/fusion.js:251`
 - `src/sim/spells/core.js:129`
 - `src/sim/spells/core.js:256`
+
+## Two traps in task 9's direct path
+
+Task 9 replaces the 10px stepping loops in `raycastHit` and `groundYAt`
+(`src/sim/spells/core.js`) with `queryRay`. Both of these are things the golden
+tape cannot warn it about.
+
+**`queryRay`'s `point` and `normal` are approximations, not intersections.**
+Matter's own documentation for `Query.ray` says *"Intersection points are not
+provided"* — it does SAT against a thin rectangle and returns collision data.
+The facade synthesises `point` from `collision.supports`, picking the support
+nearest the ray origin, and falls back to `body.position` when there are none.
+A planck raycast returns an exact fraction, point and normal. `raycastHit`
+currently returns its *sample* point, so switching it to `hit.point` will change
+those numbers — and nothing pins them today: `test/facade.test.js` asserts only
+`hit.body`. Decide what `point` means before depending on it, and pin it.
+
+**Every ray consumes a body id.** `Query.ray` builds a throwaway
+`Bodies.rectangle`, which advances `Common._nextId` as well as `Common._seed`.
+The facade guards the seed (see `resetPhysRandom`), but not the id counter —
+matter has no way to rewind it. Body ids ride the wire, and the tape hash
+**deliberately ignores `id`** (see `IGNORED_BODY_KEYS` in `test/harness/hash.js`,
+which excludes it so bodies constructed in a different order still hash equal).
+The tape is therefore structurally blind to id drift. Task 9 adds a ray per
+stepping loop per tick, so ids will drift hard, and the only oracle that would
+notice is one nobody has written.
 
 ## Every site
 

@@ -5,7 +5,7 @@
 // (server/sim-host.js) drives the same loop with the draw half never running.
 import { W, H } from './world.js';
 import {
-  allBodies, applyForce, gravityScale, gravityY, physStep, removeBody,
+  allBodies, applyForce, worldGravityScale, gravityY, physStep, removeBody,
   setAngle, setAngularVelocity, setFilter, setPosition, setVelocity,
 } from './phys/facade.js';
 import { simRandom, rand } from './rng.js';
@@ -170,7 +170,7 @@ export function stepSim() {
   // lobbed projectiles fly on reduced gravity — cancel part of it each tick
   for (const fb of projectiles) {
     if (fb.gravityScale < 1) {
-      applyForce(fb, fb.position, { x: 0, y: -gravityY() * gravityScale() * fb.mass * (1 - fb.gravityScale) });
+      applyForce(fb, fb.position, { x: 0, y: -gravityY() * worldGravityScale() * fb.mass * (1 - fb.gravityScale) });
     }
   }
   physStep(Math.max(dt, 0.5));

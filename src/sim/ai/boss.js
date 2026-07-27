@@ -5,7 +5,7 @@
 // The boss art lives in src/render/draw-boss.js.
 import { W, H } from '../world.js';
 import {
-  addBody, applyForce, createBox, createCircle, gravityScale, gravityY,
+  addBody, applyForce, createBox, createCircle, worldGravityScale, gravityY,
   setAngle, setAngularVelocity, setFrictionAir, setPosition, setVelocity,
 } from '../phys/facade.js';
 import { simNow } from '../time.js';
@@ -82,7 +82,7 @@ export const BOSSES = [
     },
     update(bs, now) {
       const b = bs.body;
-      applyForce(b, b.position, { x: 0, y: -gravityY() * gravityScale() * b.mass }); // it flies
+      applyForce(b, b.position, { x: 0, y: -gravityY() * worldGravityScale() * b.mass }); // it flies
       if (!bs.wp || Math.hypot(bs.wp.x - b.position.x, bs.wp.y - b.position.y) < 70) {
         bs.wp = { x: rand(150, W - 150), y: rand(90, 320) };
       }
@@ -115,7 +115,7 @@ export const BOSSES = [
     },
     update(bs, now) {
       const b = bs.body;
-      applyForce(b, b.position, { x: 0, y: -gravityY() * gravityScale() * b.mass });
+      applyForce(b, b.position, { x: 0, y: -gravityY() * worldGravityScale() * b.mass });
       setVelocity(b, { x: b.velocity.x * 0.9, y: b.velocity.y * 0.9 + Math.sin(now * 0.003) * 0.25 });
       if (now > (bs.nextBlink || (bs.nextBlink = now + 3000))) {
         bs.nextBlink = now + bcd(bs, 3200, 4400);
@@ -231,7 +231,7 @@ export const SECRET_BOSSES = [
     make() { return createCircle(W / 2, 150, 34, { density: 0.011, frictionAir: 0.1, label: 'boss' }); },
     update(bs, now) {
       const b = bs.body;
-      applyForce(b, b.position, { x: 0, y: -gravityY() * gravityScale() * b.mass });
+      applyForce(b, b.position, { x: 0, y: -gravityY() * worldGravityScale() * b.mass });
       const rizz = Math.floor(now / 7000) % 2 === 0;
       b.bossType = rizz ? 'rizard_rizz' : 'rizard_tizz';
       if (bs.lastMode !== b.bossType) {
@@ -305,7 +305,7 @@ export const SECRET_BOSSES = [
     make() { return createCircle(W / 2, 150, 32, { density: 0.011, frictionAir: 0.1, label: 'boss' }); },
     update(bs, now) {
       const b = bs.body;
-      applyForce(b, b.position, { x: 0, y: -gravityY() * gravityScale() * b.mass });
+      applyForce(b, b.position, { x: 0, y: -gravityY() * worldGravityScale() * b.mass });
       const de = Math.floor(now / 7000) % 2 === 0;
       b.bossType = de ? 'manu_de' : 'manu_mx';
       if (bs.lastMode !== b.bossType) {

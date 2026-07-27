@@ -2,7 +2,7 @@
 // bridge between a controller's input and the physics body.
 import { W, H } from '../world.js';
 import {
-  applyForce, gravityScale, gravityY, queryRegion, setAngle,
+  applyForce, worldGravityScale, gravityY, queryRegion, setAngle,
   setAngularVelocity, setFrictionAir, setPosition, setVelocity,
 } from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
@@ -61,7 +61,7 @@ export function updatePlayers(now) {
     // feather: gentle 0.72× counter-gravity — you fall slowly but never rise.
     const lift = now < (p.floatyUntil || 0) ? 1.5 : now < (p.featherUntil || 0) ? 0.72 : 0;
     if (lift) {
-      applyForce(body, body.position, { x: 0, y: -gravityY() * gravityScale() * body.mass * lift });
+      applyForce(body, body.position, { x: 0, y: -gravityY() * worldGravityScale() * body.mass * lift });
       if (lift < 1 && simRandom() < 0.06) spawnParticles(body.position.x + rand(-10, 10), body.position.y - 18, '#fffde7', 1, 1.2, 22);
     }
 
@@ -80,7 +80,7 @@ export function updatePlayers(now) {
     // gravity-locked (a Gravity Flip caster): cancel the flipped world pull, keep your own
     if (now < (p.gravityLockUntil || 0)) {
       const want = p.gravityLockDir * Math.abs(gravityY());
-      applyForce(body, body.position, { x: 0, y: (want - gravityY()) * gravityScale() * body.mass });
+      applyForce(body, body.position, { x: 0, y: (want - gravityY()) * worldGravityScale() * body.mass });
     }
     const onGround = grounded(p);
     // fall damage: a long drop ending in a hard landing hurts. Terminal velocity
