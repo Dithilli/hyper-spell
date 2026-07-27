@@ -1,5 +1,6 @@
 // player/ghost.js — dead wizards linger as wisps and meddle, gently.
-import { Body, Composite, world, W, H } from '../world.js';
+import { W, H } from '../world.js';
+import { allBodies, bodyById, setAngularVelocity, setVelocity } from '../phys/facade.js';
 import { simRandom, rand } from '../rng.js';
 import { particles, spawnParticles, spawnRing, spawnBurst } from '../fx.js';
 import { sfx } from '../sfx.js';
@@ -26,23 +27,23 @@ export function updateGhosts(now) {
     // poltergeist carry: the prop floats on a soft spring below the wisp
     if (g.hold) {
       const held = g.hold;
-      const gone = !Composite.get(world, held.id, 'body');
+      const gone = !bodyById(held.id);
       const far = !gone && Math.hypot(held.position.x - g.x, held.position.y - g.y - 26) > 140;
       if (!c.cast || gone || far) {
-        if (!gone) Body.setVelocity(held, { x: (c.move || 0) * 5, y: -2 }); // a toss, not a throw
+        if (!gone) setVelocity(held, { x: (c.move || 0) * 5, y: -2 }); // a toss, not a throw
         g.hold = null;
       } else {
-        Body.setVelocity(held, {
+        setVelocity(held, {
           x: Math.max(-6, Math.min(6, (g.x - held.position.x) * 0.18)),
           y: Math.max(-6, Math.min(6, (g.y + 26 - held.position.y) * 0.18)),
         });
-        Body.setAngularVelocity(held, held.angularVelocity * 0.9);
+        setAngularVelocity(held, held.angularVelocity * 0.9);
         if (simRandom() < 0.2) particles.push({ kind: 'spark', x: held.position.x + rand(-8, 8), y: held.position.y + rand(-8, 8), vx: 0, vy: -0.6, life: 14, maxLife: 14, color: '#e8d5ff', r: 1.5 });
       }
     } else if (c.cast) {
       // grab if a loose prop is in reach, otherwise the classic gust
       let best = null, bd = 1e9;
-      for (const b of Composite.allBodies(world)) {
+      for (const b of allBodies()) {
         if (b.isStatic || b.isSensor || !GHOST_CARRY.has(b.label) || b.mass > 8) continue;
         const d = Math.hypot(b.position.x - g.x, b.position.y - g.y);
         if (d < 70 && d < bd) { bd = d; best = b; }
@@ -116,12 +117,12 @@ export function ghostWail(p, g, now) {
 export function ghostGust(g) {
   spawnRing(g.x, g.y, 'rgba(232,213,255,0.6)');
   sfx.cast();
-  for (const b of Composite.allBodies(world)) {
+  for (const b of allBodies()) {
     if (b.isStatic || b.isSensor || b.label === 'boss') continue;
     const dx = b.position.x - g.x, dy = b.position.y - g.y;
     const d = Math.hypot(dx, dy);
     if (d > 110 || d === 0) continue;
     const s = (1 - d / 110) * 4.5;
-    Body.setVelocity(b, { x: b.velocity.x + (dx / d) * s, y: b.velocity.y + (dy / d) * s - 1.2 * (1 - d / 110) });
+    setVelocity(b, { x: b.velocity.x + (dx / d) * s, y: b.velocity.y + (dy / d) * s - 1.2 * (1 - d / 110) });
   }
 }

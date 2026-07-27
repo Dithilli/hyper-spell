@@ -2,7 +2,8 @@
 // Everything here runs AFTER def.build, seeded, on host AND LAN clients alike
 // (statics never ride the snapshot, so both sides must generate the identical
 // layout from the shared per-round seed — see buildMapExtras).
-import { Bodies, Composite, W, H } from '../world.js';
+import { W, H } from '../world.js';
+import { allBodies, createBox } from '../phys/facade.js';
 import { makeRng } from '../rng.js';
 import { platformSpots } from '../events.js';
 import {
@@ -22,7 +23,7 @@ export function scatterProps(m, rng) {
     else if (roll < 0.54) buildCrateStack(m, s.x, s.y - 14, 2, pk([3, 4])); // a wall to duck behind
     else if (roll < 0.9) addThemedCover(m, s.x, s.y + 8, rr, pk);           // biome cover to duck behind
     else {
-      const big = Bodies.rectangle(s.x, s.y - 24, 42, 42, { density: 0.004, friction: 0.6, label: 'crate' });
+      const big = createBox(s.x, s.y - 24, 42, 42, { density: 0.004, friction: 0.6, label: 'crate' });
       addBody(m, big, '#9a7440');
     }
   }
@@ -36,7 +37,7 @@ export const GAP_STEP = 165;  // max span between inserted steppers
 export function ensureTraversable(m, rng) {
   if ((m.def.gravity ?? 2) < 0) return; // ceiling-walker maps play by their own rules
   const rr = (a, b) => a + rng() * (b - a);
-  const walkable = Composite.allBodies(m.composite).filter(b =>
+  const walkable = allBodies(m.composite).filter(b =>
     !b.isSensor && b.label !== 'spikes' && b.collisionFilter.mask !== 0 &&
     (b.isStatic || b.label === 'plank') &&
     b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
@@ -86,7 +87,7 @@ export function ensureCover(m, rng) {
   const rr = (a, b) => a + rng() * (b - a);
   const pk = arr => arr[Math.floor(rng() * arr.length)];
   const want = m.def.cozy ? 2 : 3;
-  const have = Composite.allBodies(m.composite).filter(b => b.label === 'destructible').length;
+  const have = allBodies(m.composite).filter(b => b.label === 'destructible').length;
   if (have >= want * 3) return; // builder already made a cover-rich map (trees are many segments)
   const spots = platformSpots(m, want, rng);
   for (const s of spots) addThemedCover(m, s.x, s.y + 8, rr, pk);

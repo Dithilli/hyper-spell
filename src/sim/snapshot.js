@@ -5,7 +5,7 @@
 // framing around it (the {t:'snap'} envelope, the replay swap) belongs to
 // src/net/server-bridge.js, and rendering a snapshot back to the canvas to
 // src/render/draw-snapshot.js.
-import { Composite, constraintEnds } from './world.js';
+import { allBodies, allJoints, jointEnds } from './phys/facade.js';
 import { GAME_VERSION } from '../version.js';
 import { game, currentMap } from './match.js';
 import { players, gibs } from './player/lifecycle.js';
@@ -84,7 +84,7 @@ export function serializeSnapshot() {
   for (const g of gibs) { if (++gibsSent > 14) break; pushGhost(g, 'gib', g.color); }
   for (const t of tomes) bodies.push({ id: t.id, l: 'tome', x: Math.round(t.position.x), y: Math.round(t.position.y), a: +t.angle.toFixed(3), sp: t.spell });
   for (const h of hats) bodies.push({ id: h.id, l: 'hat', x: Math.round(h.position.x), y: Math.round(h.position.y), a: +h.angle.toFixed(3) });
-  for (const b of Composite.allBodies(currentMap.composite)) {
+  for (const b of allBodies(currentMap.composite)) {
     if (b.label === 'lava') continue;
     if (!b.isStatic) pushGhost(b, b.label, b.render.fillStyle);
     else if (b.spin || b.phantom || b.kinematic) {
@@ -96,9 +96,9 @@ export function serializeSnapshot() {
   }
 
   const segs = [];
-  for (const c of Composite.allConstraints(currentMap.composite)) {
+  for (const c of allJoints(currentMap.composite)) {
     if (c.label !== 'breakable' && c.label !== 'chain') continue;
-    const [a, b] = constraintEnds(c);
+    const [a, b] = jointEnds(c);
     segs.push([c.label === 'chain' ? 1 : 0, Math.round(a.x), Math.round(a.y), Math.round(b.x), Math.round(b.y)]);
   }
 

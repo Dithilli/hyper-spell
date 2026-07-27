@@ -2,7 +2,8 @@
 // They are a plain table rather than a registration side effect so that
 // src/sim/content.js can merge them into SPELLS ahead of the other hundred and
 // thirty-six, whatever order the module graph happens to evaluate in.
-import { Body, Composite, world, W } from '../world.js';
+import { W } from '../world.js';
+import { addVelocity, allBodies, setVelocity } from '../phys/facade.js';
 import { simNow } from '../time.js';
 import { rand } from '../rng.js';
 import { particles, spawnParticles, addShake, doFlash } from '../fx.js';
@@ -21,7 +22,7 @@ export const STARTERS = {
       const m = p.mega || 1;
       const fb = shoot(p, { r: 7 * m, speed: 20, vy: -6, color: '#ffb347', gravityScale: 0.45 });
       fb.onHit = () => explode(fb.position.x, fb.position.y, 150 * m, 22 * m, 35 * m, fb.owner);
-      Body.setVelocity(p.body, { x: p.body.velocity.x - p.facing * 2, y: p.body.velocity.y });
+      addVelocity(p.body, { x: -p.facing * 2, y: 0 });
     },
   },
   gust: {
@@ -31,7 +32,7 @@ export const STARTERS = {
       const range = 240 * m;
       const { x, y } = p.body.position;
       const dir = aimDir(p, 1, 0);
-      for (const b of Composite.allBodies(world)) {
+      for (const b of allBodies()) {
         if (b.isStatic || b === p.body || b.isSensor) continue;
         const dx = b.position.x - x, dy = b.position.y - y;
         const d = Math.hypot(dx, dy);
@@ -40,12 +41,12 @@ export const STARTERS = {
         const s = 1 - d / range;
         if (b.label === 'projectile') {
           const spd = Math.hypot(b.velocity.x, b.velocity.y);
-          Body.setVelocity(b, { x: dir.x * spd, y: dir.y * spd });
+          setVelocity(b, { x: dir.x * spd, y: dir.y * spd });
           continue;
         }
-        Body.setVelocity(b, { x: b.velocity.x + dir.x * 18 * m * s, y: b.velocity.y + dir.y * 18 * m * s - 3 * s });
+        setVelocity(b, { x: b.velocity.x + dir.x * 18 * m * s, y: b.velocity.y + dir.y * 18 * m * s - 3 * s });
       }
-      Body.setVelocity(p.body, { x: p.body.velocity.x - dir.x * 7, y: p.body.velocity.y - dir.y * 4 - 2 });
+      setVelocity(p.body, { x: p.body.velocity.x - dir.x * 7, y: p.body.velocity.y - dir.y * 4 - 2 });
       for (let i = 0; i < 14; i++) {
         particles.push({ kind: 'spark', x: x + dir.x * 20, y: y - 6 + dir.y * 20 + rand(-10, 10), vx: dir.x * rand(6, 14), vy: dir.y * rand(6, 14) + rand(-1, 1), life: 18, maxLife: 18, color: '#d7f5ef', r: 2 });
       }
@@ -63,7 +64,7 @@ export const STARTERS = {
       boltVisual(from.x, from.y, pt.x, pt.y, '#fff89e', 3 * m);
       spawnParticles(pt.x, pt.y, '#fff89e', 12, 6);
       if (hit && !hit.isStatic) {
-        Body.setVelocity(hit, { x: hit.velocity.x + dir.x * 28 * m, y: hit.velocity.y + dir.y * 28 * m - 8 * m });
+        setVelocity(hit, { x: hit.velocity.x + dir.x * 28 * m, y: hit.velocity.y + dir.y * 28 * m - 8 * m });
         if (hit.label === 'player') damagePlayer(hit.player, 50 * m);
       }
     },
