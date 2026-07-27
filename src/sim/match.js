@@ -89,10 +89,20 @@ export function loadMap(index) {
 
 export function startRound(index) {
   // Retract every pending round-flow callback before building the new round.
-  // The `game.state === 'ROUND_END'` guards on those callbacks are now
-  // belt-and-braces rather than the only defence, and the class of bug where
-  // two deaths in the same beat queue two resolutions is gone: whoever starts
-  // the round empties the queue.
+  //
+  // What this closes is the STALE-ACROSS-ROUNDS case: a resolution scheduled in
+  // round N that is still pending when round N+1 has itself reached ROUND_END.
+  // The `game.state === 'ROUND_END'` guards on those callbacks cannot tell the
+  // two apart — the state is right, the round is not — so round N's callback
+  // would resolve round N+1 early. Emptying the queue at the round boundary is
+  // the only thing that can distinguish them.
+  //
+  // It is NOT about two deaths in the same beat: both schedule checkRoundEnd,
+  // the first sets ROUND_END, and the second already returns at the
+  // `game.state !== 'PLAY'` guard below. That case was never reachable.
+  //
+  // The state guards stay load-bearing regardless — see the note on
+  // drainScheduled in src/sim/schedule.js about cancellation within one drain.
   cancelTag('round');
   clearReplay();
   if (game.state === 'LOBBY') { resetMatchStats(); resetMatchTelemetry(); } // fresh match, fresh ledger

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runTape } from './harness/tape.js';
 import { makeRng, reseed, simRandom } from '../src/sim/rng.js';
-import { Bodies, Composite, createWorld, destroyWorld } from '../src/sim/world.js';
+import { Bodies, Common, Composite, createWorld, destroyWorld } from '../src/sim/world.js';
 import { addStatic } from '../src/sim/maps/builders.js';
 import { buildMapExtras } from '../src/sim/maps/extras.js';
 
@@ -61,16 +61,23 @@ test('map extras derive from the map seed alone, not the round stream', () => {
 // before it, so a second sim in one process disagreed with the first about what
 // rode the wire. createWorld() resets it, and this pins that: the churn between
 // the two worlds is what a real prior match does.
+// Asserted on the seed itself as well as on behaviour. Comparing a single
+// colour across two worlds is position-dependent — matter-js picks from a
+// 5-colour palette, so two unrelated stream positions agree by chance often
+// enough that inserting a test above this one could silently make it vacuous.
+// The seed assertion cannot be satisfied by luck, and the eight-colour sequence
+// keeps the test honest about what the reset is FOR.
 test('a rebuilt world starts matter-js own RNG where the first one did', () => {
   const uncoloured = () => Bodies.rectangle(0, 0, 10, 10).render.fillStyle;
-  const seen = [];
+  const runs = [];
   for (let run = 0; run < 2; run++) {
     createWorld();
-    seen.push(uncoloured());
+    assert.equal(Common._seed, 0, 'createWorld must reset matter-js own RNG');
+    runs.push(Array.from({ length: 8 }, uncoloured));
     for (let i = 0; i < 137; i++) uncoloured(); // a match's worth of bodies
     destroyWorld();
   }
-  assert.equal(seen[0], seen[1], 'matter-js default colours leaked across worlds');
+  assert.deepEqual(runs[0], runs[1], 'matter-js default colours leaked across worlds');
 });
 
 test('reseed replaces the round stream without disturbing makeRng', () => {

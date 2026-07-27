@@ -23,7 +23,15 @@ import { onWorldReset } from './world.js';
 // callers may hold across a clear, and recycling them would let a stale
 // cancel(id) retract an unrelated callback.
 let seq = 0;
-let entries = []; // { at, id, fn, tag }
+let entries = []; // { at, id, fn, tag, cancelled? }
+
+// The batch drainScheduled is part-way through running, or null. Callbacks
+// routinely cancel each other (startRound cancels the whole 'round' tag), and a
+// sibling already pulled out of `entries` for this drain is not reachable
+// through `entries` any more — so cancel/cancelTag/clearAllScheduled reach in
+// here too. Without it, "cancelled" would silently mean "cancelled unless it
+// happened to be due on the same tick as whoever cancelled it".
+let running = null;
 
 export function scheduleAt(at, fn, tag = null) {
   const id = ++seq;
@@ -35,9 +43,14 @@ export function scheduleAt(at, fn, tag = null) {
 // becomes a step count.
 export const scheduleIn = (ms, fn, tag = null) => scheduleAt(currentTick() + ticks(ms), fn, tag);
 
-export function cancel(id) { entries = entries.filter((e) => e.id !== id); }
-export function cancelTag(tag) { entries = entries.filter((e) => e.tag !== tag); }
-export function clearAllScheduled() { entries = []; }
+const retract = (match) => {
+  entries = entries.filter((e) => !match(e));
+  if (running) for (const e of running) if (match(e)) e.cancelled = true;
+};
+
+export function cancel(id) { retract((e) => e.id === id); }
+export function cancelTag(tag) { retract((e) => e.tag === tag); }
+export function clearAllScheduled() { retract(() => true); }
 export const pendingCount = () => entries.length;
 
 export function drainScheduled(tick) {
@@ -54,10 +67,20 @@ export function drainScheduled(tick) {
   // inside a single tick.
   const dueIds = new Set(due.map((e) => e.id));
   entries = entries.filter((e) => !dueIds.has(e.id));
-  for (const e of due) e.fn();
+  // `running` is what lets a cancel from inside one of these callbacks reach
+  // its siblings; the `cancelled` re-check is per iteration because the entry
+  // that retracts a later one may be several callbacks up the list. Saved and
+  // restored rather than nulled, so a nested drain cannot orphan the outer one.
+  const outer = running;
+  running = due;
+  try {
+    for (const e of due) if (!e.cancelled) e.fn();
+  } finally {
+    running = outer;
+  }
 }
 
 // The queue is mutable sim state like any other: a rebuilt world (the crash
 // watchdog in server/sim-host.js, a second createSim in one process) starts
 // with nothing pending, exactly as the first one did.
-onWorldReset(() => { entries = []; });
+onWorldReset(() => { entries = []; running = null; });

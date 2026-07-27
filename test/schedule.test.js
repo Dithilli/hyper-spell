@@ -86,6 +86,44 @@ test('a callback scheduled during a drain waits for its own tick', () => {
   assert.deepEqual(order, ['outer', 'inner']);
 });
 
+// The round-flow case that motivates cancelTag: a callback cancels its own tag
+// (startRound does) while a sibling with that tag is already in the same drain
+// batch. The sibling has been pulled out of the pending queue by then, so a
+// cancel that only filtered the queue would miss it — and "cancelled" would
+// quietly mean "cancelled unless it was due on the same tick".
+test('a callback cancelling its tag retracts siblings in the same drain', () => {
+  clearAllScheduled(); resetTick(0);
+  const order = [];
+  scheduleAt(1, () => { order.push('first'); cancelTag('round'); }, 'round');
+  scheduleAt(1, () => order.push('sibling'), 'round');
+  scheduleAt(1, () => order.push('untagged'));
+  drainScheduled(1);
+  assert.deepEqual(order, ['first', 'untagged']);
+});
+
+test('cancel(id) from inside a drain retracts that one sibling', () => {
+  clearAllScheduled(); resetTick(0);
+  const order = [];
+  let victim;
+  scheduleAt(1, () => { order.push('a'); cancel(victim); });
+  victim = scheduleAt(1, () => order.push('b'));
+  scheduleAt(1, () => order.push('c'));
+  drainScheduled(1);
+  assert.deepEqual(order, ['a', 'c']);
+});
+
+// destroy() can run from inside a callback (a crashing sim tearing itself
+// down); nothing else in that batch may fire into the world it just cleared.
+test('clearAllScheduled from inside a drain stops the rest of the batch', () => {
+  clearAllScheduled(); resetTick(0);
+  const order = [];
+  scheduleAt(1, () => { order.push('a'); clearAllScheduled(); });
+  scheduleAt(1, () => order.push('b'));
+  scheduleAt(1, () => order.push('c'));
+  drainScheduled(1);
+  assert.deepEqual(order, ['a']);
+});
+
 // clearAllScheduled is what src/platform/node.js's destroy() calls: a torn-down
 // sim must not be able to fire anything into the world that replaced it.
 test('clearAllScheduled empties the queue', () => {

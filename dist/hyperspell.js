@@ -5180,14 +5180,21 @@
   // src/sim/schedule.js
   var seq = 0;
   var entries = [];
+  var running = null;
   function scheduleAt(at, fn, tag = null) {
     const id = ++seq;
     entries.push({ at, id, fn, tag });
     return id;
   }
   var scheduleIn = (ms, fn, tag = null) => scheduleAt(currentTick() + ticks(ms), fn, tag);
+  var retract = (match) => {
+    entries = entries.filter((e) => !match(e));
+    if (running) {
+      for (const e of running) if (match(e)) e.cancelled = true;
+    }
+  };
   function cancelTag(tag) {
-    entries = entries.filter((e) => e.tag !== tag);
+    retract((e) => e.tag === tag);
   }
   function drainScheduled(tick2) {
     if (!entries.length) return;
@@ -5195,10 +5202,17 @@
     if (!due.length) return;
     const dueIds = new Set(due.map((e) => e.id));
     entries = entries.filter((e) => !dueIds.has(e.id));
-    for (const e of due) e.fn();
+    const outer = running;
+    running = due;
+    try {
+      for (const e of due) if (!e.cancelled) e.fn();
+    } finally {
+      running = outer;
+    }
   }
   onWorldReset(() => {
     entries = [];
+    running = null;
   });
 
   // src/sim/telemetry.js

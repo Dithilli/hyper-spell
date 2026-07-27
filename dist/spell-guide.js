@@ -4937,17 +4937,25 @@
   // src/sim/schedule.js
   var seq = 0;
   var entries = [];
+  var running = null;
   function scheduleAt(at, fn, tag = null) {
     const id = ++seq;
     entries.push({ at, id, fn, tag });
     return id;
   }
   var scheduleIn = (ms, fn, tag = null) => scheduleAt(currentTick() + ticks(ms), fn, tag);
+  var retract = (match) => {
+    entries = entries.filter((e) => !match(e));
+    if (running) {
+      for (const e of running) if (match(e)) e.cancelled = true;
+    }
+  };
   function cancelTag(tag) {
-    entries = entries.filter((e) => e.tag !== tag);
+    retract((e) => e.tag === tag);
   }
   onWorldReset(() => {
     entries = [];
+    running = null;
   });
 
   // src/version.js

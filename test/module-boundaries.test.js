@@ -44,8 +44,15 @@ test('src/sim never imports render, net, or platform', () => {
 const CLOCK_EXEMPT = 'src/sim/pace.js';
 const CLOCK_READ = /performance\.now\(/;
 
+// setTimeout/setInterval join the list for the same reason performance.now() is
+// on it: they are a clock the simulation does not control. Round flow used to
+// hang off bare setTimeouts, which made "1900ms later" a promise from the host
+// rather than a property of the sim — unpausable, unreplayable, and measured on
+// a different clock from the sim deadlines it was coordinating with. It is all
+// on the tick scheduler now (src/sim/schedule.js), src/sim is at zero live
+// timers, and this is what keeps it there.
 test('src/sim touches no browser or wall-clock globals', () => {
-  const banned = /\b(document|window|localStorage|navigator|requestAnimationFrame)\b|performance\.now\(/;
+  const banned = /\b(document|window|localStorage|navigator|requestAnimationFrame|setTimeout|setInterval)\b|performance\.now\(/;
   const offenders = [];
   let exemptedSites = 0;
   for (const file of walk('src/sim')) {
