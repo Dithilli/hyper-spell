@@ -3,7 +3,11 @@
 // wizard's round wins to zero. Physics is host-side; the boss body rides the
 // summons ghost path to LAN clients, its HP bar via the snapshot's `bs` field.
 // The boss art lives in src/render/draw-boss.js.
-import { Bodies, Body, Composite, world, engine, W, H } from '../world.js';
+import { W, H } from '../world.js';
+import {
+  addBody, applyForce, createBox, createCircle, gravityScale, gravityY, setAngle,
+  setAngularVelocity, setPosition, setVelocity,
+} from '../phys/facade.js';
 import { simNow } from '../time.js';
 import { simRandom, rand, pick } from '../rng.js';
 import {
@@ -38,16 +42,16 @@ export function bossBolt(from, target, { speed = 10, r = 8, color, spread = 0, b
   const t = target.body.position;
   const a = Math.atan2(t.y - from.y, t.x - from.x) + spread;
   const off = (game.boss?.body.circleRadius || 40) + r + 14; // clear the boss's own hitbox
-  const fb = Bodies.circle(from.x + Math.cos(a) * off, from.y + Math.sin(a) * off, r, { density: 0.004, frictionAir: 0, label: 'projectile' });
+  const fb = createCircle(from.x + Math.cos(a) * off, from.y + Math.sin(a) * off, r, { density: 0.004, frictionAir: 0, label: 'projectile' });
   fb.owner = null;
   fb.color = color;
   fb.gravityScale = 0.25;
   fb.expireAt = simNow() + 5000;
   const dm = game.boss?.dmgMult || 1; // later/enraged bosses hit harder
   fb.onHit = self => explode(self.position.x, self.position.y, boom[0], boom[1], boom[2] * dm, 'boss');
-  Body.setVelocity(fb, { x: Math.cos(a) * speed, y: Math.sin(a) * speed });
+  setVelocity(fb, { x: Math.cos(a) * speed, y: Math.sin(a) * speed });
   projectiles.add(fb);
-  Composite.add(world, fb);
+  addBody(fb);
   return fb;
 }
 
@@ -65,7 +69,7 @@ export function bossTouchAll(bs, now, dmg, pad = 8) {
       p._bossHurtAt = now + 700;
       damagePlayer(p, dmg * (bs.dmgMult || 1));
       const away = Math.sign(q.x - bs.body.position.x) || pick([-1, 1]);
-      Body.setVelocity(p.body, { x: away * 8, y: -6 });
+      setVelocity(p.body, { x: away * 8, y: -6 });
     }
   }
 }
@@ -74,16 +78,16 @@ export const BOSSES = [
   {
     id: 'dragon', name: 'THE DRAGON', color: '#e15d5d',
     make() {
-      return Bodies.circle(W / 2, 140, 42, { density: 0.012, frictionAir: 0.06, label: 'boss' });
+      return createCircle(W / 2, 140, 42, { density: 0.012, frictionAir: 0.06, label: 'boss' });
     },
     update(bs, now) {
       const b = bs.body;
-      Body.applyForce(b, b.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * b.mass }); // it flies
+      applyForce(b, b.position, { x: 0, y: -gravityY() * gravityScale() * b.mass }); // it flies
       if (!bs.wp || Math.hypot(bs.wp.x - b.position.x, bs.wp.y - b.position.y) < 70) {
         bs.wp = { x: rand(150, W - 150), y: rand(90, 320) };
       }
       const dx = bs.wp.x - b.position.x, dy = bs.wp.y - b.position.y, d = Math.hypot(dx, dy) || 1;
-      Body.setVelocity(b, { x: b.velocity.x * 0.92 + (dx / d) * 1.1, y: b.velocity.y * 0.92 + (dy / d) * 1.1 });
+      setVelocity(b, { x: b.velocity.x * 0.92 + (dx / d) * 1.1, y: b.velocity.y * 0.92 + (dy / d) * 1.1 });
       if (now > (bs.nextSpit || (bs.nextSpit = now + 1800))) {
         bs.nextSpit = now + bcd(bs, 2300, 3300);
         const t = bossAliveTarget(b.position);
@@ -107,16 +111,16 @@ export const BOSSES = [
   {
     id: 'lich', name: 'THE LICH', color: '#c084fc',
     make() {
-      return Bodies.circle(W / 2, 160, 30, { density: 0.01, frictionAir: 0.12, label: 'boss' });
+      return createCircle(W / 2, 160, 30, { density: 0.01, frictionAir: 0.12, label: 'boss' });
     },
     update(bs, now) {
       const b = bs.body;
-      Body.applyForce(b, b.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * b.mass });
-      Body.setVelocity(b, { x: b.velocity.x * 0.9, y: b.velocity.y * 0.9 + Math.sin(now * 0.003) * 0.25 });
+      applyForce(b, b.position, { x: 0, y: -gravityY() * gravityScale() * b.mass });
+      setVelocity(b, { x: b.velocity.x * 0.9, y: b.velocity.y * 0.9 + Math.sin(now * 0.003) * 0.25 });
       if (now > (bs.nextBlink || (bs.nextBlink = now + 3000))) {
         bs.nextBlink = now + bcd(bs, 3200, 4400);
         spawnParticles(b.position.x, b.position.y, '#c084fc', 16, 5);
-        Body.setPosition(b, { x: rand(140, W - 140), y: rand(100, 340) });
+        setPosition(b, { x: rand(140, W - 140), y: rand(100, 340) });
         spawnParticles(b.position.x, b.position.y, '#c084fc', 16, 5);
         sfx.freeze();
       }
@@ -128,7 +132,7 @@ export const BOSSES = [
       if (now > (bs.nextRaise || (bs.nextRaise = now + 7000))) {
         bs.nextRaise = now + bcd(bs, 8000, 11000);
         for (const side of [-1, 1]) {
-          const sk = Bodies.circle(b.position.x + side * 30, b.position.y + 20, 9, { density: 0.002, friction: 0.5, restitution: 0.4, label: 'critter' });
+          const sk = createCircle(b.position.x + side * 30, b.position.y + 20, 9, { density: 0.002, friction: 0.5, restitution: 0.4, label: 'critter' });
           sk.critter = { hopAt: 0, dir: side, hop: 6, speed: 4 };
           summon(sk, { life: 16000, color: '#e8e8dc', contactDamage: 6 * bs.dmgMult });
         }
@@ -140,27 +144,27 @@ export const BOSSES = [
   {
     id: 'golem', name: 'THE GOLEM', color: '#b08948',
     make() {
-      return Bodies.rectangle(W / 2, 60, 74, 92, { density: 0.02, friction: 0.8, restitution: 0, label: 'boss' });
+      return createBox(W / 2, 60, 74, 92, { density: 0.02, friction: 0.8, restitution: 0, label: 'boss' });
     },
     update(bs, now) {
       const b = bs.body;
-      Body.setAngle(b, b.angle * 0.8);
-      Body.setAngularVelocity(b, 0);
+      setAngle(b, b.angle * 0.8);
+      setAngularVelocity(b, 0);
       if (b.position.y > H - 20) { // climbed out of the pit it fell into
-        Body.setPosition(b, { x: W / 2, y: 40 });
-        Body.setVelocity(b, { x: 0, y: 0 });
+        setPosition(b, { x: W / 2, y: 40 });
+        setVelocity(b, { x: 0, y: 0 });
         addShake(6);
       }
       const t = bossAliveTarget(b.position);
       if (t && !bs.airborne) {
         const dir = Math.sign(t.body.position.x - b.position.x);
-        Body.setVelocity(b, { x: b.velocity.x * 0.8 + dir * 0.9, y: b.velocity.y });
+        setVelocity(b, { x: b.velocity.x * 0.8 + dir * 0.9, y: b.velocity.y });
       }
       if (t && now > (bs.nextLeap || (bs.nextLeap = now + 3500)) && Math.abs(b.velocity.y) < 1) {
         bs.nextLeap = now + bcd(bs, 4500, 6500);
         bs.airborne = true;
         const dir = Math.sign(t.body.position.x - b.position.x) || 1;
-        Body.setVelocity(b, { x: dir * rand(6, 10), y: -16 });
+        setVelocity(b, { x: dir * rand(6, 10), y: -16 });
         sfx.boing();
       }
       if (bs.airborne && b.velocity.y >= 0 && Math.abs(b.velocity.y) < 0.8) {
@@ -174,11 +178,11 @@ export const BOSSES = [
   {
     id: 'kraken', name: 'THE KRAKEN', color: '#3d6a8a',
     make() {
-      return Bodies.circle(W / 2, H - 95, 42, { isStatic: true, label: 'boss' });
+      return createCircle(W / 2, H - 95, 42, { isStatic: true, label: 'boss' });
     },
     update(bs, now) {
       const b = bs.body;
-      Body.setPosition(b, { x: W / 2 + Math.sin(now / 3200) * 200, y: H - 95 + Math.sin(now / 900) * 12 });
+      setPosition(b, { x: W / 2 + Math.sin(now / 3200) * 200, y: H - 95 + Math.sin(now / 900) * 12 });
       // tentacle strikes: warn at a wizard's feet, then a pillar erupts
       bs.pending ??= [];
       bs.tentacles ??= [];
@@ -190,7 +194,7 @@ export const BOSSES = [
       for (const w of bs.pending) {
         if (simRandom() < 0.5) spawnParticles(w.x + rand(-12, 12), H - 30, '#3d6a8a', 1, 2, 14);
         if (now > w.at) {
-          const tb = Bodies.rectangle(w.x, H + 120, 26, 240, { isStatic: true, label: 'tentacle' });
+          const tb = createBox(w.x, H + 120, 26, 240, { isStatic: true, label: 'tentacle' });
           summon(tb, { life: 3000, color: '#3d6a8a' });
           bs.tentacles.push({ b: tb, t0: now, x: w.x, hit: new Set() });
           sfx.squeak();
@@ -200,14 +204,14 @@ export const BOSSES = [
       for (const tn of [...bs.tentacles]) {
         const age = now - tn.t0;
         const rise = age < 450 ? age / 450 : age < 1400 ? 1 : Math.max(0, 1 - (age - 1400) / 700);
-        Body.setPosition(tn.b, { x: tn.x, y: H + 120 - rise * 260 });
+        setPosition(tn.b, { x: tn.x, y: H + 120 - rise * 260 });
         for (const p of players) {
           if (!p.alive || tn.hit.has(p)) continue;
           const q = p.body.position;
           if (Math.abs(q.x - tn.x) < 26 && q.y > tn.b.bounds.min.y - 12) {
             tn.hit.add(p);
             damagePlayer(p, 14 * bs.dmgMult);
-            Body.setVelocity(p.body, { x: Math.sign(q.x - tn.x || 1) * 7, y: -13 });
+            setVelocity(p.body, { x: Math.sign(q.x - tn.x || 1) * 7, y: -13 });
           }
         }
         if (age > 2100) { removeSummon(tn.b); bs.tentacles.splice(bs.tentacles.indexOf(tn), 1); }
@@ -224,10 +228,10 @@ export const SECRET_BOSSES = [
   {
     // Conor, CEO — "THE RIZARD" (his favourite joke). Flips Rizzard <-> Tizzard.
     id: 'rizard', name: 'THE RIZARD', color: '#ffd166', secret: true,
-    make() { return Bodies.circle(W / 2, 150, 34, { density: 0.011, frictionAir: 0.1, label: 'boss' }); },
+    make() { return createCircle(W / 2, 150, 34, { density: 0.011, frictionAir: 0.1, label: 'boss' }); },
     update(bs, now) {
       const b = bs.body;
-      Body.applyForce(b, b.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * b.mass });
+      applyForce(b, b.position, { x: 0, y: -gravityY() * gravityScale() * b.mass });
       const rizz = Math.floor(now / 7000) % 2 === 0;
       b.bossType = rizz ? 'rizard_rizz' : 'rizard_tizz';
       if (bs.lastMode !== b.bossType) {
@@ -239,7 +243,7 @@ export const SECRET_BOSSES = [
         // smooth operator: glides around, charms wizards (reverses their controls) and reels them in
         if (!bs.wp || Math.hypot(bs.wp.x - b.position.x, bs.wp.y - b.position.y) < 60) bs.wp = { x: rand(180, W - 180), y: rand(90, 300) };
         const dx = bs.wp.x - b.position.x, dy = bs.wp.y - b.position.y, d = Math.hypot(dx, dy) || 1;
-        Body.setVelocity(b, { x: b.velocity.x * 0.9 + (dx / d) * 1.0, y: b.velocity.y * 0.9 + (dy / d) * 1.0 });
+        setVelocity(b, { x: b.velocity.x * 0.9 + (dx / d) * 1.0, y: b.velocity.y * 0.9 + (dy / d) * 1.0 });
         if (now > (bs.nextCharm || (bs.nextCharm = now + 3200))) {
           bs.nextCharm = now + bcd(bs, 3600, 5000);
           spawnRing(b.position.x, b.position.y, '#ff9ecb');
@@ -249,7 +253,7 @@ export const SECRET_BOSSES = [
             if (Math.hypot(p.body.position.x - b.position.x, p.body.position.y - b.position.y) < 440) {
               p.reversedUntil = now + 2600;
               const pull = Math.sign(b.position.x - p.body.position.x) || 1;
-              Body.setVelocity(p.body, { x: p.body.velocity.x + pull * 5, y: -4 });
+              setVelocity(p.body, { x: p.body.velocity.x + pull * 5, y: -4 });
               spawnBurst(p.body.position.x, p.body.position.y - 10, '#ff9ecb', 8, { speed: 4, up: 3, g: -0.03 });
             }
           }
@@ -269,7 +273,7 @@ export const SECRET_BOSSES = [
           bs.focusPt = { x: rand(240, W - 240), y: rand(110, 240) };
         }
         const fdx = bs.focusPt.x - b.position.x, fdy = bs.focusPt.y - b.position.y, fd = Math.hypot(fdx, fdy) || 1;
-        Body.setVelocity(b, { x: b.velocity.x * 0.85 + (fdx / fd) * 0.9, y: b.velocity.y * 0.85 + (fdy / fd) * 0.9 });
+        setVelocity(b, { x: b.velocity.x * 0.85 + (fdx / fd) * 0.9, y: b.velocity.y * 0.85 + (fdy / fd) * 0.9 });
         // perfectly-led tracking shots — aims where you'll be, not where you are
         if (now > (bs.nextTrack || (bs.nextTrack = now + 850))) {
           bs.nextTrack = now + bcd(bs, 800, 1100);
@@ -298,10 +302,10 @@ export const SECRET_BOSSES = [
   {
     // Manu, CTO — lives between Germany and Mexico. Flips German <-> Mexican mode.
     id: 'manu', name: 'MANU', color: '#b39ddb', secret: true,
-    make() { return Bodies.circle(W / 2, 150, 32, { density: 0.011, frictionAir: 0.1, label: 'boss' }); },
+    make() { return createCircle(W / 2, 150, 32, { density: 0.011, frictionAir: 0.1, label: 'boss' }); },
     update(bs, now) {
       const b = bs.body;
-      Body.applyForce(b, b.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * b.mass });
+      applyForce(b, b.position, { x: 0, y: -gravityY() * gravityScale() * b.mass });
       const de = Math.floor(now / 7000) % 2 === 0;
       b.bossType = de ? 'manu_de' : 'manu_mx';
       if (bs.lastMode !== b.bossType) {
@@ -309,9 +313,9 @@ export const SECRET_BOSSES = [
         if (de) { setBanner('🇩🇪 ORDNUNG MUSS SEIN', '#d0d0d8', 1300); doFlash('#c0c0d0', 0.2); }
         else { setBanner('🇲🇽 ¡ÓRALE!', '#6cbf5b', 1300); doFlash('#e15d5d', 0.2); }
       }
-      Body.setVelocity(b, { x: b.velocity.x * 0.92 + Math.sin(now * 0.001) * 0.8, y: b.velocity.y * 0.9 + Math.sin(now * 0.003) * 0.3 });
-      if (b.position.y < 90) Body.setVelocity(b, { x: b.velocity.x, y: 1.5 });
-      if (b.position.y > 340) Body.setVelocity(b, { x: b.velocity.x, y: -1.5 });
+      setVelocity(b, { x: b.velocity.x * 0.92 + Math.sin(now * 0.001) * 0.8, y: b.velocity.y * 0.9 + Math.sin(now * 0.003) * 0.3 });
+      if (b.position.y < 90) setVelocity(b, { x: b.velocity.x, y: 1.5 });
+      if (b.position.y > 340) setVelocity(b, { x: b.velocity.x, y: -1.5 });
       if (de) {
         // German: precise, punctual bolts + the occasional efficient freeze
         if (now > (bs.nextDe || (bs.nextDe = now + 1500))) {
