@@ -4879,19 +4879,13 @@
     flashAlpha = 0;
   });
 
-  // src/sim/time.js
-  var TICK_HZ = 60;
-  var TICK_MS = 1e3 / TICK_HZ;
-  var tick = 0;
-  var simNow = () => tick * TICK_MS;
-
   // src/sim/pace.js
   var BASE_PACE = 0.85;
   var scale = BASE_PACE;
   var slowUntil = 0;
   function baseSlowMo(s, ms) {
     scale = s;
-    slowUntil = simNow() + ms;
+    slowUntil = performance.now() + ms;
   }
   var slowMo = baseSlowMo;
   onWorldReset(() => {
@@ -6350,7 +6344,7 @@
       }
     });
   }
-  function makeZone({ x, y, r, life, color, tick: tick2, tickBody, draw, onEnd }) {
+  function makeZone({ x, y, r, life, color, tick, tickBody, draw, onEnd }) {
     activeEffects.push({
       until: performance.now() + life,
       x,
@@ -6358,10 +6352,10 @@
       r,
       net: { k: "zone", x, y, r, c: color },
       update(now) {
-        if (tick2) {
+        if (tick) {
           for (const q of players) {
             if (!q.alive) continue;
-            if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < r) tick2(q, now);
+            if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < r) tick(q, now);
           }
         }
         if (tickBody) {

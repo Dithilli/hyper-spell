@@ -26,10 +26,12 @@ export function runTape({ tape, ticks, seed = 12345 }) {
         if (msg) b.setInput(slot, msg);
       }
       b.stepSim(clock.now(), TICK_MS);
-      // the platform loops advance the tick in their step callback; this rig is
-      // its own loop, so it owns that too. createSim() reset the counter, so
-      // simNow() and this clock stay the same number — which is what lets
-      // pace.js's hitstop expire here exactly as it does in the game.
+      // the platform loops advance the tick inside their step callback; this rig
+      // is its own loop, so it owns that too. createSim() reset the counter, so
+      // simNow() and this clock hold the same number all the way through — the
+      // coherence Task 4 needs when it moves the sim's deadlines onto simNow().
+      // Nothing in the sim reads simNow() yet, so this cannot move a hash; the
+      // point is that the oracle stays honest when something does.
       advanceTick();
       clock.advance(TICK_MS);
       hashes.push(hashSnapshot(b.takeWireSnapshot(clock.now())));

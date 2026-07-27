@@ -66,13 +66,19 @@ class SimHost {
         stepNow = now;
         const { dropped } = this.loop.pump(now - this.last);
         this.last = now;
-        if (dropped > 0) {
-          this.droppedMs += dropped;
-          if (now - this.lastDropLog > 10000) {
-            this.lastDropLog = now;
-            console.warn(`sim behind: dropped ${Math.round(this.droppedMs)}ms of catch-up in 10s`);
-            this.droppedMs = 0;
+        if (dropped > 0) this.droppedMs += dropped;
+        // The window closes on schedule whether or not this tick dropped
+        // anything. Advancing it only on a drop would label the total with
+        // however long ago the previous drop was ("55s worth in 10s"), and
+        // would leave a burst followed by quiet sitting in droppedMs unprinted.
+        if (now - this.lastDropLog >= 10000) {
+          if (this.droppedMs > 0) {
+            // paced sim milliseconds, not wall milliseconds: the accumulator
+            // counts real time already multiplied by paceScale()
+            console.warn(`sim behind: dropped ${Math.round(this.droppedMs)}ms of paced sim time in the last 10s`);
           }
+          this.lastDropLog = now;
+          this.droppedMs = 0;
         }
       } catch (err) {
         this.crash(err);

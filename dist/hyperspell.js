@@ -5018,30 +5018,20 @@
     slowMo: () => slowMo,
     updatePace: () => updatePace
   });
-
-  // src/sim/time.js
-  var TICK_HZ = 60;
-  var TICK_MS = 1e3 / TICK_HZ;
-  var MAX_CATCHUP = 5;
-  var tick = 0;
-  var advanceTick = () => ++tick;
-  var simNow = () => tick * TICK_MS;
-
-  // src/sim/pace.js
   var BASE_PACE = 0.85;
   var scale = BASE_PACE;
   var slowUntil = 0;
   var paceScale = () => scale;
   function baseSlowMo(s, ms) {
     scale = s;
-    slowUntil = simNow() + ms;
+    slowUntil = performance2.now() + ms;
   }
   var slowMo = baseSlowMo;
   function setSlowMo(fn) {
     slowMo = fn;
   }
   function updatePace() {
-    if (simNow() > slowUntil) scale += (BASE_PACE - scale) * 0.08;
+    if (performance2.now() > slowUntil) scale += (BASE_PACE - scale) * 0.08;
   }
   onWorldReset(() => {
     scale = BASE_PACE;
@@ -14706,6 +14696,13 @@
     });
   }
 
+  // src/sim/time.js
+  var TICK_HZ = 60;
+  var TICK_MS = 1e3 / TICK_HZ;
+  var MAX_CATCHUP = 5;
+  var tick = 0;
+  var advanceTick = () => ++tick;
+
   // src/sim/tick-loop.js
   var STEP_EPS = 1e-9;
   function createTickLoop({ step, pace = paceScale }) {
@@ -16921,7 +16918,7 @@
   var lastFxAt = null;
   function netClientFrame(now) {
     sendInput.call(sendInput, now);
-    if (lastFxAt === null) lastFxAt = now;
+    if (lastFxAt === null || now - lastFxAt > 250) lastFxAt = now;
     fxLoop.pump(now - lastFxAt);
     lastFxAt = now;
     const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
@@ -17533,6 +17530,7 @@
   var last = performance.now();
   function frame(now) {
     if (netMode2() === "online") {
+      last = now;
       netClientFrame(now);
       requestAnimationFrame(frame);
       return;

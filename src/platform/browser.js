@@ -60,6 +60,11 @@ const loop = createTickLoop({
 let last = performance.now();
 function frame(now) {
   if (netMode() === 'online') {
+    // the server owns the match now, so this frame simulated nothing. Keep
+    // `last` current anyway: banking the online stretch would hand the local
+    // accumulator minutes of "elapsed" time the moment we came back, and it
+    // would spend it as a MAX_CATCHUP burst plus a bogus dropped-time report.
+    last = now;
     netClientFrame(now);
     requestAnimationFrame(frame);
     return;

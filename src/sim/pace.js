@@ -6,7 +6,13 @@
 // Engine.update), which made physics resolution a function of spectacle. Now it
 // scales how fast the tick loop CONSUMES real time — the steps themselves are
 // always exactly TICK_MS. See src/sim/tick-loop.js.
-import { simNow } from './time.js';
+// The deadline below stays on the env clock, NOT on simNow(). Every one of the
+// 14 slowMo call sites authors `ms` as a real-world duration, and simNow() is
+// the clock this very hitstop slows down — measuring the deadline there makes
+// the beat last ms/scale and feed back on itself (a 90ms freeze at 0.05 held
+// the sim for two seconds). It is the same two-clock error that keeps stepSim
+// on the host clock in this task; Task 4 moves the whole sim across at once.
+import { performance } from './env.js';
 import { onWorldReset } from './world.js';
 
 // master game pace: 1 = original, <1 = calmer & more readable so the spectacle
@@ -22,7 +28,7 @@ let slowUntil = 0;
 
 export const paceScale = () => scale;
 
-function baseSlowMo(s, ms) { scale = s; slowUntil = simNow() + ms; }
+function baseSlowMo(s, ms) { scale = s; slowUntil = performance.now() + ms; }
 
 // slowMo stays a reassignable binding: src/net/server-bridge.js wraps it so a
 // headless host broadcasts the hitstop to every client (see WRAPPED there).
@@ -30,7 +36,7 @@ export let slowMo = baseSlowMo;
 export function setSlowMo(fn) { slowMo = fn; }
 
 export function updatePace() {
-  if (simNow() > slowUntil) scale += (BASE_PACE - scale) * 0.08; // ease back to the base pace, not full speed
+  if (performance.now() > slowUntil) scale += (BASE_PACE - scale) * 0.08; // ease back to the base pace, not full speed
 }
 
 onWorldReset(() => { scale = BASE_PACE; slowUntil = 0; });

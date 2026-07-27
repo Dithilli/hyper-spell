@@ -339,7 +339,10 @@ let lastFxAt = null;
 
 export function netClientFrame(now) {
   sendInput.call(sendInput, now);
-  if (lastFxAt === null) lastFxAt = now;
+  // a gap we spent not rendering — the first frame after connecting, a rejoin,
+  // a hidden tab — is not particle time, so it starts a fresh interval rather
+  // than being spent as catch-up. 250ms is the loop's own clamp.
+  if (lastFxAt === null || now - lastFxAt > 250) lastFxAt = now;
   fxLoop.pump(now - lastFxAt);
   lastFxAt = now;
 
