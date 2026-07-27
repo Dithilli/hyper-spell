@@ -108,6 +108,7 @@ export function setType(b, type) { Body.setStatic(b, type === 'static'); }
 export function setFixedRotation(b, on) {
   Body.setInertia(b, on ? Infinity : Vertices.inertia(b.vertices, b.mass));
 }
+
 // Material and filter writes. Trivial here because a matter-js body IS the
 // handle, but they are operations rather than field pokes on purpose: a planck
 // handle has no `frictionAir`, and the 22 call sites that used to assign these
