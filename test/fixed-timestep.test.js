@@ -118,6 +118,30 @@ test('a hitstop lasts the milliseconds it was given, on the clock that authored 
   assert.equal(BASE_PACE, 0.85, 'base pace is unchanged content');
 });
 
+test('a slowMo(0) recovers instead of freezing the sim forever', (t) => {
+  t.after(() => setClock(null));
+  let realNow = 0;
+  setClock({ now: () => realNow });
+  resetTick();
+  const loop = createTickLoop({ step: () => { updatePace(); advanceTick(); } });
+
+  // Content never asks for this — all 14 slowMo sites bottom out at 0.05 — but
+  // applyFx passes msg.a straight through (src/net/client.js:256,266) from a
+  // table whose stated job is surviving a bug or a hostile server. At a pace of
+  // exactly 0 the accumulator gains nothing, so the step never fires, so
+  // updatePace never runs and the pace can never climb off 0: the sim is frozen
+  // for good. Before the fixed timestep this self-healed, because the ease ran
+  // once per frame inside stepSim rather than once per tick.
+  slowMo(0, 200);
+  assert.ok(paceScale() > 0, 'a zero pace is clamped to the floor content actually uses');
+
+  for (let i = 0; i < 1200; i++) { // twenty seconds of a 60Hz display
+    realNow += TICK_MS;
+    loop.pump(TICK_MS);
+  }
+  assert.ok(paceScale() > BASE_PACE * 0.99, `the sim never recovered (pace ${paceScale()})`);
+});
+
 test('an online client eases back from a broadcast hitstop, like the host does', async (t) => {
   // An online client never runs stepSim (src/platform/browser.js:62 returns
   // early), and stepSim is the only caller of updatePace. But the client's
@@ -127,19 +151,25 @@ test('an online client eases back from a broadcast hitstop, like the host does',
   // crawl at one update per 333ms for the rest of the session. That is A8
   // failing in the module that was supposed to close it.
   const { netClientFrame } = await import('../src/net/client.js');
+  const { initCanvas } = await import('../src/render/canvas.js');
   let realNow = 0;
   setClock({ now: () => realNow });
   t.after(() => setClock(null));
+
+  // Give the client a no-op 2d context — every method does nothing, every
+  // property assignment is accepted — so its draw half runs to completion
+  // headlessly. The test then depends only on the pace easing back, not on an
+  // exception happening to land below the pump: reordering the draw and the
+  // pump is behaviour-preserving in a real browser and must stay green here.
+  // Nothing is swallowed either, so a genuine error still fails the test.
+  initCanvas({ getContext: () => new Proxy({}, { get: () => () => undefined, set: () => true }) });
 
   slowMo(0.05, 90); // exactly what applyFx does at src/net/client.js:256
   assert.equal(paceScale(), 0.05, 'the broadcast landed');
 
   for (let i = 0; i < 600; i++) { // ten seconds of a 60Hz display
     realNow += TICK_MS;
-    // The client's draw half needs a real 2d context and throws headless. The
-    // fx/pace half runs before it, which is the path under test — if it ever
-    // moved below the draw calls, the pace would stay pinned and this fails.
-    try { netClientFrame(realNow); } catch { /* headless: canvas ctx is null */ }
+    netClientFrame(realNow);
   }
 
   assert.ok(

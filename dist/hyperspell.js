@@ -5019,11 +5019,12 @@
     updatePace: () => updatePace
   });
   var BASE_PACE = 0.85;
+  var MIN_PACE = 0.05;
   var scale = BASE_PACE;
   var slowUntil = 0;
   var paceScale = () => scale;
   function baseSlowMo(s, ms) {
-    scale = s;
+    scale = Math.max(MIN_PACE, s);
     slowUntil = performance2.now() + ms;
   }
   var slowMo = baseSlowMo;

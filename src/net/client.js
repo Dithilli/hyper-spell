@@ -341,9 +341,12 @@ function drawOnlineLobby(snap, now) {
 // src/platform/browser.js:62 and never reaches the sim at all. Easing per frame
 // instead would recover ~5.7× faster than the host during a hard hitstop (60
 // frames/sec against 3 ticks/sec), so the client's sparks would be back to full
-// speed while the host was still in slow motion. Note the ease can never stall:
-// slowMo only ever sets a scale ≥ 0.05 and updatePace only ever raises it, so
-// ticks keep arriving at worst every TICK_MS/0.05 = 333ms.
+// speed while the host was still in slow motion. The ease keeps progressing as
+// long as frames keep arriving inside the 250ms gap the pump below discards:
+// pace.js floors the scale at 0.05 and updatePace only ever raises it, so ticks
+// come at worst every TICK_MS/0.05 = 333ms. Below ~4fps every gap is discarded,
+// nothing pumps and the pace does sit still — it resumes easing on the first
+// frame back under 250ms.
 const fxLoop = createTickLoop({ step: () => { updatePace(); updateParticles(1); } });
 let lastFxAt = null;
 
