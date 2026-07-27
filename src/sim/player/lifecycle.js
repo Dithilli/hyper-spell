@@ -1,8 +1,8 @@
 // player/lifecycle.js — the roster: who exists, how they are built, where they
 // spawn, and which spells they hold.
-import { W, onWorldReset } from '../world.js';
+import { W, column, onWorldReset } from '../world.js';
 import {
-  addBody, allBodies, createCircle, newCollisionGroup, removeBody, scaleBody,
+  addBody, createCircle, newCollisionGroup, queryRegion, removeBody, scaleBody,
   setAngle, setAngularVelocity, setFrictionAir, setPosition, setVelocity,
 } from '../phys/facade.js';
 import { simNow } from '../time.js';
@@ -27,9 +27,11 @@ export const PLAYER_DEFS = [
 
 // is there anything solid in the column at x to land on?
 export function groundInColumn(x) {
-  return allBodies(currentMap.composite).some(b =>
-    b.isStatic && !b.isSensor && b.label !== 'lava' && b.collisionFilter.mask !== 0 &&
-    x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6 && b.bounds.min.y > 100);
+  return queryRegion(column(x), {
+    container: currentMap.composite,
+    filter: (b) => b.isStatic && !b.isSensor && b.label !== 'lava' && b.collisionFilter.mask !== 0 &&
+      x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6 && b.bounds.min.y > 100,
+  }).length > 0;
 }
 
 export function spawnPointFor(p) {

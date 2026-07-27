@@ -1,11 +1,11 @@
 // player/ghost.js — dead wizards linger as wisps and meddle, gently.
 import { W, H } from '../world.js';
-import { allBodies, bodyById, setAngularVelocity, setVelocity } from '../phys/facade.js';
+import { bodyById, queryRadius, setAngularVelocity, setVelocity } from '../phys/facade.js';
 import { simRandom, rand } from '../rng.js';
 import { particles, spawnParticles, spawnRing, spawnBurst } from '../fx.js';
 import { sfx } from '../sfx.js';
 import { game } from '../match.js';
-import { activeEffects } from '../spells/core.js';
+import { activeEffects, loose } from '../spells/core.js';
 import { players } from './lifecycle.js';
 
 // ---------- ghosts: dead wizards drift as faint wisps and meddle, gently ----------
@@ -43,10 +43,9 @@ export function updateGhosts(now) {
     } else if (c.cast) {
       // grab if a loose prop is in reach, otherwise the classic gust
       let best = null, bd = 1e9;
-      for (const b of allBodies()) {
-        if (b.isStatic || b.isSensor || !GHOST_CARRY.has(b.label) || b.mass > 8) continue;
+      for (const b of queryRadius(g, 70, { filter: (b) => loose(b) && GHOST_CARRY.has(b.label) && b.mass <= 8 })) {
         const d = Math.hypot(b.position.x - g.x, b.position.y - g.y);
-        if (d < 70 && d < bd) { bd = d; best = b; }
+        if (d < bd) { bd = d; best = b; }
       }
       if (best) {
         g.hold = best;
@@ -117,11 +116,10 @@ export function ghostWail(p, g, now) {
 export function ghostGust(g) {
   spawnRing(g.x, g.y, 'rgba(232,213,255,0.6)');
   sfx.cast();
-  for (const b of allBodies()) {
-    if (b.isStatic || b.isSensor || b.label === 'boss') continue;
+  for (const b of queryRadius(g, 110, { filter: (b) => loose(b) && b.label !== 'boss' })) {
     const dx = b.position.x - g.x, dy = b.position.y - g.y;
     const d = Math.hypot(dx, dy);
-    if (d > 110 || d === 0) continue;
+    if (d === 0) continue;
     const s = (1 - d / 110) * 4.5;
     setVelocity(b, { x: b.velocity.x + (dx / d) * s, y: b.velocity.y + (dy / d) * s - 1.2 * (1 - d / 110) });
   }

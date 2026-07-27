@@ -3,7 +3,7 @@
 // src/sim/content.js can merge them into SPELLS ahead of the other hundred and
 // thirty-six, whatever order the module graph happens to evaluate in.
 import { W } from '../world.js';
-import { addVelocity, allBodies, setFrictionAir, setVelocity } from '../phys/facade.js';
+import { addVelocity, queryRadius, setFrictionAir, setVelocity } from '../phys/facade.js';
 import { simNow } from '../time.js';
 import { rand } from '../rng.js';
 import { particles, spawnParticles, addShake, doFlash } from '../fx.js';
@@ -12,7 +12,7 @@ import { sfx } from '../sfx.js';
 import { damagePlayer } from '../player/combat.js';
 import {
   activeEffects, aimDir, shoot, dropProjectile, explode, raycastHit,
-  boltVisual, spawnSingularity,
+  boltVisual, spawnSingularity, loose,
 } from './core.js';
 
 export const STARTERS = {
@@ -32,11 +32,10 @@ export const STARTERS = {
       const range = 240 * m;
       const { x, y } = p.body.position;
       const dir = aimDir(p, 1, 0);
-      for (const b of allBodies()) {
-        if (b.isStatic || b === p.body || b.isSensor) continue;
+      for (const b of queryRadius({ x, y }, range, { filter: (b) => loose(b) && b !== p.body })) {
         const dx = b.position.x - x, dy = b.position.y - y;
         const d = Math.hypot(dx, dy);
-        if (d > range || d === 0) continue;
+        if (d === 0) continue;
         if ((dx * dir.x + dy * dir.y) / d < 0.55) continue; // ~56° cone around aim
         const s = 1 - d / range;
         if (b.label === 'projectile') {

@@ -12,7 +12,7 @@
 // need a handle object that presents the same readable surface.
 import Matter from 'matter-js';
 
-const { Common, Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector } = Matter;
+const { Bounds, Common, Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector, Vertices } = Matter;
 
 let engine = null;
 let root = null;
@@ -202,57 +202,122 @@ export function gravityY() { return engine.gravity.y; }
 export function worldGravityScale() { return engine.gravity.scale; }
 
 // ------------------------------------------------------------------ queries
+//
+// Every query takes the same options object: `filter`, a predicate the backend
+// applies while it searches, and `container`, a composite to search instead of
+// the whole world (maps own one, so "is there a platform here?" can be asked of
+// the map rather than of every gib in flight).
+//
+// There is deliberately NO option to hand in a pre-filtered array of bodies.
+// That is the one shape that cannot survive a backend swap: a planck backend
+// answers these out of its broadphase tree, and a caller-supplied list is a
+// list the tree has never heard of, so honouring it would mean falling back to
+// a linear scan — the very thing these operations exist to replace.
 
 // A real segment test, not a stepping loop: an 8px platform between two
-// samples is a hit, not a miss.
+// samples is a hit, not a miss. And a real INTERSECTION: `point` is where the
+// segment crosses the body's outline.
 //
-// matter-js builds a throwaway rectangle body for the ray, and Body.create
-// draws a default fillStyle off Common._seed for every non-static body (see
-// resetPhysRandom above). A query must not move the RNG the simulation is
-// seeded on, so the seed is saved and restored around the call.
+// THIS DOES NOT USE Matter.Query.ray, and the three reasons are all load-bearing.
+//
+// 1. Query.ray does not compute intersections. Matter's own docs say so —
+//    "Intersection points are not provided". It runs SAT between the body and a
+//    throwaway 1e-100-wide rectangle and hands back the contact SUPPORTS, which
+//    are VERTICES. Reading a hit position out of them yields a corner of the
+//    body, or the body's centre when the support list comes back empty.
+//    Measured against the shapes this game actually casts at: a horizontal ray
+//    into a 40x400 wall whose near face is at x=380 reported (420, 560) — the
+//    far bottom corner, 205px away; a ray straight down at x=300 onto the
+//    full-width ground slab reported x=0. `point` feeds beam endpoints and
+//    ground heights, so both were unusable.
+// 2. Bodies.rectangle draws a default fillStyle off Common._seed for every
+//    non-static body (see resetPhysRandom above), so an unguarded Query.ray
+//    moved the RNG the simulation is seeded on. That needed a save/restore.
+// 3. Bodies.rectangle also burns a Common._nextId. Body ids ride the wire
+//    (src/sim/snapshot.js), and rays now run every tick, so the counter would
+//    have raced ahead by thousands per round.
+//
+// Doing the geometry here retires all three: the coarse pass is a pure AABB
+// overlap, the fine pass is segment-vs-edge, and nothing is allocated in the
+// engine at all. test/spatial-queries.test.js pins each one.
 export function queryRay(from, to, opts = {}) {
-  const bodies = opts.bodies ?? allBodies();
-  const seed = Common._seed;
-  let hits;
-  try {
-    hits = Query.ray(bodies, from, to, opts.width ?? 1e-100);
-  } finally {
-    Common._seed = seed;
-  }
-  let best = null, bestD = Infinity;
-  for (const c of hits) {
-    const body = c.body ?? c.bodyA;
+  const bodies = allBodies(opts.container);
+  const dx = to.x - from.x, dy = to.y - from.y;
+  const span = {
+    min: { x: Math.min(from.x, to.x), y: Math.min(from.y, to.y) },
+    max: { x: Math.max(from.x, to.x), y: Math.max(from.y, to.y) },
+  };
+  let best = null;
+  for (const body of bodies) {
     if (opts.filter && !opts.filter(body)) continue;
-    const point = nearestSupport(c, from) ?? body.position;
-    const d = Math.hypot(point.x - from.x, point.y - from.y);
-    if (d < bestD) { bestD = d; best = { body, point, normal: c.normal ?? { x: 0, y: 0 }, distance: d }; }
+    if (!Bounds.overlaps(body.bounds, span)) continue;
+    const h = segmentHit(body, from, dx, dy, span);
+    if (h && (best === null || h.t < best.t)) best = h;
   }
-  return best;
+  if (!best) return null;
+  return {
+    body: best.body,
+    point: { x: from.x + dx * best.t, y: from.y + dy * best.t },
+    normal: best.normal,
+    distance: best.t * Math.hypot(dx, dy),
+  };
 }
 
-function nearestSupport(collision, from) {
-  let best = null, bestD = Infinity;
-  for (const s of collision.supports ?? []) {
-    const d = Math.hypot(s.x - from.x, s.y - from.y);
-    if (d < bestD) { bestD = d; best = s; }
+// Nearest crossing of the segment from + t*(dx, dy), t in [0, 1], with the
+// outline of `body`, as the parameter t. Compound bodies collide through their
+// parts, not through the parent's hull, so parts[0] is skipped exactly as
+// matter's own broadphase skips it. A segment that STARTS inside the body
+// reports t = 0: the old stepping loop found such a body at its very first
+// sample, and a beam must not shoot out through the far wall of the thing it is
+// already buried in.
+function segmentHit(body, from, dx, dy, span) {
+  const parts = body.parts;
+  let t = Infinity, normal = null;
+  for (let i = parts.length > 1 ? 1 : 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (!Bounds.overlaps(part.bounds, span)) continue;
+    if (Vertices.contains(part.vertices, from)) return { body, t: 0, normal: { x: 0, y: 0 } };
+    const vs = part.vertices;
+    for (let j = 0; j < vs.length; j++) {
+      const a = vs[j], b = vs[(j + 1) % vs.length];
+      const ex = b.x - a.x, ey = b.y - a.y;
+      const den = dx * ey - dy * ex;
+      if (den === 0) continue; // parallel to this edge
+      const wx = a.x - from.x, wy = a.y - from.y;
+      const ts = (wx * ey - wy * ex) / den;
+      if (ts < 0 || ts > 1 || ts >= t) continue;
+      const u = (dy * wx - dx * wy) / den;
+      if (u < 0 || u > 1) continue; // crossing is off the end of the edge
+      t = ts;
+      const len = Math.hypot(ex, ey) || 1;
+      let nx = ey / len, ny = -ex / len;
+      // Face the incoming segment. A GUARD, not a correction: matter winds its
+      // vertices so this already points outward for every body the game builds,
+      // and no test can reach the flip today. It stays because the sign of a
+      // normal is a contract of this operation and winding is not a contract of
+      // whatever builds the vertices — Bodies.fromVertices decomposing a concave
+      // outline, or a second backend, need not agree.
+      if (nx * dx + ny * dy > 0) { nx = -nx; ny = -ny; }
+      normal = { x: nx, y: ny };
+    }
   }
-  return best;
+  return t === Infinity ? null : { body, t, normal };
 }
 
 export function queryRegion(aabb, opts = {}) {
-  const bodies = opts.bodies ?? allBodies();
+  const bodies = allBodies(opts.container);
   const found = Query.region(bodies, aabb);
   return opts.filter ? found.filter(opts.filter) : found;
 }
 
 export function queryPoint(pt, opts = {}) {
-  const bodies = opts.bodies ?? allBodies();
+  const bodies = allBodies(opts.container);
   const found = Query.point(bodies, pt);
   return opts.filter ? found.filter(opts.filter) : found;
 }
 
 export function queryRadius(center, r, opts = {}) {
-  const bodies = opts.bodies ?? allBodies();
+  const bodies = allBodies(opts.container);
   const out = [];
   for (const b of bodies) {
     if (opts.filter && !opts.filter(b)) continue;
@@ -263,7 +328,7 @@ export function queryRadius(center, r, opts = {}) {
 
 // Bodies whose centre lies within halfWidth of the segment from→to.
 export function queryCapsule(from, to, halfWidth, opts = {}) {
-  const bodies = opts.bodies ?? allBodies();
+  const bodies = allBodies(opts.container);
   const dx = to.x - from.x, dy = to.y - from.y;
   const len2 = dx * dx + dy * dy;
   const out = [];

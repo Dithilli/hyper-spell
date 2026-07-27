@@ -4,9 +4,9 @@
 // closures now take the render surface as an argument instead of reaching for a
 // global ctx, which is what keeps sim/ free of a render/ import. Task 13 turns
 // them into emitted events and the drawing moves out entirely.
-import { W, H, onWorldReset } from '../world.js';
+import { H, onWorldReset } from '../world.js';
 import {
-  addBody, allBodies, allJoints, createCircle, gravityY, queryPoint, removeBody,
+  addBody, allJoints, createCircle, gravityY, queryRadius, queryRay, removeBody,
   removeFrom, setAngularVelocity, setVelocity,
 } from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
@@ -32,6 +32,12 @@ export const projectiles = new Set();
 export const activeEffects = [];
 export const summons = new Set();
 
+// The predicate almost every area spell shares: a body the world can throw
+// around. Statics are scenery and sensors are triggers, and neither takes a
+// shove. Passed to the facade's queries so the narrowing happens inside physics
+// rather than over a copy of the whole world.
+export const loose = (b) => !b.isStatic && !b.isSensor;
+
 // unit direction a player is aiming: mouse/stick aim if present,
 // else classic facing + lob elevation (vy), gravity-aware
 export function aimDir(p, speed = 20, vy = 0) {
@@ -45,7 +51,17 @@ export function shoot(p, { r, speed, vy = 0, color, density = 0.002, restitution
   const { x, y } = p.body.position;
   const dir = angle != null ? { x: Math.cos(angle), y: Math.sin(angle) } : aimDir(p, speed, vy);
   const spd = Math.hypot(speed, vy);
-  const fb = createCircle(x + dir.x * 28, y - 6 + dir.y * 16, r, {
+  // B11. The muzzle sits 28px along the aim, and nothing used to check what was
+  // there: cast with your back to a wall and the ball was born inside it, where
+  // the solver either squirted it out sideways or held it still. Ray the offset
+  // and stop 4px short of whatever it meets.
+  const muzzle = { x: x + dir.x * 28, y: y - 6 + dir.y * 16 };
+  const blocked = queryRay({ x, y: y - 6 }, muzzle,
+    { filter: (b) => b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 });
+  const spawn = blocked
+    ? { x: blocked.point.x - dir.x * 4, y: blocked.point.y - dir.y * 4 }
+    : muzzle;
+  const fb = createCircle(spawn.x, spawn.y, r, {
     density, frictionAir: 0, restitution, label: 'projectile',
     collisionFilter: { group: p.group },
   });
@@ -113,10 +129,10 @@ export function explode(x, y, radius = 150, power = 22, damage = 0, owner = null
   spawnParticles(x, y, '#ffb347', 26, 9);
   spawnParticles(x, y, '#ff5e57', 18, 7);
   if (power >= 18) doFlash('#ffb347', 0.12);
-  for (const body of allBodies()) {
+  for (const body of queryRadius({ x, y }, radius)) {
     const dx = body.position.x - x, dy = body.position.y - y;
     const d = Math.hypot(dx, dy);
-    if (d > radius || d === 0) continue;
+    if (d === 0) continue; // dead centre has no direction to be thrown in
     if (body.label === 'boss' && damage && owner !== 'boss') {
       damageBoss(damage * (1 - d / (radius * 1.15)) * 1.2, body.position, owner);
     }
@@ -157,15 +173,16 @@ export function raycastHit(p, angOff = 0) {
     dir = { x: Math.cos(a), y: Math.sin(a) };
   }
   const from = { x: p.body.position.x + dir.x * 22, y: p.body.position.y - 6 + dir.y * 14 };
-  const candidates = allBodies().filter(b =>
-    b !== p.body && !b.isSensor && b.label !== 'gib' && b.label !== 'projectile' && b.collisionFilter.mask !== 0);
-  for (let d = 0; d < 1400; d += 10) {
-    const pt = { x: from.x + dir.x * d, y: from.y + dir.y * d };
-    if (pt.x < -40 || pt.x > W + 40 || pt.y < -60 || pt.y > H + 40) break;
-    const hit = queryPoint(pt, { bodies: candidates })[0];
-    if (hit) return { hit, pt, from, dir };
-  }
-  return { hit: null, pt: { x: from.x + dir.x * 1400, y: from.y + dir.y * 1400 }, from, dir };
+  const to = { x: from.x + dir.x * 1400, y: from.y + dir.y * 1400 };
+  // B2/B9. This used to sample the aim every 10px and point-test each sample,
+  // so a beam could pass clean through any platform thinner than its stride —
+  // and when it did connect, `pt` was the sample, up to 10px inside whatever it
+  // hit, rather than the surface. One segment query answers both.
+  const hit = queryRay(from, to, {
+    filter: (b) => b !== p.body && !b.isSensor && b.label !== 'gib' && b.label !== 'projectile'
+      && b.collisionFilter.mask !== 0,
+  });
+  return { hit: hit?.body ?? null, pt: hit?.point ?? to, from, dir };
 }
 
 function baseBoltVisual(x0, y0, x1, y1, color = '#fff89e', width = 3, life = 130) {
@@ -190,13 +207,15 @@ function baseBoltVisual(x0, y0, x1, y1, color = '#fff89e', width = 3, life = 130
   });
 }
 
+// B12. The old form stepped y by 12 from the ceiling and returned the first
+// sample that landed inside something, which is wrong twice over: an 8px ledge
+// fits between two samples and reads as open sky, and a hit reports the sample
+// rather than the surface, so Volcano, Trampoline and the Lightning Rod placed
+// themselves up to 12px into the platform they were standing on.
 export function groundYAt(x) {
-  const candidates = allBodies().filter(b =>
-    b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0);
-  for (let y = 0; y < H; y += 12) {
-    if (queryPoint({ x, y }, { bodies: candidates })[0]) return y;
-  }
-  return H - 30;
+  const hit = queryRay({ x, y: 0 }, { x, y: H },
+    { filter: (b) => b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 });
+  return hit ? hit.point.y : H - 30;
 }
 
 // lightning CONDUCTION synergy: a Wet target takes amplified damage and the bolt
@@ -237,11 +256,10 @@ export function spawnSingularity(x, y, m = 1, owner = null, opts = {}) {
     net: { k: 'sing', x, y },
     update() {
       const R = 350 * (1 + (m - 1) * 0.5);
-      for (const b of allBodies()) {
-        if (b.isStatic || b.isSensor) continue;
+      for (const b of queryRadius({ x, y }, R, { filter: loose })) {
         const dx = x - b.position.x, dy = y - b.position.y;
         const d = Math.hypot(dx, dy);
-        if (d > R || d === 0) continue;
+        if (d === 0) continue;
         if (d < 30) {
           if (b.label === 'player') { if (!(opts.selfSafe && b.player === owner)) damagePlayer(b.player, 999, owner); }
           else if (b.label !== 'boss') { // never consume the boss body — it would strand game.boss
@@ -294,11 +312,12 @@ export function makeZone({ x, y, r, life, color, tick, tickBody, draw, onEnd }) 
           if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < r) tick(q, now);
         }
       }
+      // NOTE: the hand-rolled test was `< r` and the facade's is `<= r`. The
+      // only body that can tell them apart is one whose centre sits exactly on
+      // the rim to the last bit of a double, so this is the one rule in the
+      // conversion that is not byte-identical — see the task 9 report.
       if (tickBody) {
-        for (const b of allBodies()) {
-          if (b.isStatic || b.isSensor) continue;
-          if (Math.hypot(b.position.x - x, b.position.y - y) < r) tickBody(b, now);
-        }
+        for (const b of queryRadius({ x, y }, r, { filter: loose })) tickBody(b, now);
       }
     },
     draw(now, ctx) {

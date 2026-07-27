@@ -1,7 +1,7 @@
 // pickups.js — spell tomes and the rare Mega Hat raining from the sky.
 // Their art lives in src/render/draw-pickups.js.
-import { W, H, onWorldReset } from './world.js';
-import { addBody, allBodies, createBox, gravityY, removeBody, scaleBody } from './phys/facade.js';
+import { W, H, column, onWorldReset } from './world.js';
+import { addBody, createBox, gravityY, queryRegion, removeBody, scaleBody } from './phys/facade.js';
 import { simRandom, rand, pick } from './rng.js';
 import { spawnParticles, spawnRing, spawnText, addShake, doFlash } from './fx.js';
 import { sfx } from './sfx.js';
@@ -56,12 +56,15 @@ export function updateTomes(now) {
 // respecting ceilings and flipped gravity
 export function tomeDropSpot() {
   const g = gravityY();
-  const solids = allBodies().filter(b =>
+  // a landable surface anywhere in the column at x, inset 6px so a tome never
+  // drops onto the very lip of a platform
+  const landable = (x) => (b) =>
     (b.isStatic || b.label === 'plank') && !b.isSensor && b.collisionFilter.mask !== 0 &&
-    b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
+    b.bounds.min.x > -60 && b.bounds.max.x < W + 60 &&
+    x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6;
   for (let tries = 0; tries < 24; tries++) {
     const x = rand(90, W - 90);
-    const col = solids.filter(b => x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6);
+    const col = queryRegion(column(x), { filter: landable(x) });
     if (!col.length) continue;
     if (g >= 0) {
       const tops = col.map(b => b.bounds.min.y).filter(y => y > 130 && y < H - 50);

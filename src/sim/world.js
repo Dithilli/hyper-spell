@@ -13,6 +13,16 @@ import { createEngine, destroyEngine, setGravityY } from './phys/facade.js';
 
 export const W = 1280, H = 720;
 
+// A query region spanning everything between two x. Half a dozen sites ask
+// "what is in this column?" — Updraft, Tornado, Firestorm, the tome drop, the
+// platform picker, the spawn-safety check — and every one of them tested x
+// alone. The vertical bounds are infinite rather than 0..H to keep it that way:
+// a crate lobbed above the ceiling is still in the column. `column(x, x)` is
+// the degenerate single-x form the drop-point searches want.
+export function column(x0, x1 = x0) {
+  return { min: { x: x0, y: -Infinity }, max: { x: x1, y: Infinity } };
+}
+
 const resetHooks = [];
 
 // Register a callback that returns a module's mutable state to its initial

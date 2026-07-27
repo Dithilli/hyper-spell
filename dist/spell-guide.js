@@ -385,19 +385,19 @@
             /* 1 */
             /***/
             (function(module2, exports2) {
-              var Bounds = {};
-              module2.exports = Bounds;
+              var Bounds2 = {};
+              module2.exports = Bounds2;
               (function() {
-                Bounds.create = function(vertices) {
+                Bounds2.create = function(vertices) {
                   var bounds = {
                     min: { x: 0, y: 0 },
                     max: { x: 0, y: 0 }
                   };
                   if (vertices)
-                    Bounds.update(bounds, vertices);
+                    Bounds2.update(bounds, vertices);
                   return bounds;
                 };
-                Bounds.update = function(bounds, vertices, velocity) {
+                Bounds2.update = function(bounds, vertices, velocity) {
                   bounds.min.x = Infinity;
                   bounds.max.x = -Infinity;
                   bounds.min.y = Infinity;
@@ -422,19 +422,19 @@
                     }
                   }
                 };
-                Bounds.contains = function(bounds, point) {
+                Bounds2.contains = function(bounds, point) {
                   return point.x >= bounds.min.x && point.x <= bounds.max.x && point.y >= bounds.min.y && point.y <= bounds.max.y;
                 };
-                Bounds.overlaps = function(boundsA, boundsB) {
+                Bounds2.overlaps = function(boundsA, boundsB) {
                   return boundsA.min.x <= boundsB.max.x && boundsA.max.x >= boundsB.min.x && boundsA.max.y >= boundsB.min.y && boundsA.min.y <= boundsB.max.y;
                 };
-                Bounds.translate = function(bounds, vector) {
+                Bounds2.translate = function(bounds, vector) {
                   bounds.min.x += vector.x;
                   bounds.max.x += vector.x;
                   bounds.min.y += vector.y;
                   bounds.max.y += vector.y;
                 };
-                Bounds.shift = function(bounds, position) {
+                Bounds2.shift = function(bounds, position) {
                   var deltaX = bounds.max.x - bounds.min.x, deltaY = bounds.max.y - bounds.min.y;
                   bounds.min.x = position.x;
                   bounds.max.x = position.x + deltaX;
@@ -533,12 +533,12 @@
             /* 3 */
             /***/
             (function(module2, exports2, __webpack_require__) {
-              var Vertices = {};
-              module2.exports = Vertices;
+              var Vertices2 = {};
+              module2.exports = Vertices2;
               var Vector2 = __webpack_require__(2);
               var Common2 = __webpack_require__(0);
               (function() {
-                Vertices.create = function(points, body) {
+                Vertices2.create = function(points, body) {
                   var vertices = [];
                   for (var i = 0; i < points.length; i++) {
                     var point = points[i], vertex = {
@@ -552,15 +552,15 @@
                   }
                   return vertices;
                 };
-                Vertices.fromPath = function(path, body) {
+                Vertices2.fromPath = function(path, body) {
                   var pathPattern = /L?\s*([-\d.e]+)[\s,]*([-\d.e]+)*/ig, points = [];
                   path.replace(pathPattern, function(match, x, y) {
                     points.push({ x: parseFloat(x), y: parseFloat(y) });
                   });
-                  return Vertices.create(points, body);
+                  return Vertices2.create(points, body);
                 };
-                Vertices.centre = function(vertices) {
-                  var area = Vertices.area(vertices, true), centre = { x: 0, y: 0 }, cross, temp, j;
+                Vertices2.centre = function(vertices) {
+                  var area = Vertices2.area(vertices, true), centre = { x: 0, y: 0 }, cross, temp, j;
                   for (var i = 0; i < vertices.length; i++) {
                     j = (i + 1) % vertices.length;
                     cross = Vector2.cross(vertices[i], vertices[j]);
@@ -569,7 +569,7 @@
                   }
                   return Vector2.div(centre, 6 * area);
                 };
-                Vertices.mean = function(vertices) {
+                Vertices2.mean = function(vertices) {
                   var average = { x: 0, y: 0 };
                   for (var i = 0; i < vertices.length; i++) {
                     average.x += vertices[i].x;
@@ -577,7 +577,7 @@
                   }
                   return Vector2.div(average, vertices.length);
                 };
-                Vertices.area = function(vertices, signed) {
+                Vertices2.area = function(vertices, signed) {
                   var area = 0, j = vertices.length - 1;
                   for (var i = 0; i < vertices.length; i++) {
                     area += (vertices[j].x - vertices[i].x) * (vertices[j].y + vertices[i].y);
@@ -587,7 +587,7 @@
                     return area / 2;
                   return Math.abs(area) / 2;
                 };
-                Vertices.inertia = function(vertices, mass) {
+                Vertices2.inertia = function(vertices, mass) {
                   var numerator = 0, denominator = 0, v = vertices, cross, j;
                   for (var n = 0; n < v.length; n++) {
                     j = (n + 1) % v.length;
@@ -597,7 +597,7 @@
                   }
                   return mass / 6 * (numerator / denominator);
                 };
-                Vertices.translate = function(vertices, vector, scalar) {
+                Vertices2.translate = function(vertices, vector, scalar) {
                   scalar = typeof scalar !== "undefined" ? scalar : 1;
                   var verticesLength = vertices.length, translateX = vector.x * scalar, translateY = vector.y * scalar, i;
                   for (i = 0; i < verticesLength; i++) {
@@ -606,7 +606,7 @@
                   }
                   return vertices;
                 };
-                Vertices.rotate = function(vertices, angle, point) {
+                Vertices2.rotate = function(vertices, angle, point) {
                   if (angle === 0)
                     return;
                   var cos = Math.cos(angle), sin = Math.sin(angle), pointX = point.x, pointY = point.y, verticesLength = vertices.length, vertex, dx, dy, i;
@@ -619,7 +619,7 @@
                   }
                   return vertices;
                 };
-                Vertices.contains = function(vertices, point) {
+                Vertices2.contains = function(vertices, point) {
                   var pointX = point.x, pointY = point.y, verticesLength = vertices.length, vertex = vertices[verticesLength - 1], nextVertex;
                   for (var i = 0; i < verticesLength; i++) {
                     nextVertex = vertices[i];
@@ -630,10 +630,10 @@
                   }
                   return true;
                 };
-                Vertices.scale = function(vertices, scaleX, scaleY, point) {
+                Vertices2.scale = function(vertices, scaleX, scaleY, point) {
                   if (scaleX === 1 && scaleY === 1)
                     return vertices;
-                  point = point || Vertices.centre(vertices);
+                  point = point || Vertices2.centre(vertices);
                   var vertex, delta;
                   for (var i = 0; i < vertices.length; i++) {
                     vertex = vertices[i];
@@ -643,7 +643,7 @@
                   }
                   return vertices;
                 };
-                Vertices.chamfer = function(vertices, radius, quality, qualityMin, qualityMax) {
+                Vertices2.chamfer = function(vertices, radius, quality, qualityMin, qualityMax) {
                   if (typeof radius === "number") {
                     radius = [radius];
                   } else {
@@ -682,14 +682,14 @@
                   }
                   return newVertices;
                 };
-                Vertices.clockwiseSort = function(vertices) {
-                  var centre = Vertices.mean(vertices);
+                Vertices2.clockwiseSort = function(vertices) {
+                  var centre = Vertices2.mean(vertices);
                   vertices.sort(function(vertexA, vertexB) {
                     return Vector2.angle(centre, vertexA) - Vector2.angle(centre, vertexB);
                   });
                   return vertices;
                 };
-                Vertices.isConvex = function(vertices) {
+                Vertices2.isConvex = function(vertices) {
                   var flag = 0, n = vertices.length, i, j, k, z;
                   if (n < 3)
                     return null;
@@ -713,7 +713,7 @@
                     return null;
                   }
                 };
-                Vertices.hull = function(vertices) {
+                Vertices2.hull = function(vertices) {
                   var upper = [], lower = [], vertex, i;
                   vertices = vertices.slice(0);
                   vertices.sort(function(vertexA, vertexB) {
@@ -745,11 +745,11 @@
             (function(module2, exports2, __webpack_require__) {
               var Body2 = {};
               module2.exports = Body2;
-              var Vertices = __webpack_require__(3);
+              var Vertices2 = __webpack_require__(3);
               var Vector2 = __webpack_require__(2);
               var Sleeping = __webpack_require__(7);
               var Common2 = __webpack_require__(0);
-              var Bounds = __webpack_require__(1);
+              var Bounds2 = __webpack_require__(1);
               var Axes = __webpack_require__(11);
               (function() {
                 Body2._timeCorrection = true;
@@ -766,7 +766,7 @@
                     parts: [],
                     plugin: {},
                     angle: 0,
-                    vertices: Vertices.fromPath("L 0 0 L 40 0 L 40 40 L 0 40"),
+                    vertices: Vertices2.fromPath("L 0 0 L 40 0 L 40 40 L 0 40"),
                     position: { x: 0, y: 0 },
                     force: { x: 0, y: 0 },
                     torque: 0,
@@ -837,7 +837,7 @@
                 var _initProperties = function(body, options) {
                   options = options || {};
                   Body2.set(body, {
-                    bounds: body.bounds || Bounds.create(body.vertices),
+                    bounds: body.bounds || Bounds2.create(body.vertices),
                     positionPrev: body.positionPrev || Vector2.clone(body.position),
                     anglePrev: body.anglePrev || body.angle,
                     vertices: body.vertices,
@@ -846,9 +846,9 @@
                     isSleeping: body.isSleeping,
                     parent: body.parent || body
                   });
-                  Vertices.rotate(body.vertices, body.angle, body.position);
+                  Vertices2.rotate(body.vertices, body.angle, body.position);
                   Axes.rotate(body.axes, body.angle);
-                  Bounds.update(body.bounds, body.vertices, body.velocity);
+                  Bounds2.update(body.bounds, body.vertices, body.velocity);
                   Body2.set(body, {
                     axes: options.axes || body.axes,
                     area: options.area || body.area,
@@ -978,16 +978,16 @@
                   if (vertices[0].body === body) {
                     body.vertices = vertices;
                   } else {
-                    body.vertices = Vertices.create(vertices, body);
+                    body.vertices = Vertices2.create(vertices, body);
                   }
                   body.axes = Axes.fromVertices(body.vertices);
-                  body.area = Vertices.area(body.vertices);
+                  body.area = Vertices2.area(body.vertices);
                   Body2.setMass(body, body.density * body.area);
-                  var centre = Vertices.centre(body.vertices);
-                  Vertices.translate(body.vertices, centre, -1);
-                  Body2.setInertia(body, Body2._inertiaScale * Vertices.inertia(body.vertices, body.mass));
-                  Vertices.translate(body.vertices, body.position);
-                  Bounds.update(body.bounds, body.vertices, body.velocity);
+                  var centre = Vertices2.centre(body.vertices);
+                  Vertices2.translate(body.vertices, centre, -1);
+                  Body2.setInertia(body, Body2._inertiaScale * Vertices2.inertia(body.vertices, body.mass));
+                  Vertices2.translate(body.vertices, body.position);
+                  Bounds2.update(body.bounds, body.vertices, body.velocity);
                 };
                 Body2.setParts = function(body, parts, autoHull) {
                   var i;
@@ -1010,10 +1010,10 @@
                     for (i = 0; i < parts.length; i++) {
                       vertices = vertices.concat(parts[i].vertices);
                     }
-                    Vertices.clockwiseSort(vertices);
-                    var hull = Vertices.hull(vertices), hullCentre = Vertices.centre(hull);
+                    Vertices2.clockwiseSort(vertices);
+                    var hull = Vertices2.hull(vertices), hullCentre = Vertices2.centre(hull);
                     Body2.setVertices(body, hull);
-                    Vertices.translate(body.vertices, hullCentre);
+                    Vertices2.translate(body.vertices, hullCentre);
                   }
                   var total = Body2._totalProperties(body);
                   body.area = total.area;
@@ -1055,8 +1055,8 @@
                     var part = body.parts[i];
                     part.position.x += delta.x;
                     part.position.y += delta.y;
-                    Vertices.translate(part.vertices, delta);
-                    Bounds.update(part.bounds, part.vertices, body.velocity);
+                    Vertices2.translate(part.vertices, delta);
+                    Bounds2.update(part.bounds, part.vertices, body.velocity);
                   }
                 };
                 Body2.setAngle = function(body, angle, updateVelocity) {
@@ -1071,9 +1071,9 @@
                   for (var i = 0; i < body.parts.length; i++) {
                     var part = body.parts[i];
                     part.angle += delta;
-                    Vertices.rotate(part.vertices, delta, body.position);
+                    Vertices2.rotate(part.vertices, delta, body.position);
                     Axes.rotate(part.axes, delta);
-                    Bounds.update(part.bounds, part.vertices, body.velocity);
+                    Bounds2.update(part.bounds, part.vertices, body.velocity);
                     if (i > 0) {
                       Vector2.rotateAbout(part.position, delta, body.position, part.position);
                     }
@@ -1135,20 +1135,20 @@
                   point = point || body.position;
                   for (var i = 0; i < body.parts.length; i++) {
                     var part = body.parts[i];
-                    Vertices.scale(part.vertices, scaleX, scaleY, point);
+                    Vertices2.scale(part.vertices, scaleX, scaleY, point);
                     part.axes = Axes.fromVertices(part.vertices);
-                    part.area = Vertices.area(part.vertices);
+                    part.area = Vertices2.area(part.vertices);
                     Body2.setMass(part, body.density * part.area);
-                    Vertices.translate(part.vertices, { x: -part.position.x, y: -part.position.y });
-                    Body2.setInertia(part, Body2._inertiaScale * Vertices.inertia(part.vertices, part.mass));
-                    Vertices.translate(part.vertices, { x: part.position.x, y: part.position.y });
+                    Vertices2.translate(part.vertices, { x: -part.position.x, y: -part.position.y });
+                    Body2.setInertia(part, Body2._inertiaScale * Vertices2.inertia(part.vertices, part.mass));
+                    Vertices2.translate(part.vertices, { x: part.position.x, y: part.position.y });
                     if (i > 0) {
                       totalArea += part.area;
                       totalInertia += part.inertia;
                     }
                     part.position.x = point.x + (part.position.x - point.x) * scaleX;
                     part.position.y = point.y + (part.position.y - point.y) * scaleY;
-                    Bounds.update(part.bounds, part.vertices, body.velocity);
+                    Bounds2.update(part.bounds, part.vertices, body.velocity);
                   }
                   if (body.parts.length > 1) {
                     body.area = totalArea;
@@ -1181,19 +1181,19 @@
                   body.angle += body.angularVelocity;
                   for (var i = 0; i < body.parts.length; i++) {
                     var part = body.parts[i];
-                    Vertices.translate(part.vertices, body.velocity);
+                    Vertices2.translate(part.vertices, body.velocity);
                     if (i > 0) {
                       part.position.x += body.velocity.x;
                       part.position.y += body.velocity.y;
                     }
                     if (body.angularVelocity !== 0) {
-                      Vertices.rotate(part.vertices, body.angularVelocity, body.position);
+                      Vertices2.rotate(part.vertices, body.angularVelocity, body.position);
                       Axes.rotate(part.axes, body.angularVelocity);
                       if (i > 0) {
                         Vector2.rotateAbout(part.position, body.angularVelocity, body.position, part.position);
                       }
                     }
-                    Bounds.update(part.bounds, part.vertices, body.velocity);
+                    Bounds2.update(part.bounds, part.vertices, body.velocity);
                   }
                 };
                 Body2.updateVelocities = function(body) {
@@ -1297,7 +1297,7 @@
               module2.exports = Composite2;
               var Events2 = __webpack_require__(5);
               var Common2 = __webpack_require__(0);
-              var Bounds = __webpack_require__(1);
+              var Bounds2 = __webpack_require__(1);
               var Body2 = __webpack_require__(4);
               (function() {
                 Composite2.create = function(options) {
@@ -1575,7 +1575,7 @@
                     var body = bodies[i];
                     vertices.push(body.bounds.min, body.bounds.max);
                   }
-                  return Bounds.create(vertices);
+                  return Bounds2.create(vertices);
                 };
               })();
             }),
@@ -1659,7 +1659,7 @@
             (function(module2, exports2, __webpack_require__) {
               var Collision = {};
               module2.exports = Collision;
-              var Vertices = __webpack_require__(3);
+              var Vertices2 = __webpack_require__(3);
               var Pair = __webpack_require__(9);
               (function() {
                 var _supports = [];
@@ -1728,18 +1728,18 @@
                   collision.penetration.x = normal.x * collision.depth;
                   collision.penetration.y = normal.y * collision.depth;
                   var supportsB = Collision._findSupports(bodyA, bodyB, normal, 1), supportCount = 0;
-                  if (Vertices.contains(bodyA.vertices, supportsB[0])) {
+                  if (Vertices2.contains(bodyA.vertices, supportsB[0])) {
                     supports[supportCount++] = supportsB[0];
                   }
-                  if (Vertices.contains(bodyA.vertices, supportsB[1])) {
+                  if (Vertices2.contains(bodyA.vertices, supportsB[1])) {
                     supports[supportCount++] = supportsB[1];
                   }
                   if (supportCount < 2) {
                     var supportsA = Collision._findSupports(bodyB, bodyA, normal, -1);
-                    if (Vertices.contains(bodyB.vertices, supportsA[0])) {
+                    if (Vertices2.contains(bodyB.vertices, supportsA[0])) {
                       supports[supportCount++] = supportsA[0];
                     }
-                    if (supportCount < 2 && Vertices.contains(bodyB.vertices, supportsA[1])) {
+                    if (supportCount < 2 && Vertices2.contains(bodyB.vertices, supportsA[1])) {
                       supports[supportCount++] = supportsA[1];
                     }
                   }
@@ -1896,10 +1896,10 @@
             (function(module2, exports2, __webpack_require__) {
               var Constraint2 = {};
               module2.exports = Constraint2;
-              var Vertices = __webpack_require__(3);
+              var Vertices2 = __webpack_require__(3);
               var Vector2 = __webpack_require__(2);
               var Sleeping = __webpack_require__(7);
-              var Bounds = __webpack_require__(1);
+              var Bounds2 = __webpack_require__(1);
               var Axes = __webpack_require__(11);
               var Common2 = __webpack_require__(0);
               (function() {
@@ -2036,19 +2036,19 @@
                     Sleeping.set(body, false);
                     for (var j = 0; j < body.parts.length; j++) {
                       var part = body.parts[j];
-                      Vertices.translate(part.vertices, impulse);
+                      Vertices2.translate(part.vertices, impulse);
                       if (j > 0) {
                         part.position.x += impulse.x;
                         part.position.y += impulse.y;
                       }
                       if (impulse.angle !== 0) {
-                        Vertices.rotate(part.vertices, impulse.angle, body.position);
+                        Vertices2.rotate(part.vertices, impulse.angle, body.position);
                         Axes.rotate(part.axes, impulse.angle);
                         if (j > 0) {
                           Vector2.rotateAbout(part.position, impulse.angle, body.position, part.position);
                         }
                       }
-                      Bounds.update(part.bounds, part.vertices, body.velocity);
+                      Bounds2.update(part.bounds, part.vertices, body.velocity);
                     }
                     impulse.angle *= Constraint2._warming;
                     impulse.x *= Constraint2._warming;
@@ -2107,10 +2107,10 @@
             (function(module2, exports2, __webpack_require__) {
               var Bodies2 = {};
               module2.exports = Bodies2;
-              var Vertices = __webpack_require__(3);
+              var Vertices2 = __webpack_require__(3);
               var Common2 = __webpack_require__(0);
               var Body2 = __webpack_require__(4);
-              var Bounds = __webpack_require__(1);
+              var Bounds2 = __webpack_require__(1);
               var Vector2 = __webpack_require__(2);
               (function() {
                 Bodies2.rectangle = function(x, y, width, height, options) {
@@ -2118,11 +2118,11 @@
                   var rectangle = {
                     label: "Rectangle Body",
                     position: { x, y },
-                    vertices: Vertices.fromPath("L 0 0 L " + width + " 0 L " + width + " " + height + " L 0 " + height)
+                    vertices: Vertices2.fromPath("L 0 0 L " + width + " 0 L " + width + " " + height + " L 0 " + height)
                   };
                   if (options.chamfer) {
                     var chamfer = options.chamfer;
-                    rectangle.vertices = Vertices.chamfer(
+                    rectangle.vertices = Vertices2.chamfer(
                       rectangle.vertices,
                       chamfer.radius,
                       chamfer.quality,
@@ -2146,11 +2146,11 @@
                   var trapezoid = {
                     label: "Trapezoid Body",
                     position: { x, y },
-                    vertices: Vertices.fromPath(verticesPath)
+                    vertices: Vertices2.fromPath(verticesPath)
                   };
                   if (options.chamfer) {
                     var chamfer = options.chamfer;
-                    trapezoid.vertices = Vertices.chamfer(
+                    trapezoid.vertices = Vertices2.chamfer(
                       trapezoid.vertices,
                       chamfer.radius,
                       chamfer.quality,
@@ -2185,11 +2185,11 @@
                   var polygon = {
                     label: "Polygon Body",
                     position: { x, y },
-                    vertices: Vertices.fromPath(path)
+                    vertices: Vertices2.fromPath(path)
                   };
                   if (options.chamfer) {
                     var chamfer = options.chamfer;
-                    polygon.vertices = Vertices.chamfer(
+                    polygon.vertices = Vertices2.chamfer(
                       polygon.vertices,
                       chamfer.radius,
                       chamfer.quality,
@@ -2214,7 +2214,7 @@
                   }
                   for (v = 0; v < vertexSets.length; v += 1) {
                     vertices = vertexSets[v];
-                    isConvex = Vertices.isConvex(vertices);
+                    isConvex = Vertices2.isConvex(vertices);
                     isConcave = !isConvex;
                     if (isConcave && !canDecomp) {
                       Common2.warnOnce(
@@ -2223,9 +2223,9 @@
                     }
                     if (isConvex || !canDecomp) {
                       if (isConvex) {
-                        vertices = Vertices.clockwiseSort(vertices);
+                        vertices = Vertices2.clockwiseSort(vertices);
                       } else {
-                        vertices = Vertices.hull(vertices);
+                        vertices = Vertices2.hull(vertices);
                       }
                       parts.push({
                         position: { x, y },
@@ -2249,10 +2249,10 @@
                             y: vertices2[1]
                           };
                         });
-                        if (minimumArea > 0 && Vertices.area(chunkVertices) < minimumArea)
+                        if (minimumArea > 0 && Vertices2.area(chunkVertices) < minimumArea)
                           continue;
                         parts.push({
-                          position: Vertices.centre(chunkVertices),
+                          position: Vertices2.centre(chunkVertices),
                           vertices: chunkVertices
                         });
                       }
@@ -2267,7 +2267,7 @@
                       var partA = parts[i];
                       for (j = i + 1; j < parts.length; j++) {
                         var partB = parts[j];
-                        if (Bounds.overlaps(partA.bounds, partB.bounds)) {
+                        if (Bounds2.overlaps(partA.bounds, partB.bounds)) {
                           var pav = partA.vertices, pbv = partB.vertices;
                           for (k = 0; k < partA.vertices.length; k++) {
                             for (z = 0; z < partB.vertices.length; z++) {
@@ -2865,9 +2865,9 @@
             (function(module2, exports2, __webpack_require__) {
               var Resolver = {};
               module2.exports = Resolver;
-              var Vertices = __webpack_require__(3);
+              var Vertices2 = __webpack_require__(3);
               var Common2 = __webpack_require__(0);
-              var Bounds = __webpack_require__(1);
+              var Bounds2 = __webpack_require__(1);
               (function() {
                 Resolver._restingThresh = 2;
                 Resolver._restingThreshTangent = Math.sqrt(6);
@@ -2922,7 +2922,7 @@
                   }
                 };
                 Resolver.postSolvePosition = function(bodies) {
-                  var positionWarming = Resolver._positionWarming, bodiesLength = bodies.length, verticesTranslate = Vertices.translate, boundsUpdate = Bounds.update;
+                  var positionWarming = Resolver._positionWarming, bodiesLength = bodies.length, verticesTranslate = Vertices2.translate, boundsUpdate = Bounds2.update;
                   for (var i = 0; i < bodiesLength; i++) {
                     var body = bodies[i], positionImpulse = body.positionImpulse, positionImpulseX = positionImpulse.x, positionImpulseY = positionImpulse.y, velocity = body.velocity;
                     body.totalContacts = 0;
@@ -3191,8 +3191,8 @@
                   var stack = Composite2.create({ label: "Stack" }), x = xx, y = yy, lastBody, i = 0;
                   for (var row = 0; row < rows; row++) {
                     var maxHeight = 0;
-                    for (var column = 0; column < columns; column++) {
-                      var body = callback(x, y, column, row, lastBody, i);
+                    for (var column2 = 0; column2 < columns; column2++) {
+                      var body = callback(x, y, column2, row, lastBody, i);
                       if (body) {
                         var bodyHeight = body.bounds.max.y - body.bounds.min.y, bodyWidth = body.bounds.max.x - body.bounds.min.x;
                         if (bodyHeight > maxHeight)
@@ -3255,19 +3255,19 @@
                   return composite;
                 };
                 Composites.pyramid = function(xx, yy, columns, rows, columnGap, rowGap, callback) {
-                  return Composites.stack(xx, yy, columns, rows, columnGap, rowGap, function(x, y, column, row, lastBody, i) {
+                  return Composites.stack(xx, yy, columns, rows, columnGap, rowGap, function(x, y, column2, row, lastBody, i) {
                     var actualRows = Math.min(rows, Math.ceil(columns / 2)), lastBodyWidth = lastBody ? lastBody.bounds.max.x - lastBody.bounds.min.x : 0;
                     if (row > actualRows)
                       return;
                     row = actualRows - row;
                     var start = row, end = columns - 1 - row;
-                    if (column < start || column > end)
+                    if (column2 < start || column2 > end)
                       return;
                     if (i === 1) {
-                      Body2.translate(lastBody, { x: (column + (columns % 2 === 1 ? 1 : -1)) * lastBodyWidth, y: 0 });
+                      Body2.translate(lastBody, { x: (column2 + (columns % 2 === 1 ? 1 : -1)) * lastBodyWidth, y: 0 });
                     }
-                    var xOffset = lastBody ? column * lastBodyWidth : 0;
-                    return callback(xx + xOffset + column * columnGap, y, column, row, lastBody, i);
+                    var xOffset = lastBody ? column2 * lastBodyWidth : 0;
+                    return callback(xx + xOffset + column2 * columnGap, y, column2, row, lastBody, i);
                   });
                 };
                 Composites.newtonsCradle = function(xx, yy, number, size, length) {
@@ -3425,8 +3425,8 @@
                     endRow
                   };
                 };
-                Grid._getBucketId = function(column, row) {
-                  return "C" + column + "R" + row;
+                Grid._getBucketId = function(column2, row) {
+                  return "C" + column2 + "R" + row;
                 };
                 Grid._createBucket = function(buckets, bucketId) {
                   var bucket = buckets[bucketId] = [];
@@ -3476,7 +3476,7 @@
             (function(module2, exports2, __webpack_require__) {
               var MouseConstraint = {};
               module2.exports = MouseConstraint;
-              var Vertices = __webpack_require__(3);
+              var Vertices2 = __webpack_require__(3);
               var Sleeping = __webpack_require__(7);
               var Mouse = __webpack_require__(14);
               var Events2 = __webpack_require__(5);
@@ -3484,7 +3484,7 @@
               var Constraint2 = __webpack_require__(10);
               var Composite2 = __webpack_require__(6);
               var Common2 = __webpack_require__(0);
-              var Bounds = __webpack_require__(1);
+              var Bounds2 = __webpack_require__(1);
               (function() {
                 MouseConstraint.create = function(engine2, options) {
                   var mouse = (engine2 ? engine2.mouse : null) || (options ? options.mouse : null);
@@ -3536,10 +3536,10 @@
                     if (!constraint.bodyB) {
                       for (var i = 0; i < bodies.length; i++) {
                         body = bodies[i];
-                        if (Bounds.contains(body.bounds, mouse.position) && Detector.canCollide(body.collisionFilter, mouseConstraint.collisionFilter)) {
+                        if (Bounds2.contains(body.bounds, mouse.position) && Detector.canCollide(body.collisionFilter, mouseConstraint.collisionFilter)) {
                           for (var j = body.parts.length > 1 ? 1 : 0; j < body.parts.length; j++) {
                             var part = body.parts[j];
-                            if (Vertices.contains(part.vertices, mouse.position)) {
+                            if (Vertices2.contains(part.vertices, mouse.position)) {
                               constraint.pointA = mouse.position;
                               constraint.bodyB = mouseConstraint.body = body;
                               constraint.pointB = { x: mouse.position.x - body.position.x, y: mouse.position.y - body.position.y };
@@ -3581,12 +3581,12 @@
               module2.exports = Query2;
               var Vector2 = __webpack_require__(2);
               var Collision = __webpack_require__(8);
-              var Bounds = __webpack_require__(1);
+              var Bounds2 = __webpack_require__(1);
               var Bodies2 = __webpack_require__(12);
-              var Vertices = __webpack_require__(3);
+              var Vertices2 = __webpack_require__(3);
               (function() {
                 Query2.collides = function(body, bodies) {
-                  var collisions = [], bodiesLength = bodies.length, bounds = body.bounds, collides = Collision.collides, overlaps = Bounds.overlaps;
+                  var collisions = [], bodiesLength = bodies.length, bounds = body.bounds, collides = Collision.collides, overlaps = Bounds2.overlaps;
                   for (var i = 0; i < bodiesLength; i++) {
                     var bodyA = bodies[i], partsALength = bodyA.parts.length, partsAStart = partsALength === 1 ? 0 : 1;
                     if (overlaps(bodyA.bounds, bounds)) {
@@ -3616,7 +3616,7 @@
                 Query2.region = function(bodies, bounds, outside) {
                   var result = [];
                   for (var i = 0; i < bodies.length; i++) {
-                    var body = bodies[i], overlaps = Bounds.overlaps(body.bounds, bounds);
+                    var body = bodies[i], overlaps = Bounds2.overlaps(body.bounds, bounds);
                     if (overlaps && !outside || !overlaps && outside)
                       result.push(body);
                   }
@@ -3626,10 +3626,10 @@
                   var result = [];
                   for (var i = 0; i < bodies.length; i++) {
                     var body = bodies[i];
-                    if (Bounds.contains(body.bounds, point)) {
+                    if (Bounds2.contains(body.bounds, point)) {
                       for (var j = body.parts.length === 1 ? 0 : 1; j < body.parts.length; j++) {
                         var part = body.parts[j];
-                        if (Bounds.contains(part.bounds, point) && Vertices.contains(part.vertices, point)) {
+                        if (Bounds2.contains(part.bounds, point) && Vertices2.contains(part.vertices, point)) {
                           result.push(body);
                           break;
                         }
@@ -3648,7 +3648,7 @@
               var Body2 = __webpack_require__(4);
               var Common2 = __webpack_require__(0);
               var Composite2 = __webpack_require__(6);
-              var Bounds = __webpack_require__(1);
+              var Bounds2 = __webpack_require__(1);
               var Events2 = __webpack_require__(5);
               var Vector2 = __webpack_require__(2);
               var Mouse = __webpack_require__(14);
@@ -3853,7 +3853,7 @@
                   if (options.hasBounds) {
                     for (i = 0; i < allBodies2.length; i++) {
                       var body = allBodies2[i];
-                      if (Bounds.overlaps(body.bounds, render.bounds))
+                      if (Bounds2.overlaps(body.bounds, render.bounds))
                         bodies.push(body);
                     }
                     for (i = 0; i < allConstraints.length; i++) {
@@ -3862,7 +3862,7 @@
                       if (bodyB) pointBWorld = Vector2.add(bodyB.position, constraint.pointB);
                       if (!pointAWorld || !pointBWorld)
                         continue;
-                      if (Bounds.contains(render.bounds, pointAWorld) || Bounds.contains(render.bounds, pointBWorld))
+                      if (Bounds2.contains(render.bounds, pointAWorld) || Bounds2.contains(render.bounds, pointBWorld))
                         constraints.push(constraint);
                     }
                     Render.startViewTransform(render);
@@ -4636,7 +4636,7 @@
             (function(module2, exports2, __webpack_require__) {
               var Svg = {};
               module2.exports = Svg;
-              var Bounds = __webpack_require__(1);
+              var Bounds2 = __webpack_require__(1);
               var Common2 = __webpack_require__(0);
               (function() {
                 Svg.pathToVertices = function(path, sampleLength) {
@@ -4806,7 +4806,7 @@
 
   // src/sim/phys/matter-backend.js
   var import_matter_js = __toESM(require_matter(), 1);
-  var { Common, Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector } = import_matter_js.default;
+  var { Bounds, Common, Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector, Vertices } = import_matter_js.default;
   var engine = null;
   var root = null;
   function createCircle(x, y, r, opts) {
@@ -4884,15 +4884,84 @@
   function worldGravityScale() {
     return engine.gravity.scale;
   }
+  function queryRay(from, to, opts = {}) {
+    const bodies = allBodies(opts.container);
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const span = {
+      min: { x: Math.min(from.x, to.x), y: Math.min(from.y, to.y) },
+      max: { x: Math.max(from.x, to.x), y: Math.max(from.y, to.y) }
+    };
+    let best = null;
+    for (const body of bodies) {
+      if (opts.filter && !opts.filter(body)) continue;
+      if (!Bounds.overlaps(body.bounds, span)) continue;
+      const h = segmentHit(body, from, dx, dy, span);
+      if (h && (best === null || h.t < best.t)) best = h;
+    }
+    if (!best) return null;
+    return {
+      body: best.body,
+      point: { x: from.x + dx * best.t, y: from.y + dy * best.t },
+      normal: best.normal,
+      distance: best.t * Math.hypot(dx, dy)
+    };
+  }
+  function segmentHit(body, from, dx, dy, span) {
+    const parts = body.parts;
+    let t = Infinity, normal = null;
+    for (let i = parts.length > 1 ? 1 : 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (!Bounds.overlaps(part.bounds, span)) continue;
+      if (Vertices.contains(part.vertices, from)) return { body, t: 0, normal: { x: 0, y: 0 } };
+      const vs = part.vertices;
+      for (let j = 0; j < vs.length; j++) {
+        const a = vs[j], b = vs[(j + 1) % vs.length];
+        const ex = b.x - a.x, ey = b.y - a.y;
+        const den = dx * ey - dy * ex;
+        if (den === 0) continue;
+        const wx = a.x - from.x, wy = a.y - from.y;
+        const ts = (wx * ey - wy * ex) / den;
+        if (ts < 0 || ts > 1 || ts >= t) continue;
+        const u = (dy * wx - dx * wy) / den;
+        if (u < 0 || u > 1) continue;
+        t = ts;
+        const len = Math.hypot(ex, ey) || 1;
+        let nx = ey / len, ny = -ex / len;
+        if (nx * dx + ny * dy > 0) {
+          nx = -nx;
+          ny = -ny;
+        }
+        normal = { x: nx, y: ny };
+      }
+    }
+    return t === Infinity ? null : { body, t, normal };
+  }
   function queryRegion(aabb, opts = {}) {
-    const bodies = opts.bodies ?? allBodies();
+    const bodies = allBodies(opts.container);
     const found = Query.region(bodies, aabb);
     return opts.filter ? found.filter(opts.filter) : found;
   }
-  function queryPoint(pt, opts = {}) {
-    const bodies = opts.bodies ?? allBodies();
-    const found = Query.point(bodies, pt);
-    return opts.filter ? found.filter(opts.filter) : found;
+  function queryRadius(center, r, opts = {}) {
+    const bodies = allBodies(opts.container);
+    const out = [];
+    for (const b of bodies) {
+      if (opts.filter && !opts.filter(b)) continue;
+      if (Math.hypot(b.position.x - center.x, b.position.y - center.y) <= r) out.push(b);
+    }
+    return out;
+  }
+  function queryCapsule(from, to, halfWidth, opts = {}) {
+    const bodies = allBodies(opts.container);
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const len2 = dx * dx + dy * dy;
+    const out = [];
+    for (const b of bodies) {
+      if (opts.filter && !opts.filter(b)) continue;
+      const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((b.position.x - from.x) * dx + (b.position.y - from.y) * dy) / len2));
+      const px = from.x + t * dx, py = from.y + t * dy;
+      if (Math.hypot(b.position.x - px, b.position.y - py) <= halfWidth) out.push(b);
+    }
+    return out;
   }
   function createJoint(desc) {
     return Constraint.create(desc);
@@ -4901,6 +4970,9 @@
   // src/sim/world.js
   var W = 1280;
   var H = 720;
+  function column(x0, x1 = x0) {
+    return { min: { x: x0, y: -Infinity }, max: { x: x1, y: Infinity } };
+  }
   var resetHooks = [];
   function onWorldReset(fn) {
     resetHooks.push(fn);
@@ -5658,11 +5730,11 @@
   var ENV_EVENT_CHANCE = 0.2;
   function platformSpots(m, n, rng) {
     const rr = rng ? (a, b) => a + rng() * (b - a) : rand;
-    const solids = allBodies(m.composite).filter((b) => b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 && b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
+    const solid = (x) => (b) => b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 && b.bounds.min.x > -60 && b.bounds.max.x < W + 60 && x > b.bounds.min.x + 8 && x < b.bounds.max.x - 8;
     const spots = [];
     for (let tries = 0; tries < n * 10 && spots.length < n; tries++) {
       const x = rr(90, W - 90);
-      const col = solids.filter((b) => x > b.bounds.min.x + 8 && x < b.bounds.max.x - 8);
+      const col = queryRegion(column(x), { container: m.composite, filter: solid(x) });
       if (!col.length) continue;
       const tops = col.map((b) => b.bounds.min.y).filter((y2) => y2 > 150 && y2 < H - 60);
       if (!tops.length) continue;
@@ -6217,6 +6289,7 @@
   var projectiles = /* @__PURE__ */ new Set();
   var activeEffects = [];
   var summons = /* @__PURE__ */ new Set();
+  var loose = (b) => !b.isStatic && !b.isSensor;
   function aimDir(p, speed = 20, vy = 0) {
     if (p.aimAngle != null) return { x: Math.cos(p.aimAngle), y: Math.sin(p.aimAngle) };
     const gdir = gravDirFor(p);
@@ -6227,7 +6300,14 @@
     const { x, y } = p.body.position;
     const dir = angle != null ? { x: Math.cos(angle), y: Math.sin(angle) } : aimDir(p, speed, vy);
     const spd = Math.hypot(speed, vy);
-    const fb = createCircle(x + dir.x * 28, y - 6 + dir.y * 16, r, {
+    const muzzle = { x: x + dir.x * 28, y: y - 6 + dir.y * 16 };
+    const blocked = queryRay(
+      { x, y: y - 6 },
+      muzzle,
+      { filter: (b) => b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 }
+    );
+    const spawn = blocked ? { x: blocked.point.x - dir.x * 4, y: blocked.point.y - dir.y * 4 } : muzzle;
+    const fb = createCircle(spawn.x, spawn.y, r, {
       density,
       frictionAir: 0,
       restitution,
@@ -6297,10 +6377,10 @@
     spawnParticles(x, y, "#ffb347", 26, 9);
     spawnParticles(x, y, "#ff5e57", 18, 7);
     if (power >= 18) doFlash("#ffb347", 0.12);
-    for (const body of allBodies()) {
+    for (const body of queryRadius({ x, y }, radius)) {
       const dx = body.position.x - x, dy = body.position.y - y;
       const d = Math.hypot(dx, dy);
-      if (d > radius || d === 0) continue;
+      if (d === 0) continue;
       if (body.label === "boss" && damage && owner !== "boss") {
         damageBoss(damage * (1 - d / (radius * 1.15)) * 1.2, body.position, owner);
       }
@@ -6338,14 +6418,11 @@
       dir = { x: Math.cos(a), y: Math.sin(a) };
     }
     const from = { x: p.body.position.x + dir.x * 22, y: p.body.position.y - 6 + dir.y * 14 };
-    const candidates = allBodies().filter((b) => b !== p.body && !b.isSensor && b.label !== "gib" && b.label !== "projectile" && b.collisionFilter.mask !== 0);
-    for (let d = 0; d < 1400; d += 10) {
-      const pt = { x: from.x + dir.x * d, y: from.y + dir.y * d };
-      if (pt.x < -40 || pt.x > W + 40 || pt.y < -60 || pt.y > H + 40) break;
-      const hit = queryPoint(pt, { bodies: candidates })[0];
-      if (hit) return { hit, pt, from, dir };
-    }
-    return { hit: null, pt: { x: from.x + dir.x * 1400, y: from.y + dir.y * 1400 }, from, dir };
+    const to = { x: from.x + dir.x * 1400, y: from.y + dir.y * 1400 };
+    const hit = queryRay(from, to, {
+      filter: (b) => b !== p.body && !b.isSensor && b.label !== "gib" && b.label !== "projectile" && b.collisionFilter.mask !== 0
+    });
+    return { hit: hit?.body ?? null, pt: hit?.point ?? to, from, dir };
   }
   function baseBoltVisual(x0, y0, x1, y1, color = "#fff89e", width = 3, life = 130) {
     const pts = [{ x: x0, y: y0 }];
@@ -6369,11 +6446,12 @@
     });
   }
   function groundYAt(x) {
-    const candidates = allBodies().filter((b) => b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0);
-    for (let y = 0; y < H; y += 12) {
-      if (queryPoint({ x, y }, { bodies: candidates })[0]) return y;
-    }
-    return H - 30;
+    const hit = queryRay(
+      { x, y: 0 },
+      { x, y: H },
+      { filter: (b) => b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 }
+    );
+    return hit ? hit.point.y : H - 30;
   }
   function zapHit(target, dmg, src) {
     const now = simNow();
@@ -6412,11 +6490,10 @@
       net: { k: "sing", x, y },
       update() {
         const R = 350 * (1 + (m - 1) * 0.5);
-        for (const b of allBodies()) {
-          if (b.isStatic || b.isSensor) continue;
+        for (const b of queryRadius({ x, y }, R, { filter: loose })) {
           const dx = x - b.position.x, dy = y - b.position.y;
           const d = Math.hypot(dx, dy);
-          if (d > R || d === 0) continue;
+          if (d === 0) continue;
           if (d < 30) {
             if (b.label === "player") {
               if (!(opts.selfSafe && b.player === owner)) damagePlayer(b.player, 999, owner);
@@ -6481,10 +6558,7 @@
           }
         }
         if (tickBody) {
-          for (const b of allBodies()) {
-            if (b.isStatic || b.isSensor) continue;
-            if (Math.hypot(b.position.x - x, b.position.y - y) < r) tickBody(b, now);
-          }
+          for (const b of queryRadius({ x, y }, r, { filter: loose })) tickBody(b, now);
         }
       },
       draw(now, ctx) {
@@ -6869,8 +6943,9 @@
       boltVisual(x + dir.x * 16, y - 6 + dir.y * 16, x + dir.x * 1500, y - 6 + dir.y * 1500, "#ff4df0", 5 * m, 180);
       sfx.lightning();
       doFlash("#ff4df0", 0.2);
-      for (const b of [...allBodies()]) {
-        if (b.isStatic || b.isSensor || b === p.body) continue;
+      const muzzle = { x, y: y - 6 };
+      const tip = { x: x + dir.x * 1500, y: y - 6 + dir.y * 1500 };
+      for (const b of queryCapsule(muzzle, tip, 26, { filter: (b2) => loose(b2) && b2 !== p.body })) {
         const rx = b.position.x - x, ry = b.position.y - (y - 6);
         const t = rx * dir.x + ry * dir.y;
         if (t < 0 || t > 1500) continue;
@@ -6925,8 +7000,9 @@
       sfx.lightning();
       addShake(8);
       addVelocity(p.body, { x: -dir.x * 8, y: -dir.y * 5 });
-      for (const b of allBodies()) {
-        if (b.isStatic || b.isSensor || b === p.body) continue;
+      const muzzle = { x, y: y - 6 };
+      const tip = { x: x + dir.x * 1500, y: y - 6 + dir.y * 1500 };
+      for (const b of queryCapsule(muzzle, tip, 28, { filter: (b2) => loose(b2) && b2 !== p.body })) {
         const rx = b.position.x - x, ry = b.position.y - (y - 6);
         const t = rx * dir.x + ry * dir.y;
         if (t < 0 || t > 1500) continue;
@@ -6953,11 +7029,10 @@
       const m = p.mega || 1;
       const { x, y } = p.body.position;
       spawnRing(x, y, "#c8f7f7");
-      for (const b of allBodies()) {
-        if (b.isStatic || b.isSensor || b === p.body) continue;
+      for (const b of queryRadius({ x, y }, 220 * m, { filter: (b2) => loose(b2) && b2 !== p.body })) {
         const dx = b.position.x - x, dy = b.position.y - y;
         const d = Math.hypot(dx, dy);
-        if (d > 220 * m || d === 0) continue;
+        if (d === 0) continue;
         const s = (1 - d / (220 * m)) * 20 * m;
         setVelocity(b, { x: b.velocity.x + dx / d * s, y: b.velocity.y + dy / d * s - 4 });
       }
@@ -6970,11 +7045,10 @@
     cast(p) {
       const m = p.mega || 1;
       const { x, y } = p.body.position;
-      for (const b of allBodies()) {
-        if (b.isStatic || b.isSensor || b === p.body) continue;
+      for (const b of queryRadius({ x, y }, 260 * m, { filter: (b2) => loose(b2) && b2 !== p.body })) {
         const dx = x - b.position.x, dy = y - b.position.y;
         const d = Math.hypot(dx, dy);
-        if (d > 260 * m || d === 0) continue;
+        if (d === 0) continue;
         const s = (1 - d / (260 * m)) * 16 * m;
         setVelocity(b, { x: b.velocity.x + dx / d * s, y: b.velocity.y + dy / d * s - 2 });
       }
@@ -6988,9 +7062,11 @@
     cast(p) {
       const m = p.mega || 1;
       const x = p.body.position.x;
-      for (const b of allBodies()) {
-        if (b.isStatic || b.isSensor) continue;
-        if (Math.abs(b.position.x - x) > 130 * m) continue;
+      const reach = 130 * m;
+      for (const b of queryRegion(
+        column(x - reach, x + reach),
+        { filter: (b2) => loose(b2) && Math.abs(b2.position.x - x) <= reach }
+      )) {
         addVelocity(b, { x: 0, y: -18 * m });
       }
       for (let i = 0; i < 16; i++) particles.push({ kind: "spark", x: x + rand(-100, 100), y: rand(100, H - 60), vx: 0, vy: -rand(8, 14), life: 20, maxLife: 20, color: "#e0ffff", r: 2 });
@@ -7071,10 +7147,12 @@
           e.x += e.vx;
           e.net.x = e.x;
           if (e.x < 40 || e.x > W - 40) e.vx = -e.vx;
-          for (const b of allBodies()) {
-            if (b.isStatic || b.isSensor) continue;
+          const reach = 120 * m;
+          for (const b of queryRegion(
+            column(e.x - reach, e.x + reach),
+            { filter: (b2) => loose(b2) && Math.abs(b2.position.x - e.x) <= reach }
+          )) {
             const dx = b.position.x - e.x;
-            if (Math.abs(dx) > 120 * m) continue;
             setVelocity(b, { x: b.velocity.x - Math.sign(dx) * perSecond(0.9) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.5) * m });
           }
         },
@@ -7620,18 +7698,22 @@
     cooldown: 3600,
     cast(p) {
       const m = p.mega || 1;
-      let loose = allBodies().filter((b) => !b.isStatic && !b.isSensor && b.label !== "player" && b.label !== "boss" && Math.hypot(b.position.x - p.body.position.x, b.position.y - p.body.position.y) < 520);
-      if (loose.length < 5) {
+      const props = queryRadius(
+        p.body.position,
+        520,
+        { filter: (b) => loose(b) && b.label !== "player" && b.label !== "boss" }
+      );
+      if (props.length < 5) {
         for (let i = 0; i < 6; i++) {
           const junk = createPolygon(p.body.position.x + rand(-70, 70), p.body.position.y - rand(20, 90), pick([3, 4, 5, 6]), rand(9, 16), { density: 25e-4, frictionAir: 0.01, label: "ball" });
           junk.color = "#b39ddb";
           junk.owner = p;
           summon(junk, { life: 4e3, color: "#b39ddb", contactDamage: 12 * m });
-          loose.push(junk);
+          props.push(junk);
         }
       }
       spawnRing(p.body.position.x, p.body.position.y, "#b39ddb");
-      for (const b of loose) {
+      for (const b of props) {
         const t = nearestEnemy(p, 1e9, b.position);
         if (!t) break;
         const dx = t.body.position.x - b.position.x, dy = t.body.position.y - b.position.y;
@@ -8154,11 +8236,11 @@
           e.x += e.vx;
           e.net.x = e.x;
           if (e.x < 50 || e.x > W - 50) e.vx = -e.vx;
-          for (const b of allBodies()) {
-            if (b.isStatic || b.isSensor) continue;
-            if (b.label === "player" && b.player === p) continue;
+          const reach = 110 * m;
+          for (const b of queryRegion(column(e.x - reach, e.x + reach), {
+            filter: (b2) => loose(b2) && !(b2.label === "player" && b2.player === p) && Math.abs(b2.position.x - e.x) <= reach
+          })) {
             const dx = b.position.x - e.x;
-            if (Math.abs(dx) > 110 * m) continue;
             setVelocity(b, { x: b.velocity.x - Math.sign(dx || 1) * perSecond(0.8) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.6) * m });
             if (b.label === "player" && b.player.alive) b.player.burnUntil = Math.max(b.player.burnUntil || 0, now + 900 * m);
           }
@@ -8748,10 +8830,10 @@
   }
   function tomeDropSpot() {
     const g = gravityY();
-    const solids = allBodies().filter((b) => (b.isStatic || b.label === "plank") && !b.isSensor && b.collisionFilter.mask !== 0 && b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
+    const landable = (x) => (b) => (b.isStatic || b.label === "plank") && !b.isSensor && b.collisionFilter.mask !== 0 && b.bounds.min.x > -60 && b.bounds.max.x < W + 60 && x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6;
     for (let tries = 0; tries < 24; tries++) {
       const x = rand(90, W - 90);
-      const col = solids.filter((b) => x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6);
+      const col = queryRegion(column(x), { filter: landable(x) });
       if (!col.length) continue;
       if (g >= 0) {
         const tops = col.map((b) => b.bounds.min.y).filter((y) => y > 130 && y < H - 50);
@@ -9441,7 +9523,10 @@
 
   // src/sim/player/lifecycle.js
   function groundInColumn(x) {
-    return allBodies(currentMap.composite).some((b) => b.isStatic && !b.isSensor && b.label !== "lava" && b.collisionFilter.mask !== 0 && x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6 && b.bounds.min.y > 100);
+    return queryRegion(column(x), {
+      container: currentMap.composite,
+      filter: (b) => b.isStatic && !b.isSensor && b.label !== "lava" && b.collisionFilter.mask !== 0 && x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6 && b.bounds.min.y > 100
+    }).length > 0;
   }
   function spawnPointFor(p) {
     const spawns = currentMap.def.spawns;
@@ -9664,11 +9749,10 @@
         const range = 240 * m;
         const { x, y } = p.body.position;
         const dir = aimDir(p, 1, 0);
-        for (const b of allBodies()) {
-          if (b.isStatic || b === p.body || b.isSensor) continue;
+        for (const b of queryRadius({ x, y }, range, { filter: (b2) => loose(b2) && b2 !== p.body })) {
           const dx = b.position.x - x, dy = b.position.y - y;
           const d = Math.hypot(dx, dy);
-          if (d > range || d === 0) continue;
+          if (d === 0) continue;
           if ((dx * dir.x + dy * dir.y) / d < 0.55) continue;
           const s = 1 - d / range;
           if (b.label === "projectile") {

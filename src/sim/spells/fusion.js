@@ -8,9 +8,9 @@
 // Content file: moved verbatim from js/hybrids.js. The only edits are the module
 // header below and the effect draw() closures, which now take the render surface
 // as an argument instead of reaching for a global ctx.
-import { W, H } from '../world.js';
+import { W, H, column } from '../world.js';
 import {
-  addVelocity, allBodies, createBox, setFrictionAir, setPosition,
+  addVelocity, createBox, queryRegion, setFrictionAir, setPosition,
   setVelocity,
 } from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
@@ -28,7 +28,7 @@ import { SPELLS } from './registry.js';
 import {
   projectiles, activeEffects, aimDir, shoot, dropProjectile, summon,
   enemiesOf, nearestEnemy, explode, boltVisual, groundYAt, skyBolt,
-  spawnSingularity, hybridCharges,
+  spawnSingularity, hybridCharges, loose,
 } from './core.js';
 import { boomBolt, statusBolt, zapRay, frontPos } from './book.js';
 
@@ -240,11 +240,12 @@ regHybrid('firestorm', {
         e.x += e.vx;
         e.net.x = e.x;
         if (e.x < 50 || e.x > W - 50) e.vx = -e.vx;
-        for (const b of allBodies()) {
-          if (b.isStatic || b.isSensor) continue;
-          if (b.label === 'player' && b.player === p) continue; // never eats the caster
+        const reach = 110 * m;
+        for (const b of queryRegion(column(e.x - reach, e.x + reach), {
+          filter: (b) => loose(b) && !(b.label === 'player' && b.player === p) // never eats the caster
+            && Math.abs(b.position.x - e.x) <= reach,
+        })) {
           const dx = b.position.x - e.x;
-          if (Math.abs(dx) > 110 * m) continue;
           // the rand() term scales linearly like the rest, which is not the
           // variance-preserving form for a random walk — see the note on the
           // tornado in spells/book.js. Inert while TICK_HZ is 60.

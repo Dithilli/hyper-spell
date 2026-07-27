@@ -2,9 +2,9 @@
 // and announced with a banner just after FIGHT!. All physics runs host-side;
 // visuals reach LAN clients and the killcam through the snapshot's `ev` field
 // (drawn in src/render/draw-env.js).
-import { W, H } from './world.js';
+import { W, H, column } from './world.js';
 import {
-  addTo, addVelocity, allBodies, createBox, createCircle, gravityY,
+  addTo, addVelocity, allBodies, createBox, createCircle, gravityY, queryRegion,
   removeFrom, setFriction, setGravityY, setRestitution, setVelocity,
 } from './phys/facade.js';
 import { simRandom, rand, pick } from './rng.js';
@@ -24,13 +24,14 @@ export const ENV_EVENT_CHANCE = 0.20; // one round in five
 // Pass a seeded rng when the result must match across host & LAN clients.
 export function platformSpots(m, n, rng) {
   const rr = rng ? (a, b) => a + rng() * (b - a) : rand;
-  const solids = allBodies(m.composite).filter(b =>
+  const solid = (x) => (b) =>
     b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 &&
-    b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
+    b.bounds.min.x > -60 && b.bounds.max.x < W + 60 &&
+    x > b.bounds.min.x + 8 && x < b.bounds.max.x - 8;
   const spots = [];
   for (let tries = 0; tries < n * 10 && spots.length < n; tries++) {
     const x = rr(90, W - 90);
-    const col = solids.filter(b => x > b.bounds.min.x + 8 && x < b.bounds.max.x - 8);
+    const col = queryRegion(column(x), { container: m.composite, filter: solid(x) });
     if (!col.length) continue;
     const tops = col.map(b => b.bounds.min.y).filter(y => y > 150 && y < H - 60);
     if (!tops.length) continue;

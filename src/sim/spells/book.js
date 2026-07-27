@@ -3,11 +3,11 @@
 // Content file: moved verbatim from js/spellbook.js. The only edits are the
 // module header below and the effect draw() closures, which now take the render
 // surface as an argument instead of reaching for a global ctx.
-import { W, H } from '../world.js';
+import { W, H, column } from '../world.js';
 import {
   addVelocity, allBodies, createBox, createCircle, createPolygon, gravityY,
-  removeBody, setAngularVelocity, setFrictionAir, setGravityY, setPosition,
-  setType, setVelocity,
+  queryCapsule, queryRadius, queryRegion, removeBody, setAngularVelocity,
+  setFrictionAir, setGravityY, setPosition, setType, setVelocity,
 } from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
 import { simRandom, rand, pick } from '../rng.js';
@@ -22,7 +22,7 @@ import { tomes, hats } from '../pickups.js';
 import { damageBoss } from '../ai/boss.js';
 import { SPELLS } from './registry.js';
 import {
-  projectiles, summons, activeEffects, aimDir, shoot, dropProjectile, removeProjectile, summon, enemiesOf, nearestEnemy, explode, raycastHit, boltVisual, groundYAt, zapHit, skyBolt, makeZone,
+  projectiles, summons, activeEffects, aimDir, shoot, dropProjectile, removeProjectile, summon, enemiesOf, nearestEnemy, explode, raycastHit, boltVisual, groundYAt, zapHit, skyBolt, makeZone, loose,
 } from './core.js';
 
 // filled here, merged into SPELLS by src/sim/content.js
@@ -305,8 +305,12 @@ regSpell('disintegrate', {
     boltVisual(x + dir.x * 16, y - 6 + dir.y * 16, x + dir.x * 1500, y - 6 + dir.y * 1500, '#ff4df0', 5 * m, 180);
     sfx.lightning();
     doFlash('#ff4df0', 0.2);
-    for (const b of [...allBodies()]) {
-      if (b.isStatic || b.isSensor || b === p.body) continue;
+    // the beam is a 1500px segment 26px to either side. queryCapsule rounds off
+    // the two ends, so it is the coarse pass and the exact rectangle — t within
+    // the beam's length, |perpendicular| within its half-width — still decides.
+    const muzzle = { x, y: y - 6 };
+    const tip = { x: x + dir.x * 1500, y: y - 6 + dir.y * 1500 };
+    for (const b of queryCapsule(muzzle, tip, 26, { filter: (b) => loose(b) && b !== p.body })) {
       const rx = b.position.x - x, ry = b.position.y - (y - 6);
       const t = rx * dir.x + ry * dir.y;
       if (t < 0 || t > 1500) continue;
@@ -343,8 +347,9 @@ regSpell('railgun', {
     sfx.lightning();
     addShake(8);
     addVelocity(p.body, { x: -dir.x * 8, y: -dir.y * 5 });
-    for (const b of allBodies()) {
-      if (b.isStatic || b.isSensor || b === p.body) continue;
+    const muzzle = { x, y: y - 6 };
+    const tip = { x: x + dir.x * 1500, y: y - 6 + dir.y * 1500 };
+    for (const b of queryCapsule(muzzle, tip, 28, { filter: (b) => loose(b) && b !== p.body })) {
       const rx = b.position.x - x, ry = b.position.y - (y - 6);
       const t = rx * dir.x + ry * dir.y;
       if (t < 0 || t > 1500) continue;
@@ -363,11 +368,10 @@ regSpell('cyclone', {
     const m = p.mega || 1;
     const { x, y } = p.body.position;
     spawnRing(x, y, '#c8f7f7');
-    for (const b of allBodies()) {
-      if (b.isStatic || b.isSensor || b === p.body) continue;
+    for (const b of queryRadius({ x, y }, 220 * m, { filter: (b) => loose(b) && b !== p.body })) {
       const dx = b.position.x - x, dy = b.position.y - y;
       const d = Math.hypot(dx, dy);
-      if (d > 220 * m || d === 0) continue;
+      if (d === 0) continue;
       const s = (1 - d / (220 * m)) * 20 * m;
       setVelocity(b, { x: b.velocity.x + (dx / d) * s, y: b.velocity.y + (dy / d) * s - 4 });
     }
@@ -378,11 +382,10 @@ regSpell('vortexpull', {
   cast(p) {
     const m = p.mega || 1;
     const { x, y } = p.body.position;
-    for (const b of allBodies()) {
-      if (b.isStatic || b.isSensor || b === p.body) continue;
+    for (const b of queryRadius({ x, y }, 260 * m, { filter: (b) => loose(b) && b !== p.body })) {
       const dx = x - b.position.x, dy = y - b.position.y;
       const d = Math.hypot(dx, dy);
-      if (d > 260 * m || d === 0) continue;
+      if (d === 0) continue;
       const s = (1 - d / (260 * m)) * 16 * m;
       setVelocity(b, { x: b.velocity.x + (dx / d) * s, y: b.velocity.y + (dy / d) * s - 2 });
     }
@@ -394,9 +397,10 @@ regSpell('updraft', {
   cast(p) {
     const m = p.mega || 1;
     const x = p.body.position.x;
-    for (const b of allBodies()) {
-      if (b.isStatic || b.isSensor) continue;
-      if (Math.abs(b.position.x - x) > 130 * m) continue;
+    // a full-height column: the region narrows it, the centre test decides it
+    const reach = 130 * m;
+    for (const b of queryRegion(column(x - reach, x + reach),
+      { filter: (b) => loose(b) && Math.abs(b.position.x - x) <= reach })) {
       addVelocity(b, { x: 0, y: -18 * m });
     }
     for (let i = 0; i < 16; i++) particles.push({ kind: 'spark', x: x + rand(-100, 100), y: rand(100, H - 60), vx: 0, vy: -rand(8, 14), life: 20, maxLife: 20, color: '#e0ffff', r: 2 });
@@ -464,10 +468,10 @@ regSpell('tornado', {
         e.x += e.vx;
         e.net.x = e.x;
         if (e.x < 40 || e.x > W - 40) e.vx = -e.vx;
-        for (const b of allBodies()) {
-          if (b.isStatic || b.isSensor) continue;
+        const reach = 120 * m;
+        for (const b of queryRegion(column(e.x - reach, e.x + reach),
+          { filter: (b) => loose(b) && Math.abs(b.position.x - e.x) <= reach })) {
           const dx = b.position.x - e.x;
-          if (Math.abs(dx) > 120 * m) continue;
           // NOTE: linear scaling is exactly right for the deterministic lift, but
           // only approximately right for the rand() noise, which accumulates as a
           // random walk — halving the amplitude while doubling the tick count
@@ -887,18 +891,18 @@ regSpell('poltergeist', {
   cast(p) {
     const m = p.mega || 1;
     // gather loose props near the caster; if the arena is bare, conjure some so it always erupts
-    let loose = allBodies().filter(b => !b.isStatic && !b.isSensor && b.label !== 'player' && b.label !== 'boss'
-      && Math.hypot(b.position.x - p.body.position.x, b.position.y - p.body.position.y) < 520);
-    if (loose.length < 5) {
+    const props = queryRadius(p.body.position, 520,
+      { filter: (b) => loose(b) && b.label !== 'player' && b.label !== 'boss' });
+    if (props.length < 5) {
       for (let i = 0; i < 6; i++) {
         const junk = createPolygon(p.body.position.x + rand(-70, 70), p.body.position.y - rand(20, 90), pick([3, 4, 5, 6]), rand(9, 16), { density: 0.0025, frictionAir: 0.01, label: 'ball' });
         junk.color = '#b39ddb'; junk.owner = p;
         summon(junk, { life: 4000, color: '#b39ddb', contactDamage: 12 * m });
-        loose.push(junk);
+        props.push(junk);
       }
     }
     spawnRing(p.body.position.x, p.body.position.y, '#b39ddb');
-    for (const b of loose) {
+    for (const b of props) {
       const t = nearestEnemy(p, 1e9, b.position);
       if (!t) break;
       const dx = t.body.position.x - b.position.x, dy = t.body.position.y - b.position.y;

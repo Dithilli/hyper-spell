@@ -56,7 +56,7 @@ Flipping any single row's class makes it fail. Here is the account.
 
 **The re-read found one real misclassification**, and it is recorded rather than
 quietly corrected because it shows what the audit was for:
-`src/sim/spells/starters.js:44`, Gust hitting an in-flight bolt. The write is
+`src/sim/spells/starters.js:43`, Gust hitting an in-flight bolt. The write is
 `{ x: dir.x * spd, y: dir.y * spd }`, which reads as a launch — but `spd` is
 `Math.hypot(b.velocity.x, b.velocity.y)`, computed two lines above. Gust
 *redirects* a bolt at its existing speed; that is a push. First pass called it
@@ -99,13 +99,13 @@ of Shove.
 - `src/sim/ai/boss.js:72` — Boss slam shockwave throws the player at a stated velocity.
 - `src/sim/ai/boss.js:214` — Tentacle punt: the player is thrown at a stated velocity.
 - `src/sim/ai/enemies.js:60` — Contact shove throws the target at a stated velocity.
-- `src/sim/spells/book.js:449` — Yank: the target is given a stated velocity toward the caster.
-- `src/sim/spells/book.js:613` — Dash: the caster's velocity is replaced outright.
-- `src/sim/spells/book.js:906` — Vacuum: the target is given a stated velocity toward the caster.
-- `src/sim/spells/book.js:1011` — Grapple: a stated velocity toward the anchor.
-- `src/sim/spells/book.js:1019` — Hook: a stated velocity toward the caster.
-- `src/sim/spells/fusion.js:522` — Repulse: a position-derived velocity, stated outright.
-- `src/sim/spells/fusion.js:628` — Scatter: a stated velocity on a random heading.
+- `src/sim/spells/book.js:453` — Yank: the target is given a stated velocity toward the caster.
+- `src/sim/spells/book.js:617` — Dash: the caster's velocity is replaced outright.
+- `src/sim/spells/book.js:910` — Vacuum: the target is given a stated velocity toward the caster.
+- `src/sim/spells/book.js:1015` — Grapple: a stated velocity toward the anchor.
+- `src/sim/spells/book.js:1023` — Hook: a stated velocity toward the caster.
+- `src/sim/spells/fusion.js:523` — Repulse: a position-derived velocity, stated outright.
+- `src/sim/spells/fusion.js:629` — Scatter: a stated velocity on a random heading.
 
 **This does not weaken the task's central finding.** Every one of the 12 is
 *already* mass-independent — no expression in any of them divides by `b.mass` —
@@ -207,18 +207,18 @@ The obvious workaround does not work either: two sequential `addVelocity` calls
 *look* like they preserve the association, and do not, because each one goes
 through the position round-trip above.
 
-- `src/sim/spells/starters.js:47`
-- `src/sim/spells/starters.js:49`
-- `src/sim/spells/starters.js:67`
-- `src/sim/player/ghost.js:126`
+- `src/sim/spells/starters.js:46`
+- `src/sim/spells/starters.js:48`
+- `src/sim/spells/starters.js:66`
+- `src/sim/player/ghost.js:124`
 - `src/sim/spells/book.js:65`
-- `src/sim/spells/book.js:352`
-- `src/sim/spells/book.js:372`
-- `src/sim/spells/book.js:387`
-- `src/sim/spells/book.js:479`
-- `src/sim/spells/fusion.js:251`
-- `src/sim/spells/core.js:129`
-- `src/sim/spells/core.js:256`
+- `src/sim/spells/book.js:357`
+- `src/sim/spells/book.js:376`
+- `src/sim/spells/book.js:390`
+- `src/sim/spells/book.js:483`
+- `src/sim/spells/fusion.js:252`
+- `src/sim/spells/core.js:145`
+- `src/sim/spells/core.js:274`
 
 ## Two traps in task 9's direct path
 
@@ -254,19 +254,19 @@ notice is one nobody has written.
 | `src/sim/player/combat.js:50` | **override** | absolute | `setVelocity` | Gib spawn. The hat is new and has no velocity of its own; it inherits half the caster's x. Reading another body's velocity is not reading your own. |
 | `src/sim/player/combat.js:72` | **override** | absolute | `setVelocity` | Gib spawn: a fresh body is thrown at a randomised velocity. |
 | `src/sim/spells/starters.js:25` | **push** | additive | `addVelocity` | Blast recoil on the caster: velocity minus a facing-scaled kick. |
-| `src/sim/spells/starters.js:44` | **push** | blended | `setVelocity` | Gust REDIRECTS an in-flight bolt: `spd = Math.hypot(b.velocity.x, b.velocity.y)` two lines up, then the same speed on a new heading. Reads its own velocity — a push, not a launch. Classified override on first pass; the read is off-line, which is exactly why the audit had to look past the write itself. |
-| `src/sim/spells/starters.js:47` | **push** | additive | `setVelocity` ¹ | Gust shoves whatever it catches. The mass-independent push, verbatim. |
-| `src/sim/spells/starters.js:49` | **push** | additive | `setVelocity` ¹ | Gust self-recoil on the caster. |
-| `src/sim/spells/starters.js:67` | **push** | additive | `setVelocity` ¹ | Melee knockback added to the victim's motion. |
+| `src/sim/spells/starters.js:43` | **push** | blended | `setVelocity` | Gust REDIRECTS an in-flight bolt: `spd = Math.hypot(b.velocity.x, b.velocity.y)` two lines up, then the same speed on a new heading. Reads its own velocity — a push, not a launch. Classified override on first pass; the read is off-line, which is exactly why the audit had to look past the write itself. |
+| `src/sim/spells/starters.js:46` | **push** | additive | `setVelocity` ¹ | Gust shoves whatever it catches. The mass-independent push, verbatim. |
+| `src/sim/spells/starters.js:48` | **push** | additive | `setVelocity` ¹ | Gust self-recoil on the caster. |
+| `src/sim/spells/starters.js:66` | **push** | additive | `setVelocity` ¹ | Melee knockback added to the victim's motion. |
 | `src/sim/tick.js:63` | **override** | absolute | `setVelocity` | Critter hop: the AI states the whole velocity each hop. |
 | `src/sim/tick.js:69` | **push** | axis | `setVelocity` | Saw drive: x is pinned to a constant travel speed, y is left to physics. Not expressible as a delta; stays setVelocity. |
 | `src/sim/player/ghost.js:33` | **override** | absolute | `setVelocity` | Poltergeist release — "a toss, not a throw" states the whole velocity. |
 | `src/sim/player/ghost.js:36` | **override** | absolute | `setVelocity` | Poltergeist carry: a position-derived spring velocity, clamped. Nothing of the prop's own motion survives. |
-| `src/sim/player/ghost.js:126` | **push** | additive | `setVelocity` ¹ | Wisp gust on nearby bodies. |
+| `src/sim/player/ghost.js:124` | **push** | additive | `setVelocity` ¹ | Wisp gust on nearby bodies. |
 | `src/sim/player/controller.js:130` | **controller** | blended | `setVelocity` → `setControlVelocity` (phase 3) | Movement blend: x eased toward the walk target, y untouched. Phase 3 gives this its own setControlVelocity so a character controller can own it. |
 | `src/sim/player/controller.js:137` | **controller** | axis | `setVelocity` → `setControlVelocity` (phase 3) | Jump: y set outright, x preserved. Same owner as the blend above. |
 | `src/sim/player/controller.js:142` | **controller** | axis | `setVelocity` → `setControlVelocity` (phase 3) | Air jump: y set outright, x preserved. |
-| `src/sim/player/lifecycle.js:114` | **override** | absolute | `setVelocity` | spawnPlayer — brief rule 5. A respawn must not inherit the corpse's momentum. |
+| `src/sim/player/lifecycle.js:116` | **override** | absolute | `setVelocity` | spawnPlayer — brief rule 5. A respawn must not inherit the corpse's momentum. |
 | `src/sim/collision.js:32` | **push** | blended | `setVelocity` | Reflect: the bolt's own velocity is negated and damped. Reads the current velocity, so it is a push, but the sign flip means it cannot be a delta. |
 | `src/sim/collision.js:61` | **push** | blended | `setVelocity` | Banana slip: x amplified 1.5x, y kicked up. The x scaling keeps it out of addVelocity. |
 | `src/sim/collision.js:74` | **push** | axis | `setVelocity` | Stomp — the victim is driven down at a fixed speed, x preserved. |
@@ -274,8 +274,8 @@ notice is one nobody has written.
 | `src/sim/collision.js:83` | **push** | axis | `setVelocity` | Trampoline fling: a fixed launch speed, horizontal motion preserved. |
 | `src/sim/collision.js:101` | **push** | axis | `setVelocity` | Spikes: a fixed pop upward, horizontal motion preserved. |
 | `src/sim/collision.js:106` | **push** | axis | `setVelocity` | Bosses shrug off lava with a fixed upward pop. |
-| `src/sim/events.js:128` | **push** | additive | `addVelocity` | Windstorm event: a per-second push on every loose body. |
-| `src/sim/events.js:152` | **override** | absolute | `setVelocity` | Critter spawn at the arena edge. |
+| `src/sim/events.js:129` | **push** | additive | `addVelocity` | Windstorm event: a per-second push on every loose body. |
+| `src/sim/events.js:153` | **override** | absolute | `setVelocity` | Critter spawn at the arena edge. |
 | `src/sim/ai/boss.js:52` | **override** | absolute | `setVelocity` | Boss projectile launch. |
 | `src/sim/ai/boss.js:72` | **override** | absolute | `setVelocity` | Boss slam shockwave throws the player at a stated velocity. |
 | `src/sim/ai/boss.js:90` | **push** | blended | `setVelocity` | Flier chase: 0.92 damping plus a steering term. Damping is a scale, not a delta. |
@@ -309,46 +309,46 @@ notice is one nobody has written.
 | `src/sim/spells/book.js:146` | **push** | axis | `setVelocity` | Wobble Hex: y is a sine of time, x preserved. |
 | `src/sim/spells/book.js:222` | **push** | additive | `addVelocity` | Cannon recoil on the caster. |
 | `src/sim/spells/book.js:267` | **push** | additive | `addVelocity` | Chain lightning knockback. |
-| `src/sim/spells/book.js:345` | **push** | additive | `addVelocity` | Recoil on the caster. |
-| `src/sim/spells/book.js:352` | **push** | additive | `setVelocity` ¹ | Directional blast on everything in range. |
-| `src/sim/spells/book.js:359` | **push** | additive | `addVelocity` | Shove — the canonical mass-independent push. An anvil goes as far as a wizard. |
-| `src/sim/spells/book.js:372` | **push** | additive | `setVelocity` ¹ | Radial pull. |
-| `src/sim/spells/book.js:387` | **push** | additive | `setVelocity` ¹ | Radial pull, weaker variant. |
-| `src/sim/spells/book.js:400` | **push** | additive | `addVelocity` | Uppercut: pure upward delta, x untouched (dx = 0). |
-| `src/sim/spells/book.js:409` | **push** | axis | `setVelocity` | Ground pound: y slammed to a fixed speed, x preserved. |
-| `src/sim/spells/book.js:437` | **push** | additive | `addVelocity` | Sustained per-second attraction field. |
-| `src/sim/spells/book.js:449` | **override** | absolute | `setVelocity` | Yank: the target is given a stated velocity toward the caster. |
-| `src/sim/spells/book.js:479` | **push** | additive | `setVelocity` ¹ | Per-second storm push. |
-| `src/sim/spells/book.js:562` | **override** | absolute | `setVelocity` | Icicle spawn drop. |
-| `src/sim/spells/book.js:613` | **override** | absolute | `setVelocity` | Dash: the caster's velocity is replaced outright. |
-| `src/sim/spells/book.js:647` | **push** | blended | `setVelocity` | Seeker steering with damping. |
-| `src/sim/spells/book.js:672` | **push** | axis | `setVelocity` | Launch: y stated, x preserved. |
-| `src/sim/spells/book.js:717` | **override** | absolute | `setVelocity` | Crate Drop spawn — crates fall fast from a stated velocity. |
-| `src/sim/spells/book.js:751` | **override** | absolute | `setVelocity` | Bouncy ball spawn. |
-| `src/sim/spells/book.js:782` | **override** | absolute | `setVelocity` | Decoy spawn. |
-| `src/sim/spells/book.js:807` | **push** | blended | `setVelocity` | Bee steering with damping. |
-| `src/sim/spells/book.js:832` | **override** | absolute | `setVelocity` | Saw spawn. |
-| `src/sim/spells/book.js:881` | **push** | additive | `addVelocity` | Chaos scatter: a randomised push on everything loose. |
-| `src/sim/spells/book.js:906` | **override** | absolute | `setVelocity` | Vacuum: the target is given a stated velocity toward the caster. |
-| `src/sim/spells/book.js:929` | **override** | absolute | `setVelocity` | swaphex/teleport reset — brief rule 5. The arriving body starts at rest. |
-| `src/sim/spells/book.js:961` | **push** | additive | `addVelocity` | Melee knockback. |
-| `src/sim/spells/book.js:1011` | **override** | absolute | `setVelocity` | Grapple: a stated velocity toward the anchor. |
-| `src/sim/spells/book.js:1019` | **override** | absolute | `setVelocity` | Hook: a stated velocity toward the caster. |
-| `src/sim/spells/book.js:1034` | **push** | axis | `setVelocity` | Pop up: y stated, x preserved. |
-| `src/sim/spells/book.js:1045` | **push** | axis | `setVelocity` | Slam down: y stated, x preserved. |
-| `src/sim/spells/fusion.js:251` | **push** | additive | `setVelocity` ¹ | Per-second storm push. |
-| `src/sim/spells/fusion.js:280` | **push** | additive | `addVelocity` | Freeze shove. |
-| `src/sim/spells/fusion.js:353` | **push** | additive | `addVelocity` | Recoil on the caster. |
-| `src/sim/spells/fusion.js:404` | **push** | axis | `setVelocity` | Blast: x added to, y stated outright. |
-| `src/sim/spells/fusion.js:512` | **push** | additive | `addVelocity` | Reversal shove. |
-| `src/sim/spells/fusion.js:522` | **override** | absolute | `setVelocity` | Repulse: a position-derived velocity, stated outright. |
-| `src/sim/spells/fusion.js:535` | **push** | additive | `addVelocity` | Heavy shove. |
-| `src/sim/spells/fusion.js:582` | **push** | axis | `setVelocity` | Floaty: y stated, x preserved. |
-| `src/sim/spells/fusion.js:628` | **override** | absolute | `setVelocity` | Scatter: a stated velocity on a random heading. |
-| `src/sim/spells/core.js:56` | **override** | absolute | `setVelocity` | Bolt launch — the muzzle velocity. |
-| `src/sim/spells/core.js:69` | **override** | absolute | `setVelocity` | Bolt launch — the muzzle velocity, gravity-flip aware. |
-| `src/sim/spells/core.js:129` | **push** | additive | `setVelocity` ¹ | explode() — the single most-used push in the game. Mass-independent so a blast reads the same whatever it catches. |
-| `src/sim/spells/core.js:256` | **push** | additive | `setVelocity` ¹ | Singularity: a per-second radial pull plus a tangential term. |
+| `src/sim/spells/book.js:349` | **push** | additive | `addVelocity` | Recoil on the caster. |
+| `src/sim/spells/book.js:357` | **push** | additive | `setVelocity` ¹ | Directional blast on everything in range. |
+| `src/sim/spells/book.js:364` | **push** | additive | `addVelocity` | Shove — the canonical mass-independent push. An anvil goes as far as a wizard. |
+| `src/sim/spells/book.js:376` | **push** | additive | `setVelocity` ¹ | Radial pull. |
+| `src/sim/spells/book.js:390` | **push** | additive | `setVelocity` ¹ | Radial pull, weaker variant. |
+| `src/sim/spells/book.js:404` | **push** | additive | `addVelocity` | Uppercut: pure upward delta, x untouched (dx = 0). |
+| `src/sim/spells/book.js:413` | **push** | axis | `setVelocity` | Ground pound: y slammed to a fixed speed, x preserved. |
+| `src/sim/spells/book.js:441` | **push** | additive | `addVelocity` | Sustained per-second attraction field. |
+| `src/sim/spells/book.js:453` | **override** | absolute | `setVelocity` | Yank: the target is given a stated velocity toward the caster. |
+| `src/sim/spells/book.js:483` | **push** | additive | `setVelocity` ¹ | Per-second storm push. |
+| `src/sim/spells/book.js:566` | **override** | absolute | `setVelocity` | Icicle spawn drop. |
+| `src/sim/spells/book.js:617` | **override** | absolute | `setVelocity` | Dash: the caster's velocity is replaced outright. |
+| `src/sim/spells/book.js:651` | **push** | blended | `setVelocity` | Seeker steering with damping. |
+| `src/sim/spells/book.js:676` | **push** | axis | `setVelocity` | Launch: y stated, x preserved. |
+| `src/sim/spells/book.js:721` | **override** | absolute | `setVelocity` | Crate Drop spawn — crates fall fast from a stated velocity. |
+| `src/sim/spells/book.js:755` | **override** | absolute | `setVelocity` | Bouncy ball spawn. |
+| `src/sim/spells/book.js:786` | **override** | absolute | `setVelocity` | Decoy spawn. |
+| `src/sim/spells/book.js:811` | **push** | blended | `setVelocity` | Bee steering with damping. |
+| `src/sim/spells/book.js:836` | **override** | absolute | `setVelocity` | Saw spawn. |
+| `src/sim/spells/book.js:885` | **push** | additive | `addVelocity` | Chaos scatter: a randomised push on everything loose. |
+| `src/sim/spells/book.js:910` | **override** | absolute | `setVelocity` | Vacuum: the target is given a stated velocity toward the caster. |
+| `src/sim/spells/book.js:933` | **override** | absolute | `setVelocity` | swaphex/teleport reset — brief rule 5. The arriving body starts at rest. |
+| `src/sim/spells/book.js:965` | **push** | additive | `addVelocity` | Melee knockback. |
+| `src/sim/spells/book.js:1015` | **override** | absolute | `setVelocity` | Grapple: a stated velocity toward the anchor. |
+| `src/sim/spells/book.js:1023` | **override** | absolute | `setVelocity` | Hook: a stated velocity toward the caster. |
+| `src/sim/spells/book.js:1038` | **push** | axis | `setVelocity` | Pop up: y stated, x preserved. |
+| `src/sim/spells/book.js:1049` | **push** | axis | `setVelocity` | Slam down: y stated, x preserved. |
+| `src/sim/spells/fusion.js:252` | **push** | additive | `setVelocity` ¹ | Per-second storm push. |
+| `src/sim/spells/fusion.js:281` | **push** | additive | `addVelocity` | Freeze shove. |
+| `src/sim/spells/fusion.js:354` | **push** | additive | `addVelocity` | Recoil on the caster. |
+| `src/sim/spells/fusion.js:405` | **push** | axis | `setVelocity` | Blast: x added to, y stated outright. |
+| `src/sim/spells/fusion.js:513` | **push** | additive | `addVelocity` | Reversal shove. |
+| `src/sim/spells/fusion.js:523` | **override** | absolute | `setVelocity` | Repulse: a position-derived velocity, stated outright. |
+| `src/sim/spells/fusion.js:536` | **push** | additive | `addVelocity` | Heavy shove. |
+| `src/sim/spells/fusion.js:583` | **push** | axis | `setVelocity` | Floaty: y stated, x preserved. |
+| `src/sim/spells/fusion.js:629` | **override** | absolute | `setVelocity` | Scatter: a stated velocity on a random heading. |
+| `src/sim/spells/core.js:72` | **override** | absolute | `setVelocity` | Bolt launch — the muzzle velocity. |
+| `src/sim/spells/core.js:85` | **override** | absolute | `setVelocity` | Bolt launch — the muzzle velocity, gravity-flip aware. |
+| `src/sim/spells/core.js:145` | **push** | additive | `setVelocity` ¹ | explode() — the single most-used push in the game. Mass-independent so a blast reads the same whatever it catches. |
+| `src/sim/spells/core.js:274` | **push** | additive | `setVelocity` ¹ | Singularity: a per-second radial pull plus a tangential term. |
 | `src/sim/maps/book.js:98` | **push** | additive | `addVelocity` | Updraft Canyon: a per-second lift, x untouched (dx = 0). |
 | `src/sim/maps/book.js:112` | **override** | blended | `setVelocity` | Conveyor — brief rule 4. It clamps to ±9, so the result is not the old velocity plus anything; the belt states what the velocity is allowed to be. |
 | `src/sim/maps/book.js:114` | **override** | blended | `setVelocity` | Conveyor (Assembly Line) — brief rule 4, clamps. |
