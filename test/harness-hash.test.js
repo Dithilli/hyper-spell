@@ -27,10 +27,13 @@ const perturbed = (snap, mutate) => {
 
 // A snapshot carrying every field src/sim/snapshot.js can emit, including the ones a
 // quiet single-round tape never populates (polygon/vertex bodies, critter and
-// decoy and boss summons, phantom/spin statics, fusion charges, segs, fxLite).
+// decoy and boss summons, phantom/spin statics, fusion charges, segs, fxLite),
+// plus `rp` — the killcam flag src/net/server-bridge.js stamps on a replay
+// frame. The digest is key-driven so it always covered rp; this fixture could
+// not see it until a tape triggered a death, which the three-round tape does.
 const richSnapshot = () => ({
   t: 'snap', v: '9.0.0',
-  st: 'PLAY', mi: 3, rn: 1, wr: null, msd: 1712576105, lv: 640, wn: 3,
+  st: 'PLAY', mi: 3, rn: 1, wr: null, msd: 1712576105, lv: 640, wn: 3, rp: 1,
   md: 'wave', bw: 4, ev: 'quake', bd: [2, 7], aw: { mvp: 0 }, sr: { bolt: 3 },
   bs: { n: 'THE MAW', c: '#ff4d4d', hp: 400, mhp: 900 },
   segs: [[0, 10, 20, 30, 40], [1, 50, 60, 70, 80]],
@@ -92,36 +95,73 @@ test('every snapshot field is hashed unless it is on the documented ignore-list'
   }
 });
 
-test('the live snapshot carries no field the digest is blind to', () => {
-  // The check above proves the rule against a hand-written snapshot; this one
-  // proves the hand-written snapshot has not drifted from what the sim emits.
-  const tape = JSON.parse(readFileSync('test/tape/one-round.input.json', 'utf8'));
+// The check above proves the rule against a hand-written snapshot; this one
+// proves the hand-written snapshot has not drifted from what the sim emits.
+// Both tapes, because they populate disjoint parts of the wire: the short one
+// is a quiet single round, and the long one crosses round boundaries, so it is
+// the only one that reaches ROUND_END, a winner, and the killcam's `rp`.
+for (const [name, file, ticks] of [
+  ['a single quiet round', 'test/tape/one-round.input.json', 300],
+  ['a run that crosses round boundaries', 'test/tape/three-rounds.input.json', 4200],
+]) {
+  test(`the live snapshot carries no field the digest is blind to — ${name}`, () => {
+    const tape = JSON.parse(readFileSync(file, 'utf8'));
+    const clock = makeClock(0);
+    reseed(12345); // the sim owns its stream — seed it before createSim's loadMap(0) draws
+    const sim = createSim({ clock });
+    const bridge = sim.bridge;
+    try {
+      const slots = tape.players.map((p) => bridge.addPlayer({ name: p.name }));
+      bridge.start();
+      const seenTop = new Set(), seenPs = new Set(), seenBody = new Set();
+      for (let i = 0; i < ticks; i++) {
+        const frame = tape.frames[Math.min(i, tape.frames.length - 1)];
+        for (const slot of slots) {
+          const msg = frame?.[String(slot)];
+          if (msg) bridge.setInput(slot, msg);
+        }
+        bridge.stepSim();
+        clock.advance(1000 / 60); // keeps the env clock alongside simNow() — see test/harness/tape.js
+        const snap = bridge.takeWireSnapshot();
+        for (const k of Object.keys(snap)) seenTop.add(k);
+        for (const p of snap.ps) for (const k of Object.keys(p)) if (p[k] !== undefined) seenPs.add(k);
+        for (const b of snap.bodies) for (const k of Object.keys(b)) if (b[k] !== undefined) seenBody.add(k);
+      }
+      const known = richSnapshot();
+      const knownBody = new Set(known.bodies.flatMap(Object.keys));
+      for (const k of seenTop) assert.ok(k in known, `live snapshot grew field '${k}' — add it to richSnapshot()`);
+      for (const k of seenPs) assert.ok(k in known.ps[0], `live ps[] grew field '${k}' — add it to richSnapshot()`);
+      for (const k of seenBody) assert.ok(knownBody.has(k), `live bodies[] grew field '${k}' — add it to richSnapshot()`);
+    } finally {
+      sim.destroy();
+    }
+  });
+}
+
+// The killcam flag has to actually be reached, or the fixture entry above is a
+// claim nobody checks. `rp` rides only the frames server-bridge swaps in while
+// game.replay is live, which needs a death — which needs a round to end.
+test('the long tape reaches the killcam, so rp is a field the fixture had to grow', () => {
+  const tape = JSON.parse(readFileSync('test/tape/three-rounds.input.json', 'utf8'));
   const clock = makeClock(0);
-  reseed(12345); // the sim owns its stream — seed it before createSim's loadMap(0) draws
+  reseed(12345);
   const sim = createSim({ clock });
   const bridge = sim.bridge;
   try {
     const slots = tape.players.map((p) => bridge.addPlayer({ name: p.name }));
     bridge.start();
-    const seenTop = new Set(), seenPs = new Set(), seenBody = new Set();
-    for (let i = 0; i < 300; i++) {
+    let replayFrames = 0;
+    for (let i = 0; i < 4200; i++) {
       const frame = tape.frames[Math.min(i, tape.frames.length - 1)];
       for (const slot of slots) {
         const msg = frame?.[String(slot)];
         if (msg) bridge.setInput(slot, msg);
       }
       bridge.stepSim();
-      clock.advance(1000 / 60); // keeps the env clock alongside simNow() — see test/harness/tape.js
-      const snap = bridge.takeWireSnapshot();
-      for (const k of Object.keys(snap)) seenTop.add(k);
-      for (const p of snap.ps) for (const k of Object.keys(p)) if (p[k] !== undefined) seenPs.add(k);
-      for (const b of snap.bodies) for (const k of Object.keys(b)) if (b[k] !== undefined) seenBody.add(k);
+      clock.advance(1000 / 60);
+      if (bridge.takeWireSnapshot().rp) replayFrames++;
     }
-    const known = richSnapshot();
-    const knownBody = new Set(known.bodies.flatMap(Object.keys));
-    for (const k of seenTop) assert.ok(k in known, `live snapshot grew field '${k}' — add it to richSnapshot()`);
-    for (const k of seenPs) assert.ok(k in known.ps[0], `live ps[] grew field '${k}' — add it to richSnapshot()`);
-    for (const k of seenBody) assert.ok(knownBody.has(k), `live bodies[] grew field '${k}' — add it to richSnapshot()`);
+    assert.ok(replayFrames > 0, 'no killcam frame in the long tape — rp is untested');
   } finally {
     sim.destroy();
   }
@@ -145,4 +185,28 @@ test('body order is a total order, so Set iteration order cannot reach the diges
     assert.notEqual(hashSnapshot(wrap([a, b])), hashSnapshot(wrap([a, { ...b, ...mutation }])),
       `bodies differing only in ${name} collided`);
   }
+});
+
+// Same property, for segs. src/sim/snapshot.js emits them in
+// Composite.allConstraints order, i.e. the order a map builder added its planks
+// and chains — construction order, not sim state. The three-round tape is the
+// first golden to reach a map with constraints at all, so this guard exists
+// from the moment the trap becomes reachable.
+test('seg order cannot reach the digest, and seg content still can', () => {
+  const wrap = (segs) => ({ t: 'snap', v: '1', st: 'PLAY', mi: 0, rn: 1, wr: null, ps: [], bodies: [], segs });
+  const a = [0, 10, 20, 30, 40];
+  const b = [1, 50, 60, 70, 80];
+
+  assert.equal(hashSnapshot(wrap([a, b])), hashSnapshot(wrap([b, a])),
+    'two segs hashed differently when swapped');
+
+  // every field of a seg still has to move the digest
+  for (let i = 0; i < a.length; i++) {
+    const moved = a.map((v, j) => (j === i ? v + 1 : v));
+    assert.notEqual(hashSnapshot(wrap([a, b])), hashSnapshot(wrap([moved, b])),
+      `segs[0][${i}] escaped the digest`);
+  }
+  // and a seg appearing twice is not the same as appearing once
+  assert.notEqual(hashSnapshot(wrap([a, b])), hashSnapshot(wrap([a, a, b])),
+    'a duplicated seg collided with the original list');
 });

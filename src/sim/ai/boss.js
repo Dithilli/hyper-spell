@@ -11,7 +11,7 @@ import {
 } from '../fx.js';
 import { slowMo } from '../pace.js';
 import { sfx } from '../sfx.js';
-import { schedule } from '../schedule.js';
+import { scheduleIn } from '../schedule.js';
 import { statFor } from '../awards.js';
 import { telBossDmg } from '../telemetry.js';
 import { game, setBanner, startRound, nextMapIndex } from '../match.js';
@@ -402,9 +402,9 @@ export function slayBoss() {
   setBanner(bs.secret ? `${bs.def.name} RAGE-QUITS` : `${bs.def.name} IS SLAIN!`, '#ffd166', 1800 + replayMs);
   sfx.victory();
   slowMo(0.25, 1100);
-  schedule(() => {
+  scheduleIn(1900 + replayMs, () => {
     if (game.state === 'ROUND_END') startRound(nextMapIndex());
-  }, 1900 + replayMs);
+  }, 'round');
 }
 
 export function updateBoss(now, dt) {

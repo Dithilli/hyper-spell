@@ -7,7 +7,8 @@ import { Body, Composite, Engine, engine, world, W, H } from './world.js';
 import { simRandom, rand } from './rng.js';
 import { particles, updateParticles } from './fx.js';
 import { updatePace } from './pace.js';
-import { TICK_MS, advanceTick, simNow } from './time.js';
+import { TICK_MS, advanceTick, currentTick, simNow } from './time.js';
+import { drainScheduled } from './schedule.js';
 import { sfx } from './sfx.js';
 import { nameEdit, nameEditEndAt } from './lobby.js';
 import { game, currentMap, minPlayers, setBanner, beginFromLobby, resetMatch } from './match.js';
@@ -113,6 +114,11 @@ export function postPhysics(now) {
 // which is exactly why the deadlines below are on simNow() and pace.js's own
 // deadline is not (see the comment there).
 export function stepSim() {
+  // FIRST, before anything reads game.state: the round-flow callbacks
+  // (src/sim/schedule.js) decide whether this tick belongs to the round that
+  // just ended or the one starting. Draining after the update phase would let
+  // one tick run against a round the scheduler had already retired.
+  drainScheduled(currentTick());
   updatePace();
   const now = simNow();
   const dt = TICK_MS;

@@ -9,7 +9,7 @@
 // that for free from a fresh global scope).
 import Matter from 'matter-js';
 
-export const { Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector } = Matter;
+export const { Common, Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector } = Matter;
 
 export const W = 1280, H = 720;
 
@@ -23,6 +23,18 @@ const resetHooks = [];
 export function onWorldReset(fn) { resetHooks.push(fn); }
 
 export function createWorld() {
+  // matter-js keeps ONE process-global RNG, Common._seed, and Body.create draws
+  // from it for every non-static body: `Common.choose([...])` picks a default
+  // fillStyle before the caller's colour (if any) overrides it. So the stream
+  // advances once per body created anywhere in the process, forever, and a body
+  // we DON'T colour — a Crate Drop crate is the live example — takes whatever
+  // that stream happens to be on. That made the wire colour of such a body a
+  // function of how much simulation had already run in the process: a second
+  // createSim() reproduced its predecessor's positions exactly and disagreed on
+  // the colour. Resetting it here is the same contract as the reset hooks below
+  // — a rebuilt world starts where the first one did — and it is the last piece
+  // of the sim's randomness that the seed did not reach (see src/sim/rng.js).
+  Common._seed = 0;
   engine = Engine.create();
   engine.gravity.y = 2;
   world = engine.world;

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runTape } from './harness/tape.js';
 import { makeRng, reseed, simRandom } from '../src/sim/rng.js';
-import { Composite } from '../src/sim/world.js';
+import { Bodies, Composite, createWorld, destroyWorld } from '../src/sim/world.js';
 import { addStatic } from '../src/sim/maps/builders.js';
 import { buildMapExtras } from '../src/sim/maps/extras.js';
 
@@ -51,6 +51,26 @@ test('map extras derive from the map seed alone, not the round stream', () => {
   // and a different map seed must still change them
   reseed(1);
   assert.notDeepEqual(extrasFingerprint(0xbadbad), host, 'the map seed must reach the extras');
+});
+
+// src/sim/rng.js is not the only stream the sim draws from: matter-js keeps its
+// own process-global one (Common._seed) and Body.create takes a number from it
+// for EVERY non-static body, to pick a default fillStyle before the caller's
+// colour overrides it. A body we never colour — a Crate Drop crate — therefore
+// inherited a colour that depended on how many bodies the process had built
+// before it, so a second sim in one process disagreed with the first about what
+// rode the wire. createWorld() resets it, and this pins that: the churn between
+// the two worlds is what a real prior match does.
+test('a rebuilt world starts matter-js own RNG where the first one did', () => {
+  const uncoloured = () => Bodies.rectangle(0, 0, 10, 10).render.fillStyle;
+  const seen = [];
+  for (let run = 0; run < 2; run++) {
+    createWorld();
+    seen.push(uncoloured());
+    for (let i = 0; i < 137; i++) uncoloured(); // a match's worth of bodies
+    destroyWorld();
+  }
+  assert.equal(seen[0], seen[1], 'matter-js default colours leaked across worlds');
 });
 
 test('reseed replaces the round stream without disturbing makeRng', () => {

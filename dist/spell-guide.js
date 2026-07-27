@@ -108,16 +108,16 @@
             /* 0 */
             /***/
             (function(module2, exports2) {
-              var Common = {};
-              module2.exports = Common;
+              var Common2 = {};
+              module2.exports = Common2;
               (function() {
-                Common._baseDelta = 1e3 / 60;
-                Common._nextId = 0;
-                Common._seed = 0;
-                Common._nowStartTime = +/* @__PURE__ */ new Date();
-                Common._warnedOnce = {};
-                Common._decomp = null;
-                Common.extend = function(obj, deep) {
+                Common2._baseDelta = 1e3 / 60;
+                Common2._nextId = 0;
+                Common2._seed = 0;
+                Common2._nowStartTime = +/* @__PURE__ */ new Date();
+                Common2._warnedOnce = {};
+                Common2._decomp = null;
+                Common2.extend = function(obj, deep) {
                   var argsStart, args, deepClone;
                   if (typeof deep === "boolean") {
                     argsStart = 2;
@@ -133,7 +133,7 @@
                         if (deepClone && source[prop] && source[prop].constructor === Object) {
                           if (!obj[prop] || obj[prop].constructor === Object) {
                             obj[prop] = obj[prop] || {};
-                            Common.extend(obj[prop], deepClone, source[prop]);
+                            Common2.extend(obj[prop], deepClone, source[prop]);
                           } else {
                             obj[prop] = source[prop];
                           }
@@ -145,10 +145,10 @@
                   }
                   return obj;
                 };
-                Common.clone = function(obj, deep) {
-                  return Common.extend({}, deep, obj);
+                Common2.clone = function(obj, deep) {
+                  return Common2.extend({}, deep, obj);
                 };
-                Common.keys = function(obj) {
+                Common2.keys = function(obj) {
                   if (Object.keys)
                     return Object.keys(obj);
                   var keys = [];
@@ -156,7 +156,7 @@
                     keys.push(key);
                   return keys;
                 };
-                Common.values = function(obj) {
+                Common2.values = function(obj) {
                   var values = [];
                   if (Object.keys) {
                     var keys = Object.keys(obj);
@@ -169,59 +169,59 @@
                     values.push(obj[key]);
                   return values;
                 };
-                Common.get = function(obj, path, begin, end) {
+                Common2.get = function(obj, path, begin, end) {
                   path = path.split(".").slice(begin, end);
                   for (var i = 0; i < path.length; i += 1) {
                     obj = obj[path[i]];
                   }
                   return obj;
                 };
-                Common.set = function(obj, path, val, begin, end) {
+                Common2.set = function(obj, path, val, begin, end) {
                   var parts = path.split(".").slice(begin, end);
-                  Common.get(obj, path, 0, -1)[parts[parts.length - 1]] = val;
+                  Common2.get(obj, path, 0, -1)[parts[parts.length - 1]] = val;
                   return val;
                 };
-                Common.shuffle = function(array) {
+                Common2.shuffle = function(array) {
                   for (var i = array.length - 1; i > 0; i--) {
-                    var j = Math.floor(Common.random() * (i + 1));
+                    var j = Math.floor(Common2.random() * (i + 1));
                     var temp = array[i];
                     array[i] = array[j];
                     array[j] = temp;
                   }
                   return array;
                 };
-                Common.choose = function(choices) {
-                  return choices[Math.floor(Common.random() * choices.length)];
+                Common2.choose = function(choices) {
+                  return choices[Math.floor(Common2.random() * choices.length)];
                 };
-                Common.isElement = function(obj) {
+                Common2.isElement = function(obj) {
                   if (typeof HTMLElement !== "undefined") {
                     return obj instanceof HTMLElement;
                   }
                   return !!(obj && obj.nodeType && obj.nodeName);
                 };
-                Common.isArray = function(obj) {
+                Common2.isArray = function(obj) {
                   return Object.prototype.toString.call(obj) === "[object Array]";
                 };
-                Common.isFunction = function(obj) {
+                Common2.isFunction = function(obj) {
                   return typeof obj === "function";
                 };
-                Common.isPlainObject = function(obj) {
+                Common2.isPlainObject = function(obj) {
                   return typeof obj === "object" && obj.constructor === Object;
                 };
-                Common.isString = function(obj) {
+                Common2.isString = function(obj) {
                   return toString.call(obj) === "[object String]";
                 };
-                Common.clamp = function(value, min, max) {
+                Common2.clamp = function(value, min, max) {
                   if (value < min)
                     return min;
                   if (value > max)
                     return max;
                   return value;
                 };
-                Common.sign = function(value) {
+                Common2.sign = function(value) {
                   return value < 0 ? -1 : 1;
                 };
-                Common.now = function() {
+                Common2.now = function() {
                   if (typeof window !== "undefined" && window.performance) {
                     if (window.performance.now) {
                       return window.performance.now();
@@ -232,56 +232,56 @@
                   if (Date.now) {
                     return Date.now();
                   }
-                  return /* @__PURE__ */ new Date() - Common._nowStartTime;
+                  return /* @__PURE__ */ new Date() - Common2._nowStartTime;
                 };
-                Common.random = function(min, max) {
+                Common2.random = function(min, max) {
                   min = typeof min !== "undefined" ? min : 0;
                   max = typeof max !== "undefined" ? max : 1;
                   return min + _seededRandom() * (max - min);
                 };
                 var _seededRandom = function() {
-                  Common._seed = (Common._seed * 9301 + 49297) % 233280;
-                  return Common._seed / 233280;
+                  Common2._seed = (Common2._seed * 9301 + 49297) % 233280;
+                  return Common2._seed / 233280;
                 };
-                Common.colorToNumber = function(colorString) {
+                Common2.colorToNumber = function(colorString) {
                   colorString = colorString.replace("#", "");
                   if (colorString.length == 3) {
                     colorString = colorString.charAt(0) + colorString.charAt(0) + colorString.charAt(1) + colorString.charAt(1) + colorString.charAt(2) + colorString.charAt(2);
                   }
                   return parseInt(colorString, 16);
                 };
-                Common.logLevel = 1;
-                Common.log = function() {
-                  if (console && Common.logLevel > 0 && Common.logLevel <= 3) {
+                Common2.logLevel = 1;
+                Common2.log = function() {
+                  if (console && Common2.logLevel > 0 && Common2.logLevel <= 3) {
                     console.log.apply(console, ["matter-js:"].concat(Array.prototype.slice.call(arguments)));
                   }
                 };
-                Common.info = function() {
-                  if (console && Common.logLevel > 0 && Common.logLevel <= 2) {
+                Common2.info = function() {
+                  if (console && Common2.logLevel > 0 && Common2.logLevel <= 2) {
                     console.info.apply(console, ["matter-js:"].concat(Array.prototype.slice.call(arguments)));
                   }
                 };
-                Common.warn = function() {
-                  if (console && Common.logLevel > 0 && Common.logLevel <= 3) {
+                Common2.warn = function() {
+                  if (console && Common2.logLevel > 0 && Common2.logLevel <= 3) {
                     console.warn.apply(console, ["matter-js:"].concat(Array.prototype.slice.call(arguments)));
                   }
                 };
-                Common.warnOnce = function() {
+                Common2.warnOnce = function() {
                   var message = Array.prototype.slice.call(arguments).join(" ");
-                  if (!Common._warnedOnce[message]) {
-                    Common.warn(message);
-                    Common._warnedOnce[message] = true;
+                  if (!Common2._warnedOnce[message]) {
+                    Common2.warn(message);
+                    Common2._warnedOnce[message] = true;
                   }
                 };
-                Common.deprecated = function(obj, prop, warning) {
-                  obj[prop] = Common.chain(function() {
-                    Common.warnOnce("\u{1F505} deprecated \u{1F505}", warning);
+                Common2.deprecated = function(obj, prop, warning) {
+                  obj[prop] = Common2.chain(function() {
+                    Common2.warnOnce("\u{1F505} deprecated \u{1F505}", warning);
                   }, obj[prop]);
                 };
-                Common.nextId = function() {
-                  return Common._nextId++;
+                Common2.nextId = function() {
+                  return Common2._nextId++;
                 };
-                Common.indexOf = function(haystack, needle) {
+                Common2.indexOf = function(haystack, needle) {
                   if (haystack.indexOf)
                     return haystack.indexOf(needle);
                   for (var i = 0; i < haystack.length; i++) {
@@ -290,7 +290,7 @@
                   }
                   return -1;
                 };
-                Common.map = function(list, func) {
+                Common2.map = function(list, func) {
                   if (list.map) {
                     return list.map(func);
                   }
@@ -300,16 +300,16 @@
                   }
                   return mapped;
                 };
-                Common.topologicalSort = function(graph) {
+                Common2.topologicalSort = function(graph) {
                   var result = [], visited = [], temp = [];
                   for (var node in graph) {
                     if (!visited[node] && !temp[node]) {
-                      Common._topologicalSort(node, visited, temp, graph, result);
+                      Common2._topologicalSort(node, visited, temp, graph, result);
                     }
                   }
                   return result;
                 };
-                Common._topologicalSort = function(node, visited, temp, graph, result) {
+                Common2._topologicalSort = function(node, visited, temp, graph, result) {
                   var neighbors = graph[node] || [];
                   temp[node] = true;
                   for (var i = 0; i < neighbors.length; i += 1) {
@@ -318,14 +318,14 @@
                       continue;
                     }
                     if (!visited[neighbor]) {
-                      Common._topologicalSort(neighbor, visited, temp, graph, result);
+                      Common2._topologicalSort(neighbor, visited, temp, graph, result);
                     }
                   }
                   temp[node] = false;
                   visited[node] = true;
                   result.push(node);
                 };
-                Common.chain = function() {
+                Common2.chain = function() {
                   var funcs = [];
                   for (var i = 0; i < arguments.length; i += 1) {
                     var func = arguments[i];
@@ -351,23 +351,23 @@
                   chain._chained = funcs;
                   return chain;
                 };
-                Common.chainPathBefore = function(base, path, func) {
-                  return Common.set(base, path, Common.chain(
+                Common2.chainPathBefore = function(base, path, func) {
+                  return Common2.set(base, path, Common2.chain(
                     func,
-                    Common.get(base, path)
+                    Common2.get(base, path)
                   ));
                 };
-                Common.chainPathAfter = function(base, path, func) {
-                  return Common.set(base, path, Common.chain(
-                    Common.get(base, path),
+                Common2.chainPathAfter = function(base, path, func) {
+                  return Common2.set(base, path, Common2.chain(
+                    Common2.get(base, path),
                     func
                   ));
                 };
-                Common.setDecomp = function(decomp) {
-                  Common._decomp = decomp;
+                Common2.setDecomp = function(decomp) {
+                  Common2._decomp = decomp;
                 };
-                Common.getDecomp = function() {
-                  var decomp = Common._decomp;
+                Common2.getDecomp = function() {
+                  var decomp = Common2._decomp;
                   try {
                     if (!decomp && typeof window !== "undefined") {
                       decomp = window.decomp;
@@ -536,7 +536,7 @@
               var Vertices = {};
               module2.exports = Vertices;
               var Vector2 = __webpack_require__(2);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               (function() {
                 Vertices.create = function(points, body) {
                   var vertices = [];
@@ -667,12 +667,12 @@
                       x: nextVertex.y - vertex.y,
                       y: vertex.x - nextVertex.x
                     });
-                    var diagonalRadius = Math.sqrt(2 * Math.pow(currentRadius, 2)), radiusVector = Vector2.mult(Common.clone(prevNormal), currentRadius), midNormal = Vector2.normalise(Vector2.mult(Vector2.add(prevNormal, nextNormal), 0.5)), scaledVertex = Vector2.sub(vertex, Vector2.mult(midNormal, diagonalRadius));
+                    var diagonalRadius = Math.sqrt(2 * Math.pow(currentRadius, 2)), radiusVector = Vector2.mult(Common2.clone(prevNormal), currentRadius), midNormal = Vector2.normalise(Vector2.mult(Vector2.add(prevNormal, nextNormal), 0.5)), scaledVertex = Vector2.sub(vertex, Vector2.mult(midNormal, diagonalRadius));
                     var precision = quality;
                     if (quality === -1) {
                       precision = Math.pow(currentRadius, 0.32) * 1.75;
                     }
-                    precision = Common.clamp(precision, qualityMin, qualityMax);
+                    precision = Common2.clamp(precision, qualityMin, qualityMax);
                     if (precision % 2 === 1)
                       precision += 1;
                     var alpha = Math.acos(Vector2.dot(prevNormal, nextNormal)), theta = alpha / precision;
@@ -748,7 +748,7 @@
               var Vertices = __webpack_require__(3);
               var Vector2 = __webpack_require__(2);
               var Sleeping = __webpack_require__(7);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               var Bounds = __webpack_require__(1);
               var Axes = __webpack_require__(11);
               (function() {
@@ -760,7 +760,7 @@
                 Body2._baseDelta = 1e3 / 60;
                 Body2.create = function(options) {
                   var defaults = {
-                    id: Common.nextId(),
+                    id: Common2.nextId(),
                     type: "body",
                     label: "Body",
                     parts: [],
@@ -821,7 +821,7 @@
                     deltaTime: 1e3 / 60,
                     _original: null
                   };
-                  var body = Common.extend(defaults, options);
+                  var body = Common2.extend(defaults, options);
                   _initProperties(body, options);
                   return body;
                 };
@@ -855,7 +855,7 @@
                     mass: options.mass || body.mass,
                     inertia: options.inertia || body.inertia
                   });
-                  var defaultFillStyle = body.isStatic ? "#14151f" : Common.choose(["#f19648", "#f5d259", "#f55a3c", "#063e7b", "#ececd1"]), defaultStrokeStyle = body.isStatic ? "#555" : "#ccc", defaultLineWidth = body.isStatic && body.render.fillStyle === null ? 1 : 0;
+                  var defaultFillStyle = body.isStatic ? "#14151f" : Common2.choose(["#f19648", "#f5d259", "#f55a3c", "#063e7b", "#ececd1"]), defaultStrokeStyle = body.isStatic ? "#555" : "#ccc", defaultLineWidth = body.isStatic && body.render.fillStyle === null ? 1 : 0;
                   body.render.fillStyle = body.render.fillStyle || defaultFillStyle;
                   body.render.strokeStyle = body.render.strokeStyle || defaultStrokeStyle;
                   body.render.lineWidth = body.render.lineWidth || defaultLineWidth;
@@ -1113,7 +1113,7 @@
                   return Math.abs(Body2.getAngularVelocity(body));
                 };
                 Body2.setAngularSpeed = function(body, speed) {
-                  Body2.setAngularVelocity(body, Common.sign(Body2.getAngularVelocity(body)) * speed);
+                  Body2.setAngularVelocity(body, Common2.sign(Body2.getAngularVelocity(body)) * speed);
                 };
                 Body2.translate = function(body, translation, updateVelocity) {
                   Body2.setPosition(body, Vector2.add(body.position, translation), updateVelocity);
@@ -1168,7 +1168,7 @@
                 Body2.update = function(body, deltaTime) {
                   deltaTime = (typeof deltaTime !== "undefined" ? deltaTime : 1e3 / 60) * body.timeScale;
                   var deltaTimeSquared = deltaTime * deltaTime, correction = Body2._timeCorrection ? deltaTime / (body.deltaTime || deltaTime) : 1;
-                  var frictionAir = 1 - body.frictionAir * (deltaTime / Common._baseDelta), velocityPrevX = (body.position.x - body.positionPrev.x) * correction, velocityPrevY = (body.position.y - body.positionPrev.y) * correction;
+                  var frictionAir = 1 - body.frictionAir * (deltaTime / Common2._baseDelta), velocityPrevX = (body.position.x - body.positionPrev.x) * correction, velocityPrevY = (body.position.y - body.positionPrev.y) * correction;
                   body.velocity.x = velocityPrevX * frictionAir + body.force.x / body.mass * deltaTimeSquared;
                   body.velocity.y = velocityPrevY * frictionAir + body.force.y / body.mass * deltaTimeSquared;
                   body.positionPrev.x = body.position.x;
@@ -1234,7 +1234,7 @@
             (function(module2, exports2, __webpack_require__) {
               var Events2 = {};
               module2.exports = Events2;
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               (function() {
                 Events2.on = function(object, eventNames, callback) {
                   var names = eventNames.split(" "), name;
@@ -1253,7 +1253,7 @@
                   }
                   if (typeof eventNames === "function") {
                     callback = eventNames;
-                    eventNames = Common.keys(object.events).join(" ");
+                    eventNames = Common2.keys(object.events).join(" ");
                   }
                   var names = eventNames.split(" ");
                   for (var i = 0; i < names.length; i++) {
@@ -1270,7 +1270,7 @@
                 Events2.trigger = function(object, eventNames, event) {
                   var names, name, callbacks, eventClone;
                   var events = object.events;
-                  if (events && Common.keys(events).length > 0) {
+                  if (events && Common2.keys(events).length > 0) {
                     if (!event)
                       event = {};
                     names = eventNames.split(" ");
@@ -1278,7 +1278,7 @@
                       name = names[i];
                       callbacks = events[name];
                       if (callbacks) {
-                        eventClone = Common.clone(event, false);
+                        eventClone = Common2.clone(event, false);
                         eventClone.name = name;
                         eventClone.source = object;
                         for (var j = 0; j < callbacks.length; j++) {
@@ -1296,13 +1296,13 @@
               var Composite2 = {};
               module2.exports = Composite2;
               var Events2 = __webpack_require__(5);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               var Bounds = __webpack_require__(1);
               var Body2 = __webpack_require__(4);
               (function() {
                 Composite2.create = function(options) {
-                  return Common.extend({
-                    id: Common.nextId(),
+                  return Common2.extend({
+                    id: Common2.nextId(),
                     type: "composite",
                     parent: null,
                     isModified: false,
@@ -1343,7 +1343,7 @@
                     switch (obj.type) {
                       case "body":
                         if (obj.parent !== obj) {
-                          Common.warn("Composite.add: skipped adding a compound body part (you must add its parent instead)");
+                          Common2.warn("Composite.add: skipped adding a compound body part (you must add its parent instead)");
                           break;
                         }
                         Composite2.addBody(composite, obj);
@@ -1392,7 +1392,7 @@
                   return compositeA;
                 };
                 Composite2.removeComposite = function(compositeA, compositeB, deep) {
-                  var position = Common.indexOf(compositeA.composites, compositeB);
+                  var position = Common2.indexOf(compositeA.composites, compositeB);
                   if (position !== -1) {
                     Composite2.removeCompositeAt(compositeA, position);
                   }
@@ -1414,7 +1414,7 @@
                   return composite;
                 };
                 Composite2.removeBody = function(composite, body, deep) {
-                  var position = Common.indexOf(composite.bodies, body);
+                  var position = Common2.indexOf(composite.bodies, body);
                   if (position !== -1) {
                     Composite2.removeBodyAt(composite, position);
                   }
@@ -1436,7 +1436,7 @@
                   return composite;
                 };
                 Composite2.removeConstraint = function(composite, constraint, deep) {
-                  var position = Common.indexOf(composite.constraints, constraint);
+                  var position = Common2.indexOf(composite.constraints, constraint);
                   if (position !== -1) {
                     Composite2.removeConstraintAt(composite, position);
                   }
@@ -1534,7 +1534,7 @@
                 Composite2.rebase = function(composite) {
                   var objects = Composite2.allBodies(composite).concat(Composite2.allConstraints(composite)).concat(Composite2.allComposites(composite));
                   for (var i = 0; i < objects.length; i++) {
-                    objects[i].id = Common.nextId();
+                    objects[i].id = Common2.nextId();
                   }
                   return composite;
                 };
@@ -1586,13 +1586,13 @@
               module2.exports = Sleeping;
               var Body2 = __webpack_require__(4);
               var Events2 = __webpack_require__(5);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               (function() {
                 Sleeping._motionWakeThreshold = 0.18;
                 Sleeping._motionSleepThreshold = 0.08;
                 Sleeping._minBias = 0.9;
                 Sleeping.update = function(bodies, delta) {
-                  var timeScale = delta / Common._baseDelta, motionSleepThreshold = Sleeping._motionSleepThreshold;
+                  var timeScale = delta / Common2._baseDelta, motionSleepThreshold = Sleeping._motionSleepThreshold;
                   for (var i = 0; i < bodies.length; i++) {
                     var body = bodies[i], speed = Body2.getSpeed(body), angularSpeed = Body2.getAngularSpeed(body), motion = speed * speed + angularSpeed * angularSpeed;
                     if (body.force.x !== 0 || body.force.y !== 0) {
@@ -1901,7 +1901,7 @@
               var Sleeping = __webpack_require__(7);
               var Bounds = __webpack_require__(1);
               var Axes = __webpack_require__(11);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               (function() {
                 Constraint2._warming = 0.4;
                 Constraint2._torqueDampen = 1;
@@ -1914,7 +1914,7 @@
                     constraint.pointB = { x: 0, y: 0 };
                   var initialPointA = constraint.bodyA ? Vector2.add(constraint.bodyA.position, constraint.pointA) : constraint.pointA, initialPointB = constraint.bodyB ? Vector2.add(constraint.bodyB.position, constraint.pointB) : constraint.pointB, length = Vector2.magnitude(Vector2.sub(initialPointA, initialPointB));
                   constraint.length = typeof constraint.length !== "undefined" ? constraint.length : length;
-                  constraint.id = constraint.id || Common.nextId();
+                  constraint.id = constraint.id || Common2.nextId();
                   constraint.label = constraint.label || "Constraint";
                   constraint.type = "constraint";
                   constraint.stiffness = constraint.stiffness || (constraint.length > 0 ? 1 : 0.7);
@@ -1936,7 +1936,7 @@
                   } else if (constraint.stiffness < 0.9) {
                     render.type = "spring";
                   }
-                  constraint.render = Common.extend(render, constraint.render);
+                  constraint.render = Common2.extend(render, constraint.render);
                   return constraint;
                 };
                 Constraint2.preSolveAll = function(bodies) {
@@ -1951,7 +1951,7 @@
                   }
                 };
                 Constraint2.solveAll = function(constraints, delta) {
-                  var timeScale = Common.clamp(delta / Common._baseDelta, 0, 1);
+                  var timeScale = Common2.clamp(delta / Common2._baseDelta, 0, 1);
                   for (var i = 0; i < constraints.length; i += 1) {
                     var constraint = constraints[i], fixedA = !constraint.bodyA || constraint.bodyA && constraint.bodyA.isStatic, fixedB = !constraint.bodyB || constraint.bodyB && constraint.bodyB.isStatic;
                     if (fixedA || fixedB) {
@@ -2075,7 +2075,7 @@
               var Axes = {};
               module2.exports = Axes;
               var Vector2 = __webpack_require__(2);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               (function() {
                 Axes.fromVertices = function(vertices) {
                   var axes = {};
@@ -2087,7 +2087,7 @@
                     gradient = gradient.toFixed(3).toString();
                     axes[gradient] = normal;
                   }
-                  return Common.values(axes);
+                  return Common2.values(axes);
                 };
                 Axes.rotate = function(axes, angle) {
                   if (angle === 0)
@@ -2108,7 +2108,7 @@
               var Bodies2 = {};
               module2.exports = Bodies2;
               var Vertices = __webpack_require__(3);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               var Body2 = __webpack_require__(4);
               var Bounds = __webpack_require__(1);
               var Vector2 = __webpack_require__(2);
@@ -2131,7 +2131,7 @@
                     );
                     delete options.chamfer;
                   }
-                  return Body2.create(Common.extend({}, rectangle, options));
+                  return Body2.create(Common2.extend({}, rectangle, options));
                 };
                 Bodies2.trapezoid = function(x, y, width, height, slope, options) {
                   options = options || {};
@@ -2159,7 +2159,7 @@
                     );
                     delete options.chamfer;
                   }
-                  return Body2.create(Common.extend({}, trapezoid, options));
+                  return Body2.create(Common2.extend({}, trapezoid, options));
                 };
                 Bodies2.circle = function(x, y, radius, options, maxSides) {
                   options = options || {};
@@ -2171,7 +2171,7 @@
                   var sides = Math.ceil(Math.max(10, Math.min(maxSides, radius)));
                   if (sides % 2 === 1)
                     sides += 1;
-                  return Bodies2.polygon(x, y, sides, radius, Common.extend({}, circle, options));
+                  return Bodies2.polygon(x, y, sides, radius, Common2.extend({}, circle, options));
                 };
                 Bodies2.polygon = function(x, y, sides, radius, options) {
                   options = options || {};
@@ -2198,10 +2198,10 @@
                     );
                     delete options.chamfer;
                   }
-                  return Body2.create(Common.extend({}, polygon, options));
+                  return Body2.create(Common2.extend({}, polygon, options));
                 };
                 Bodies2.fromVertices = function(x, y, vertexSets, options, flagInternal, removeCollinear, minimumArea, removeDuplicatePoints) {
-                  var decomp = Common.getDecomp(), canDecomp, body, parts, isConvex, isConcave, vertices, i, j, k, v, z;
+                  var decomp = Common2.getDecomp(), canDecomp, body, parts, isConvex, isConcave, vertices, i, j, k, v, z;
                   canDecomp = Boolean(decomp && decomp.quickDecomp);
                   options = options || {};
                   parts = [];
@@ -2209,7 +2209,7 @@
                   removeCollinear = typeof removeCollinear !== "undefined" ? removeCollinear : 0.01;
                   minimumArea = typeof minimumArea !== "undefined" ? minimumArea : 10;
                   removeDuplicatePoints = typeof removeDuplicatePoints !== "undefined" ? removeDuplicatePoints : 0.01;
-                  if (!Common.isArray(vertexSets[0])) {
+                  if (!Common2.isArray(vertexSets[0])) {
                     vertexSets = [vertexSets];
                   }
                   for (v = 0; v < vertexSets.length; v += 1) {
@@ -2217,7 +2217,7 @@
                     isConvex = Vertices.isConvex(vertices);
                     isConcave = !isConvex;
                     if (isConcave && !canDecomp) {
-                      Common.warnOnce(
+                      Common2.warnOnce(
                         "Bodies.fromVertices: Install the 'poly-decomp' library and use Common.setDecomp or provide 'decomp' as a global to decompose concave vertices."
                       );
                     }
@@ -2259,7 +2259,7 @@
                     }
                   }
                   for (i = 0; i < parts.length; i++) {
-                    parts[i] = Body2.create(Common.extend(parts[i], options));
+                    parts[i] = Body2.create(Common2.extend(parts[i], options));
                   }
                   if (flagInternal) {
                     var coincident_max_dist = 5;
@@ -2283,7 +2283,7 @@
                     }
                   }
                   if (parts.length > 1) {
-                    body = Body2.create(Common.extend({ parts: parts.slice(0) }, options));
+                    body = Body2.create(Common2.extend({ parts: parts.slice(0) }, options));
                     Body2.setPosition(body, { x, y });
                     return body;
                   } else {
@@ -2297,7 +2297,7 @@
             (function(module2, exports2, __webpack_require__) {
               var Detector = {};
               module2.exports = Detector;
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               var Collision = __webpack_require__(8);
               (function() {
                 Detector.create = function(options) {
@@ -2305,7 +2305,7 @@
                     bodies: [],
                     pairs: null
                   };
-                  return Common.extend(defaults, options);
+                  return Common2.extend(defaults, options);
                 };
                 Detector.setBodies = function(detector, bodies) {
                   detector.bodies = bodies.slice(0);
@@ -2373,12 +2373,12 @@
             (function(module2, exports2, __webpack_require__) {
               var Mouse = {};
               module2.exports = Mouse;
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               (function() {
                 Mouse.create = function(element) {
                   var mouse = {};
                   if (!element) {
-                    Common.log("Mouse.create: element was undefined, defaulting to document.body", "warn");
+                    Common2.log("Mouse.create: element was undefined, defaulting to document.body", "warn");
                   }
                   mouse.element = element || document.body;
                   mouse.absolute = { x: 0, y: 0 };
@@ -2496,22 +2496,22 @@
             (function(module2, exports2, __webpack_require__) {
               var Plugin = {};
               module2.exports = Plugin;
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               (function() {
                 Plugin._registry = {};
                 Plugin.register = function(plugin) {
                   if (!Plugin.isPlugin(plugin)) {
-                    Common.warn("Plugin.register:", Plugin.toString(plugin), "does not implement all required fields.");
+                    Common2.warn("Plugin.register:", Plugin.toString(plugin), "does not implement all required fields.");
                   }
                   if (plugin.name in Plugin._registry) {
                     var registered = Plugin._registry[plugin.name], pluginVersion = Plugin.versionParse(plugin.version).number, registeredVersion = Plugin.versionParse(registered.version).number;
                     if (pluginVersion > registeredVersion) {
-                      Common.warn("Plugin.register:", Plugin.toString(registered), "was upgraded to", Plugin.toString(plugin));
+                      Common2.warn("Plugin.register:", Plugin.toString(registered), "was upgraded to", Plugin.toString(plugin));
                       Plugin._registry[plugin.name] = plugin;
                     } else if (pluginVersion < registeredVersion) {
-                      Common.warn("Plugin.register:", Plugin.toString(registered), "can not be downgraded to", Plugin.toString(plugin));
+                      Common2.warn("Plugin.register:", Plugin.toString(registered), "can not be downgraded to", Plugin.toString(plugin));
                     } else if (plugin !== registered) {
-                      Common.warn("Plugin.register:", Plugin.toString(plugin), "is already registered to different plugin object");
+                      Common2.warn("Plugin.register:", Plugin.toString(plugin), "is already registered to different plugin object");
                     }
                   } else {
                     Plugin._registry[plugin.name] = plugin;
@@ -2537,10 +2537,10 @@
                 Plugin.use = function(module3, plugins) {
                   module3.uses = (module3.uses || []).concat(plugins || []);
                   if (module3.uses.length === 0) {
-                    Common.warn("Plugin.use:", Plugin.toString(module3), "does not specify any dependencies to install.");
+                    Common2.warn("Plugin.use:", Plugin.toString(module3), "does not specify any dependencies to install.");
                     return;
                   }
-                  var dependencies = Plugin.dependencies(module3), sortedDependencies = Common.topologicalSort(dependencies), status = [];
+                  var dependencies = Plugin.dependencies(module3), sortedDependencies = Common2.topologicalSort(dependencies), status = [];
                   for (var i = 0; i < sortedDependencies.length; i += 1) {
                     if (sortedDependencies[i] === module3.name) {
                       continue;
@@ -2554,13 +2554,13 @@
                       continue;
                     }
                     if (!Plugin.isFor(plugin, module3)) {
-                      Common.warn("Plugin.use:", Plugin.toString(plugin), "is for", plugin.for, "but installed on", Plugin.toString(module3) + ".");
+                      Common2.warn("Plugin.use:", Plugin.toString(plugin), "is for", plugin.for, "but installed on", Plugin.toString(module3) + ".");
                       plugin._warned = true;
                     }
                     if (plugin.install) {
                       plugin.install(module3);
                     } else {
-                      Common.warn("Plugin.use:", Plugin.toString(plugin), "does not specify an install function.");
+                      Common2.warn("Plugin.use:", Plugin.toString(plugin), "does not specify an install function.");
                       plugin._warned = true;
                     }
                     if (plugin._warned) {
@@ -2572,7 +2572,7 @@
                     module3.used.push(plugin.name);
                   }
                   if (status.length > 0) {
-                    Common.info(status.join("  "));
+                    Common2.info(status.join("  "));
                   }
                 };
                 Plugin.dependencies = function(module3, tracked) {
@@ -2582,13 +2582,13 @@
                     return;
                   }
                   module3 = Plugin.resolve(module3) || module3;
-                  tracked[name] = Common.map(module3.uses || [], function(dependency) {
+                  tracked[name] = Common2.map(module3.uses || [], function(dependency) {
                     if (Plugin.isPlugin(dependency)) {
                       Plugin.register(dependency);
                     }
                     var parsed = Plugin.dependencyParse(dependency), resolved = Plugin.resolve(dependency);
                     if (resolved && !Plugin.versionSatisfies(resolved.version, parsed.range)) {
-                      Common.warn(
+                      Common2.warn(
                         "Plugin.dependencies:",
                         Plugin.toString(resolved),
                         "does not satisfy",
@@ -2599,7 +2599,7 @@
                       resolved._warned = true;
                       module3._warned = true;
                     } else if (!resolved) {
-                      Common.warn(
+                      Common2.warn(
                         "Plugin.dependencies:",
                         Plugin.toString(dependency),
                         "used by",
@@ -2616,10 +2616,10 @@
                   return tracked;
                 };
                 Plugin.dependencyParse = function(dependency) {
-                  if (Common.isString(dependency)) {
+                  if (Common2.isString(dependency)) {
                     var pattern = /^[\w-]+(@(\*|[\^~]?\d+\.\d+\.\d+(-[0-9A-Za-z-+]+)?))?$/;
                     if (!pattern.test(dependency)) {
-                      Common.warn("Plugin.dependencyParse:", dependency, "is not a valid dependency string.");
+                      Common2.warn("Plugin.dependencyParse:", dependency, "is not a valid dependency string.");
                     }
                     return {
                       name: dependency.split("@")[0],
@@ -2634,7 +2634,7 @@
                 Plugin.versionParse = function(range) {
                   var pattern = /^(\*)|(\^|~|>=|>)?\s*((\d+)\.(\d+)\.(\d+))(-[0-9A-Za-z-+]+)?$/;
                   if (!pattern.test(range)) {
-                    Common.warn("Plugin.versionParse:", range, "is not a valid version or range.");
+                    Common2.warn("Plugin.versionParse:", range, "is not a valid version or range.");
                   }
                   var parts = pattern.exec(range);
                   var major = Number(parts[4]);
@@ -2710,7 +2710,7 @@
               var Events2 = __webpack_require__(5);
               var Composite2 = __webpack_require__(6);
               var Constraint2 = __webpack_require__(10);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               var Body2 = __webpack_require__(4);
               (function() {
                 Engine2.create = function(options) {
@@ -2734,7 +2734,7 @@
                       lastElapsed: 0
                     }
                   };
-                  var engine2 = Common.extend(defaults, options);
+                  var engine2 = Common2.extend(defaults, options);
                   engine2.world = options.world || Composite2.create({ label: "World" });
                   engine2.pairs = options.pairs || Pairs.create();
                   engine2.detector = options.detector || Detector.create();
@@ -2745,9 +2745,9 @@
                   return engine2;
                 };
                 Engine2.update = function(engine2, delta) {
-                  var startTime = Common.now();
+                  var startTime = Common2.now();
                   var world2 = engine2.world, detector = engine2.detector, pairs = engine2.pairs, timing = engine2.timing, timestamp = timing.timestamp, i;
-                  delta = typeof delta !== "undefined" ? delta : Common._baseDelta;
+                  delta = typeof delta !== "undefined" ? delta : Common2._baseDelta;
                   delta *= timing.timeScale;
                   timing.timestamp += delta;
                   timing.lastDelta = delta;
@@ -2779,7 +2779,7 @@
                     Sleeping.afterCollisions(pairs.list);
                   if (pairs.collisionStart.length > 0)
                     Events2.trigger(engine2, "collisionStart", { pairs: pairs.collisionStart });
-                  var positionDamping = Common.clamp(20 / engine2.positionIterations, 0, 1);
+                  var positionDamping = Common2.clamp(20 / engine2.positionIterations, 0, 1);
                   Resolver.preSolvePosition(pairs.list);
                   for (i = 0; i < engine2.positionIterations; i++) {
                     Resolver.solvePosition(pairs.list, delta, positionDamping);
@@ -2801,11 +2801,11 @@
                     Events2.trigger(engine2, "collisionEnd", { pairs: pairs.collisionEnd });
                   Engine2._bodiesClearForces(allBodies);
                   Events2.trigger(engine2, "afterUpdate", event);
-                  engine2.timing.lastElapsed = Common.now() - startTime;
+                  engine2.timing.lastElapsed = Common2.now() - startTime;
                   return engine2;
                 };
                 Engine2.merge = function(engineA, engineB) {
-                  Common.extend(engineA, engineB);
+                  Common2.extend(engineA, engineB);
                   if (engineB.world) {
                     engineA.world = engineB.world;
                     Engine2.clear(engineA);
@@ -2813,7 +2813,7 @@
                     for (var i = 0; i < bodies.length; i++) {
                       var body = bodies[i];
                       Sleeping.set(body, false);
-                      body.id = Common.nextId();
+                      body.id = Common2.nextId();
                     }
                   }
                 };
@@ -2866,7 +2866,7 @@
               var Resolver = {};
               module2.exports = Resolver;
               var Vertices = __webpack_require__(3);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               var Bounds = __webpack_require__(1);
               (function() {
                 Resolver._restingThresh = 2;
@@ -2887,7 +2887,7 @@
                   }
                 };
                 Resolver.solvePosition = function(pairs, delta, damping) {
-                  var i, pair, collision, bodyA, bodyB, normal, contactShare, positionImpulse, positionDampen = Resolver._positionDampen * (damping || 1), slopDampen = Common.clamp(delta / Common._baseDelta, 0, 1), pairsLength = pairs.length;
+                  var i, pair, collision, bodyA, bodyB, normal, contactShare, positionImpulse, positionDampen = Resolver._positionDampen * (damping || 1), slopDampen = Common2.clamp(delta / Common2._baseDelta, 0, 1), pairsLength = pairs.length;
                   for (i = 0; i < pairsLength; i++) {
                     pair = pairs[i];
                     if (!pair.isActive || pair.isSensor)
@@ -2972,7 +2972,7 @@
                   }
                 };
                 Resolver.solveVelocity = function(pairs, delta) {
-                  var timeScale = delta / Common._baseDelta, timeScaleSquared = timeScale * timeScale, timeScaleCubed = timeScaleSquared * timeScale, restingThresh = -Resolver._restingThresh * timeScale, restingThreshTangent = Resolver._restingThreshTangent, frictionNormalMultiplier = Resolver._frictionNormalMultiplier * timeScale, frictionMaxStatic = Resolver._frictionMaxStatic, pairsLength = pairs.length, tangentImpulse, maxFriction, i, j;
+                  var timeScale = delta / Common2._baseDelta, timeScaleSquared = timeScale * timeScale, timeScaleCubed = timeScaleSquared * timeScale, restingThresh = -Resolver._restingThresh * timeScale, restingThreshTangent = Resolver._restingThreshTangent, frictionNormalMultiplier = Resolver._frictionNormalMultiplier * timeScale, frictionMaxStatic = Resolver._frictionMaxStatic, pairsLength = pairs.length, tangentImpulse, maxFriction, i, j;
                   for (i = 0; i < pairsLength; i++) {
                     var pair = pairs[i];
                     if (!pair.isActive || pair.isSensor)
@@ -3048,10 +3048,10 @@
               var Pairs = {};
               module2.exports = Pairs;
               var Pair = __webpack_require__(9);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               (function() {
                 Pairs.create = function(options) {
-                  return Common.extend({
+                  return Common2.extend({
                     table: {},
                     list: [],
                     collisionStart: [],
@@ -3156,7 +3156,7 @@
               var Matter2 = {};
               module2.exports = Matter2;
               var Plugin = __webpack_require__(15);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               (function() {
                 Matter2.name = "matter-js";
                 Matter2.version = true ? "0.19.0" : void 0;
@@ -3167,11 +3167,11 @@
                 };
                 Matter2.before = function(path, func) {
                   path = path.replace(/^Matter./, "");
-                  return Common.chainPathBefore(Matter2, path, func);
+                  return Common2.chainPathBefore(Matter2, path, func);
                 };
                 Matter2.after = function(path, func) {
                   path = path.replace(/^Matter./, "");
-                  return Common.chainPathAfter(Matter2, path, func);
+                  return Common2.chainPathAfter(Matter2, path, func);
                 };
               })();
             }),
@@ -3182,10 +3182,10 @@
               module2.exports = Composites;
               var Composite2 = __webpack_require__(6);
               var Constraint2 = __webpack_require__(10);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               var Body2 = __webpack_require__(4);
               var Bodies2 = __webpack_require__(12);
-              var deprecated = Common.deprecated;
+              var deprecated = Common2.deprecated;
               (function() {
                 Composites.stack = function(xx, yy, columns, rows, columnGap, rowGap, callback) {
                   var stack = Composite2.create({ label: "Stack" }), x = xx, y = yy, lastBody, i = 0;
@@ -3221,7 +3221,7 @@
                       bodyB,
                       pointB: { x: bodyBWidth * xOffsetB, y: bodyBHeight * yOffsetB }
                     };
-                    var constraint = Common.extend(defaults, options);
+                    var constraint = Common2.extend(defaults, options);
                     Composite2.addConstraint(composite, Constraint2.create(constraint));
                   }
                   composite.label += " Chain";
@@ -3233,20 +3233,20 @@
                     for (col = 1; col < columns; col++) {
                       bodyA = bodies[col - 1 + row * columns];
                       bodyB = bodies[col + row * columns];
-                      Composite2.addConstraint(composite, Constraint2.create(Common.extend({ bodyA, bodyB }, options)));
+                      Composite2.addConstraint(composite, Constraint2.create(Common2.extend({ bodyA, bodyB }, options)));
                     }
                     if (row > 0) {
                       for (col = 0; col < columns; col++) {
                         bodyA = bodies[col + (row - 1) * columns];
                         bodyB = bodies[col + row * columns];
-                        Composite2.addConstraint(composite, Constraint2.create(Common.extend({ bodyA, bodyB }, options)));
+                        Composite2.addConstraint(composite, Constraint2.create(Common2.extend({ bodyA, bodyB }, options)));
                         if (crossBrace && col > 0) {
                           bodyC = bodies[col - 1 + (row - 1) * columns];
-                          Composite2.addConstraint(composite, Constraint2.create(Common.extend({ bodyA: bodyC, bodyB }, options)));
+                          Composite2.addConstraint(composite, Constraint2.create(Common2.extend({ bodyA: bodyC, bodyB }, options)));
                         }
                         if (crossBrace && col < columns - 1) {
                           bodyC = bodies[col + 1 + (row - 1) * columns];
-                          Composite2.addConstraint(composite, Constraint2.create(Common.extend({ bodyA: bodyC, bodyB }, options)));
+                          Composite2.addConstraint(composite, Constraint2.create(Common2.extend({ bodyA: bodyC, bodyB }, options)));
                         }
                       }
                     }
@@ -3331,8 +3331,8 @@
                 };
                 deprecated(Composites, "car", "Composites.car \u27A4 moved to car example");
                 Composites.softBody = function(xx, yy, columns, rows, columnGap, rowGap, crossBrace, particleRadius, particleOptions, constraintOptions) {
-                  particleOptions = Common.extend({ inertia: Infinity }, particleOptions);
-                  constraintOptions = Common.extend({ stiffness: 0.2, render: { type: "line", anchors: false } }, constraintOptions);
+                  particleOptions = Common2.extend({ inertia: Infinity }, particleOptions);
+                  constraintOptions = Common2.extend({ stiffness: 0.2, render: { type: "line", anchors: false } }, constraintOptions);
                   var softBody = Composites.stack(xx, yy, columns, rows, columnGap, rowGap, function(x, y) {
                     return Bodies2.circle(x, y, particleRadius, particleOptions);
                   });
@@ -3349,8 +3349,8 @@
               var Grid = {};
               module2.exports = Grid;
               var Pair = __webpack_require__(9);
-              var Common = __webpack_require__(0);
-              var deprecated = Common.deprecated;
+              var Common2 = __webpack_require__(0);
+              var deprecated = Common2.deprecated;
               (function() {
                 Grid.create = function(options) {
                   var defaults = {
@@ -3360,7 +3360,7 @@
                     bucketWidth: 48,
                     bucketHeight: 48
                   };
-                  return Common.extend(defaults, options);
+                  return Common2.extend(defaults, options);
                 };
                 Grid.update = function(grid, bodies, engine2, forceUpdate) {
                   var i, col, row, world2 = engine2.world, buckets = grid.buckets, bucket, bucketId, gridChanged = false;
@@ -3449,7 +3449,7 @@
                 };
                 Grid._bucketRemoveBody = function(grid, bucket, body) {
                   var gridPairs = grid.pairs, pairId = Pair.id, i;
-                  bucket.splice(Common.indexOf(bucket, body), 1);
+                  bucket.splice(Common2.indexOf(bucket, body), 1);
                   var bucketLength = bucket.length;
                   for (i = 0; i < bucketLength; i++) {
                     var pair = gridPairs[pairId(body, bucket[i])];
@@ -3458,7 +3458,7 @@
                   }
                 };
                 Grid._createActivePairsList = function(grid) {
-                  var pair, gridPairs = grid.pairs, pairKeys = Common.keys(gridPairs), pairKeysLength = pairKeys.length, pairs = [], k;
+                  var pair, gridPairs = grid.pairs, pairKeys = Common2.keys(gridPairs), pairKeysLength = pairKeys.length, pairs = [], k;
                   for (k = 0; k < pairKeysLength; k++) {
                     pair = gridPairs[pairKeys[k]];
                     if (pair[2] > 0) {
@@ -3483,7 +3483,7 @@
               var Detector = __webpack_require__(13);
               var Constraint2 = __webpack_require__(10);
               var Composite2 = __webpack_require__(6);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               var Bounds = __webpack_require__(1);
               (function() {
                 MouseConstraint.create = function(engine2, options) {
@@ -3495,7 +3495,7 @@
                       mouse = Mouse.create(options.element);
                     } else {
                       mouse = Mouse.create();
-                      Common.warn("MouseConstraint.create: options.mouse was undefined, options.element was undefined, may not function as expected");
+                      Common2.warn("MouseConstraint.create: options.mouse was undefined, options.element was undefined, may not function as expected");
                     }
                   }
                   var constraint = Constraint2.create({
@@ -3522,7 +3522,7 @@
                       group: 0
                     }
                   };
-                  var mouseConstraint = Common.extend(defaults, options);
+                  var mouseConstraint = Common2.extend(defaults, options);
                   Events2.on(engine2, "beforeUpdate", function() {
                     var allBodies = Composite2.allBodies(engine2.world);
                     MouseConstraint.update(mouseConstraint, allBodies);
@@ -3646,7 +3646,7 @@
               var Render = {};
               module2.exports = Render;
               var Body2 = __webpack_require__(4);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               var Composite2 = __webpack_require__(6);
               var Bounds = __webpack_require__(1);
               var Events2 = __webpack_require__(5);
@@ -3657,7 +3657,7 @@
                 if (typeof window !== "undefined") {
                   _requestAnimationFrame = window.requestAnimationFrame || window.webkitRequestAnimationFrame || window.mozRequestAnimationFrame || window.msRequestAnimationFrame || function(callback) {
                     window.setTimeout(function() {
-                      callback(Common.now());
+                      callback(Common2.now());
                     }, 1e3 / 60);
                   };
                   _cancelAnimationFrame = window.cancelAnimationFrame || window.mozCancelAnimationFrame || window.webkitCancelAnimationFrame || window.msCancelAnimationFrame;
@@ -3711,7 +3711,7 @@
                       showMousePosition: false
                     }
                   };
-                  var render = Common.extend(defaults, options);
+                  var render = Common2.extend(defaults, options);
                   if (render.canvas) {
                     render.canvas.width = render.options.width || render.canvas.width;
                     render.canvas.height = render.options.height || render.canvas.height;
@@ -3736,7 +3736,7 @@
                   if (render.options.pixelRatio !== 1) {
                     Render.setPixelRatio(render, render.options.pixelRatio);
                   }
-                  if (Common.isElement(render.element)) {
+                  if (Common2.isElement(render.element)) {
                     render.element.appendChild(render.canvas);
                   }
                   return render;
@@ -3771,7 +3771,7 @@
                 };
                 Render.lookAt = function(render, objects, padding, center) {
                   center = typeof center !== "undefined" ? center : true;
-                  objects = Common.isArray(objects) ? objects : [objects];
+                  objects = Common2.isArray(objects) ? objects : [objects];
                   padding = padding || {
                     x: 0,
                     y: 0
@@ -3838,7 +3838,7 @@
                   render.context.setTransform(render.options.pixelRatio, 0, 0, render.options.pixelRatio, 0, 0);
                 };
                 Render.world = function(render, time) {
-                  var startTime = Common.now(), engine2 = render.engine, world2 = engine2.world, canvas = render.canvas, context = render.context, options = render.options, timing = render.timing;
+                  var startTime = Common2.now(), engine2 = render.engine, world2 = engine2.world, canvas = render.canvas, context = render.context, options = render.options, timing = render.timing;
                   var allBodies = Composite2.allBodies(world2), allConstraints = Composite2.allConstraints(world2), background = options.wireframes ? options.wireframeBackground : options.background, bodies = [], constraints = [], i;
                   var event = {
                     timestamp: engine2.timing.timestamp
@@ -3910,7 +3910,7 @@
                     Render.endViewTransform(render);
                   }
                   Events2.trigger(render, "afterRender", event);
-                  timing.lastElapsed = Common.now() - startTime;
+                  timing.lastElapsed = Common2.now() - startTime;
                 };
                 Render.stats = function(render, context, time) {
                   var engine2 = render.engine, world2 = engine2.world, bodies = Composite2.allBodies(world2), parts = 0, width = 55, height = 44, x = 0, y = 0;
@@ -4016,12 +4016,12 @@
                   context.lineWidth = 1;
                   context.fillRect(x, y + 7, width, 1);
                   context.beginPath();
-                  context.moveTo(x, y + 7 - height * Common.clamp(0.4 * plotY(0), -2, 2));
+                  context.moveTo(x, y + 7 - height * Common2.clamp(0.4 * plotY(0), -2, 2));
                   for (var i = 0; i < width; i += 1) {
-                    context.lineTo(x + i, y + 7 - (i < count ? height * Common.clamp(0.4 * plotY(i), -2, 2) : 0));
+                    context.lineTo(x + i, y + 7 - (i < count ? height * Common2.clamp(0.4 * plotY(i), -2, 2) : 0));
                   }
                   context.stroke();
-                  context.fillStyle = "hsl(" + Common.clamp(25 + 95 * indicator, 0, 120) + ",100%,60%)";
+                  context.fillStyle = "hsl(" + Common2.clamp(25 + 95 * indicator, 0, 120) + ",100%,60%)";
                   context.fillRect(x, y - 7, 4, 4);
                   context.font = "12px Arial";
                   context.textBaseline = "middle";
@@ -4054,7 +4054,7 @@
                       c.beginPath();
                       c.moveTo(start.x, start.y);
                       if (constraint.render.type === "spring") {
-                        var delta = Vector2.sub(end, start), normal = Vector2.perp(Vector2.normalise(delta)), coils = Math.ceil(Common.clamp(constraint.length / 5, 12, 20)), offset;
+                        var delta = Vector2.sub(end, start), normal = Vector2.perp(Vector2.normalise(delta)), coils = Math.ceil(Common2.clamp(constraint.length / 5, 12, 20)), offset;
                         for (var j = 1; j < coils; j += 1) {
                           offset = j % 2 === 0 ? 1 : -1;
                           c.lineTo(
@@ -4528,7 +4528,7 @@
               module2.exports = Runner;
               var Events2 = __webpack_require__(5);
               var Engine2 = __webpack_require__(17);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               (function() {
                 var _requestAnimationFrame, _cancelAnimationFrame;
                 if (typeof window !== "undefined") {
@@ -4539,7 +4539,7 @@
                   var _frameTimeout;
                   _requestAnimationFrame = function(callback) {
                     _frameTimeout = setTimeout(function() {
-                      callback(Common.now());
+                      callback(Common2.now());
                     }, 1e3 / 60);
                   };
                   _cancelAnimationFrame = function() {
@@ -4558,7 +4558,7 @@
                     isFixed: false,
                     enabled: true
                   };
-                  var runner = Common.extend(defaults, options);
+                  var runner = Common2.extend(defaults, options);
                   runner.delta = runner.delta || 1e3 / runner.fps;
                   runner.deltaMin = runner.deltaMin || 1e3 / runner.fps;
                   runner.deltaMax = runner.deltaMax || 1e3 / (runner.fps * 0.5);
@@ -4622,8 +4622,8 @@
               var SAT = {};
               module2.exports = SAT;
               var Collision = __webpack_require__(8);
-              var Common = __webpack_require__(0);
-              var deprecated = Common.deprecated;
+              var Common2 = __webpack_require__(0);
+              var deprecated = Common2.deprecated;
               (function() {
                 SAT.collides = function(bodyA, bodyB) {
                   return Collision.collides(bodyA, bodyB);
@@ -4637,11 +4637,11 @@
               var Svg = {};
               module2.exports = Svg;
               var Bounds = __webpack_require__(1);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               (function() {
                 Svg.pathToVertices = function(path, sampleLength) {
                   if (typeof window !== "undefined" && !("SVGPathSeg" in window)) {
-                    Common.warn("Svg.pathToVertices: SVGPathSeg not defined, a polyfill is required.");
+                    Common2.warn("Svg.pathToVertices: SVGPathSeg not defined, a polyfill is required.");
                   }
                   var i, il, total, point, segment, segments, segmentsQueue, lastSegment, lastPoint, segmentIndex, points = [], lx, ly, length = 0, x = 0, y = 0;
                   sampleLength = sampleLength || 15;
@@ -4783,7 +4783,7 @@
               var World = {};
               module2.exports = World;
               var Composite2 = __webpack_require__(6);
-              var Common = __webpack_require__(0);
+              var Common2 = __webpack_require__(0);
               (function() {
                 World.create = Composite2.create;
                 World.add = Composite2.add;
@@ -4806,7 +4806,7 @@
 
   // src/sim/world.js
   var import_matter_js = __toESM(require_matter(), 1);
-  var { Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector } = import_matter_js.default;
+  var { Common, Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector } = import_matter_js.default;
   var W = 1280;
   var H = 720;
   var engine = null;
@@ -4820,7 +4820,9 @@
   var TICK_HZ = 60;
   var TICK_MS = 1e3 / TICK_HZ;
   var tick = 0;
+  var currentTick = () => tick;
   var simNow = () => tick * TICK_MS;
+  var ticks = (ms) => Math.round(ms / TICK_MS);
 
   // src/sim/rng.js
   function makeRng(seed) {
@@ -4933,15 +4935,20 @@
   };
 
   // src/sim/schedule.js
-  var timers = /* @__PURE__ */ new Set();
-  function schedule(fn, ms) {
-    const h = setTimeout(() => {
-      timers.delete(h);
-      fn();
-    }, ms);
-    timers.add(h);
-    return h;
+  var seq = 0;
+  var entries = [];
+  function scheduleAt(at, fn, tag = null) {
+    const id = ++seq;
+    entries.push({ at, id, fn, tag });
+    return id;
   }
+  var scheduleIn = (ms, fn, tag = null) => scheduleAt(currentTick() + ticks(ms), fn, tag);
+  function cancelTag(tag) {
+    entries = entries.filter((e) => e.tag !== tag);
+  }
+  onWorldReset(() => {
+    entries = [];
+  });
 
   // src/version.js
   var GAME_VERSION = 9;
@@ -5521,9 +5528,9 @@
     setBanner(bs.secret ? `${bs.def.name} RAGE-QUITS` : `${bs.def.name} IS SLAIN!`, "#ffd166", 1800 + replayMs);
     sfx.victory();
     slowMo(0.25, 1100);
-    schedule(() => {
+    scheduleIn(1900 + replayMs, () => {
       if (game.state === "ROUND_END") startRound(nextMapIndex());
-    }, 1900 + replayMs);
+    }, "round");
   }
 
   // src/sim/ai/enemies.js
@@ -9225,6 +9232,7 @@
     game.boss = null;
   }
   function startRound(index) {
+    cancelTag("round");
     clearReplay();
     if (game.state === "LOBBY") {
       resetMatchStats();
@@ -9251,13 +9259,13 @@
   }
   game.onDeath = (p) => {
     if (game.state === "LOBBY") {
-      schedule(() => {
+      scheduleIn(1200, () => {
         if (game.state === "LOBBY" && !p.alive) spawnPlayer(p, spawnPointFor(p));
-      }, 1200);
+      }, "lobby-respawn");
       return;
     }
     if (game.state !== "PLAY") return;
-    schedule(checkRoundEnd, 650);
+    scheduleIn(650, checkRoundEnd, "round");
   };
   function checkRoundEnd() {
     if (game.state !== "PLAY") return;
@@ -9276,9 +9284,9 @@
       setBanner(`${game.boss.def.name} PREVAILS \u2014 START OVER`, game.boss.def.color, 1800 + replayMs2);
       sfx.death();
       slowMo(0.3, 900);
-      schedule(() => {
+      scheduleIn(1900 + replayMs2, () => {
         if (game.state === "ROUND_END") startRound(nextMapIndex());
-      }, 1900 + replayMs2);
+      }, "round");
       return;
     }
     if (alive.length > 1) return;
@@ -9295,11 +9303,11 @@
     }
     sfx.roundWin();
     slowMo(0.3, 900);
-    schedule(() => {
+    scheduleIn(1900 + replayMs, () => {
       if (game.state !== "ROUND_END") return;
       if (winner && winner.roundWins >= game.winsNeeded) startVictory(winner);
       else startRound(nextMapIndex());
-    }, 1900 + replayMs);
+    }, "round");
   }
   function nextMapIndex() {
     const crowded = players.length >= 6;

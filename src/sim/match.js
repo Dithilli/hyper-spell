@@ -6,7 +6,7 @@ import { simRandom, rand, reseed } from './rng.js';
 import { particles, doFlash } from './fx.js';
 import { slowMo } from './pace.js';
 import { sfx } from './sfx.js';
-import { schedule } from './schedule.js';
+import { scheduleIn, cancelTag } from './schedule.js';
 import { computeAwards, resetMatchStats } from './awards.js';
 import {
   computeSpellReport, flushRoundTelemetry, resetMatchTelemetry, resetTelemetry,
@@ -88,6 +88,12 @@ export function loadMap(index) {
 }
 
 export function startRound(index) {
+  // Retract every pending round-flow callback before building the new round.
+  // The `game.state === 'ROUND_END'` guards on those callbacks are now
+  // belt-and-braces rather than the only defence, and the class of bug where
+  // two deaths in the same beat queue two resolutions is gone: whoever starts
+  // the round empties the queue.
+  cancelTag('round');
   clearReplay();
   if (game.state === 'LOBBY') { resetMatchStats(); resetMatchTelemetry(); } // fresh match, fresh ledger
   game.totalRounds = (game.totalRounds || 0) + 1;
@@ -112,13 +118,13 @@ export function startRound(index) {
 
 game.onDeath = (p) => {
   if (game.state === 'LOBBY') {
-    schedule(() => {
+    scheduleIn(1200, () => {
       if (game.state === 'LOBBY' && !p.alive) spawnPlayer(p, spawnPointFor(p));
-    }, 1200);
+    }, 'lobby-respawn');
     return;
   }
   if (game.state !== 'PLAY') return;
-  schedule(checkRoundEnd, 650);
+  scheduleIn(650, checkRoundEnd, 'round');
 };
 
 export function checkRoundEnd() {
@@ -141,9 +147,9 @@ export function checkRoundEnd() {
     setBanner(`${game.boss.def.name} PREVAILS — START OVER`, game.boss.def.color, 1800 + replayMs);
     sfx.death();
     slowMo(0.3, 900);
-    schedule(() => {
+    scheduleIn(1900 + replayMs, () => {
       if (game.state === 'ROUND_END') startRound(nextMapIndex());
-    }, 1900 + replayMs);
+    }, 'round');
     return;
   }
   if (alive.length > 1) return;
@@ -160,11 +166,11 @@ export function checkRoundEnd() {
   }
   sfx.roundWin();
   slowMo(0.3, 900);
-  schedule(() => {
+  scheduleIn(1900 + replayMs, () => {
     if (game.state !== 'ROUND_END') return;
     if (winner && winner.roundWins >= game.winsNeeded) startVictory(winner);
     else startRound(nextMapIndex());
-  }, 1900 + replayMs);
+  }, 'round');
 }
 
 export function nextMapIndex() {
@@ -185,6 +191,7 @@ export function startVictory(p) {
 }
 
 export function resetMatch() {
+  cancelTag('round'); // same reason as startRound: no round-flow callback outlives the round
   clearReplay();
   for (const p of players) p.roundWins = 0;
   game.state = 'LOBBY';

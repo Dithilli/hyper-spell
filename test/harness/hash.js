@@ -66,11 +66,29 @@ function canonicalBodies(bodies) {
     .sort();
 }
 
+// segs has the same problem bodies does, one layer down: src/sim/snapshot.js
+// builds it by walking Composite.allConstraints, whose order is the order a map
+// builder happened to add its planks and chains. Reordering two Composite.add
+// calls changes nothing about the simulation, and until the tape reached a map
+// with constraints at all this was unreachable — the three-round tape reaches
+// them, so the trap is now live and is closed the same way: sort on the full
+// canonical encoding, which is a total order (two segs can only tie when they
+// are byte-identical, and then their order cannot move the digest). Nothing
+// downstream cares either — a seg is drawn as a line, and the draw order of
+// hairline segments is not sim state.
+// Non-array input falls through to the generic path so that a perturbation test
+// substituting a scalar still hashes rather than throwing.
+const canonicalSegs = (segs) => (Array.isArray(segs)
+  ? segs.map((s) => JSON.stringify(canonicalize(s))).sort()
+  : canonicalize(segs));
+
 export function hashSnapshot(snap) {
   const canonical = {};
   for (const key of Object.keys(snap).sort()) {
     if (IGNORED_SNAPSHOT_KEYS.has(key)) continue;
-    canonical[key] = key === 'bodies' ? canonicalBodies(snap.bodies) : canonicalize(snap[key]);
+    if (key === 'bodies') canonical[key] = canonicalBodies(snap.bodies);
+    else if (key === 'segs') canonical[key] = canonicalSegs(snap.segs);
+    else canonical[key] = canonicalize(snap[key]);
   }
   return createHash('sha1').update(JSON.stringify(canonical)).digest('hex').slice(0, 16);
 }

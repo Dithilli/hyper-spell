@@ -1,8 +1,10 @@
 // sim-smoke.js — headless proof the sim runs server-side: boots the sim, adds
 // bots, plays real matches, and asserts the invariants that matter (no
 // draw-path execution, no NaN on the wire, state machine cycles, no leak growth
-// across matches). Async, because the round flow schedules itself via setTimeout
-// — the tick loop must yield to the event loop exactly like the real SimHost.
+// across matches). Async because it drives the sim the way the real SimHost
+// does — one fixed step per event-loop turn — not because the sim needs the
+// event loop: round flow is on the tick scheduler now (src/sim/schedule.js), so
+// it advances with the steps below rather than with the wall clock.
 //
 //   node server/sim-smoke.js            # one real match, ~a minute
 //   node server/sim-smoke.js --long     # multi-match leak soak
@@ -24,9 +26,9 @@ let sim = null, b = null, renderCanvas = null;
 
 // the same loop shape as server/sim-host.js: one fixed step per iteration.
 // stepSim takes nothing and keeps its own clock (simNow() = tick x TICK_MS), so
-// the only thing the real clock still decides here is how long each tickFor /
-// tickUntil window runs — which is what lets the round flow's real setTimeouts
-// (src/sim/schedule.js) fire between steps, exactly as they do under SimHost.
+// the only thing the real clock still decides here is how many steps each
+// tickFor / tickUntil window gets through. Round flow rides those steps: the
+// scheduled callbacks (src/sim/schedule.js) are drained at the top of stepSim.
 function tick() {
   b.stepSim();
 }
