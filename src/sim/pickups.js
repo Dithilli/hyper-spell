@@ -1,6 +1,7 @@
 // pickups.js — spell tomes and the rare Mega Hat raining from the sky.
 // Their art lives in src/render/draw-pickups.js.
-import { Bodies, Body, Composite, world, engine, W, H, onWorldReset } from './world.js';
+import { W, H, onWorldReset } from './world.js';
+import { addBody, allBodies, createBox, gravityY, removeBody, scaleBody } from './phys/facade.js';
 import { simRandom, rand, pick } from './rng.js';
 import { spawnParticles, spawnRing, spawnText, addShake, doFlash } from './fx.js';
 import { sfx } from './sfx.js';
@@ -46,7 +47,7 @@ export function updateTomes(now) {
       spawnParticles(t.position.x, t.position.y, '#e8d5ff', 6, 3);
       tomes.delete(t);
       hats.delete(t);
-      Composite.remove(world, t);
+      removeBody(t);
     }
   }
 }
@@ -54,8 +55,8 @@ export function updateTomes(now) {
 // find a drop point that actually lands somewhere wizards can reach,
 // respecting ceilings and flipped gravity
 export function tomeDropSpot() {
-  const g = engine.gravity.y;
-  const solids = Composite.allBodies(world).filter(b =>
+  const g = gravityY();
+  const solids = allBodies().filter(b =>
     (b.isStatic || b.label === 'plank') && !b.isSensor && b.collisionFilter.mask !== 0 &&
     b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
   for (let tries = 0; tries < 24; tries++) {
@@ -88,35 +89,35 @@ export function spawnTome(now) {
   do { spell = weightedSpellPick(pool); } while (spell === lastTomeSpell && pool.length > 1);
   lastTomeSpell = spell;
   const spot = tomeDropSpot();
-  const tome = Bodies.rectangle(spot.x, spot.y, 20, 24, { density: 0.001, frictionAir: 0.05, label: 'tome' });
+  const tome = createBox(spot.x, spot.y, 20, 24, { density: 0.001, frictionAir: 0.05, label: 'tome' });
   tome.spell = spell;
   tome.bornAt = now;
   tomes.add(tome);
-  Composite.add(world, tome);
+  addBody(tome);
 }
 
 export function spawnCatalyst(now) {
   const spot = tomeDropSpot();
-  const c = Bodies.rectangle(spot.x, spot.y, 22, 22, { density: 0.001, frictionAir: 0.05, label: 'tome' });
+  const c = createBox(spot.x, spot.y, 22, 22, { density: 0.001, frictionAir: 0.05, label: 'tome' });
   c.catalyst = true; // picked up through the normal tome path, fuses instead of arming
   c.bornAt = now;
   tomes.add(c);
-  Composite.add(world, c);
+  addBody(c);
 }
 
 export function spawnHat(now) {
   const spot = tomeDropSpot();
-  const hat = Bodies.rectangle(spot.x, spot.y, 28, 20, { density: 0.001, frictionAir: 0.05, label: 'hat' });
+  const hat = createBox(spot.x, spot.y, 28, 20, { density: 0.001, frictionAir: 0.05, label: 'hat' });
   hat.bornAt = now;
   hats.add(hat);
-  Composite.add(world, hat);
+  addBody(hat);
   setBanner('A MEGA HAT FALLS...', '#ffd700', 1200);
 }
 
 export function pickupTome(tome, p) {
   if (!tomes.has(tome) || !p.alive) return;
   tomes.delete(tome);
-  Composite.remove(world, tome);
+  removeBody(tome);
   if (tome.catalyst) { grabCatalyst(p); return; }
   if (game.state === 'PLAY') { statFor(p).tomes++; telPick(tome.spell); } // balance: spell pick count
   const slot = addSpell(p, tome.spell); // fills an empty slot, else replaces the oldest (never a charged fusion)
@@ -157,11 +158,11 @@ export function grabCatalyst(p) {
 export function pickupHat(hat, p) {
   if (!hats.has(hat) || !p.alive) return;
   hats.delete(hat);
-  Composite.remove(world, hat);
+  removeBody(hat);
   p.megaCasts = 3;
   p.hp = MAX_HP; // the mega hat restores you to full
   if ((p.sizeScale || 1) === 1) {
-    Body.scale(p.body, 2, 2);
+    scaleBody(p.body, 2, 2);
     p.sizeScale = 2;
   }
   sfx.victory();
@@ -175,7 +176,7 @@ export function pickupHat(hat, p) {
 
 export function unMega(p) {
   if ((p.sizeScale || 1) > 1) {
-    Body.scale(p.body, 0.5, 0.5);
+    scaleBody(p.body, 0.5, 0.5);
     p.sizeScale = 1;
     spawnParticles(p.body.position.x, p.body.position.y, '#ffd700', 12, 4);
   }

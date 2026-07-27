@@ -3,7 +3,11 @@
 // accumulator (src/sim/tick-loop.js) in front of it, so it runs 0..MAX_CATCHUP
 // times per frame and always with the same step. The dedicated server
 // (server/sim-host.js) drives the same loop with the draw half never running.
-import { Body, Composite, Engine, engine, world, W, H } from './world.js';
+import { W, H } from './world.js';
+import {
+  allBodies, applyForce, gravityScale, gravityY, physStep, removeBody, setAngle,
+  setAngularVelocity, setPosition, setVelocity,
+} from './phys/facade.js';
 import { simRandom, rand } from './rng.js';
 import { particles, updateParticles } from './fx.js';
 import { updatePace } from './pace.js';
@@ -28,8 +32,8 @@ import './collision.js'; // registers the contact handler on every new world
 
 // ---------- per-frame upkeep ----------
 export function wrapBody(b) {
-  if (b.position.x < -20) Body.setPosition(b, { x: W + 15, y: b.position.y });
-  if (b.position.x > W + 20) Body.setPosition(b, { x: -15, y: b.position.y });
+  if (b.position.x < -20) setPosition(b, { x: W + 15, y: b.position.y });
+  if (b.position.x > W + 20) setPosition(b, { x: -15, y: b.position.y });
 }
 
 export function postPhysics(now) {
@@ -42,7 +46,7 @@ export function postPhysics(now) {
     if (fb.expireAt && now > fb.expireAt) {
       projectiles.delete(fb);
       fb.onHit?.(fb, null);
-      Composite.remove(world, fb);
+      removeBody(fb);
       continue;
     }
     if (wrap) wrapBody(fb);
@@ -56,14 +60,14 @@ export function postPhysics(now) {
       b.critter.hopAt = now + rand(400, 800);
       if (b.position.x < 70) b.critter.dir = 1;
       if (b.position.x > W - 70) b.critter.dir = -1;
-      Body.setVelocity(b, { x: b.critter.dir * rand(2, b.critter.speed), y: -b.critter.hop });
+      setVelocity(b, { x: b.critter.dir * rand(2, b.critter.speed), y: -b.critter.hop });
     }
     if (b.label === 'saw') {
       // a rolling ground hazard: keep it spinning across the arena, bouncing off the walls
       if (b.position.x < 40) b.sawDir = 1;
       if (b.position.x > W - 40) b.sawDir = -1;
-      Body.setVelocity(b, { x: (b.sawDir || 1) * 9, y: b.velocity.y });
-      Body.setAngularVelocity(b, (b.sawDir || 1) * 0.9);
+      setVelocity(b, { x: (b.sawDir || 1) * 9, y: b.velocity.y });
+      setAngularVelocity(b, (b.sawDir || 1) * 0.9);
     }
     if (b.label === 'mine' && b.mineBlast) {
       if (!b.armAt) b.armAt = now + 1000;
@@ -85,7 +89,7 @@ export function postPhysics(now) {
   for (const gib of [...gibs]) {
     if (now > gib.dieAt || gib.position.y > H + 100) {
       gibs.delete(gib);
-      Composite.remove(world, gib);
+      removeBody(gib);
     }
   }
 }
@@ -148,12 +152,12 @@ export function stepSim() {
   updateWaveMode(now);
 
   // spinners + phantom platforms
-  for (const b of Composite.allBodies(currentMap.composite)) {
+  for (const b of allBodies(currentMap.composite)) {
     // FOLLOW-UP: this hand-rolls the conversion perSecond() now owns, against a
     // rounded 16.7 rather than the exported LEGACY_FRAME_MS (1000/60 = 16.666…),
     // so it runs 0.2% fast. Correcting it WOULD move the golden tape, which is
     // why it is left alone here — it needs its own behaviour-contract task.
-    if (b.spin) Body.setAngle(b, b.angle + b.spin * (dt / 16.7));
+    if (b.spin) setAngle(b, b.angle + b.spin * (dt / 16.7));
     if (b.phantom) {
       const solid = Math.sin(now * b.phantom.speed + b.phantom.offset) > -0.2;
       if (solid !== b.phantomSolid) {
@@ -166,10 +170,10 @@ export function stepSim() {
   // lobbed projectiles fly on reduced gravity — cancel part of it each tick
   for (const fb of projectiles) {
     if (fb.gravityScale < 1) {
-      Body.applyForce(fb, fb.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * fb.mass * (1 - fb.gravityScale) });
+      applyForce(fb, fb.position, { x: 0, y: -gravityY() * gravityScale() * fb.mass * (1 - fb.gravityScale) });
     }
   }
-  Engine.update(engine, Math.max(dt, 0.5));
+  physStep(Math.max(dt, 0.5));
   postPhysics(now);
   // one tick of particle life per tick. Particle `life` is counted in ticks, and
   // the tick loop already runs fewer ticks per second during a hitstop — scaling

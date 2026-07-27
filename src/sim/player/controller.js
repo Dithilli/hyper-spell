@@ -1,6 +1,10 @@
 // player/controller.js — the per-frame movement, jump, aim and cast pass: the
 // bridge between a controller's input and the physics body.
-import { Body, Composite, Query, world, engine, W, H } from '../world.js';
+import { W, H } from '../world.js';
+import {
+  applyForce, gravityScale, gravityY, queryRegion, setAngle, setAngularVelocity,
+  setPosition, setVelocity,
+} from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
 import { simRandom, rand } from '../rng.js';
 import { spawnParticles, addShake } from '../fx.js';
@@ -15,7 +19,7 @@ import { tryBlock } from './status.js';
 // gravity direction as this player experiences it (Gravity Flip spares its caster)
 export function gravDirFor(p) {
   if (p && simNow() < (p.gravityLockUntil || 0)) return p.gravityLockDir;
-  return engine.gravity.y < 0 ? -1 : 1;
+  return gravityY() < 0 ? -1 : 1;
 }
 
 export function grounded(p) {
@@ -23,7 +27,7 @@ export function grounded(p) {
   const s = p.sizeScale || 1;
   const dir = gravDirFor(p); // support is above you when gravity flips
   const y0 = y + 14 * s * dir, y1 = y + 22 * s * dir;
-  const below = Query.region(Composite.allBodies(world), {
+  const below = queryRegion({
     min: { x: x - 11 * s, y: Math.min(y0, y1) },
     max: { x: x + 11 * s, y: Math.max(y0, y1) },
   });
@@ -57,7 +61,7 @@ export function updatePlayers(now) {
     // feather: gentle 0.72× counter-gravity — you fall slowly but never rise.
     const lift = now < (p.floatyUntil || 0) ? 1.5 : now < (p.featherUntil || 0) ? 0.72 : 0;
     if (lift) {
-      Body.applyForce(body, body.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * body.mass * lift });
+      applyForce(body, body.position, { x: 0, y: -gravityY() * gravityScale() * body.mass * lift });
       if (lift < 1 && simRandom() < 0.06) spawnParticles(body.position.x + rand(-10, 10), body.position.y - 18, '#fffde7', 1, 1.2, 22);
     }
 
@@ -75,8 +79,8 @@ export function updatePlayers(now) {
     const gdir = gravDirFor(p);
     // gravity-locked (a Gravity Flip caster): cancel the flipped world pull, keep your own
     if (now < (p.gravityLockUntil || 0)) {
-      const want = p.gravityLockDir * Math.abs(engine.gravity.y);
-      Body.applyForce(body, body.position, { x: 0, y: (want - engine.gravity.y) * engine.gravity.scale * body.mass });
+      const want = p.gravityLockDir * Math.abs(gravityY());
+      applyForce(body, body.position, { x: 0, y: (want - gravityY()) * gravityScale() * body.mass });
     }
     const onGround = grounded(p);
     // fall damage: a long drop ending in a hard landing hurts. Terminal velocity
@@ -123,19 +127,19 @@ export function updatePlayers(now) {
       if (currentMap.def.muddy || now < (p.vineSlowUntil || 0)) target *= 0.65;
       const icy = currentMap.def.icy || currentMap.data.eventIcy;
       const blend = onGround ? (icy ? perSecond(0.09) : currentMap.def.muddy ? perSecond(0.12) : perSecond(0.25)) : perSecond(0.08);
-      Body.setVelocity(body, { x: body.velocity.x + (target - body.velocity.x) * blend, y: body.velocity.y });
+      setVelocity(body, { x: body.velocity.x + (target - body.velocity.x) * blend, y: body.velocity.y });
 
       const heavy = now < (p.heavyUntil || 0);
       // jump away from whatever you stand on (gdir computed above, per player)
       const jumpVy = (now < (p.jumpBoostUntil || 0) ? -22 : (p.sizeScale > 1.6 ? -17 : -15)) * gdir;
       if (!heavy) {
         if (c.jump && canJump && body.velocity.y * gdir > -2) {
-          Body.setVelocity(body, { x: body.velocity.x, y: jumpVy });
+          setVelocity(body, { x: body.velocity.x, y: jumpVy });
           p.lastGround = 0;
           sfx.jump();
         } else if (c.jumpPressed && !canJump && p.airJumps > 0) {
           p.airJumps--;
-          Body.setVelocity(body, { x: body.velocity.x, y: (now < (p.jumpBoostUntil || 0) ? -19 : -13) * gdir });
+          setVelocity(body, { x: body.velocity.x, y: (now < (p.jumpBoostUntil || 0) ? -19 : -13) * gdir });
           spawnParticles(body.position.x, body.position.y + 12 * gdir, '#e8d5ff', 8, 3, 20);
           sfx.jump();
         }
@@ -147,13 +151,13 @@ export function updatePlayers(now) {
       }
     }
     // right yourself after a blow (skip while slipping on a banana)
-    if (!slipped) Body.setAngle(body, body.angle * 0.88);
-    Body.setAngularVelocity(body, body.angularVelocity * 0.9);
+    if (!slipped) setAngle(body, body.angle * 0.88);
+    setAngularVelocity(body, body.angularVelocity * 0.9);
     p.walkPhase += Math.abs(body.velocity.x) * 0.06;
     if (body.position.y > H + 60) killPlayer(p);
     if (currentMap.def.wrap) {
-      if (body.position.x < -20) Body.setPosition(body, { x: W + 15, y: body.position.y });
-      if (body.position.x > W + 20) Body.setPosition(body, { x: -15, y: body.position.y });
+      if (body.position.x < -20) setPosition(body, { x: W + 15, y: body.position.y });
+      if (body.position.x > W + 20) setPosition(body, { x: -15, y: body.position.y });
     }
   }
 }
