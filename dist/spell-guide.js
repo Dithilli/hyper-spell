@@ -1080,18 +1080,18 @@
                   }
                 };
                 Body2.setVelocity = function(body, velocity) {
-                  var timeScale2 = body.deltaTime / Body2._baseDelta;
-                  body.positionPrev.x = body.position.x - velocity.x * timeScale2;
-                  body.positionPrev.y = body.position.y - velocity.y * timeScale2;
-                  body.velocity.x = (body.position.x - body.positionPrev.x) / timeScale2;
-                  body.velocity.y = (body.position.y - body.positionPrev.y) / timeScale2;
+                  var timeScale = body.deltaTime / Body2._baseDelta;
+                  body.positionPrev.x = body.position.x - velocity.x * timeScale;
+                  body.positionPrev.y = body.position.y - velocity.y * timeScale;
+                  body.velocity.x = (body.position.x - body.positionPrev.x) / timeScale;
+                  body.velocity.y = (body.position.y - body.positionPrev.y) / timeScale;
                   body.speed = Vector2.magnitude(body.velocity);
                 };
                 Body2.getVelocity = function(body) {
-                  var timeScale2 = Body2._baseDelta / body.deltaTime;
+                  var timeScale = Body2._baseDelta / body.deltaTime;
                   return {
-                    x: (body.position.x - body.positionPrev.x) * timeScale2,
-                    y: (body.position.y - body.positionPrev.y) * timeScale2
+                    x: (body.position.x - body.positionPrev.x) * timeScale,
+                    y: (body.position.y - body.positionPrev.y) * timeScale
                   };
                 };
                 Body2.getSpeed = function(body) {
@@ -1101,9 +1101,9 @@
                   Body2.setVelocity(body, Vector2.mult(Vector2.normalise(Body2.getVelocity(body)), speed));
                 };
                 Body2.setAngularVelocity = function(body, velocity) {
-                  var timeScale2 = body.deltaTime / Body2._baseDelta;
-                  body.anglePrev = body.angle - velocity * timeScale2;
-                  body.angularVelocity = (body.angle - body.anglePrev) / timeScale2;
+                  var timeScale = body.deltaTime / Body2._baseDelta;
+                  body.anglePrev = body.angle - velocity * timeScale;
+                  body.angularVelocity = (body.angle - body.anglePrev) / timeScale;
                   body.angularSpeed = Math.abs(body.angularVelocity);
                 };
                 Body2.getAngularVelocity = function(body) {
@@ -1197,11 +1197,11 @@
                   }
                 };
                 Body2.updateVelocities = function(body) {
-                  var timeScale2 = Body2._baseDelta / body.deltaTime, bodyVelocity = body.velocity;
-                  bodyVelocity.x = (body.position.x - body.positionPrev.x) * timeScale2;
-                  bodyVelocity.y = (body.position.y - body.positionPrev.y) * timeScale2;
+                  var timeScale = Body2._baseDelta / body.deltaTime, bodyVelocity = body.velocity;
+                  bodyVelocity.x = (body.position.x - body.positionPrev.x) * timeScale;
+                  bodyVelocity.y = (body.position.y - body.positionPrev.y) * timeScale;
                   body.speed = Math.sqrt(bodyVelocity.x * bodyVelocity.x + bodyVelocity.y * bodyVelocity.y);
-                  body.angularVelocity = (body.angle - body.anglePrev) * timeScale2;
+                  body.angularVelocity = (body.angle - body.anglePrev) * timeScale;
                   body.angularSpeed = Math.abs(body.angularVelocity);
                 };
                 Body2.applyForce = function(body, position, force) {
@@ -1592,7 +1592,7 @@
                 Sleeping._motionSleepThreshold = 0.08;
                 Sleeping._minBias = 0.9;
                 Sleeping.update = function(bodies, delta) {
-                  var timeScale2 = delta / Common._baseDelta, motionSleepThreshold = Sleeping._motionSleepThreshold;
+                  var timeScale = delta / Common._baseDelta, motionSleepThreshold = Sleeping._motionSleepThreshold;
                   for (var i = 0; i < bodies.length; i++) {
                     var body = bodies[i], speed = Body2.getSpeed(body), angularSpeed = Body2.getAngularSpeed(body), motion = speed * speed + angularSpeed * angularSpeed;
                     if (body.force.x !== 0 || body.force.y !== 0) {
@@ -1603,7 +1603,7 @@
                     body.motion = Sleeping._minBias * minMotion + (1 - Sleeping._minBias) * maxMotion;
                     if (body.sleepThreshold > 0 && body.motion < motionSleepThreshold) {
                       body.sleepCounter += 1;
-                      if (body.sleepCounter >= body.sleepThreshold / timeScale2) {
+                      if (body.sleepCounter >= body.sleepThreshold / timeScale) {
                         Sleeping.set(body, true);
                       }
                     } else if (body.sleepCounter > 0) {
@@ -1951,11 +1951,11 @@
                   }
                 };
                 Constraint2.solveAll = function(constraints, delta) {
-                  var timeScale2 = Common.clamp(delta / Common._baseDelta, 0, 1);
+                  var timeScale = Common.clamp(delta / Common._baseDelta, 0, 1);
                   for (var i = 0; i < constraints.length; i += 1) {
                     var constraint = constraints[i], fixedA = !constraint.bodyA || constraint.bodyA && constraint.bodyA.isStatic, fixedB = !constraint.bodyB || constraint.bodyB && constraint.bodyB.isStatic;
                     if (fixedA || fixedB) {
-                      Constraint2.solve(constraints[i], timeScale2);
+                      Constraint2.solve(constraints[i], timeScale);
                     }
                   }
                   for (i = 0; i < constraints.length; i += 1) {
@@ -1963,11 +1963,11 @@
                     fixedA = !constraint.bodyA || constraint.bodyA && constraint.bodyA.isStatic;
                     fixedB = !constraint.bodyB || constraint.bodyB && constraint.bodyB.isStatic;
                     if (!fixedA && !fixedB) {
-                      Constraint2.solve(constraints[i], timeScale2);
+                      Constraint2.solve(constraints[i], timeScale);
                     }
                   }
                 };
-                Constraint2.solve = function(constraint, timeScale2) {
+                Constraint2.solve = function(constraint, timeScale) {
                   var bodyA = constraint.bodyA, bodyB = constraint.bodyB, pointA = constraint.pointA, pointB = constraint.pointB;
                   if (!bodyA && !bodyB)
                     return;
@@ -1988,7 +1988,7 @@
                   if (currentLength < Constraint2._minLength) {
                     currentLength = Constraint2._minLength;
                   }
-                  var difference = (currentLength - constraint.length) / currentLength, isRigid = constraint.stiffness >= 1 || constraint.length === 0, stiffness = isRigid ? constraint.stiffness * timeScale2 : constraint.stiffness * timeScale2 * timeScale2, damping = constraint.damping * timeScale2, force = Vector2.mult(delta, difference * stiffness), massTotal = (bodyA ? bodyA.inverseMass : 0) + (bodyB ? bodyB.inverseMass : 0), inertiaTotal = (bodyA ? bodyA.inverseInertia : 0) + (bodyB ? bodyB.inverseInertia : 0), resistanceTotal = massTotal + inertiaTotal, torque, share, normal, normalVelocity, relativeVelocity;
+                  var difference = (currentLength - constraint.length) / currentLength, isRigid = constraint.stiffness >= 1 || constraint.length === 0, stiffness = isRigid ? constraint.stiffness * timeScale : constraint.stiffness * timeScale * timeScale, damping = constraint.damping * timeScale, force = Vector2.mult(delta, difference * stiffness), massTotal = (bodyA ? bodyA.inverseMass : 0) + (bodyB ? bodyB.inverseMass : 0), inertiaTotal = (bodyA ? bodyA.inverseInertia : 0) + (bodyB ? bodyB.inverseInertia : 0), resistanceTotal = massTotal + inertiaTotal, torque, share, normal, normalVelocity, relativeVelocity;
                   if (damping > 0) {
                     var zero = Vector2.create();
                     normal = Vector2.div(delta, currentLength);
@@ -2469,9 +2469,9 @@
                   mouse.position.x = mouse.absolute.x * mouse.scale.x + mouse.offset.x;
                   mouse.position.y = mouse.absolute.y * mouse.scale.y + mouse.offset.y;
                 };
-                Mouse.setScale = function(mouse, scale) {
-                  mouse.scale.x = scale.x;
-                  mouse.scale.y = scale.y;
+                Mouse.setScale = function(mouse, scale2) {
+                  mouse.scale.x = scale2.x;
+                  mouse.scale.y = scale2.y;
                   mouse.position.x = mouse.absolute.x * mouse.scale.x + mouse.offset.x;
                   mouse.position.y = mouse.absolute.y * mouse.scale.y + mouse.offset.y;
                 };
@@ -2972,7 +2972,7 @@
                   }
                 };
                 Resolver.solveVelocity = function(pairs, delta) {
-                  var timeScale2 = delta / Common._baseDelta, timeScaleSquared = timeScale2 * timeScale2, timeScaleCubed = timeScaleSquared * timeScale2, restingThresh = -Resolver._restingThresh * timeScale2, restingThreshTangent = Resolver._restingThreshTangent, frictionNormalMultiplier = Resolver._frictionNormalMultiplier * timeScale2, frictionMaxStatic = Resolver._frictionMaxStatic, pairsLength = pairs.length, tangentImpulse, maxFriction, i, j;
+                  var timeScale = delta / Common._baseDelta, timeScaleSquared = timeScale * timeScale, timeScaleCubed = timeScaleSquared * timeScale, restingThresh = -Resolver._restingThresh * timeScale, restingThreshTangent = Resolver._restingThreshTangent, frictionNormalMultiplier = Resolver._frictionNormalMultiplier * timeScale, frictionMaxStatic = Resolver._frictionMaxStatic, pairsLength = pairs.length, tangentImpulse, maxFriction, i, j;
                   for (i = 0; i < pairsLength; i++) {
                     var pair = pairs[i];
                     if (!pair.isActive || pair.isSensor)
@@ -4879,16 +4879,23 @@
     flashAlpha = 0;
   });
 
+  // src/sim/time.js
+  var TICK_HZ = 60;
+  var TICK_MS = 1e3 / TICK_HZ;
+  var tick = 0;
+  var simNow = () => tick * TICK_MS;
+
   // src/sim/pace.js
-  var timeScale = 1;
+  var BASE_PACE = 0.85;
+  var scale = BASE_PACE;
   var slowUntil = 0;
-  function baseSlowMo(scale, ms) {
-    timeScale = scale;
-    slowUntil = performance.now() + ms;
+  function baseSlowMo(s, ms) {
+    scale = s;
+    slowUntil = simNow() + ms;
   }
   var slowMo = baseSlowMo;
   onWorldReset(() => {
-    timeScale = 1;
+    scale = BASE_PACE;
     slowUntil = 0;
   });
 
@@ -5833,18 +5840,18 @@
     else if (kind === "crate") addDestructible(m, x, groundY - 24, 46, 46, { hp: 45, color: "#9a7440", debris: 5, kind: "crate" });
     else addCoverPillar(m, x, groundY, pk([90, 120, 130]));
   }
-  function addTree(m, x, groundY, scale = 1) {
-    const trunkW = 34 * scale, seg = 42 * scale, segs = 4;
+  function addTree(m, x, groundY, scale2 = 1) {
+    const trunkW = 34 * scale2, seg = 42 * scale2, segs = 4;
     for (let i = 0; i < segs; i++) {
       addDestructible(m, x, groundY - seg / 2 - i * seg, trunkW, seg, { hp: 60, color: i % 2 ? "#5a3d22" : "#6b4a2a", debris: 5 });
     }
     const cy = groundY - segs * seg;
     for (const [dx, dy, w, h, c] of [
-      [0, -26 * scale, 130 * scale, 62 * scale, "#3f7d3a"],
-      [-72 * scale, 8 * scale, 84 * scale, 58 * scale, "#356b33"],
-      [72 * scale, 8 * scale, 84 * scale, 58 * scale, "#356b33"],
-      [-34 * scale, -68 * scale, 96 * scale, 56 * scale, "#4a8f42"],
-      [42 * scale, -64 * scale, 88 * scale, 54 * scale, "#4a8f42"]
+      [0, -26 * scale2, 130 * scale2, 62 * scale2, "#3f7d3a"],
+      [-72 * scale2, 8 * scale2, 84 * scale2, 58 * scale2, "#356b33"],
+      [72 * scale2, 8 * scale2, 84 * scale2, 58 * scale2, "#356b33"],
+      [-34 * scale2, -68 * scale2, 96 * scale2, 56 * scale2, "#4a8f42"],
+      [42 * scale2, -64 * scale2, 88 * scale2, 54 * scale2, "#4a8f42"]
     ]) {
       addDestructible(m, x + dx, cy + dy, w, h, { hp: 40, color: c, debris: 6 });
     }
@@ -6343,7 +6350,7 @@
       }
     });
   }
-  function makeZone({ x, y, r, life, color, tick, tickBody, draw, onEnd }) {
+  function makeZone({ x, y, r, life, color, tick: tick2, tickBody, draw, onEnd }) {
     activeEffects.push({
       until: performance.now() + life,
       x,
@@ -6351,10 +6358,10 @@
       r,
       net: { k: "zone", x, y, r, c: color },
       update(now) {
-        if (tick) {
+        if (tick2) {
           for (const q of players) {
             if (!q.alive) continue;
-            if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < r) tick(q, now);
+            if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < r) tick2(q, now);
           }
         }
         if (tickBody) {

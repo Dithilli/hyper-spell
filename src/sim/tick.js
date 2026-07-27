@@ -1,11 +1,14 @@
-// tick.js — the update phase. stepSim advances everything and draws nothing:
-// the browser loop calls it every rAF, the dedicated server from its own fixed
-// 60Hz tick (server/sim-host.js) with the draw half never running.
+// tick.js — the update phase. stepSim advances everything and draws nothing.
+// Neither platform calls it per frame any more: both put the fixed-timestep
+// accumulator (src/sim/tick-loop.js) in front of it, so it runs 0..MAX_CATCHUP
+// times per frame and always with the same step. The dedicated server
+// (server/sim-host.js) drives the same loop with the draw half never running.
 import { Body, Composite, Engine, engine, world, W, H } from './world.js';
 import { random } from './env.js';
 import { rand } from './rng.js';
 import { particles, updateParticles } from './fx.js';
-import { timeScale, updateTimeScale } from './pace.js';
+import { updatePace } from './pace.js';
+import { TICK_MS } from './time.js';
 import { sfx } from './sfx.js';
 import { nameEdit, nameEditEndAt } from './lobby.js';
 import { game, currentMap, minPlayers, setBanner, beginFromLobby, resetMatch } from './match.js';
@@ -92,9 +95,16 @@ export function postPhysics(now) {
 // nothing that draws. The browser loop below calls it every rAF; the dedicated
 // server calls it from its own fixed 60Hz tick (server/sim-host.js) with the
 // draw/rAF half never running.
+// `rawDt` is the caller's measured frame delta, and it is deliberately ignored:
+// with the accumulator in src/sim/tick-loop.js in front of this function every
+// step is exactly TICK_MS, and making that a property of stepSim rather than a
+// promise from each caller is what keeps a hand-rolled driver (the tape harness,
+// server/sim-smoke.js) on the same timestep the game runs. Slow-mo no longer
+// shrinks the step — it slows how fast the loop consumes ticks. Task 4 drops the
+// parameter list entirely.
 export function stepSim(now, rawDt) {
-  updateTimeScale(now);
-  const dt = rawDt * timeScale;
+  updatePace();
+  const dt = TICK_MS;
 
   for (const p of players) p.input = p.controller.poll();
   if (game.state === 'LOBBY' && players.length >= minPlayers() && !nameEdit && now > nameEditEndAt + 350 && players.some(p => p.input.startPressed)) beginFromLobby();
@@ -136,6 +146,9 @@ export function stepSim(now, rawDt) {
   }
   Engine.update(engine, Math.max(dt, 0.5));
   postPhysics(now);
-  updateParticles(timeScale);
+  // one tick of particle life per tick. Particle `life` is counted in ticks, and
+  // the tick loop already runs fewer ticks per second during a hitstop — scaling
+  // by the pace here as well would slow the sparks twice over.
+  updateParticles(1);
   replayRecord(now);
 }

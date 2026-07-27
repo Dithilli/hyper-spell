@@ -15,6 +15,7 @@ spawnParticles, spawnRing, spawnText, spawnBurst, addShake, doFlash,
 updateParticles,
 } from '../sim/fx.js';
 import { slowMo } from '../sim/pace.js';
+import { createTickLoop } from '../sim/tick-loop.js';
 import { netMode as currentNetMode, setNetMode } from '../sim/net-mode.js';
 import { cleanName } from '../sim/lobby.js';
 import {
@@ -328,9 +329,19 @@ function drawOnlineLobby(snap, now) {
   });
 }
 
+// An online client renders but never simulates, so its particles used to get
+// exactly one update per rAF — which made them travel 2.4× faster on a 144Hz
+// display than on a 60Hz one. The same accumulator the sim uses gives them a
+// fixed 60Hz cadence, and because it keeps the default pace, a slowMo the
+// server broadcasts slows the sparks here exactly as it does on the host.
+const fxLoop = createTickLoop({ step: () => updateParticles(1) });
+let lastFxAt = null;
+
 export function netClientFrame(now) {
   sendInput.call(sendInput, now);
-  updateParticles(1);
+  if (lastFxAt === null) lastFxAt = now;
+  fxLoop.pump(now - lastFxAt);
+  lastFxAt = now;
 
   const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
   setShake(shake * 0.88);

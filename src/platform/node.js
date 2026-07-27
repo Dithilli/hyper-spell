@@ -6,6 +6,7 @@ import '../sim/content.js';                // fills SPELLS and MAPS, in order
 import '../render/content-pack.js';        // the optional-content unlock probe
 import { createWorld, destroyWorld } from '../sim/world.js';
 import { setClock, setRandom, restoreRandom } from '../sim/env.js';
+import { resetTick } from '../sim/time.js';
 import { setStorage } from '../sim/storage.js';
 import { clearAllScheduled } from '../sim/schedule.js';
 import { loadMap } from '../sim/match.js';
@@ -16,6 +17,10 @@ export function createSim(opts = {}) {
   setClock(opts.clock ?? globalThis.performance);
   setRandom(opts.random ?? Math.random);
   setStorage(opts.storage);
+  // the tick counter is sim state like any other: a rebuilt sim (the crash
+  // watchdog in server/sim-host.js) has to start from the same tick 0 the first
+  // one did, for the same reason createWorld() runs every module's reset hook.
+  resetTick();
   createWorld();
   // js/game.js:1541 loaded the first arena as a script side effect, and the vm
   // sandbox inherited that — the room can seat a player before the first tick,

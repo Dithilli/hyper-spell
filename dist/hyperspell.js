@@ -1084,18 +1084,18 @@
                   }
                 };
                 Body2.setVelocity = function(body, velocity) {
-                  var timeScale2 = body.deltaTime / Body2._baseDelta;
-                  body.positionPrev.x = body.position.x - velocity.x * timeScale2;
-                  body.positionPrev.y = body.position.y - velocity.y * timeScale2;
-                  body.velocity.x = (body.position.x - body.positionPrev.x) / timeScale2;
-                  body.velocity.y = (body.position.y - body.positionPrev.y) / timeScale2;
+                  var timeScale = body.deltaTime / Body2._baseDelta;
+                  body.positionPrev.x = body.position.x - velocity.x * timeScale;
+                  body.positionPrev.y = body.position.y - velocity.y * timeScale;
+                  body.velocity.x = (body.position.x - body.positionPrev.x) / timeScale;
+                  body.velocity.y = (body.position.y - body.positionPrev.y) / timeScale;
                   body.speed = Vector2.magnitude(body.velocity);
                 };
                 Body2.getVelocity = function(body) {
-                  var timeScale2 = Body2._baseDelta / body.deltaTime;
+                  var timeScale = Body2._baseDelta / body.deltaTime;
                   return {
-                    x: (body.position.x - body.positionPrev.x) * timeScale2,
-                    y: (body.position.y - body.positionPrev.y) * timeScale2
+                    x: (body.position.x - body.positionPrev.x) * timeScale,
+                    y: (body.position.y - body.positionPrev.y) * timeScale
                   };
                 };
                 Body2.getSpeed = function(body) {
@@ -1105,9 +1105,9 @@
                   Body2.setVelocity(body, Vector2.mult(Vector2.normalise(Body2.getVelocity(body)), speed));
                 };
                 Body2.setAngularVelocity = function(body, velocity) {
-                  var timeScale2 = body.deltaTime / Body2._baseDelta;
-                  body.anglePrev = body.angle - velocity * timeScale2;
-                  body.angularVelocity = (body.angle - body.anglePrev) / timeScale2;
+                  var timeScale = body.deltaTime / Body2._baseDelta;
+                  body.anglePrev = body.angle - velocity * timeScale;
+                  body.angularVelocity = (body.angle - body.anglePrev) / timeScale;
                   body.angularSpeed = Math.abs(body.angularVelocity);
                 };
                 Body2.getAngularVelocity = function(body) {
@@ -1201,11 +1201,11 @@
                   }
                 };
                 Body2.updateVelocities = function(body) {
-                  var timeScale2 = Body2._baseDelta / body.deltaTime, bodyVelocity = body.velocity;
-                  bodyVelocity.x = (body.position.x - body.positionPrev.x) * timeScale2;
-                  bodyVelocity.y = (body.position.y - body.positionPrev.y) * timeScale2;
+                  var timeScale = Body2._baseDelta / body.deltaTime, bodyVelocity = body.velocity;
+                  bodyVelocity.x = (body.position.x - body.positionPrev.x) * timeScale;
+                  bodyVelocity.y = (body.position.y - body.positionPrev.y) * timeScale;
                   body.speed = Math.sqrt(bodyVelocity.x * bodyVelocity.x + bodyVelocity.y * bodyVelocity.y);
-                  body.angularVelocity = (body.angle - body.anglePrev) * timeScale2;
+                  body.angularVelocity = (body.angle - body.anglePrev) * timeScale;
                   body.angularSpeed = Math.abs(body.angularVelocity);
                 };
                 Body2.applyForce = function(body, position, force) {
@@ -1596,7 +1596,7 @@
                 Sleeping._motionSleepThreshold = 0.08;
                 Sleeping._minBias = 0.9;
                 Sleeping.update = function(bodies, delta) {
-                  var timeScale2 = delta / Common._baseDelta, motionSleepThreshold = Sleeping._motionSleepThreshold;
+                  var timeScale = delta / Common._baseDelta, motionSleepThreshold = Sleeping._motionSleepThreshold;
                   for (var i = 0; i < bodies.length; i++) {
                     var body = bodies[i], speed = Body2.getSpeed(body), angularSpeed = Body2.getAngularSpeed(body), motion = speed * speed + angularSpeed * angularSpeed;
                     if (body.force.x !== 0 || body.force.y !== 0) {
@@ -1607,7 +1607,7 @@
                     body.motion = Sleeping._minBias * minMotion + (1 - Sleeping._minBias) * maxMotion;
                     if (body.sleepThreshold > 0 && body.motion < motionSleepThreshold) {
                       body.sleepCounter += 1;
-                      if (body.sleepCounter >= body.sleepThreshold / timeScale2) {
+                      if (body.sleepCounter >= body.sleepThreshold / timeScale) {
                         Sleeping.set(body, true);
                       }
                     } else if (body.sleepCounter > 0) {
@@ -1955,11 +1955,11 @@
                   }
                 };
                 Constraint2.solveAll = function(constraints, delta) {
-                  var timeScale2 = Common.clamp(delta / Common._baseDelta, 0, 1);
+                  var timeScale = Common.clamp(delta / Common._baseDelta, 0, 1);
                   for (var i = 0; i < constraints.length; i += 1) {
                     var constraint = constraints[i], fixedA = !constraint.bodyA || constraint.bodyA && constraint.bodyA.isStatic, fixedB = !constraint.bodyB || constraint.bodyB && constraint.bodyB.isStatic;
                     if (fixedA || fixedB) {
-                      Constraint2.solve(constraints[i], timeScale2);
+                      Constraint2.solve(constraints[i], timeScale);
                     }
                   }
                   for (i = 0; i < constraints.length; i += 1) {
@@ -1967,11 +1967,11 @@
                     fixedA = !constraint.bodyA || constraint.bodyA && constraint.bodyA.isStatic;
                     fixedB = !constraint.bodyB || constraint.bodyB && constraint.bodyB.isStatic;
                     if (!fixedA && !fixedB) {
-                      Constraint2.solve(constraints[i], timeScale2);
+                      Constraint2.solve(constraints[i], timeScale);
                     }
                   }
                 };
-                Constraint2.solve = function(constraint, timeScale2) {
+                Constraint2.solve = function(constraint, timeScale) {
                   var bodyA = constraint.bodyA, bodyB = constraint.bodyB, pointA = constraint.pointA, pointB = constraint.pointB;
                   if (!bodyA && !bodyB)
                     return;
@@ -1992,7 +1992,7 @@
                   if (currentLength < Constraint2._minLength) {
                     currentLength = Constraint2._minLength;
                   }
-                  var difference = (currentLength - constraint.length) / currentLength, isRigid = constraint.stiffness >= 1 || constraint.length === 0, stiffness = isRigid ? constraint.stiffness * timeScale2 : constraint.stiffness * timeScale2 * timeScale2, damping = constraint.damping * timeScale2, force = Vector2.mult(delta, difference * stiffness), massTotal = (bodyA ? bodyA.inverseMass : 0) + (bodyB ? bodyB.inverseMass : 0), inertiaTotal = (bodyA ? bodyA.inverseInertia : 0) + (bodyB ? bodyB.inverseInertia : 0), resistanceTotal = massTotal + inertiaTotal, torque, share, normal, normalVelocity, relativeVelocity;
+                  var difference = (currentLength - constraint.length) / currentLength, isRigid = constraint.stiffness >= 1 || constraint.length === 0, stiffness = isRigid ? constraint.stiffness * timeScale : constraint.stiffness * timeScale * timeScale, damping = constraint.damping * timeScale, force = Vector2.mult(delta, difference * stiffness), massTotal = (bodyA ? bodyA.inverseMass : 0) + (bodyB ? bodyB.inverseMass : 0), inertiaTotal = (bodyA ? bodyA.inverseInertia : 0) + (bodyB ? bodyB.inverseInertia : 0), resistanceTotal = massTotal + inertiaTotal, torque, share, normal, normalVelocity, relativeVelocity;
                   if (damping > 0) {
                     var zero = Vector2.create();
                     normal = Vector2.div(delta, currentLength);
@@ -2473,9 +2473,9 @@
                   mouse2.position.x = mouse2.absolute.x * mouse2.scale.x + mouse2.offset.x;
                   mouse2.position.y = mouse2.absolute.y * mouse2.scale.y + mouse2.offset.y;
                 };
-                Mouse.setScale = function(mouse2, scale) {
-                  mouse2.scale.x = scale.x;
-                  mouse2.scale.y = scale.y;
+                Mouse.setScale = function(mouse2, scale2) {
+                  mouse2.scale.x = scale2.x;
+                  mouse2.scale.y = scale2.y;
                   mouse2.position.x = mouse2.absolute.x * mouse2.scale.x + mouse2.offset.x;
                   mouse2.position.y = mouse2.absolute.y * mouse2.scale.y + mouse2.offset.y;
                 };
@@ -2976,7 +2976,7 @@
                   }
                 };
                 Resolver.solveVelocity = function(pairs, delta) {
-                  var timeScale2 = delta / Common._baseDelta, timeScaleSquared = timeScale2 * timeScale2, timeScaleCubed = timeScaleSquared * timeScale2, restingThresh = -Resolver._restingThresh * timeScale2, restingThreshTangent = Resolver._restingThreshTangent, frictionNormalMultiplier = Resolver._frictionNormalMultiplier * timeScale2, frictionMaxStatic = Resolver._frictionMaxStatic, pairsLength = pairs.length, tangentImpulse, maxFriction, i, j;
+                  var timeScale = delta / Common._baseDelta, timeScaleSquared = timeScale * timeScale, timeScaleCubed = timeScaleSquared * timeScale, restingThresh = -Resolver._restingThresh * timeScale, restingThreshTangent = Resolver._restingThreshTangent, frictionNormalMultiplier = Resolver._frictionNormalMultiplier * timeScale, frictionMaxStatic = Resolver._frictionMaxStatic, pairsLength = pairs.length, tangentImpulse, maxFriction, i, j;
                   for (i = 0; i < pairsLength; i++) {
                     var pair = pairs[i];
                     if (!pair.isActive || pair.isSensor)
@@ -3746,8 +3746,8 @@
                   return render;
                 };
                 Render.run = function(render) {
-                  (function loop(time) {
-                    render.frameRequestId = _requestAnimationFrame(loop);
+                  (function loop2(time) {
+                    render.frameRequestId = _requestAnimationFrame(loop2);
                     _updateTiming(render, time);
                     Render.world(render, time);
                     if (render.options.showStats || render.options.showDebug) {
@@ -5013,27 +5013,38 @@
   var pace_exports = {};
   __export(pace_exports, {
     BASE_PACE: () => BASE_PACE,
+    paceScale: () => paceScale,
     setSlowMo: () => setSlowMo,
     slowMo: () => slowMo,
-    timeScale: () => timeScale,
-    updateTimeScale: () => updateTimeScale
+    updatePace: () => updatePace
   });
+
+  // src/sim/time.js
+  var TICK_HZ = 60;
+  var TICK_MS = 1e3 / TICK_HZ;
+  var MAX_CATCHUP = 5;
+  var tick = 0;
+  var advanceTick = () => ++tick;
+  var simNow = () => tick * TICK_MS;
+
+  // src/sim/pace.js
   var BASE_PACE = 0.85;
-  var timeScale = 1;
+  var scale = BASE_PACE;
   var slowUntil = 0;
-  function baseSlowMo(scale, ms) {
-    timeScale = scale;
-    slowUntil = performance2.now() + ms;
+  var paceScale = () => scale;
+  function baseSlowMo(s, ms) {
+    scale = s;
+    slowUntil = simNow() + ms;
   }
   var slowMo = baseSlowMo;
   function setSlowMo(fn) {
     slowMo = fn;
   }
-  function updateTimeScale(now) {
-    if (now > slowUntil) timeScale += (BASE_PACE - timeScale) * 0.08;
+  function updatePace() {
+    if (simNow() > slowUntil) scale += (BASE_PACE - scale) * 0.08;
   }
   onWorldReset(() => {
-    timeScale = 1;
+    scale = BASE_PACE;
     slowUntil = 0;
   });
 
@@ -6613,18 +6624,18 @@
     else if (kind === "crate") addDestructible(m, x, groundY - 24, 46, 46, { hp: 45, color: "#9a7440", debris: 5, kind: "crate" });
     else addCoverPillar(m, x, groundY, pk([90, 120, 130]));
   }
-  function addTree(m, x, groundY, scale = 1) {
-    const trunkW = 34 * scale, seg = 42 * scale, segs = 4;
+  function addTree(m, x, groundY, scale2 = 1) {
+    const trunkW = 34 * scale2, seg = 42 * scale2, segs = 4;
     for (let i = 0; i < segs; i++) {
       addDestructible(m, x, groundY - seg / 2 - i * seg, trunkW, seg, { hp: 60, color: i % 2 ? "#5a3d22" : "#6b4a2a", debris: 5 });
     }
     const cy = groundY - segs * seg;
     for (const [dx, dy, w, h, c] of [
-      [0, -26 * scale, 130 * scale, 62 * scale, "#3f7d3a"],
-      [-72 * scale, 8 * scale, 84 * scale, 58 * scale, "#356b33"],
-      [72 * scale, 8 * scale, 84 * scale, 58 * scale, "#356b33"],
-      [-34 * scale, -68 * scale, 96 * scale, 56 * scale, "#4a8f42"],
-      [42 * scale, -64 * scale, 88 * scale, 54 * scale, "#4a8f42"]
+      [0, -26 * scale2, 130 * scale2, 62 * scale2, "#3f7d3a"],
+      [-72 * scale2, 8 * scale2, 84 * scale2, 58 * scale2, "#356b33"],
+      [72 * scale2, 8 * scale2, 84 * scale2, 58 * scale2, "#356b33"],
+      [-34 * scale2, -68 * scale2, 96 * scale2, 56 * scale2, "#4a8f42"],
+      [42 * scale2, -64 * scale2, 88 * scale2, 54 * scale2, "#4a8f42"]
     ]) {
       addDestructible(m, x + dx, cy + dy, w, h, { hp: 40, color: c, debris: 6 });
     }
@@ -7264,7 +7275,7 @@
       }
     });
   }
-  function makeZone({ x, y, r, life, color, tick, tickBody, draw: draw2, onEnd }) {
+  function makeZone({ x, y, r, life, color, tick: tick2, tickBody, draw: draw2, onEnd }) {
     activeEffects.push({
       until: performance2.now() + life,
       x,
@@ -7272,10 +7283,10 @@
       r,
       net: { k: "zone", x, y, r, c: color },
       update(now) {
-        if (tick) {
+        if (tick2) {
           for (const q of players) {
             if (!q.alive) continue;
-            if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < r) tick(q, now);
+            if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < r) tick2(q, now);
           }
         }
         if (tickBody) {
@@ -12131,7 +12142,7 @@
   function drawStoryWizard(ctx2, o) {
     if (o.variant === "alinea") return drawStorySorceress(ctx2, o);
     if (o.variant === "grey") return drawStoryGandalf(ctx2, o);
-    const scale = o.scale ?? 1, now = o.now || 0, facing = o.facing || 1;
+    const scale2 = o.scale ?? 1, now = o.now || 0, facing = o.facing || 1;
     const piggy = !!o.piggy, alive = o.alive !== false && o.alive !== 0;
     const col = piggy ? "#ff9ecb" : o.color || "#b98cff";
     const hatc = o.hat || "#6c4bd6";
@@ -12142,7 +12153,7 @@
     ctx2.save();
     ctx2.translate(o.x, o.y);
     ctx2.rotate(o.angle || 0);
-    ctx2.scale(scale, scale);
+    ctx2.scale(scale2, scale2);
     ctx2.translate(0, Math.sin(ph) * 0.8 * f);
     ctx2.lineJoin = "round";
     ctx2.lineCap = "round";
@@ -12313,7 +12324,7 @@
   var VAL_OX = "#6e2230";
   var VAL_RIM = "#ffcf8a";
   function drawStorySorceress(ctx2, o) {
-    const scale = o.scale ?? 1, now = o.now || 0, facing = o.facing || 1;
+    const scale2 = o.scale ?? 1, now = o.now || 0, facing = o.facing || 1;
     const piggy = !!o.piggy, alive = o.alive !== false && o.alive !== 0;
     const leather = piggy ? "#c86a8a" : mix("#2a1c12", o.color || "#2a1c12", 0.4);
     const skin = piggy ? "#ff9ecb" : VAL_SKIN;
@@ -12323,7 +12334,7 @@
     ctx2.save();
     ctx2.translate(o.x, o.y);
     ctx2.rotate(o.angle || 0);
-    ctx2.scale(scale, scale);
+    ctx2.scale(scale2, scale2);
     ctx2.translate(0, Math.sin(ph) * 0.8 * f);
     ctx2.lineJoin = "round";
     ctx2.lineCap = "round";
@@ -12599,7 +12610,7 @@
     ctx2.restore();
   }
   function drawStoryGandalf(ctx2, o) {
-    const scale = o.scale ?? 1, now = o.now || 0, facing = o.facing || 1;
+    const scale2 = o.scale ?? 1, now = o.now || 0, facing = o.facing || 1;
     const piggy = !!o.piggy, alive = o.alive !== false && o.alive !== 0;
     const robe = piggy ? "#ff9ecb" : mix("#8c8794", o.color || "#8c8794", 0.25);
     const beard = "#dcd9e0", hatc = "#6f6a78", wood = "#6b4f34";
@@ -12610,7 +12621,7 @@
     ctx2.save();
     ctx2.translate(o.x, o.y);
     ctx2.rotate(o.angle || 0);
-    ctx2.scale(scale, scale);
+    ctx2.scale(scale2, scale2);
     ctx2.translate(0, Math.sin(ph) * 0.7 * f);
     ctx2.lineJoin = "round";
     ctx2.lineCap = "round";
@@ -14695,6 +14706,30 @@
     });
   }
 
+  // src/sim/tick-loop.js
+  var STEP_EPS = 1e-9;
+  function createTickLoop({ step, pace = paceScale }) {
+    let accumulator = 0;
+    return {
+      pump(realDtMs) {
+        accumulator += Math.min(realDtMs, 250) * pace();
+        let steps = 0;
+        while (accumulator >= TICK_MS - STEP_EPS && steps < MAX_CATCHUP) {
+          step(TICK_MS);
+          accumulator -= TICK_MS;
+          steps++;
+        }
+        if (accumulator < 0) accumulator = 0;
+        let dropped = 0;
+        if (accumulator >= TICK_MS - STEP_EPS) {
+          dropped = accumulator;
+          accumulator = 0;
+        }
+        return { steps, alpha: accumulator / TICK_MS, dropped };
+      }
+    };
+  }
+
   // src/render/draw-snapshot.js
   var draw_snapshot_exports = {};
   __export(draw_snapshot_exports, {
@@ -15047,13 +15082,13 @@
       if (!p.alive && p.ghost) drawWisp(p.name, p.color, p.ghost.x, p.ghost.y, now);
     }
   }
-  function drawWizardFigure(p, x, y, scale, now, angle = 0) {
+  function drawWizardFigure(p, x, y, scale2, now, angle = 0) {
     const spell = p.spellId && SPELLS[p.spellId];
     const ready = spell && now - p.lastCast > spell.cooldown;
     drawStoryWizard(ctx, {
       x,
       y,
-      scale,
+      scale: scale2,
       angle,
       now,
       name: p.name,
@@ -16882,9 +16917,13 @@
       controlsLine: wave ? "M switches back to VERSUS \xB7 co-op: everyone fights the waves together \xB7 B adds a bot" : `M = WAVE SURVIVAL \xB7 1\u20139 sets win target (${snap.wn}) \xB7 B adds a bot \xB7 R resets`
     });
   }
+  var fxLoop = createTickLoop({ step: () => updateParticles(1) });
+  var lastFxAt = null;
   function netClientFrame(now) {
     sendInput.call(sendInput, now);
-    updateParticles(1);
+    if (lastFxAt === null) lastFxAt = now;
+    fxLoop.pump(now - lastFxAt);
+    lastFxAt = now;
     const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
     setShake(shake * 0.88);
     ctx.setTransform(1, 0, 0, 1, sx, sy);
@@ -17371,8 +17410,8 @@
     }
   }
   function stepSim(now, rawDt) {
-    updateTimeScale(now);
-    const dt = rawDt * timeScale;
+    updatePace();
+    const dt = TICK_MS;
     for (const p of players) p.input = p.controller.poll();
     if (game.state === "LOBBY" && players.length >= minPlayers() && !nameEdit && now > nameEditEndAt + 350 && players.some((p) => p.input.startPressed)) beginFromLobby();
     if ((game.state === "VICTORY" || game.state === "RUN_OVER") && players.some((p) => p.input.castPressed)) resetMatch();
@@ -17407,7 +17446,7 @@
     }
     Engine.update(engine, Math.max(dt, 0.5));
     postPhysics(now);
-    updateParticles(timeScale);
+    updateParticles(1);
     replayRecord(now);
   }
 
@@ -17484,6 +17523,13 @@
   if (harness) installDebugGlobals();
   else mountMenu();
   loadMap(0);
+  var frameNow = 0;
+  var loop = createTickLoop({
+    step: (dt) => {
+      stepSim(frameNow, dt);
+      advanceTick();
+    }
+  });
   var last = performance.now();
   function frame(now) {
     if (netMode2() === "online") {
@@ -17491,11 +17537,11 @@
       requestAnimationFrame(frame);
       return;
     }
-    const rawDt = Math.min(now - last, 33);
-    last = now;
     scanJoins();
     scanLobbyPads();
-    stepSim(now, rawDt);
+    frameNow = now;
+    loop.pump(now - last);
+    last = now;
     draw(now);
     requestAnimationFrame(frame);
   }

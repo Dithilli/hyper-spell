@@ -12,6 +12,8 @@ import { attachLobbyKeys, scanJoins, scanLobbyPads } from './join.js';
 import { mountMenu } from './menu.js';
 import { loadMap } from '../sim/match.js';
 import { stepSim } from '../sim/tick.js';
+import { createTickLoop } from '../sim/tick-loop.js';
+import { advanceTick } from '../sim/time.js';
 import { draw } from '../render/draw-world.js';
 import { netClientFrame, netMode } from '../net/client.js';
 import { installDebugGlobals } from './debug-globals.js';
@@ -41,6 +43,20 @@ else mountMenu();
 
 loadMap(0);
 
+// The display draws whenever it likes; the simulation advances in fixed TICK_MS
+// steps, as many as the elapsed real time paid for. A 144Hz monitor now draws
+// 144 frames over the same 60 steps a 60Hz one runs, instead of racing ahead of
+// the 60Hz server.
+//
+// The step callback reads `frameNow` rather than calling performance.now()
+// itself so every step in one frame shares that frame's timestamp — the same
+// clock the sim writes all its deadlines on (`performance.now() + 1500` in
+// content). Task 4 moves the whole sim onto simNow() in one coherent change.
+let frameNow = 0;
+const loop = createTickLoop({
+  step: (dt) => { stepSim(frameNow, dt); advanceTick(); },
+});
+
 let last = performance.now();
 function frame(now) {
   if (netMode() === 'online') {
@@ -48,11 +64,14 @@ function frame(now) {
     requestAnimationFrame(frame);
     return;
   }
-  const rawDt = Math.min(now - last, 33);
-  last = now;
+  // once per FRAME, not per tick: both are edge-detecting input scans (a pad
+  // pressed, a controller plugged in), and re-running them inside a catch-up
+  // burst would swallow the edges. They are what seat a wizard at all.
   scanJoins();
   scanLobbyPads();
-  stepSim(now, rawDt);
+  frameNow = now;
+  loop.pump(now - last);
+  last = now;
   draw(now);
   requestAnimationFrame(frame);
 }

@@ -2,8 +2,7 @@ import { makeClock } from './clock.js';
 import { seededRandom } from './seeded-random.js';
 import { hashSnapshot } from './hash.js';
 import { createSim } from '../../src/platform/node.js';
-
-const TICK_MS = 1000 / 60;
+import { TICK_MS, advanceTick } from '../../src/sim/time.js';
 
 // input tape format: { players: [{ name }], frames: [ { "0": {m,j,c,c2,b,a}, ... } ] }
 // A frame index beyond the tape's length repeats the last frame.
@@ -27,6 +26,11 @@ export function runTape({ tape, ticks, seed = 12345 }) {
         if (msg) b.setInput(slot, msg);
       }
       b.stepSim(clock.now(), TICK_MS);
+      // the platform loops advance the tick in their step callback; this rig is
+      // its own loop, so it owns that too. createSim() reset the counter, so
+      // simNow() and this clock stay the same number — which is what lets
+      // pace.js's hitstop expire here exactly as it does in the game.
+      advanceTick();
       clock.advance(TICK_MS);
       hashes.push(hashSnapshot(b.takeWireSnapshot(clock.now())));
     }
