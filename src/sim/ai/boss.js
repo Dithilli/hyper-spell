@@ -407,7 +407,7 @@ export function slayBoss() {
   }, 'round');
 }
 
-export function updateBoss(now, dt) {
+export function updateBoss(now) {
   const bs = game.boss;
   if (!bs || game.state !== 'PLAY') return;
   if (!bs.announced) {
@@ -426,7 +426,7 @@ export function updateBoss(now, dt) {
     }
     return;
   }
-  bs.def.update(bs, now, dt);
+  bs.def.update(bs, now);
 
   // enrage: stalling a boss stops being a strategy. Fires once, then the arena
   // takes periodic shockwaves regardless of which boss it is (no per-boss edits).

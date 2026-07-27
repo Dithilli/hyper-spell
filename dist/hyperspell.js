@@ -4868,12 +4868,14 @@
   // src/sim/time.js
   var time_exports = {};
   __export(time_exports, {
+    LEGACY_FRAME_MS: () => LEGACY_FRAME_MS,
     MAX_CATCHUP: () => MAX_CATCHUP,
     TICK_HZ: () => TICK_HZ,
     TICK_MS: () => TICK_MS,
     advanceTick: () => advanceTick,
     currentTick: () => currentTick,
     perSecond: () => perSecond,
+    perSecondAt: () => perSecondAt,
     resetTick: () => resetTick,
     simNow: () => simNow,
     ticks: () => ticks
@@ -4890,7 +4892,8 @@
   var simNow = () => tick * TICK_MS;
   var ticks = (ms) => Math.round(ms / TICK_MS);
   var LEGACY_FRAME_MS = 1e3 / 60;
-  var perSecond = (perFrameValue) => perFrameValue * (TICK_MS / LEGACY_FRAME_MS);
+  var perSecondAt = (perFrameValue, tickMs) => perFrameValue * (tickMs / LEGACY_FRAME_MS);
+  var perSecond = (perFrameValue) => perSecondAt(perFrameValue, TICK_MS);
 
   // src/sim/rng.js
   var rng_exports = {};
@@ -6082,7 +6085,7 @@
       if (game.state === "ROUND_END") startRound(nextMapIndex());
     }, "round");
   }
-  function updateBoss(now, dt) {
+  function updateBoss(now) {
     const bs = game.boss;
     if (!bs || game.state !== "PLAY") return;
     if (!bs.announced) {
@@ -6102,7 +6105,7 @@
       }
       return;
     }
-    bs.def.update(bs, now, dt);
+    bs.def.update(bs, now);
     if (!bs.enraged && bs.enrageAt && now > bs.enrageAt) {
       bs.enraged = true;
       bs.dmgMult *= 1.6;
@@ -6290,7 +6293,7 @@
     removeSummon(b);
     sfx.death?.();
   }
-  function updateEnemies(now, dt) {
+  function updateEnemies(now) {
     if (game.state !== "PLAY") return;
     for (const b of [...enemies]) {
       if (!summons.has(b)) {
@@ -6302,7 +6305,7 @@
         enemies.delete(b);
         continue;
       }
-      ENEMY_TYPES[e.type].ai(e, b, now, dt);
+      ENEMY_TYPES[e.type].ai(e, b, now);
     }
   }
 
@@ -6532,7 +6535,7 @@
     game.envEvent = { def, announced: false };
     def.start?.(currentMap, now);
   }
-  function updateEnvEvent(now, dt) {
+  function updateEnvEvent(now) {
     const ev = game.envEvent;
     if (!ev || game.state !== "PLAY") return;
     if (!ev.announced && now > (game.fightAt || 0) + 800) {
@@ -6541,7 +6544,7 @@
       doFlash(ev.def.color, 0.18);
       sfx.event();
     }
-    if (ev.announced) ev.def.update?.(currentMap, now, dt);
+    if (ev.announced) ev.def.update?.(currentMap, now);
   }
 
   // src/sim/maps/builders.js
@@ -7970,7 +7973,7 @@
           if (q === p) return;
           const dx = q.body.position.x - x, dy = q.body.position.y - y;
           const d = Math.hypot(dx, dy) || 1;
-          Body.setVelocity(q.body, { x: q.body.velocity.x + dx / d * 2.4, y: q.body.velocity.y + dy / d * 1.2 });
+          Body.setVelocity(q.body, { x: q.body.velocity.x + dx / d * perSecond(2.4), y: q.body.velocity.y + dy / d * perSecond(1.2) });
         }
       });
     }
@@ -17497,9 +17500,9 @@
     if (game.state === "PLAY" || game.state === "LOBBY") updateTomes(now);
     updateEffects(now);
     currentMap.def.update?.(currentMap, now, dt);
-    updateEnvEvent(now, dt);
-    updateBoss(now, dt);
-    updateEnemies(now, dt);
+    updateEnvEvent(now);
+    updateBoss(now);
+    updateEnemies(now);
     updateWaveMode(now);
     for (const b of Composite.allBodies(currentMap.composite)) {
       if (b.spin) Body.setAngle(b, b.angle + b.spin * (dt / 16.7));

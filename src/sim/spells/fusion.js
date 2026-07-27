@@ -241,6 +241,9 @@ regHybrid('firestorm', {
           if (b.label === 'player' && b.player === p) continue; // never eats the caster
           const dx = b.position.x - e.x;
           if (Math.abs(dx) > 110 * m) continue;
+          // the rand() term scales linearly like the rest, which is not the
+          // variance-preserving form for a random walk — see the note on the
+          // tornado in spells/book.js. Inert while TICK_HZ is 60.
           Body.setVelocity(b, { x: b.velocity.x - Math.sign(dx || 1) * perSecond(0.8) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.6) * m });
           if (b.label === 'player' && b.player.alive) b.player.burnUntil = Math.max(b.player.burnUntil || 0, now + 900 * m);
         }

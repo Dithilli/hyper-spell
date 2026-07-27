@@ -23,5 +23,14 @@ export const ticks = (ms) => Math.round(ms / TICK_MS);
 // Legacy tuning constants were authored against a 60Hz frame. This converts
 // them to per-tick values so the same number keeps producing the same motion
 // while the unit becomes explicit. At TICK_HZ = 60 this is the identity.
-const LEGACY_FRAME_MS = 1000 / 60;
-export const perSecond = (perFrameValue) => perFrameValue * (TICK_MS / LEGACY_FRAME_MS);
+//
+// The invariant is per-SECOND totals, not per-tick values: a constant `v` meant
+// "v of this, sixty times a second", so at any tick rate the converted value
+// times that rate must still come to v * 60. `perSecondAt` takes the rate as an
+// argument purely so a test can evaluate that invariant at rates the sim does
+// not currently run at — at TICK_MS every candidate wrong implementation
+// (reciprocal, bare identity) coincides with the right one, so a test that can
+// only see 60Hz cannot tell them apart.
+export const LEGACY_FRAME_MS = 1000 / 60;
+export const perSecondAt = (perFrameValue, tickMs) => perFrameValue * (tickMs / LEGACY_FRAME_MS);
+export const perSecond = (perFrameValue) => perSecondAt(perFrameValue, TICK_MS);

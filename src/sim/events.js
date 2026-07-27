@@ -173,7 +173,7 @@ export function rollEnvEvent(now) {
   def.start?.(currentMap, now);
 }
 
-export function updateEnvEvent(now, dt) {
+export function updateEnvEvent(now) {
   const ev = game.envEvent;
   if (!ev || game.state !== 'PLAY') return;
   if (!ev.announced && now > (game.fightAt || 0) + 800) {
@@ -182,5 +182,5 @@ export function updateEnvEvent(now, dt) {
     doFlash(ev.def.color, 0.18);
     sfx.event();
   }
-  if (ev.announced) ev.def.update?.(currentMap, now, dt);
+  if (ev.announced) ev.def.update?.(currentMap, now);
 }

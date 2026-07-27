@@ -4824,7 +4824,8 @@
   var simNow = () => tick * TICK_MS;
   var ticks = (ms) => Math.round(ms / TICK_MS);
   var LEGACY_FRAME_MS = 1e3 / 60;
-  var perSecond = (perFrameValue) => perFrameValue * (TICK_MS / LEGACY_FRAME_MS);
+  var perSecondAt = (perFrameValue, tickMs) => perFrameValue * (tickMs / LEGACY_FRAME_MS);
+  var perSecond = (perFrameValue) => perSecondAt(perFrameValue, TICK_MS);
 
   // src/sim/rng.js
   function makeRng(seed) {
@@ -6945,7 +6946,7 @@
           if (q === p) return;
           const dx = q.body.position.x - x, dy = q.body.position.y - y;
           const d = Math.hypot(dx, dy) || 1;
-          Body.setVelocity(q.body, { x: q.body.velocity.x + dx / d * 2.4, y: q.body.velocity.y + dy / d * 1.2 });
+          Body.setVelocity(q.body, { x: q.body.velocity.x + dx / d * perSecond(2.4), y: q.body.velocity.y + dy / d * perSecond(1.2) });
         }
       });
     }

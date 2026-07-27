@@ -137,16 +137,22 @@ export function stepSim() {
   updateGhosts(now);
   if (game.state === 'PLAY' || game.state === 'LOBBY') updateTomes(now);
   updateEffects(now);
-  // map updates keep dt: three lava-rise handlers integrate it correctly
-  // (`m.data.lavaY -= 12 * dt / 1000`), which is already per-second maths.
+  // Map updates are the ONLY dispatcher that still passes dt, because three
+  // lava-rise handlers integrate it correctly — The Climb, Everything and
+  // Rising Lava each do `m.data.lavaY -= <rate> * dt / 1000`, which is already
+  // per-second maths and must not also be wrapped in perSecond().
   currentMap.def.update?.(currentMap, now, dt);
-  updateEnvEvent(now, dt);
-  updateBoss(now, dt);
-  updateEnemies(now, dt);
+  updateEnvEvent(now);
+  updateBoss(now);
+  updateEnemies(now);
   updateWaveMode(now);
 
   // spinners + phantom platforms
   for (const b of Composite.allBodies(currentMap.composite)) {
+    // FOLLOW-UP: this hand-rolls the conversion perSecond() now owns, against a
+    // rounded 16.7 rather than the exported LEGACY_FRAME_MS (1000/60 = 16.666…),
+    // so it runs 0.2% fast. Correcting it WOULD move the golden tape, which is
+    // why it is left alone here — it needs its own behaviour-contract task.
     if (b.spin) Body.setAngle(b, b.angle + b.spin * (dt / 16.7));
     if (b.phantom) {
       const solid = Math.sin(now * b.phantom.speed + b.phantom.offset) > -0.2;

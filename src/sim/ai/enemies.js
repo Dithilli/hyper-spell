@@ -177,7 +177,7 @@ export function killEnemy(e, src) {
   sfx.death?.();
 }
 
-export function updateEnemies(now, dt) {
+export function updateEnemies(now) {
   if (game.state !== 'PLAY') return;
   for (const b of [...enemies]) {
     // reconcile with summons: postPhysics may have culled a body that fell off the
@@ -185,6 +185,6 @@ export function updateEnemies(now, dt) {
     if (!summons.has(b)) { enemies.delete(b); continue; }
     const e = b.enemy;
     if (!e || e.hp <= 0) { enemies.delete(b); continue; }
-    ENEMY_TYPES[e.type].ai(e, b, now, dt);
+    ENEMY_TYPES[e.type].ai(e, b, now);
   }
 }

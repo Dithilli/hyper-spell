@@ -426,7 +426,10 @@ regSpell('repulsor', {
         if (q === p) return;
         const dx = q.body.position.x - x, dy = q.body.position.y - y;
         const d = Math.hypot(dx, dy) || 1;
-        Body.setVelocity(q.body, { x: q.body.velocity.x + (dx / d) * 2.4, y: q.body.velocity.y + (dy / d) * 1.2 });
+        // makeZone's tick fires every tick for the zone's whole life, so these
+        // are sustained per-frame magnitudes like the singularity's, not a
+        // one-shot cast impulse
+        Body.setVelocity(q.body, { x: q.body.velocity.x + (dx / d) * perSecond(2.4), y: q.body.velocity.y + (dy / d) * perSecond(1.2) });
       },
     });
   },
@@ -460,6 +463,14 @@ regSpell('tornado', {
           if (b.isStatic || b.isSensor) continue;
           const dx = b.position.x - e.x;
           if (Math.abs(dx) > 120 * m) continue;
+          // NOTE: linear scaling is exactly right for the deterministic lift, but
+          // only approximately right for the rand() noise, which accumulates as a
+          // random walk — halving the amplitude while doubling the tick count
+          // shrinks accumulated deviation by √2 rather than preserving it. The
+          // variance-preserving form would scale by √ratio. Inert at 60Hz (the
+          // ratio is 1), and still better than leaving half the expression in
+          // frame units; revisit if TICK_HZ ever moves. Same in fusion.js's
+          // firestorm.
           Body.setVelocity(b, { x: b.velocity.x - Math.sign(dx) * perSecond(0.9) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.5) * m });
         }
       },
