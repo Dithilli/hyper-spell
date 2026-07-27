@@ -1,6 +1,7 @@
 // match.js — the state machine: round and match flow, the arena currently
 // loaded, and the banner that narrates both.
-import { Composite, Bodies, world, engine, W, H, onWorldReset } from './world.js';
+import { W, H, onWorldReset } from './world.js';
+import { addBody, addTo, createBox, createComposite, removeBody, setGravityY } from './phys/facade.js';
 import { simNow } from './time.js';
 import { simRandom, rand, reseed } from './rng.js';
 import { particles, doFlash } from './fx.js';
@@ -43,25 +44,25 @@ function baseSetBanner(text, color, ms = 1400, hyper = false) {
 }
 
 export function loadMap(index) {
-  for (const fb of projectiles) Composite.remove(world, fb);
+  for (const fb of projectiles) removeBody(fb);
   projectiles.clear();
-  for (const g of gibs) Composite.remove(world, g);
+  for (const g of gibs) removeBody(g);
   gibs.clear();
-  for (const t of tomes) Composite.remove(world, t);
+  for (const t of tomes) removeBody(t);
   tomes.clear();
-  for (const h of hats) Composite.remove(world, h);
+  for (const h of hats) removeBody(h);
   hats.clear();
-  for (const s of summons) Composite.remove(world, s);
+  for (const s of summons) removeBody(s);
   summons.clear();
   activeEffects.length = 0;
   particles.length = 0;
-  if (currentMap) Composite.remove(world, currentMap.composite);
+  if (currentMap) removeBody(currentMap.composite);
   const def = MAPS[index];
-  const m = { def, composite: Composite.create(), data: {} };
+  const m = { def, composite: createComposite(), data: {} };
   for (const x of [-30, W + 30]) {
-    const wall = Bodies.rectangle(x, H / 2, 60, H * 3, { isStatic: true });
+    const wall = createBox(x, H / 2, 60, H * 3, { isStatic: true });
     wall.render.fillStyle = '#171221';
-    Composite.add(m.composite, wall);
+    addTo(m.composite, wall);
   }
   def.build(m);
   // seeded extras (gap steppers, scattered cover) — the seed rides the snapshot
@@ -78,11 +79,11 @@ export function loadMap(index) {
   if (def.stars) {
     m.data.starfield = Array.from({ length: 70 }, () => ({ x: rand(0, W), y: rand(0, H - 160), r: rand(0.5, 1.8), tw: rand(0, 6.28) }));
   }
-  Composite.add(world, m.composite);
+  addBody(m.composite);
   currentMap = m;
   game.mapIndex = index;
   game.baseGravity = def.gravity ?? 2;
-  engine.gravity.y = game.baseGravity;
+  setGravityY(game.baseGravity);
   game.envEvent = null;
   game.boss = null;
 }

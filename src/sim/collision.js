@@ -1,7 +1,8 @@
 // collision.js — every contact rule in the game, in one Matter handler.
 // Registered against each freshly built engine, so a rebuilt world starts with
 // exactly one listener (js/game.js:358 attached it at script load).
-import { Body, Composite, Events, engine, world, onWorldReset } from './world.js';
+import { onWorldReset } from './world.js';
+import { onContact, removeBody, setAngularVelocity, setVelocity } from './phys/facade.js';
 import { simNow } from './time.js';
 import { pick } from './rng.js';
 import { spawnParticles, spawnText, addShake } from './fx.js';
@@ -17,7 +18,7 @@ import { damageBoss } from './ai/boss.js';
 import { damageEnemy } from './ai/enemies.js';
 import { damageDestructible } from './maps/builders.js';
 
-function onCollisionStart({ pairs }) {
+function onCollisionStart(pairs) {
   const now = simNow();
   for (const { bodyA, bodyB } of pairs) {
     for (const [a, b] of [[bodyA, bodyB], [bodyB, bodyA]]) {
@@ -28,14 +29,14 @@ function onCollisionStart({ pairs }) {
         if (b.label === 'decoy') { spawnParticles(b.position.x, b.position.y, '#e8d5ff', 16, 5); removeSummon(b); } // a mirror image soaks the shot, then bursts
         if (b.label === 'destructible') damageDestructible(b, 12); // bolts chip cover, not just explosions
         if (b.label === 'player' && now < (b.player.reflectUntil || 0)) {
-          Body.setVelocity(a, { x: -a.velocity.x * 1.1, y: -Math.abs(a.velocity.y) * 0.5 - 2 });
+          setVelocity(a, { x: -a.velocity.x * 1.1, y: -Math.abs(a.velocity.y) * 0.5 - 2 });
           a.collisionFilter.group = b.player.group;
           a.owner = b.player;
           spawnParticles(a.position.x, a.position.y, '#4ecdff', 8, 4);
         } else if (!a.noContactBoom) {
           if (!a.keepOnHit) projectiles.delete(a);
           a.onHit?.(a, b);
-          if (!a.keepOnHit) Composite.remove(world, a);
+          if (!a.keepOnHit) removeBody(a);
         }
       }
       if (a.contactDamage && b.label === 'player' && b.player !== a.owner) {
@@ -56,8 +57,8 @@ function onCollisionStart({ pairs }) {
         const q = b.player;
         statFor(q).slips++;
         q.slipUntil = now + 1000;
-        Body.setAngularVelocity(q.body, pick([-1, 1]) * 0.8);
-        Body.setVelocity(q.body, { x: q.body.velocity.x * 1.5, y: q.body.velocity.y - 4 });
+        setAngularVelocity(q.body, pick([-1, 1]) * 0.8);
+        setVelocity(q.body, { x: q.body.velocity.x * 1.5, y: q.body.velocity.y - 4 });
         spawnText(q.body.position.x, q.body.position.y - 40, 'SLIP!', '#ffe135');
         removeSummon(a);
         sfx.squeak();
@@ -70,8 +71,8 @@ function onCollisionStart({ pairs }) {
           && small.alive && now > (small._stompAt || 0)) {
           small._stompAt = now + 600;
           damagePlayer(small, 12 + Math.round(((big.sizeScale || 1) - 1) * 22), big);
-          Body.setVelocity(small.body, { x: small.body.velocity.x, y: 7 });
-          Body.setVelocity(big.body, { x: big.body.velocity.x, y: -9 }); // bounce off the landing
+          setVelocity(small.body, { x: small.body.velocity.x, y: 7 });
+          setVelocity(big.body, { x: big.body.velocity.x, y: -9 }); // bounce off the landing
           addShake(6); sfx.thud?.();
           spawnParticles(small.body.position.x, small.body.position.y - 10, '#a7e88f', 14, 6);
           spawnText(small.body.position.x, small.body.position.y - 44, 'STOMP!', '#a7e88f');
@@ -79,7 +80,7 @@ function onCollisionStart({ pairs }) {
       }
       if (a.label === 'tramp' && b.label === 'player') {
         // actively fling anyone who touches it — passive restitution alone felt dead
-        Body.setVelocity(b, { x: b.velocity.x, y: -20 });
+        setVelocity(b, { x: b.velocity.x, y: -20 });
         b.player.airJumps = 1; // refund a mid-air jump so it feels springy
         spawnParticles(b.position.x, b.position.y + 14, '#ff8fc7', 10, 5);
         addShake(3);
@@ -97,12 +98,12 @@ function onCollisionStart({ pairs }) {
         if (now > (q.lastSpikeAt || 0)) {
           q.lastSpikeAt = now + 600;
           damagePlayer(q, 20);
-          Body.setVelocity(q.body, { x: q.body.velocity.x, y: -9 });
+          setVelocity(q.body, { x: q.body.velocity.x, y: -9 });
         }
       }
       if (b.label === 'lava') {
         if (a.label === 'player') killPlayer(a.player);
-        else if (a.label === 'boss') { if (!a.isStatic) Body.setVelocity(a, { x: a.velocity.x, y: -14 }); } // bosses shrug off lava
+        else if (a.label === 'boss') { if (!a.isStatic) setVelocity(a, { x: a.velocity.x, y: -14 }); } // bosses shrug off lava
         else if (!a.isStatic) {
           spawnParticles(a.position.x, a.position.y, currentMap.data.acid ? '#9be15d' : '#ff5e57', 8, 4);
           projectiles.delete(a);
@@ -110,11 +111,11 @@ function onCollisionStart({ pairs }) {
           hats.delete(a);
           gibs.delete(a);
           summons.delete(a);
-          Composite.remove(world, a, true);
+          removeBody(a, true);
         }
       }
     }
   }
 }
 
-onWorldReset(() => { Events.on(engine, 'collisionStart', onCollisionStart); });
+onWorldReset(() => { onContact(onCollisionStart); });

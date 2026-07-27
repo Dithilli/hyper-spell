@@ -1,6 +1,10 @@
 // player/lifecycle.js — the roster: who exists, how they are built, where they
 // spawn, and which spells they hold.
-import { Bodies, Body, Composite, world, W, onWorldReset } from '../world.js';
+import { W, onWorldReset } from '../world.js';
+import {
+  addBody, allBodies, createCircle, newCollisionGroup, removeBody, scaleBody,
+  setAngle, setAngularVelocity, setPosition, setVelocity,
+} from '../phys/facade.js';
 import { simNow } from '../time.js';
 import { spawnParticles, spawnText } from '../fx.js';
 import { IDLE_INPUT } from '../input-contract.js';
@@ -23,7 +27,7 @@ export const PLAYER_DEFS = [
 
 // is there anything solid in the column at x to land on?
 export function groundInColumn(x) {
-  return Composite.allBodies(currentMap.composite).some(b =>
+  return allBodies(currentMap.composite).some(b =>
     b.isStatic && !b.isSensor && b.label !== 'lava' && b.collisionFilter.mask !== 0 &&
     x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6 && b.bounds.min.y > 100);
 }
@@ -51,7 +55,7 @@ export function createPlayer(slot, controller) {
   const def = PLAYER_DEFS[slot];
   const p = {
     ...def, slot, controller,
-    group: Body.nextGroup(true),
+    group: newCollisionGroup(),
     roundWins: 0, hp: MAX_HP,
     alive: false, facing: slot % 2 === 0 ? 1 : -1,
     walkPhase: 0, lastGround: 0, airJumps: 1,
@@ -77,7 +81,7 @@ export function createPlayer(slot, controller) {
       set(v) { p.casts[p.lastCastSlot] = v; },
     },
   });
-  p.body = Bodies.circle(0, -100, 15, {
+  p.body = createCircle(0, -100, 15, {
     density: 0.004, friction: 0.05, frictionAir: 0.02, restitution: 0.2,
     label: 'player', collisionFilter: { group: p.group },
   });
@@ -89,13 +93,13 @@ export function createPlayer(slot, controller) {
 export function setPlayerScale(p, target) {
   const ratio = target / p.sizeScale;
   if (Math.abs(ratio - 1) < 0.01) return;
-  Body.scale(p.body, ratio, ratio);
+  scaleBody(p.body, ratio, ratio);
   p.sizeScale = target;
   spawnParticles(p.body.position.x, p.body.position.y, '#e8d5ff', 6, 3);
 }
 
 export function spawnPlayer(p, pos) {
-  if (!p.alive) Composite.add(world, p.body);
+  if (!p.alive) addBody(p.body);
   p.alive = true;
   p.hp = MAX_HP;
   p.airJumps = 1;
@@ -106,16 +110,16 @@ export function spawnPlayer(p, pos) {
   clearStatuses(p);
   setPlayerScale(p, 1);
   p.body.frictionAir = 0.02;
-  Body.setPosition(p.body, pos);
-  Body.setVelocity(p.body, { x: 0, y: 0 });
-  Body.setAngularVelocity(p.body, 0);
-  Body.setAngle(p.body, 0);
+  setPosition(p.body, pos);
+  setVelocity(p.body, { x: 0, y: 0 });
+  setAngularVelocity(p.body, 0);
+  setAngle(p.body, 0);
   spawnParticles(pos.x, pos.y, '#e8d5ff', 12, 5);
 }
 
 export function despawnPlayer(p) {
   if (!p.alive) return;
-  Composite.remove(world, p.body);
+  removeBody(p.body);
   p.alive = false;
 }
 

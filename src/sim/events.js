@@ -2,7 +2,11 @@
 // and announced with a banner just after FIGHT!. All physics runs host-side;
 // visuals reach LAN clients and the killcam through the snapshot's `ev` field
 // (drawn in src/render/draw-env.js).
-import { Bodies, Body, Composite, world, engine, W, H } from './world.js';
+import { W, H } from './world.js';
+import {
+  addTo, addVelocity, allBodies, createBox, createCircle, gravityY, removeFrom,
+  setGravityY, setVelocity,
+} from './phys/facade.js';
 import { simRandom, rand, pick } from './rng.js';
 import { perSecond } from './time.js';
 import { spawnParticles, addShake, doFlash } from './fx.js';
@@ -20,7 +24,7 @@ export const ENV_EVENT_CHANCE = 0.20; // one round in five
 // Pass a seeded rng when the result must match across host & LAN clients.
 export function platformSpots(m, n, rng) {
   const rr = rng ? (a, b) => a + rng() * (b - a) : rand;
-  const solids = Composite.allBodies(m.composite).filter(b =>
+  const solids = allBodies(m.composite).filter(b =>
     b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 &&
     b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
   const spots = [];
@@ -41,7 +45,7 @@ export function killVine(v) {
   const vines = currentMap.data.vines;
   if (!vines || !vines.includes(v)) return;
   vines.splice(vines.indexOf(v), 1);
-  Composite.remove(currentMap.composite, v);
+  removeFrom(currentMap.composite, v);
   spawnParticles(v.position.x, v.position.y, '#7bd88f', 12, 4);
   sfx.squeak();
 }
@@ -52,11 +56,11 @@ export const ENV_EVENTS = [
     start(m, now) {
       m.data.vines = [];
       for (const s of platformSpots(m, 12)) {
-        const v = Bodies.rectangle(s.x, s.y - 24, 22, 48, { isStatic: true, isSensor: true, label: 'vine' });
+        const v = createBox(s.x, s.y - 24, 22, 48, { isStatic: true, isSensor: true, label: 'vine' });
         v.render.fillStyle = '#4f8a3d';
         v.kinematic = true; // so the snapshot carries it to clients and the killcam
         v.bornAt = now;
-        Composite.add(m.composite, v);
+        addTo(m.composite, v);
         m.data.vines.push(v);
       }
     },
@@ -76,7 +80,7 @@ export const ENV_EVENTS = [
     id: 'winter', name: 'WINTER', color: '#bfe8ff',
     start(m) {
       m.data.eventIcy = true;
-      for (const b of Composite.allBodies(m.composite)) {
+      for (const b of allBodies(m.composite)) {
         if (b.isStatic && !b.isSensor) b.friction = 0.01;
       }
     },
@@ -102,7 +106,7 @@ export const ENV_EVENTS = [
     id: 'moonshot', name: 'MOONSHOT', color: '#e8d5ff',
     start() {
       game.baseGravity *= 0.45;
-      engine.gravity.y *= 0.45;
+      setGravityY(gravityY() * 0.45);
     },
   },
   {
@@ -119,9 +123,9 @@ export const ENV_EVENTS = [
       if (now < (m.data.quakeUntil || 0)) {
         addShake(1.3);
         if (simRandom() < 0.25) {
-          for (const b of Composite.allBodies(world)) {
+          for (const b of allBodies()) {
             if (b.isStatic || b.isSensor) continue;
-            Body.setVelocity(b, { x: b.velocity.x + perSecond(rand(-1.6, 1.6)), y: b.velocity.y - perSecond(rand(0, 1.2)) });
+            addVelocity(b, { x: perSecond(rand(-1.6, 1.6)), y: -perSecond(rand(0, 1.2)) });
           }
         }
       }
@@ -130,7 +134,7 @@ export const ENV_EVENTS = [
   {
     id: 'rubber', name: 'RUBBER WORLD', color: '#ff8fc7',
     start(m) {
-      for (const b of Composite.allBodies(m.composite)) {
+      for (const b of allBodies(m.composite)) {
         if (b.isStatic && !b.isSensor) b.restitution = 0.9;
       }
     },
@@ -142,10 +146,10 @@ export const ENV_EVENTS = [
         m.data.nextCritter = now + rand(2200, 3600);
         if ([...summons].filter(b => b.label === 'critter').length < 8) {
           const side = pick([-1, 1]);
-          const b = Bodies.circle(side < 0 ? -14 : W + 14, rand(80, 300), 9, { density: 0.002, friction: 0.5, restitution: 0.4, label: 'critter' });
+          const b = createCircle(side < 0 ? -14 : W + 14, rand(80, 300), 9, { density: 0.002, friction: 0.5, restitution: 0.4, label: 'critter' });
           b.critter = { hopAt: 0, dir: -side, hop: 6, speed: 4 };
           summon(b, { life: 22000, color: pick(['#9be15d', '#e15d5d', '#c084fc']), contactDamage: 6 });
-          Body.setVelocity(b, { x: -side * 4, y: 0 });
+          setVelocity(b, { x: -side * 4, y: 0 });
         }
       }
     },
