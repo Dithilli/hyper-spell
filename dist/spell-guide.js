@@ -5101,12 +5101,16 @@
 
   // src/sim/cooldown.js
   var pairs = /* @__PURE__ */ new Map();
-  var keyOf = (a, b) => a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
+  var keyOf = (tag, a, b) => a.id < b.id ? `${tag}|${a.id}|${b.id}` : `${tag}|${b.id}|${a.id}`;
   var pairCooldown = {
     // True if this pair may act now, in which case the gate closes for `ms`.
     // ASKING IS TAKING: call it last in a condition, after everything else that
     // could veto the hit, which is exactly where the stamp assignments it
     // replaced sat.
+    //
+    // `tag` names the gate — the property name the old stamps carried. Two sites
+    // sharing a tag share a window on purpose; two sites sharing one by accident
+    // is the bug above, so a missing tag throws rather than silently aliasing.
     //
     // THE BOUNDARY. `<` means the gate opens on tick T + ticks(ms) — a 700ms gate
     // taken on tick T is open again 42 ticks later, the duration as authored.
@@ -5122,33 +5126,38 @@
     //
     // The `?? 0` default falls out of the same choice: at tick 0 the gate is
     // open, as it was for the two `<` sites.
-    ready(a, b, ms) {
+    ready(a, b, ms, tag) {
+      if (!tag) throw new Error("pairCooldown: every gate needs a tag, or two gates quietly share one");
       const t = currentTick();
-      const key = keyOf(a, b);
+      const key = keyOf(tag, a, b);
       if (t < (pairs.get(key) ?? 0)) return false;
       pairs.set(key, t + ticks(ms));
       return true;
     },
-    // A gate scoped to ONE entity rather than to a pair — `ready(x, x, ms)`.
+    // A gate scoped to ONE entity rather than to a pair — `ready(x, x, ms, tag)`.
     //
-    // Four of the five stamps had this shape and it has to be kept: `a._cdAt`
-    // gated the falling anvil against every wizard at once, not against one of
-    // them, so the anvil hit whoever it reached first and nobody else for 400ms.
-    // Re-keying those on (attacker, victim) would let the same anvil hit a second
-    // wizard inside the same window — a livelier game, and a different one.
-    readySelf(x, ms) {
-      return pairCooldown.ready(x, x, ms);
+    // ALL FIVE of the stamps this replaced had this shape, and it has to be kept:
+    // `a._cdAt` gated the falling anvil against every wizard at once, not against
+    // one of them, so the anvil hit whoever it reached first and nobody else for
+    // 400ms. Re-keying those on (attacker, victim) would let the same anvil hit a
+    // second wizard inside the same window — a livelier game, and a different one.
+    // The pair form is what a genuinely pair-scoped gate would use; no site in the
+    // sim wants one today.
+    readySelf(x, ms, tag) {
+      return pairCooldown.ready(x, x, ms, tag);
     },
     clear() {
       pairs.clear();
     },
     // For tests and diagnostics. Unlike the per-body stamps this replaced, an
     // entry does not die with its body — it lives until loadMap clears the map.
-    // Measured over the 4,200-tick three-round tape the peak is 5 entries and the
-    // count at every round boundary is 5 or fewer, so the round-boundary clear is
-    // the whole of the story and there is no sweep here to justify. The bound is
-    // one entry per body that has ever LANDED a gated hit this round, not per
-    // body and not per contact.
+    // What bounds it is the analysis, not a measurement: an entry is only created
+    // when a gate is TAKEN, so the count is at most one per (tag, body) that has
+    // landed a gated hit this round — not per body, not per contact. Gibs and
+    // projectiles raining through a round add nothing. That, plus the clear at the
+    // round boundary, is why there is no sweep here. (The three-round tape peaks
+    // at 5 entries, but it takes a gate twelve times in 4,200 ticks, so it is a
+    // corroboration of the bound and nowhere near a workload that tests it.)
     get size() {
       return pairs.size;
     }
@@ -5396,7 +5405,7 @@
     for (const p of players) {
       if (!p.alive) continue;
       const q = p.body.position;
-      if (q.x > bb.min.x - pad && q.x < bb.max.x + pad && q.y > bb.min.y - pad && q.y < bb.max.y + pad && pairCooldown.readySelf(p.body, 700)) {
+      if (q.x > bb.min.x - pad && q.x < bb.max.x + pad && q.y > bb.min.y - pad && q.y < bb.max.y + pad && pairCooldown.readySelf(p.body, 700, "boss-touch")) {
         damagePlayer(p, dmg * (bs.dmgMult || 1));
         const away = Math.sign(q.x - bs.body.position.x) || pick([-1, 1]);
         setVelocity(p.body, { x: away * 8, y: -6 });

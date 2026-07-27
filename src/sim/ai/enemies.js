@@ -59,7 +59,7 @@ export function enemyStrike(b, e, reach = 34) {
   // gate — rather than after, as the old early return did — costs the search
   // and changes nothing else.
   if (Math.abs(q.x - b.position.x) < reach && Math.abs(q.y - b.position.y) < 44
-    && pairCooldown.readySelf(b, 700)) {
+    && pairCooldown.readySelf(b, 700, 'enemy-swing')) {
     damagePlayer(t, e.dmg);
     const away = Math.sign(q.x - b.position.x) || 1;
     setVelocity(t.body, { x: away * 6, y: -5 });

@@ -51,21 +51,31 @@ test('the table resolves each pair to the old handler’s block order', () => {
   assert.deepEqual(names('crate', 'crate'), []);
 });
 
+// rulesFor hands back the live dispatch list rather than a copy — a defensive
+// copy per contact would allocate on the hottest path in the sim — so the list
+// is frozen. Without that, one exported accessor plus one careless `.push` is a
+// permanently wrong game with no error anywhere near the cause.
+test('the resolved rule list cannot be mutated by a caller', () => {
+  const list = rulesFor('tome', 'player');
+  assert.throws(() => list.push(() => {}), TypeError);
+  assert.deepEqual(rulesFor('tome', 'player').map((fn) => fn.name), ['contactDamage', 'contactExplode', 'tomePickup']);
+});
+
 test('a pair cooldown gates repeat hits per body pair, not globally', () => {
   resetTick(1);
   pairCooldown.clear();
   const a = { id: 1 }, b = { id: 2 }, c = { id: 3 };
-  assert.equal(pairCooldown.ready(a, b, 400), true);
-  assert.equal(pairCooldown.ready(a, b, 400), false, 'same pair is gated');
-  assert.equal(pairCooldown.ready(a, c, 400), true, 'a different pair is not');
+  assert.equal(pairCooldown.ready(a, b, 400, 't'), true);
+  assert.equal(pairCooldown.ready(a, b, 400, 't'), false, 'same pair is gated');
+  assert.equal(pairCooldown.ready(a, c, 400, 't'), true, 'a different pair is not');
 });
 
 test('the key is unordered — (a, b) and (b, a) are the same gate', () => {
   resetTick(1);
   pairCooldown.clear();
   const a = { id: 7 }, b = { id: 4 };
-  assert.equal(pairCooldown.ready(a, b, 400), true);
-  assert.equal(pairCooldown.ready(b, a, 400), false);
+  assert.equal(pairCooldown.ready(a, b, 400, 't'), true);
+  assert.equal(pairCooldown.ready(b, a, 400, 't'), false);
 });
 
 // readySelf is the shape four of the five stamps this replaced actually had:
@@ -77,10 +87,49 @@ test('readySelf gates one entity against all comers', () => {
   resetTick(1);
   pairCooldown.clear();
   const anvil = { id: 11 };
-  assert.equal(pairCooldown.readySelf(anvil, 400), true);
-  assert.equal(pairCooldown.readySelf(anvil, 400), false);
+  assert.equal(pairCooldown.readySelf(anvil, 400, 't'), true);
+  assert.equal(pairCooldown.readySelf(anvil, 400, 't'), false);
   // and it is the same gate the pair form computes for (x, x)
-  assert.equal(pairCooldown.ready(anvil, anvil, 400), false);
+  assert.equal(pairCooldown.ready(anvil, anvil, 400, 't'), false);
+});
+
+// THE ONE THIS SUITE ORIGINALLY MISSED, and it was a live gameplay bug rather
+// than a theoretical one.
+//
+// `_stompAt`, `lastSpikeAt` and `_bossHurtAt` were three separate properties on
+// the same player object. The first version of this module keyed a gate on the
+// entity alone, so all three landed on one key: a wizard the boss had touched
+// could not be spiked or stomped for 700ms, and stepping on spikes made you
+// un-stompable. Both golden tapes stayed byte-identical through it and all
+// fourteen tests passed, because every other test drives one gate at a time.
+// Two gates on ONE entity is the axis, and this is the test that walks it.
+test('the gates a single wizard can be under are independent of each other', () => {
+  resetTick(100);
+  pairCooldown.clear();
+  const wiz = { id: 42 };
+  assert.equal(pairCooldown.readySelf(wiz, 700, 'boss-touch'), true);
+  assert.equal(pairCooldown.readySelf(wiz, 600, 'spikes'), true, 'a boss touch must not grant spike immunity');
+  assert.equal(pairCooldown.readySelf(wiz, 600, 'stomp'), true, 'nor stomp immunity');
+  assert.equal(pairCooldown.size, 3, 'three gates, three keys');
+  // …and each still gates itself
+  assert.equal(pairCooldown.readySelf(wiz, 700, 'boss-touch'), false);
+  assert.equal(pairCooldown.readySelf(wiz, 600, 'spikes'), false);
+  assert.equal(pairCooldown.readySelf(wiz, 600, 'stomp'), false);
+  // the boss's 42-tick window is the longest; at tick 136 the two 36-tick ones
+  // have reopened and it has not. Under one shared key, none of them would have.
+  resetTick(136);
+  assert.equal(pairCooldown.readySelf(wiz, 600, 'spikes'), true);
+  assert.equal(pairCooldown.readySelf(wiz, 600, 'stomp'), true);
+  assert.equal(pairCooldown.readySelf(wiz, 700, 'boss-touch'), false);
+});
+
+// A tag is not optional, because the failure mode of forgetting one is silent:
+// two unrelated gates quietly share a window, which is exactly the bug above.
+test('a gate without a tag is refused, not silently aliased', () => {
+  resetTick(1);
+  const a = { id: 1 }, b = { id: 2 };
+  assert.throws(() => pairCooldown.ready(a, b, 400), /tag/);
+  assert.throws(() => pairCooldown.readySelf(a, 400), /tag/);
 });
 
 // Each of the three intervals, at its own length: the gate opens ticks(ms)
@@ -92,13 +141,13 @@ test('a gate lasts exactly ticks(ms) and reopens on that tick', () => {
     pairCooldown.clear();
     const a = { id: 1 }, b = { id: 2 };
     resetTick(100);
-    assert.equal(pairCooldown.ready(a, b, ms), true, `${ms}: opens`);
+    assert.equal(pairCooldown.ready(a, b, ms, 't'), true, `${ms}: opens`);
     for (let t = 1; t < ticks(ms); t++) {
       resetTick(100 + t);
-      assert.equal(pairCooldown.ready(a, b, ms), false, `${ms}: still gated ${t} tick(s) later`);
+      assert.equal(pairCooldown.ready(a, b, ms, 't'), false, `${ms}: still gated ${t} tick(s) later`);
     }
     resetTick(100 + ticks(ms));
-    assert.equal(pairCooldown.ready(a, b, ms), true, `${ms}: ready after ${ticks(ms)} ticks`);
+    assert.equal(pairCooldown.ready(a, b, ms, 't'), true, `${ms}: ready after ${ticks(ms)} ticks`);
   }
 });
 
@@ -106,11 +155,11 @@ test('clear() opens every gate — a new round starts clean', () => {
   resetTick(1);
   pairCooldown.clear();
   const a = { id: 1 }, b = { id: 2 };
-  assert.equal(pairCooldown.ready(a, b, 400), true);
-  assert.equal(pairCooldown.ready(a, b, 400), false);
+  assert.equal(pairCooldown.ready(a, b, 400, 't'), true);
+  assert.equal(pairCooldown.ready(a, b, 400, 't'), false);
   pairCooldown.clear();
   assert.equal(pairCooldown.size, 0);
-  assert.equal(pairCooldown.ready(a, b, 400), true);
+  assert.equal(pairCooldown.ready(a, b, 400, 't'), true);
 });
 
 // ---------------------------------------------------------------------------
@@ -125,69 +174,97 @@ test('clear() opens every gate — a new round starts clean', () => {
 //
 // A spy that answers "gated" lets each site be asked what it wanted without
 // needing a world: every one of the five calls the gate LAST, so a false answer
-// short-circuits it before it damages anybody. What comes back is the pair the
-// site asked about and the interval it asked for — which is both halves of what
-// this task had to preserve.
+// short-circuits it before it damages anybody. What comes back is the entity the
+// site scoped its gate to, the interval it asked for, and the tag it named it
+// with — which is all three of the things this task had to preserve.
 function spyGate(run) {
   const real = { ready: pairCooldown.ready, readySelf: pairCooldown.readySelf };
   const asked = [];
-  pairCooldown.ready = (a, b, ms) => { asked.push({ a, b, ms }); return false; };
-  pairCooldown.readySelf = (x, ms) => { asked.push({ a: x, b: x, ms }); return false; };
+  pairCooldown.ready = (a, b, ms, tag) => { asked.push({ a, b, ms, tag }); return false; };
+  pairCooldown.readySelf = (x, ms, tag) => { asked.push({ a: x, b: x, ms, tag }); return false; };
   try { run(); } finally { Object.assign(pairCooldown, real); }
   return asked;
 }
 
+// The five sites, each driven with the least fixture that reaches its gate.
+const SITES = {
+  'contact damage': () => {
+    const [contactDamage] = rulesFor('anvil', 'player');
+    const anvil = { id: 41, label: 'anvil', contactDamage: 55, owner: null, velocity: { x: 12, y: 0 }, position: { x: 0, y: 0 } };
+    const wiz = { id: 42, label: 'player', velocity: { x: 0, y: 0 }, player: { body: { id: 42 } } };
+    return { asked: spyGate(() => contactDamage(anvil, wiz)), scope: anvil };
+  },
+  stomp: () => {
+    const [, , stomp] = rulesFor('player', 'player');
+    const mk = (id, scale, y, vy) => ({
+      id, label: 'player',
+      player: { sizeScale: scale, alive: true, body: { id, position: { x: 0, y }, velocity: { x: 0, y: vy } } },
+    });
+    const big = mk(51, 2, 0, 5), small = mk(52, 1, 40, 0);
+    return { asked: spyGate(() => stomp(big, small)), scope: small.player.body };
+  },
+  spikes: () => {
+    const [, , spikes] = rulesFor('spikes', 'player');
+    const strip = { id: 61, label: 'spikes' };
+    const wiz = { id: 62, label: 'player', player: { body: { id: 62, velocity: { x: 0, y: 0 } } } };
+    return { asked: spyGate(() => spikes(strip, wiz)), scope: wiz.player.body };
+  },
+  'boss touch': () => {
+    const wiz = { alive: true, body: { id: 71, position: { x: 5, y: 5 } } };
+    players.push(wiz);
+    try {
+      const bs = { dmgMult: 1, body: { bounds: { min: { x: 0, y: 0 }, max: { x: 10, y: 10 } }, position: { x: 5, y: 5 } } };
+      return { asked: spyGate(() => bossTouchAll(bs, 10)), scope: wiz.body };
+    } finally { players.length = 0; }
+  },
+  'enemy swing': () => {
+    const wiz = { alive: true, body: { id: 81, position: { x: 0, y: 0 } } };
+    players.push(wiz);
+    try {
+      const goon = { id: 82, position: { x: 0, y: 0 } };
+      return { asked: spyGate(() => enemyStrike(goon, { dmg: 12, color: '#fff' }, 34)), scope: goon };
+    } finally { players.length = 0; }
+  },
+};
+
 test('contact damage asks for 400ms, scoped to the body doing the damage', () => {
-  const [contactDamage] = rulesFor('anvil', 'player');
-  const anvil = { id: 41, label: 'anvil', contactDamage: 55, owner: null, velocity: { x: 12, y: 0 }, position: { x: 0, y: 0 } };
-  const wiz = { id: 42, label: 'player', velocity: { x: 0, y: 0 }, player: { body: { id: 42 } } };
-  const asked = spyGate(() => contactDamage(anvil, wiz));
-  assert.deepEqual(asked.map((q) => q.ms), [400]);
-  assert.equal(asked[0].a, anvil, 'the gate is on the anvil, not on the pair');
-  assert.equal(asked[0].b, anvil);
+  const { asked, scope } = SITES['contact damage']();
+  assert.deepEqual(asked.map((q) => [q.ms, q.tag]), [[400, 'contact-damage']]);
+  assert.equal(asked[0].a, scope, 'the gate is on the anvil, not on the pair');
+  assert.equal(asked[0].b, scope);
 });
 
 test('the stomp asks for 600ms, scoped to the wizard being stomped', () => {
-  const [, , stomp] = rulesFor('player', 'player');
-  const mk = (id, scale, y, vy) => ({
-    id, label: 'player',
-    player: { sizeScale: scale, alive: true, body: { id, position: { x: 0, y }, velocity: { x: 0, y: vy } } },
-  });
-  const big = mk(51, 2, 0, 5), small = mk(52, 1, 40, 0);
-  const asked = spyGate(() => stomp(big, small));
-  assert.deepEqual(asked.map((q) => q.ms), [600]);
-  assert.equal(asked[0].a, small.player.body, 'the gate is on the victim, as `small._stompAt` was');
+  const { asked, scope } = SITES.stomp();
+  assert.deepEqual(asked.map((q) => [q.ms, q.tag]), [[600, 'stomp']]);
+  assert.equal(asked[0].a, scope, 'the gate is on the victim, as `small._stompAt` was');
 });
 
 test('spikes ask for 600ms, scoped to the wizard — not to the spike body', () => {
-  const [, , spikes] = rulesFor('spikes', 'player');
-  const strip = { id: 61, label: 'spikes' };
-  const wiz = { id: 62, label: 'player', player: { body: { id: 62, velocity: { x: 0, y: 0 } } } };
-  const asked = spyGate(() => spikes(strip, wiz));
-  assert.deepEqual(asked.map((q) => q.ms), [600]);
-  assert.equal(asked[0].a, wiz.player.body, 'a strip built from several spike bodies still costs 20 once');
+  const { asked, scope } = SITES.spikes();
+  assert.deepEqual(asked.map((q) => [q.ms, q.tag]), [[600, 'spikes']]);
+  assert.equal(asked[0].a, scope, 'a strip built from several spike bodies still costs 20 once');
 });
 
 test('the boss body asks for 700ms, scoped to the wizard it is crushing', () => {
-  const wiz = { alive: true, body: { id: 71, position: { x: 5, y: 5 } } };
-  players.push(wiz);
-  try {
-    const bs = { dmgMult: 1, body: { bounds: { min: { x: 0, y: 0 }, max: { x: 10, y: 10 } }, position: { x: 5, y: 5 } } };
-    const asked = spyGate(() => bossTouchAll(bs, 10));
-    assert.deepEqual(asked.map((q) => q.ms), [700]);
-    assert.equal(asked[0].a, wiz.body, 'the gate is on the wizard, as `p._bossHurtAt` was');
-  } finally { players.length = 0; }
+  const { asked, scope } = SITES['boss touch']();
+  assert.deepEqual(asked.map((q) => [q.ms, q.tag]), [[700, 'boss-touch']]);
+  assert.equal(asked[0].a, scope, 'the gate is on the wizard, as `p._bossHurtAt` was');
 });
 
 test('an enemy swing asks for 700ms, scoped to the enemy swinging', () => {
-  const wiz = { alive: true, body: { id: 81, position: { x: 0, y: 0 } } };
-  players.push(wiz);
-  try {
-    const goon = { id: 82, position: { x: 0, y: 0 } };
-    const asked = spyGate(() => enemyStrike(goon, { dmg: 12, color: '#fff' }, 34));
-    assert.deepEqual(asked.map((q) => q.ms), [700]);
-    assert.equal(asked[0].a, goon, 'one swing per enemy per window, as `b._touchAt` was — not per target');
-  } finally { players.length = 0; }
+  const { asked, scope } = SITES['enemy swing']();
+  assert.deepEqual(asked.map((q) => [q.ms, q.tag]), [[700, 'enemy-swing']]);
+  assert.equal(asked[0].a, scope, 'one swing per enemy per window, as `b._touchAt` was — not per target');
+});
+
+// The tag is what makes `_stompAt` and `lastSpikeAt` two gates rather than one,
+// so two sites sharing one is the same bug as no tags at all — and the five
+// tests above cannot see it, because each looks at one site in isolation.
+test('no two gate sites share a tag', () => {
+  const tags = Object.values(SITES).flatMap((drive) => drive().asked.map((q) => q.tag));
+  assert.equal(tags.length, 5, 'five sites, five gates');
+  assert.equal(new Set(tags).size, 5, `two sites share a window: ${tags.join(', ')}`);
 });
 
 // The stamps this replaced were self-cleaning: `a._cdAt` lived on the anvil and
@@ -199,7 +276,7 @@ test('an enemy swing asks for 700ms, scoped to the enemy swinging', () => {
 test('loadMap opens every gate — a round does not inherit the last one’s', () => {
   const sim = createSim({ clock: makeClock(0) });
   try {
-    pairCooldown.readySelf({ id: 987654 }, 700);
+    pairCooldown.readySelf({ id: 987654 }, 700, 't');
     assert.ok(pairCooldown.size > 0, 'the gate was taken');
     loadMap(0);
     assert.equal(pairCooldown.size, 0);
@@ -212,7 +289,7 @@ test('loadMap opens every gate — a round does not inherit the last one’s', (
 // module owning mutable state registers one, and a contract nothing checks is
 // the one that quietly stops being true.
 test('createWorld opens every gate — a rebuilt world inherits nothing', () => {
-  pairCooldown.readySelf({ id: 987655 }, 700);
+  pairCooldown.readySelf({ id: 987655 }, 700, 't');
   assert.ok(pairCooldown.size > 0, 'the gate was taken');
   createWorld();
   try { assert.equal(pairCooldown.size, 0); } finally { destroyWorld(); }

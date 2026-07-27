@@ -69,7 +69,7 @@ export function bossTouchAll(bs, dmg, pad = 8) {
     if (!p.alive) continue;
     const q = p.body.position;
     if (q.x > bb.min.x - pad && q.x < bb.max.x + pad && q.y > bb.min.y - pad && q.y < bb.max.y + pad
-      && pairCooldown.readySelf(p.body, 700)) {
+      && pairCooldown.readySelf(p.body, 700, 'boss-touch')) {
       damagePlayer(p, dmg * (bs.dmgMult || 1));
       const away = Math.sign(q.x - bs.body.position.x) || pick([-1, 1]);
       setVelocity(p.body, { x: away * 8, y: -6 });

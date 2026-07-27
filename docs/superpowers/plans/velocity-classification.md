@@ -267,13 +267,13 @@ notice is one nobody has written.
 | `src/sim/player/controller.js:137` | **controller** | axis | `setVelocity` → `setControlVelocity` (phase 3) | Jump: y set outright, x preserved. Same owner as the blend above. |
 | `src/sim/player/controller.js:142` | **controller** | axis | `setVelocity` → `setControlVelocity` (phase 3) | Air jump: y set outright, x preserved. |
 | `src/sim/player/lifecycle.js:116` | **override** | absolute | `setVelocity` | spawnPlayer — brief rule 5. A respawn must not inherit the corpse's momentum. |
-| `src/sim/collision.js:105` | **push** | blended | `setVelocity` | Reflect: the bolt's own velocity is negated and damped. Reads the current velocity, so it is a push, but the sign flip means it cannot be a delta. |
-| `src/sim/collision.js:144` | **push** | blended | `setVelocity` | Banana slip: x amplified 1.5x, y kicked up. The x scaling keeps it out of addVelocity. |
-| `src/sim/collision.js:159` | **push** | axis | `setVelocity` | Stomp — the victim is driven down at a fixed speed, x preserved. |
-| `src/sim/collision.js:160` | **push** | axis | `setVelocity` | Stomp — the stomper bounces off the landing at a fixed speed. |
-| `src/sim/collision.js:169` | **push** | axis | `setVelocity` | Trampoline fling: a fixed launch speed, horizontal motion preserved. |
-| `src/sim/collision.js:192` | **push** | axis | `setVelocity` | Spikes: a fixed pop upward, horizontal motion preserved. |
-| `src/sim/collision.js:198` | **push** | axis | `setVelocity` | Bosses shrug off lava with a fixed upward pop. |
+| `src/sim/collision.js:116` | **push** | blended | `setVelocity` | Reflect: the bolt's own velocity is negated and damped. Reads the current velocity, so it is a push, but the sign flip means it cannot be a delta. |
+| `src/sim/collision.js:155` | **push** | blended | `setVelocity` | Banana slip: x amplified 1.5x, y kicked up. The x scaling keeps it out of addVelocity. |
+| `src/sim/collision.js:170` | **push** | axis | `setVelocity` | Stomp — the victim is driven down at a fixed speed, x preserved. |
+| `src/sim/collision.js:171` | **push** | axis | `setVelocity` | Stomp — the stomper bounces off the landing at a fixed speed. |
+| `src/sim/collision.js:180` | **push** | axis | `setVelocity` | Trampoline fling: a fixed launch speed, horizontal motion preserved. |
+| `src/sim/collision.js:203` | **push** | axis | `setVelocity` | Spikes: a fixed pop upward, horizontal motion preserved. |
+| `src/sim/collision.js:209` | **push** | axis | `setVelocity` | Bosses shrug off lava with a fixed upward pop. |
 | `src/sim/events.js:129` | **push** | additive | `addVelocity` | Windstorm event: a per-second push on every loose body. |
 | `src/sim/events.js:153` | **override** | absolute | `setVelocity` | Critter spawn at the arena edge. |
 | `src/sim/ai/boss.js:53` | **override** | absolute | `setVelocity` | Boss projectile launch. |

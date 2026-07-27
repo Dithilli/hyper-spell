@@ -54,16 +54,27 @@ export function rule(labelA, labelB, fn) {
 }
 
 // The rules that match this ordered label pair, in registration order.
-// Memoised: the label vocabulary is small and fixed, so this settles into a
-// handful of entries within the first seconds of a round and never allocates
-// again.
+//
+// Memoised, and the memo needs no reset hook: it is a pure function of the rule
+// table, which is filled once at module load and never changes, so an entry can
+// never go stale. It is bounded by the label vocabulary, which is authored in
+// content and finite — `player`, `projectile`, `lava`, `tome`, `hat`, `banana`,
+// `tramp`, `spikes`, `icicle`, `boss`, `enemy`, `vine`, `decoy`, `destructible`,
+// `saw`, `mine`, and the handful of unlabelled map bodies — so it settles within
+// the first seconds of a round and never allocates again.
+//
+// FROZEN because it is the live dispatch list, not a copy: this is called for
+// every contact in both orientations, so returning a defensive copy would
+// allocate on the hottest path in the sim. Freezing costs nothing per call and
+// makes an exported accessor unable to corrupt dispatch — a caller that pushes
+// onto the result gets a TypeError instead of a permanently wrong game.
 export function rulesFor(a, b) {
   const key = `${a}|${b}`;
   let list = resolved.get(key);
   if (!list) {
-    list = registered
+    list = Object.freeze(registered
       .filter((r) => (r.labelA === ANY || r.labelA === a) && (r.labelB === ANY || r.labelB === b))
-      .map((r) => r.fn);
+      .map((r) => r.fn));
     resolved.set(key, list);
   }
   return list;
@@ -119,7 +130,7 @@ rule('projectile', ANY, function projectileHit(a, b) {
 rule(ANY, 'player', function contactDamage(a, b) {
   if (!a.contactDamage || b.player === a.owner) return;
   const relSpeed = Math.hypot(a.velocity.x - b.velocity.x, a.velocity.y - b.velocity.y);
-  if (relSpeed > 3 && pairCooldown.readySelf(a, 400)) {
+  if (relSpeed > 3 && pairCooldown.readySelf(a, 400, 'contact-damage')) {
     damagePlayer(b.player, a.contactDamage * Math.min(1, relSpeed / 10), a.owner);
   }
 });
@@ -154,7 +165,7 @@ rule('player', 'player', function stomp(a, b) {
   const big = a.player, small = b.player;
   if ((big.sizeScale || 1) >= 1.6 && (big.sizeScale || 1) > (small.sizeScale || 1) + 0.3
     && big.body.position.y < small.body.position.y - 6 && big.body.velocity.y > 2
-    && small.alive && pairCooldown.readySelf(small.body, 600)) {
+    && small.alive && pairCooldown.readySelf(small.body, 600, 'stomp')) {
     damagePlayer(small, 12 + Math.round(((big.sizeScale || 1) - 1) * 22), big);
     setVelocity(small.body, { x: small.body.velocity.x, y: 7 });
     setVelocity(big.body, { x: big.body.velocity.x, y: -9 }); // bounce off the landing
@@ -187,7 +198,7 @@ rule('icicle', 'player', function icicleFall(a, b) {
 // still costs 20 once
 rule('spikes', 'player', function spikes(a, b) {
   const q = b.player;
-  if (pairCooldown.readySelf(q.body, 600)) {
+  if (pairCooldown.readySelf(q.body, 600, 'spikes')) {
     damagePlayer(q, 20);
     setVelocity(q.body, { x: q.body.velocity.x, y: -9 });
   }
