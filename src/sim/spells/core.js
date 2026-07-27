@@ -5,7 +5,7 @@
 // global ctx, which is what keeps sim/ free of a render/ import. Task 13 turns
 // them into emitted events and the drawing moves out entirely.
 import { Bodies, Body, Composite, Query, world, engine, W, H, onWorldReset } from '../world.js';
-import { simNow } from '../time.js';
+import { perSecond, simNow } from '../time.js';
 import { simRandom, rand } from '../rng.js';
 import {
   particles, spawnParticles, spawnRing, spawnText, addShake, doFlash,
@@ -248,7 +248,7 @@ export function spawnSingularity(x, y, m = 1, owner = null, opts = {}) {
           continue;
         }
         const s = 1 - d / R;
-        const pull = 0.9 * s, tang = 0.35 * s;
+        const pull = perSecond(0.9) * s, tang = perSecond(0.35) * s;
         Body.setVelocity(b, {
           x: b.velocity.x + (dx / d) * pull + (-dy / d) * tang,
           y: b.velocity.y + (dy / d) * pull + (dx / d) * tang,
@@ -277,7 +277,7 @@ export function spawnSingularity(x, y, m = 1, owner = null, opts = {}) {
   });
 }
 
-// circular zone effect: calls tick(player) for alive players inside, every frame
+// circular zone effect: calls tick(player) for alive players inside, every tick
 export function makeZone({ x, y, r, life, color, tick, tickBody, draw, onEnd }) {
   activeEffects.push({
     until: simNow() + life,
@@ -369,10 +369,14 @@ export function castSpell(p, now, slot = 0) {
   }
 }
 
-export function updateEffects(now, dt) {
+// No `dt`: it was threaded to every effect and used by none of them, and now
+// that a step is always TICK_MS it could only ever be that constant. An effect
+// that needs per-second scaling reaches for perSecond() at its own constant,
+// which says what it means where the number is written.
+export function updateEffects(now) {
   for (let i = activeEffects.length - 1; i >= 0; i--) {
     const e = activeEffects[i];
-    e.update?.(now, dt);
+    e.update?.(now);
     if (now > e.until) {
       e.onEnd?.();
       activeEffects.splice(i, 1);

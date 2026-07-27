@@ -9,7 +9,7 @@
 // header below and the effect draw() closures, which now take the render surface
 // as an argument instead of reaching for a global ctx.
 import { Bodies, Body, Composite, world, W, H } from '../world.js';
-import { simNow } from '../time.js';
+import { perSecond, simNow } from '../time.js';
 import { simRandom, rand } from '../rng.js';
 import {
   spawnParticles, spawnRing, spawnText, addShake, doFlash, spawnBurst,
@@ -241,7 +241,7 @@ regHybrid('firestorm', {
           if (b.label === 'player' && b.player === p) continue; // never eats the caster
           const dx = b.position.x - e.x;
           if (Math.abs(dx) > 110 * m) continue;
-          Body.setVelocity(b, { x: b.velocity.x - Math.sign(dx || 1) * 0.8 + rand(-0.5, 0.5), y: b.velocity.y - 1.6 * m });
+          Body.setVelocity(b, { x: b.velocity.x - Math.sign(dx || 1) * perSecond(0.8) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.6) * m });
           if (b.label === 'player' && b.player.alive) b.player.burnUntil = Math.max(b.player.burnUntil || 0, now + 900 * m);
         }
       },

@@ -1,7 +1,7 @@
 // player/controller.js — the per-frame movement, jump, aim and cast pass: the
 // bridge between a controller's input and the physics body.
 import { Body, Composite, Query, world, engine, W, H } from '../world.js';
-import { simNow } from '../time.js';
+import { perSecond, simNow } from '../time.js';
 import { simRandom, rand } from '../rng.js';
 import { spawnParticles, addShake } from '../fx.js';
 import { sfx } from '../sfx.js';
@@ -122,7 +122,7 @@ export function updatePlayers(now) {
       if (now < (p.heavyUntil || 0)) target *= 0.5;
       if (currentMap.def.muddy || now < (p.vineSlowUntil || 0)) target *= 0.65;
       const icy = currentMap.def.icy || currentMap.data.eventIcy;
-      const blend = onGround ? (icy ? 0.09 : currentMap.def.muddy ? 0.12 : 0.25) : 0.08;
+      const blend = onGround ? (icy ? perSecond(0.09) : currentMap.def.muddy ? perSecond(0.12) : perSecond(0.25)) : perSecond(0.08);
       Body.setVelocity(body, { x: body.velocity.x + (target - body.velocity.x) * blend, y: body.velocity.y });
 
       const heavy = now < (p.heavyUntil || 0);

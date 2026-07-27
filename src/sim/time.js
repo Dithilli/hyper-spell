@@ -19,3 +19,9 @@ export const simNow = () => tick * TICK_MS;
 
 // authoring helper: durations stay in milliseconds in content
 export const ticks = (ms) => Math.round(ms / TICK_MS);
+
+// Legacy tuning constants were authored against a 60Hz frame. This converts
+// them to per-tick values so the same number keeps producing the same motion
+// while the unit becomes explicit. At TICK_HZ = 60 this is the identity.
+const LEGACY_FRAME_MS = 1000 / 60;
+export const perSecond = (perFrameValue) => perFrameValue * (TICK_MS / LEGACY_FRAME_MS);

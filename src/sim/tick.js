@@ -136,7 +136,9 @@ export function stepSim() {
   updatePlayers(now);
   updateGhosts(now);
   if (game.state === 'PLAY' || game.state === 'LOBBY') updateTomes(now);
-  updateEffects(now, dt);
+  updateEffects(now);
+  // map updates keep dt: three lava-rise handlers integrate it correctly
+  // (`m.data.lavaY -= 12 * dt / 1000`), which is already per-second maths.
   currentMap.def.update?.(currentMap, now, dt);
   updateEnvEvent(now, dt);
   updateBoss(now, dt);

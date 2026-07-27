@@ -4,6 +4,7 @@
 // (drawn in src/render/draw-env.js).
 import { Bodies, Body, Composite, world, engine, W, H } from './world.js';
 import { simRandom, rand, pick } from './rng.js';
+import { perSecond } from './time.js';
 import { spawnParticles, addShake, doFlash } from './fx.js';
 import { sfx } from './sfx.js';
 import { game, setBanner, currentMap } from './match.js';
@@ -120,7 +121,7 @@ export const ENV_EVENTS = [
         if (simRandom() < 0.25) {
           for (const b of Composite.allBodies(world)) {
             if (b.isStatic || b.isSensor) continue;
-            Body.setVelocity(b, { x: b.velocity.x + rand(-1.6, 1.6), y: b.velocity.y - rand(0, 1.2) });
+            Body.setVelocity(b, { x: b.velocity.x + perSecond(rand(-1.6, 1.6)), y: b.velocity.y - perSecond(rand(0, 1.2)) });
           }
         }
       }

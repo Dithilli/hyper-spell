@@ -4823,6 +4823,8 @@
   var currentTick = () => tick;
   var simNow = () => tick * TICK_MS;
   var ticks = (ms) => Math.round(ms / TICK_MS);
+  var LEGACY_FRAME_MS = 1e3 / 60;
+  var perSecond = (perFrameValue) => perFrameValue * (TICK_MS / LEGACY_FRAME_MS);
 
   // src/sim/rng.js
   function makeRng(seed) {
@@ -5668,7 +5670,7 @@
           if (simRandom() < 0.25) {
             for (const b of Composite.allBodies(world)) {
               if (b.isStatic || b.isSensor) continue;
-              Body.setVelocity(b, { x: b.velocity.x + rand(-1.6, 1.6), y: b.velocity.y - rand(0, 1.2) });
+              Body.setVelocity(b, { x: b.velocity.x + perSecond(rand(-1.6, 1.6)), y: b.velocity.y - perSecond(rand(0, 1.2)) });
             }
           }
         }
@@ -5985,7 +5987,7 @@
   function keepPendulumsSwinging(m) {
     for (const b of m.data.pendulums || []) {
       if (Math.hypot(b.velocity.x, b.velocity.y) < 2.5) {
-        Body.setVelocity(b, { x: b.velocity.x + (b.position.x < W / 2 ? 1.5 : -1.5), y: b.velocity.y });
+        Body.setVelocity(b, { x: b.velocity.x + perSecond(b.position.x < W / 2 ? 1.5 : -1.5), y: b.velocity.y });
       }
     }
   }
@@ -6035,9 +6037,10 @@
     }
   }
   function applyWind(fx) {
+    const dv = perSecond(fx);
     for (const b of Composite.allBodies(world)) {
       if (b.isStatic || b.isSensor) continue;
-      Body.setVelocity(b, { x: b.velocity.x + fx, y: b.velocity.y });
+      Body.setVelocity(b, { x: b.velocity.x + dv, y: b.velocity.y });
     }
   }
   function updateGeysers(m, now) {
@@ -6338,7 +6341,7 @@
             continue;
           }
           const s = 1 - d / R;
-          const pull = 0.9 * s, tang = 0.35 * s;
+          const pull = perSecond(0.9) * s, tang = perSecond(0.35) * s;
           Body.setVelocity(b, {
             x: b.velocity.x + dx / d * pull + -dy / d * tang,
             y: b.velocity.y + dy / d * pull + dx / d * tang
@@ -6981,7 +6984,7 @@
             if (b.isStatic || b.isSensor) continue;
             const dx = b.position.x - e.x;
             if (Math.abs(dx) > 120 * m) continue;
-            Body.setVelocity(b, { x: b.velocity.x - Math.sign(dx) * 0.9 + rand(-0.5, 0.5), y: b.velocity.y - 1.5 * m });
+            Body.setVelocity(b, { x: b.velocity.x - Math.sign(dx) * perSecond(0.9) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.5) * m });
           }
         },
         draw(now, ctx) {
@@ -8065,7 +8068,7 @@
             if (b.label === "player" && b.player === p) continue;
             const dx = b.position.x - e.x;
             if (Math.abs(dx) > 110 * m) continue;
-            Body.setVelocity(b, { x: b.velocity.x - Math.sign(dx || 1) * 0.8 + rand(-0.5, 0.5), y: b.velocity.y - 1.6 * m });
+            Body.setVelocity(b, { x: b.velocity.x - Math.sign(dx || 1) * perSecond(0.8) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.6) * m });
             if (b.label === "player" && b.player.alive) b.player.burnUntil = Math.max(b.player.burnUntil || 0, now + 900 * m);
           }
         },
@@ -9959,7 +9962,7 @@
     }, u(m) {
       for (const b of Composite.allBodies(world)) {
         if (b.isStatic || b.isSensor) continue;
-        if (Math.abs(b.position.x - W / 2) < 110) Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y - 0.9 });
+        if (Math.abs(b.position.x - W / 2) < 110) Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y - perSecond(0.9) });
       }
       if (simRandom() < 0.4) particles.push({ kind: "spark", x: W / 2 + rand(-100, 100), y: rand(300, H), vx: 0, vy: -9, life: 18, maxLife: 18, color: "#e0ffff", r: 2 });
     }, s: [{ x: 200, y: 120 }, { x: W - 200, y: 120 }, { x: 340, y: 120 }, { x: W - 340, y: 120 }] },
@@ -10037,7 +10040,7 @@
     }, u(m) {
       for (const belt of m.data.belts) for (const b of Composite.allBodies(world)) {
         if (b.isStatic || b.isSensor) continue;
-        if (b.position.x > belt.x0 && b.position.x < belt.x1 && Math.abs(b.position.y - belt.y + 20) < 34) Body.setVelocity(b, { x: Math.max(-9, Math.min(9, b.velocity.x + belt.dir * 0.25)), y: b.velocity.y });
+        if (b.position.x > belt.x0 && b.position.x < belt.x1 && Math.abs(b.position.y - belt.y + 20) < 34) Body.setVelocity(b, { x: Math.max(-9, Math.min(9, b.velocity.x + belt.dir * perSecond(0.25))), y: b.velocity.y });
       }
     }, s: [{ x: 320, y: 120 }, { x: W - 320, y: 120 }, { x: 160, y: 120 }, { x: W - 160, y: 120 }] },
     { n: "Hammer Time", b(m) {
@@ -10056,7 +10059,7 @@
       updateCrateRain(m, now, 24, 3e3);
       for (const belt of m.data.belts) for (const b of Composite.allBodies(world)) {
         if (b.isStatic || b.isSensor) continue;
-        if (b.position.x > belt.x0 && b.position.x < belt.x1 && Math.abs(b.position.y - belt.y + 20) < 34) Body.setVelocity(b, { x: Math.max(-9, Math.min(9, b.velocity.x + belt.dir * 0.25)), y: b.velocity.y });
+        if (b.position.x > belt.x0 && b.position.x < belt.x1 && Math.abs(b.position.y - belt.y + 20) < 34) Body.setVelocity(b, { x: Math.max(-9, Math.min(9, b.velocity.x + belt.dir * perSecond(0.25))), y: b.velocity.y });
       }
     } },
     { n: "Twin Wrecking", b(m) {
@@ -10097,7 +10100,7 @@
       keepPendulumsSwinging(m);
       for (const belt of m.data.belts) for (const b of Composite.allBodies(world)) {
         if (b.isStatic || b.isSensor) continue;
-        if (b.position.x > belt.x0 && b.position.x < belt.x1 && Math.abs(b.position.y - belt.y + 20) < 34) Body.setVelocity(b, { x: Math.max(-9, Math.min(9, b.velocity.x + belt.dir * 0.25)), y: b.velocity.y });
+        if (b.position.x > belt.x0 && b.position.x < belt.x1 && Math.abs(b.position.y - belt.y + 20) < 34) Body.setVelocity(b, { x: Math.max(-9, Math.min(9, b.velocity.x + belt.dir * perSecond(0.25))), y: b.velocity.y });
       }
     } }
   ]);
@@ -10143,7 +10146,7 @@
         if (Math.sin(now / 900 + v.x) > 0.7) {
           for (const b of Composite.allBodies(world)) {
             if (b.isStatic || b.isSensor) continue;
-            if (Math.abs(b.position.x - v.x) < 60) Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y - 1.4 });
+            if (Math.abs(b.position.x - v.x) < 60) Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y - perSecond(1.4) });
           }
           if (!v.blowing) {
             v.blowing = true;
@@ -10215,7 +10218,7 @@
         if (b.isStatic || b.isSensor) continue;
         const dx = W / 2 - b.position.x, dy = 360 - b.position.y;
         const d = Math.hypot(dx, dy) || 1;
-        if (d < 420) Body.setVelocity(b, { x: b.velocity.x + dx / d * 0.35, y: b.velocity.y + dy / d * 0.35 });
+        if (d < 420) Body.setVelocity(b, { x: b.velocity.x + dx / d * perSecond(0.35), y: b.velocity.y + dy / d * perSecond(0.35) });
       }
     }, s: [{ x: 160, y: 120 }, { x: W - 160, y: 120 }, { x: 300, y: 120 }, { x: W - 300, y: 120 }] },
     { n: "Solar Array", cozy: true, gravity: 1.2, b(m) {
@@ -10388,7 +10391,7 @@
       for (const b of Composite.allBodies(world)) {
         if (b.isStatic || b.isSensor) continue;
         const off = b.position.x - W / 2;
-        if (Math.abs(off) > 240) Body.setVelocity(b, { x: b.velocity.x - Math.sign(off) * 0.3, y: b.velocity.y });
+        if (Math.abs(off) > 240) Body.setVelocity(b, { x: b.velocity.x - Math.sign(off) * perSecond(0.3), y: b.velocity.y });
       }
     }, s: [{ x: 150, y: 120 }, { x: W - 150, y: 120 }, { x: W / 2 - 80, y: 120 }, { x: W / 2 + 80, y: 120 }] },
     { n: "Lightning Rods", b(m) {
@@ -10477,7 +10480,7 @@
         if (b.isStatic || b.isSensor) continue;
         const dx = W / 2 - b.position.x, dy = 430 - b.position.y;
         const d = Math.hypot(dx, dy) || 1;
-        if (d > 60 && d < 500) Body.setVelocity(b, { x: b.velocity.x + dx / d * 0.25, y: b.velocity.y + dy / d * 0.25 });
+        if (d > 60 && d < 500) Body.setVelocity(b, { x: b.velocity.x + dx / d * perSecond(0.25), y: b.velocity.y + dy / d * perSecond(0.25) });
       }
     }, s: [{ x: 280, y: 120 }, { x: W - 280, y: 120 }, { x: 380, y: 120 }, { x: W - 380, y: 120 }] },
     { n: "Antigrav", gravity: -1.4, b(m) {
@@ -10517,7 +10520,7 @@
         if (b.isStatic || b.isSensor) continue;
         const dx = W / 2 - b.position.x, dy = 720 - b.position.y;
         const d = Math.hypot(dx, dy) || 1;
-        if (d < 480) Body.setVelocity(b, { x: b.velocity.x + dx / d * 0.3, y: b.velocity.y + dy / d * 0.3 });
+        if (d < 480) Body.setVelocity(b, { x: b.velocity.x + dx / d * perSecond(0.3), y: b.velocity.y + dy / d * perSecond(0.3) });
       }
       if (simRandom() < 0.4) particles.push({ kind: "square", x: W / 2 + rand(-160, 160), y: H - rand(10, 60), vx: 0, vy: 2, life: 18, maxLife: 18, color: "#a55eea", r: 2.5 });
     }, s: [{ x: 200, y: 120 }, { x: W - 200, y: 120 }, { x: 340, y: 120 }, { x: W - 340, y: 120 }] },

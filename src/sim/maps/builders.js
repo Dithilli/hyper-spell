@@ -1,7 +1,7 @@
 // maps/builders.js — the map registry and the shared builders every map def
 // composes its arena from.
 import { Bodies, Body, Composite, Constraint, world, W, H } from '../world.js';
-import { simNow } from '../time.js';
+import { perSecond, simNow } from '../time.js';
 import { simRandom, rand, pick } from '../rng.js';
 import { particles, spawnParticles, spawnBurst, addShake } from '../fx.js';
 import { sfx } from '../sfx.js';
@@ -312,7 +312,7 @@ export function addPendulumBall(m, x, topY, len, r = 45, shove = 14) {
 export function keepPendulumsSwinging(m) {
   for (const b of m.data.pendulums || []) {
     if (Math.hypot(b.velocity.x, b.velocity.y) < 2.5) {
-      Body.setVelocity(b, { x: b.velocity.x + (b.position.x < W / 2 ? 1.5 : -1.5), y: b.velocity.y });
+      Body.setVelocity(b, { x: b.velocity.x + perSecond(b.position.x < W / 2 ? 1.5 : -1.5), y: b.velocity.y });
     }
   }
 }
@@ -369,10 +369,15 @@ export function updateIcicles(m, now) {
 }
 
 // gentle sideways force on every dynamic body (wind)
+//
+// `fx` is a legacy per-frame magnitude — every caller in maps/book.js and
+// events.js authored theirs against a 60Hz frame — so the conversion lives here
+// rather than at each of the seven call sites.
 export function applyWind(fx) {
+  const dv = perSecond(fx);
   for (const b of Composite.allBodies(world)) {
     if (b.isStatic || b.isSensor) continue;
-    Body.setVelocity(b, { x: b.velocity.x + fx, y: b.velocity.y });
+    Body.setVelocity(b, { x: b.velocity.x + dv, y: b.velocity.y });
   }
 }
 

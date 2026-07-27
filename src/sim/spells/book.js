@@ -4,7 +4,7 @@
 // module header below and the effect draw() closures, which now take the render
 // surface as an argument instead of reaching for a global ctx.
 import { Bodies, Body, Composite, world, engine, W, H } from '../world.js';
-import { simNow } from '../time.js';
+import { perSecond, simNow } from '../time.js';
 import { simRandom, rand, pick } from '../rng.js';
 import { particles, spawnParticles, spawnRing, spawnText, addShake, doFlash } from '../fx.js';
 import { slowMo } from '../pace.js';
@@ -460,7 +460,7 @@ regSpell('tornado', {
           if (b.isStatic || b.isSensor) continue;
           const dx = b.position.x - e.x;
           if (Math.abs(dx) > 120 * m) continue;
-          Body.setVelocity(b, { x: b.velocity.x - Math.sign(dx) * 0.9 + rand(-0.5, 0.5), y: b.velocity.y - 1.5 * m });
+          Body.setVelocity(b, { x: b.velocity.x - Math.sign(dx) * perSecond(0.9) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.5) * m });
         }
       },
       draw(now, ctx) {
