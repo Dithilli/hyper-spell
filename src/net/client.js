@@ -2,7 +2,8 @@
 // server/sim-host.js); this file connects, sends inputs, and renders snapshots.
 // Opened via file:// it never connects — connect() is only reached from the
 // mode menu, which only appears on an http(s) page.
-import { Composite, W, H } from '../sim/world.js';
+import { W, H } from '../sim/world.js';
+import { allBodies, allJoints, createComposite, removeFrom } from '../sim/phys/facade.js';
 import { GAME_VERSION } from '../version.js';
 import { rand, pick } from '../sim/rng.js';
 import { ctx } from '../render/canvas.js';
@@ -210,28 +211,28 @@ function applyBrokenDestructibles(bd) {
   if (!bd || !clientMap) return;
   const applied = clientMap.data._bdApplied || 0;
   if (bd.length <= applied) return;
-  const dests = Composite.allBodies(clientMap.composite).filter(b => b.label === 'destructible');
+  const dests = allBodies(clientMap.composite).filter(b => b.label === 'destructible');
   for (let i = applied; i < bd.length; i++) {
     const [bx, by] = bd[i];
     let best = null, bdst = 3600; // within 60px
     for (const d of dests) { const dd = (d.position.x - bx) ** 2 + (d.position.y - by) ** 2; if (dd < bdst) { bdst = dd; best = d; } }
-    if (best) { spawnParticles(best.position.x, best.position.y, best.dcolor || '#6b4a2a', 14, 6, 40); Composite.remove(clientMap.composite, best); }
+    if (best) { spawnParticles(best.position.x, best.position.y, best.dcolor || '#6b4a2a', 14, 6, 40); removeFrom(clientMap.composite, best); }
   }
   clientMap.data._bdApplied = bd.length;
 }
 
 function clientLoadMap(index, seed) {
   const def = MAPS[index];
-  const m = { def, composite: Composite.create(), data: {} };
+  const m = { def, composite: createComposite(), data: {} };
   def.build(m);
   // regenerate the server's seeded extras so static cover/steppers match exactly
   // (statics never ride the snapshot; dynamics below get stripped and arrive as ghosts)
   if (seed != null) { m.data.seed = seed; buildMapExtras(m, seed); }
   // keep only plain static scenery; everything else arrives as ghosts
-  for (const b of [...Composite.allBodies(m.composite)]) {
-    if (!b.isStatic || b.spin || b.phantom || b.kinematic || b.label === 'lava') Composite.remove(m.composite, b);
+  for (const b of [...allBodies(m.composite)]) {
+    if (!b.isStatic || b.spin || b.phantom || b.kinematic || b.label === 'lava') removeFrom(m.composite, b);
   }
-  for (const c of [...Composite.allConstraints(m.composite)]) Composite.remove(m.composite, c);
+  for (const c of [...allJoints(m.composite)]) removeFrom(m.composite, c);
   if (def.stars) {
     m.data.starfield = Array.from({ length: 70 }, () => ({ x: rand(0, W), y: rand(0, H - 160), r: rand(0.5, 1.8), tw: rand(0, 6.28) }));
   }

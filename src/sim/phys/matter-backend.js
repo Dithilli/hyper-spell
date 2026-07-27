@@ -14,11 +14,6 @@ import Matter from 'matter-js';
 
 const { Common, Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector } = Matter;
 
-// MIGRATION SHIM — src/sim/world.js re-exports these while task 8's sweep is in
-// flight, so that files converted later in the sequence keep working. Deleted
-// at the end of the sweep; nothing should reference it.
-export const __raw = { Common, Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector };
-
 let engine = null;
 let root = null;
 

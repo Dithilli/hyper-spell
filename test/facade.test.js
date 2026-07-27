@@ -57,7 +57,7 @@ test('a query does not move the physics RNG the sim is seeded on', () => {
   const before = phys.physRandomSeed();
   phys.queryRay({ x: 300, y: 100 }, { x: 300, y: 700 });
   phys.queryRay({ x: 0, y: 0 }, { x: 640, y: 400 });
-  assert.equal(phys.physRandomSeed(), before, 'casting a ray must not advance Common._seed');
+  assert.equal(phys.physRandomSeed(), before, "casting a ray must not advance matter-js's own RNG");
   destroyWorld();
 });
 

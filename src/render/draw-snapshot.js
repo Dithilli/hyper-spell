@@ -1,7 +1,8 @@
 // draw-snapshot.js — render a wire snapshot back to the canvas: the LAN client's
 // whole world view, and the killcam's.
 import { ctx } from './canvas.js';
-import { Composite, W, H } from '../sim/world.js';
+import { W, H } from '../sim/world.js';
+import { allBodies } from '../sim/phys/facade.js';
 import * as art from './artkit.js';
 import { rgba } from './artkit.js';
 import { currentMap } from '../sim/match.js';
@@ -154,7 +155,7 @@ export function drawFxLite(fxLite, now) {
 // plain static scenery only — everything dynamic is drawn from the snapshot's
 // ghost list, so live bodies never double-draw against their recorded ghosts
 export function drawSnapshotStatics(now) {
-  for (const b of Composite.allBodies(currentMap.composite)) {
+  for (const b of allBodies(currentMap.composite)) {
     if (b.label === 'lava') continue;
     if (!b.isStatic || b.spin || b.phantom || b.kinematic) continue;
     if (b.label === 'crate') drawCrate(b);

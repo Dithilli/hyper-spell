@@ -4,7 +4,8 @@
 // The sim itself stays transport-ignorant; the only doors out are the callbacks
 // installServerBridge is handed.
 import { performance } from '../sim/env.js';
-import { Composite, world, engine, W, H } from '../sim/world.js';
+import { W, H } from '../sim/world.js';
+import { allBodies, gravityScale } from '../sim/phys/facade.js';
 import { GAME_VERSION } from '../version.js';
 import { avatarVariant } from '../render/artkit.js';
 import {
@@ -201,7 +202,7 @@ function serverWorldInfo() {
   return {
     t: 'world',
     world: {
-      W, H, gravity: game.baseGravity, gravityScale: engine.gravity.scale, tickMs: 16.7,
+      W, H, gravity: game.baseGravity, gravityScale: gravityScale(), tickMs: 16.7,
       snapshotHz: 30, inputHz: 60, staleMs: 2000,
       playerRadius: 15, playerFrictionAir: 0.02,
       moveSpeed: 7, jumpVy: -15, airJumpVy: -13,
@@ -266,7 +267,7 @@ export function installServerBridge(opts = {}) {
     debugSetPace: (s) => slowMo(s, 1e9),
     // diagnostics for the smoke harness / leak audit
     audit: () => ({
-      bodies: Composite.allBodies(world).length,
+      bodies: allBodies().length,
       particles: particles.length,
       effects: activeEffects.length,
       projectiles: projectiles.size,

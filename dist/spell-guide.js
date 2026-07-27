@@ -28,7 +28,7 @@
   // node_modules/matter-js/build/matter.js
   var require_matter = __commonJS({
     "node_modules/matter-js/build/matter.js"(exports, module) {
-      (function webpackUniversalModuleDefinition(root, factory) {
+      (function webpackUniversalModuleDefinition(root2, factory) {
         if (typeof exports === "object" && typeof module === "object")
           module.exports = factory();
         else if (typeof define === "function" && define.amd)
@@ -36,7 +36,7 @@
         else if (typeof exports === "object")
           exports["Matter"] = factory();
         else
-          root["Matter"] = factory();
+          root2["Matter"] = factory();
       })(exports, function() {
         return (
           /******/
@@ -2746,7 +2746,7 @@
                 };
                 Engine2.update = function(engine2, delta) {
                   var startTime = Common2.now();
-                  var world2 = engine2.world, detector = engine2.detector, pairs = engine2.pairs, timing = engine2.timing, timestamp = timing.timestamp, i;
+                  var world = engine2.world, detector = engine2.detector, pairs = engine2.pairs, timing = engine2.timing, timestamp = timing.timestamp, i;
                   delta = typeof delta !== "undefined" ? delta : Common2._baseDelta;
                   delta *= timing.timeScale;
                   timing.timestamp += delta;
@@ -2756,22 +2756,22 @@
                     delta
                   };
                   Events2.trigger(engine2, "beforeUpdate", event);
-                  var allBodies = Composite2.allBodies(world2), allConstraints = Composite2.allConstraints(world2);
-                  if (world2.isModified) {
-                    Detector.setBodies(detector, allBodies);
-                    Composite2.setModified(world2, false, false, true);
+                  var allBodies2 = Composite2.allBodies(world), allConstraints = Composite2.allConstraints(world);
+                  if (world.isModified) {
+                    Detector.setBodies(detector, allBodies2);
+                    Composite2.setModified(world, false, false, true);
                   }
                   if (engine2.enableSleeping)
-                    Sleeping.update(allBodies, delta);
-                  Engine2._bodiesApplyGravity(allBodies, engine2.gravity);
+                    Sleeping.update(allBodies2, delta);
+                  Engine2._bodiesApplyGravity(allBodies2, engine2.gravity);
                   if (delta > 0) {
-                    Engine2._bodiesUpdate(allBodies, delta);
+                    Engine2._bodiesUpdate(allBodies2, delta);
                   }
-                  Constraint2.preSolveAll(allBodies);
+                  Constraint2.preSolveAll(allBodies2);
                   for (i = 0; i < engine2.constraintIterations; i++) {
                     Constraint2.solveAll(allConstraints, delta);
                   }
-                  Constraint2.postSolveAll(allBodies);
+                  Constraint2.postSolveAll(allBodies2);
                   detector.pairs = engine2.pairs;
                   var collisions = Detector.collisions(detector);
                   Pairs.update(pairs, collisions, timestamp);
@@ -2784,22 +2784,22 @@
                   for (i = 0; i < engine2.positionIterations; i++) {
                     Resolver.solvePosition(pairs.list, delta, positionDamping);
                   }
-                  Resolver.postSolvePosition(allBodies);
-                  Constraint2.preSolveAll(allBodies);
+                  Resolver.postSolvePosition(allBodies2);
+                  Constraint2.preSolveAll(allBodies2);
                   for (i = 0; i < engine2.constraintIterations; i++) {
                     Constraint2.solveAll(allConstraints, delta);
                   }
-                  Constraint2.postSolveAll(allBodies);
+                  Constraint2.postSolveAll(allBodies2);
                   Resolver.preSolveVelocity(pairs.list);
                   for (i = 0; i < engine2.velocityIterations; i++) {
                     Resolver.solveVelocity(pairs.list, delta);
                   }
-                  Engine2._bodiesUpdateVelocities(allBodies);
+                  Engine2._bodiesUpdateVelocities(allBodies2);
                   if (pairs.collisionActive.length > 0)
                     Events2.trigger(engine2, "collisionActive", { pairs: pairs.collisionActive });
                   if (pairs.collisionEnd.length > 0)
                     Events2.trigger(engine2, "collisionEnd", { pairs: pairs.collisionEnd });
-                  Engine2._bodiesClearForces(allBodies);
+                  Engine2._bodiesClearForces(allBodies2);
                   Events2.trigger(engine2, "afterUpdate", event);
                   engine2.timing.lastElapsed = Common2.now() - startTime;
                   return engine2;
@@ -2831,16 +2831,16 @@
                   }
                 };
                 Engine2._bodiesApplyGravity = function(bodies, gravity) {
-                  var gravityScale = typeof gravity.scale !== "undefined" ? gravity.scale : 1e-3, bodiesLength = bodies.length;
-                  if (gravity.x === 0 && gravity.y === 0 || gravityScale === 0) {
+                  var gravityScale2 = typeof gravity.scale !== "undefined" ? gravity.scale : 1e-3, bodiesLength = bodies.length;
+                  if (gravity.x === 0 && gravity.y === 0 || gravityScale2 === 0) {
                     return;
                   }
                   for (var i = 0; i < bodiesLength; i++) {
                     var body = bodies[i];
                     if (body.isStatic || body.isSleeping)
                       continue;
-                    body.force.y += body.mass * gravity.y * gravityScale;
-                    body.force.x += body.mass * gravity.x * gravityScale;
+                    body.force.y += body.mass * gravity.y * gravityScale2;
+                    body.force.x += body.mass * gravity.x * gravityScale2;
                   }
                 };
                 Engine2._bodiesUpdate = function(bodies, delta) {
@@ -3363,12 +3363,12 @@
                   return Common2.extend(defaults, options);
                 };
                 Grid.update = function(grid, bodies, engine2, forceUpdate) {
-                  var i, col, row, world2 = engine2.world, buckets = grid.buckets, bucket, bucketId, gridChanged = false;
+                  var i, col, row, world = engine2.world, buckets = grid.buckets, bucket, bucketId, gridChanged = false;
                   for (i = 0; i < bodies.length; i++) {
                     var body = bodies[i];
                     if (body.isSleeping && !forceUpdate)
                       continue;
-                    if (world2.bounds && (body.bounds.max.x < world2.bounds.min.x || body.bounds.min.x > world2.bounds.max.x || body.bounds.max.y < world2.bounds.min.y || body.bounds.min.y > world2.bounds.max.y))
+                    if (world.bounds && (body.bounds.max.x < world.bounds.min.x || body.bounds.min.x > world.bounds.max.x || body.bounds.max.y < world.bounds.min.y || body.bounds.min.y > world.bounds.max.y))
                       continue;
                     var newRegion = Grid._getRegion(grid, body);
                     if (!body.region || newRegion.id !== body.region.id || forceUpdate) {
@@ -3524,8 +3524,8 @@
                   };
                   var mouseConstraint = Common2.extend(defaults, options);
                   Events2.on(engine2, "beforeUpdate", function() {
-                    var allBodies = Composite2.allBodies(engine2.world);
-                    MouseConstraint.update(mouseConstraint, allBodies);
+                    var allBodies2 = Composite2.allBodies(engine2.world);
+                    MouseConstraint.update(mouseConstraint, allBodies2);
                     MouseConstraint._triggerEvents(mouseConstraint);
                   });
                   return mouseConstraint;
@@ -3838,8 +3838,8 @@
                   render.context.setTransform(render.options.pixelRatio, 0, 0, render.options.pixelRatio, 0, 0);
                 };
                 Render.world = function(render, time) {
-                  var startTime = Common2.now(), engine2 = render.engine, world2 = engine2.world, canvas = render.canvas, context = render.context, options = render.options, timing = render.timing;
-                  var allBodies = Composite2.allBodies(world2), allConstraints = Composite2.allConstraints(world2), background = options.wireframes ? options.wireframeBackground : options.background, bodies = [], constraints = [], i;
+                  var startTime = Common2.now(), engine2 = render.engine, world = engine2.world, canvas = render.canvas, context = render.context, options = render.options, timing = render.timing;
+                  var allBodies2 = Composite2.allBodies(world), allConstraints = Composite2.allConstraints(world), background = options.wireframes ? options.wireframeBackground : options.background, bodies = [], constraints = [], i;
                   var event = {
                     timestamp: engine2.timing.timestamp
                   };
@@ -3851,8 +3851,8 @@
                   context.fillRect(0, 0, canvas.width, canvas.height);
                   context.globalCompositeOperation = "source-over";
                   if (options.hasBounds) {
-                    for (i = 0; i < allBodies.length; i++) {
-                      var body = allBodies[i];
+                    for (i = 0; i < allBodies2.length; i++) {
+                      var body = allBodies2[i];
                       if (Bounds.overlaps(body.bounds, render.bounds))
                         bodies.push(body);
                     }
@@ -3875,7 +3875,7 @@
                     }
                   } else {
                     constraints = allConstraints;
-                    bodies = allBodies;
+                    bodies = allBodies2;
                     if (render.options.pixelRatio !== 1) {
                       render.context.setTransform(render.options.pixelRatio, 0, 0, render.options.pixelRatio, 0, 0);
                     }
@@ -3913,15 +3913,15 @@
                   timing.lastElapsed = Common2.now() - startTime;
                 };
                 Render.stats = function(render, context, time) {
-                  var engine2 = render.engine, world2 = engine2.world, bodies = Composite2.allBodies(world2), parts = 0, width = 55, height = 44, x = 0, y = 0;
+                  var engine2 = render.engine, world = engine2.world, bodies = Composite2.allBodies(world), parts = 0, width = 55, height = 44, x = 0, y = 0;
                   for (var i = 0; i < bodies.length; i += 1) {
                     parts += bodies[i].parts.length;
                   }
                   var sections = {
                     "Part": parts,
                     "Body": bodies.length,
-                    "Cons": Composite2.allConstraints(world2).length,
-                    "Comp": Composite2.allComposites(world2).length,
+                    "Cons": Composite2.allConstraints(world).length,
+                    "Comp": Composite2.allComposites(world).length,
                     "Pair": engine2.pairs.list.length
                   };
                   context.fillStyle = "#0e0f19";
@@ -4804,13 +4804,91 @@
   // src/sim/spells/registry.js
   var SPELLS = {};
 
-  // src/sim/world.js
+  // src/sim/phys/matter-backend.js
   var import_matter_js = __toESM(require_matter(), 1);
   var { Common, Engine, Bodies, Body, Composite, Constraint, Events, Query, Vector } = import_matter_js.default;
+  var engine = null;
+  var root = null;
+  function createCircle(x, y, r, opts) {
+    return Bodies.circle(x, y, r, opts);
+  }
+  function createBox(x, y, w, h, opts) {
+    return Bodies.rectangle(x, y, w, h, opts);
+  }
+  function createPolygon(x, y, sides, r, opts) {
+    return Bodies.polygon(x, y, sides, r, opts);
+  }
+  function addBody(b) {
+    Composite.add(root, b);
+  }
+  function removeBody(b, deep = false) {
+    Composite.remove(root, b, deep);
+  }
+  function createComposite() {
+    return Composite.create();
+  }
+  function addTo(container, item) {
+    Composite.add(container, item);
+  }
+  function removeFrom(container, item, deep = false) {
+    Composite.remove(container, item, deep);
+  }
+  function allBodies(container = root) {
+    return Composite.allBodies(container);
+  }
+  function allJoints(container = root) {
+    return Composite.allConstraints(container);
+  }
+  function setPosition(b, p) {
+    Body.setPosition(b, p);
+  }
+  function setAngle(b, a) {
+    Body.setAngle(b, a);
+  }
+  function setAngularVelocity(b, w) {
+    Body.setAngularVelocity(b, w);
+  }
+  function setVelocity(b, v) {
+    Body.setVelocity(b, v);
+  }
+  function addVelocity(b, dv) {
+    Body.setVelocity(b, { x: b.velocity.x + dv.x, y: b.velocity.y + dv.y });
+  }
+  function applyForce(b, at, f) {
+    Body.applyForce(b, at, f);
+  }
+  function setType(b, type) {
+    Body.setStatic(b, type === "static");
+  }
+  function scaleBody(b, sx, sy) {
+    Body.scale(b, sx, sy);
+  }
+  function setGravityY(y) {
+    engine.gravity.y = y;
+  }
+  function gravityY() {
+    return engine.gravity.y;
+  }
+  function gravityScale() {
+    return engine.gravity.scale;
+  }
+  function queryRegion(aabb, opts = {}) {
+    const bodies = opts.bodies ?? allBodies();
+    const found = Query.region(bodies, aabb);
+    return opts.filter ? found.filter(opts.filter) : found;
+  }
+  function queryPoint(pt, opts = {}) {
+    const bodies = opts.bodies ?? allBodies();
+    const found = Query.point(bodies, pt);
+    return opts.filter ? found.filter(opts.filter) : found;
+  }
+  function createJoint(desc) {
+    return Constraint.create(desc);
+  }
+
+  // src/sim/world.js
   var W = 1280;
   var H = 720;
-  var engine = null;
-  var world = null;
   var resetHooks = [];
   function onWorldReset(fn) {
     resetHooks.push(fn);
@@ -5160,16 +5238,16 @@
     const t = target.body.position;
     const a = Math.atan2(t.y - from.y, t.x - from.x) + spread;
     const off = (game.boss?.body.circleRadius || 40) + r + 14;
-    const fb = Bodies.circle(from.x + Math.cos(a) * off, from.y + Math.sin(a) * off, r, { density: 4e-3, frictionAir: 0, label: "projectile" });
+    const fb = createCircle(from.x + Math.cos(a) * off, from.y + Math.sin(a) * off, r, { density: 4e-3, frictionAir: 0, label: "projectile" });
     fb.owner = null;
     fb.color = color;
     fb.gravityScale = 0.25;
     fb.expireAt = simNow() + 5e3;
     const dm = game.boss?.dmgMult || 1;
     fb.onHit = (self) => explode(self.position.x, self.position.y, boom[0], boom[1], boom[2] * dm, "boss");
-    Body.setVelocity(fb, { x: Math.cos(a) * speed, y: Math.sin(a) * speed });
+    setVelocity(fb, { x: Math.cos(a) * speed, y: Math.sin(a) * speed });
     projectiles.add(fb);
-    Composite.add(world, fb);
+    addBody(fb);
     return fb;
   }
   var bcd = (bs, min, max) => rand(min, max) / (bs.rate || 1);
@@ -5182,7 +5260,7 @@
         p._bossHurtAt = now + 700;
         damagePlayer(p, dmg * (bs.dmgMult || 1));
         const away = Math.sign(q.x - bs.body.position.x) || pick([-1, 1]);
-        Body.setVelocity(p.body, { x: away * 8, y: -6 });
+        setVelocity(p.body, { x: away * 8, y: -6 });
       }
     }
   }
@@ -5192,16 +5270,16 @@
       name: "THE DRAGON",
       color: "#e15d5d",
       make() {
-        return Bodies.circle(W / 2, 140, 42, { density: 0.012, frictionAir: 0.06, label: "boss" });
+        return createCircle(W / 2, 140, 42, { density: 0.012, frictionAir: 0.06, label: "boss" });
       },
       update(bs, now) {
         const b = bs.body;
-        Body.applyForce(b, b.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * b.mass });
+        applyForce(b, b.position, { x: 0, y: -gravityY() * gravityScale() * b.mass });
         if (!bs.wp || Math.hypot(bs.wp.x - b.position.x, bs.wp.y - b.position.y) < 70) {
           bs.wp = { x: rand(150, W - 150), y: rand(90, 320) };
         }
         const dx = bs.wp.x - b.position.x, dy = bs.wp.y - b.position.y, d = Math.hypot(dx, dy) || 1;
-        Body.setVelocity(b, { x: b.velocity.x * 0.92 + dx / d * 1.1, y: b.velocity.y * 0.92 + dy / d * 1.1 });
+        setVelocity(b, { x: b.velocity.x * 0.92 + dx / d * 1.1, y: b.velocity.y * 0.92 + dy / d * 1.1 });
         if (now > (bs.nextSpit || (bs.nextSpit = now + 1800))) {
           bs.nextSpit = now + bcd(bs, 2300, 3300);
           const t = bossAliveTarget(b.position);
@@ -5226,16 +5304,16 @@
       name: "THE LICH",
       color: "#c084fc",
       make() {
-        return Bodies.circle(W / 2, 160, 30, { density: 0.01, frictionAir: 0.12, label: "boss" });
+        return createCircle(W / 2, 160, 30, { density: 0.01, frictionAir: 0.12, label: "boss" });
       },
       update(bs, now) {
         const b = bs.body;
-        Body.applyForce(b, b.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * b.mass });
-        Body.setVelocity(b, { x: b.velocity.x * 0.9, y: b.velocity.y * 0.9 + Math.sin(now * 3e-3) * 0.25 });
+        applyForce(b, b.position, { x: 0, y: -gravityY() * gravityScale() * b.mass });
+        setVelocity(b, { x: b.velocity.x * 0.9, y: b.velocity.y * 0.9 + Math.sin(now * 3e-3) * 0.25 });
         if (now > (bs.nextBlink || (bs.nextBlink = now + 3e3))) {
           bs.nextBlink = now + bcd(bs, 3200, 4400);
           spawnParticles(b.position.x, b.position.y, "#c084fc", 16, 5);
-          Body.setPosition(b, { x: rand(140, W - 140), y: rand(100, 340) });
+          setPosition(b, { x: rand(140, W - 140), y: rand(100, 340) });
           spawnParticles(b.position.x, b.position.y, "#c084fc", 16, 5);
           sfx.freeze();
         }
@@ -5250,7 +5328,7 @@
         if (now > (bs.nextRaise || (bs.nextRaise = now + 7e3))) {
           bs.nextRaise = now + bcd(bs, 8e3, 11e3);
           for (const side of [-1, 1]) {
-            const sk = Bodies.circle(b.position.x + side * 30, b.position.y + 20, 9, { density: 2e-3, friction: 0.5, restitution: 0.4, label: "critter" });
+            const sk = createCircle(b.position.x + side * 30, b.position.y + 20, 9, { density: 2e-3, friction: 0.5, restitution: 0.4, label: "critter" });
             sk.critter = { hopAt: 0, dir: side, hop: 6, speed: 4 };
             summon(sk, { life: 16e3, color: "#e8e8dc", contactDamage: 6 * bs.dmgMult });
           }
@@ -5264,27 +5342,27 @@
       name: "THE GOLEM",
       color: "#b08948",
       make() {
-        return Bodies.rectangle(W / 2, 60, 74, 92, { density: 0.02, friction: 0.8, restitution: 0, label: "boss" });
+        return createBox(W / 2, 60, 74, 92, { density: 0.02, friction: 0.8, restitution: 0, label: "boss" });
       },
       update(bs, now) {
         const b = bs.body;
-        Body.setAngle(b, b.angle * 0.8);
-        Body.setAngularVelocity(b, 0);
+        setAngle(b, b.angle * 0.8);
+        setAngularVelocity(b, 0);
         if (b.position.y > H - 20) {
-          Body.setPosition(b, { x: W / 2, y: 40 });
-          Body.setVelocity(b, { x: 0, y: 0 });
+          setPosition(b, { x: W / 2, y: 40 });
+          setVelocity(b, { x: 0, y: 0 });
           addShake(6);
         }
         const t = bossAliveTarget(b.position);
         if (t && !bs.airborne) {
           const dir = Math.sign(t.body.position.x - b.position.x);
-          Body.setVelocity(b, { x: b.velocity.x * 0.8 + dir * 0.9, y: b.velocity.y });
+          setVelocity(b, { x: b.velocity.x * 0.8 + dir * 0.9, y: b.velocity.y });
         }
         if (t && now > (bs.nextLeap || (bs.nextLeap = now + 3500)) && Math.abs(b.velocity.y) < 1) {
           bs.nextLeap = now + bcd(bs, 4500, 6500);
           bs.airborne = true;
           const dir = Math.sign(t.body.position.x - b.position.x) || 1;
-          Body.setVelocity(b, { x: dir * rand(6, 10), y: -16 });
+          setVelocity(b, { x: dir * rand(6, 10), y: -16 });
           sfx.boing();
         }
         if (bs.airborne && b.velocity.y >= 0 && Math.abs(b.velocity.y) < 0.8) {
@@ -5300,11 +5378,11 @@
       name: "THE KRAKEN",
       color: "#3d6a8a",
       make() {
-        return Bodies.circle(W / 2, H - 95, 42, { isStatic: true, label: "boss" });
+        return createCircle(W / 2, H - 95, 42, { isStatic: true, label: "boss" });
       },
       update(bs, now) {
         const b = bs.body;
-        Body.setPosition(b, { x: W / 2 + Math.sin(now / 3200) * 200, y: H - 95 + Math.sin(now / 900) * 12 });
+        setPosition(b, { x: W / 2 + Math.sin(now / 3200) * 200, y: H - 95 + Math.sin(now / 900) * 12 });
         bs.pending ??= [];
         bs.tentacles ??= [];
         if (now > (bs.nextTent || (bs.nextTent = now + 2500))) {
@@ -5315,7 +5393,7 @@
         for (const w of bs.pending) {
           if (simRandom() < 0.5) spawnParticles(w.x + rand(-12, 12), H - 30, "#3d6a8a", 1, 2, 14);
           if (now > w.at) {
-            const tb = Bodies.rectangle(w.x, H + 120, 26, 240, { isStatic: true, label: "tentacle" });
+            const tb = createBox(w.x, H + 120, 26, 240, { isStatic: true, label: "tentacle" });
             summon(tb, { life: 3e3, color: "#3d6a8a" });
             bs.tentacles.push({ b: tb, t0: now, x: w.x, hit: /* @__PURE__ */ new Set() });
             sfx.squeak();
@@ -5325,14 +5403,14 @@
         for (const tn of [...bs.tentacles]) {
           const age = now - tn.t0;
           const rise = age < 450 ? age / 450 : age < 1400 ? 1 : Math.max(0, 1 - (age - 1400) / 700);
-          Body.setPosition(tn.b, { x: tn.x, y: H + 120 - rise * 260 });
+          setPosition(tn.b, { x: tn.x, y: H + 120 - rise * 260 });
           for (const p of players) {
             if (!p.alive || tn.hit.has(p)) continue;
             const q = p.body.position;
             if (Math.abs(q.x - tn.x) < 26 && q.y > tn.b.bounds.min.y - 12) {
               tn.hit.add(p);
               damagePlayer(p, 14 * bs.dmgMult);
-              Body.setVelocity(p.body, { x: Math.sign(q.x - tn.x || 1) * 7, y: -13 });
+              setVelocity(p.body, { x: Math.sign(q.x - tn.x || 1) * 7, y: -13 });
             }
           }
           if (age > 2100) {
@@ -5352,11 +5430,11 @@
       color: "#ffd166",
       secret: true,
       make() {
-        return Bodies.circle(W / 2, 150, 34, { density: 0.011, frictionAir: 0.1, label: "boss" });
+        return createCircle(W / 2, 150, 34, { density: 0.011, frictionAir: 0.1, label: "boss" });
       },
       update(bs, now) {
         const b = bs.body;
-        Body.applyForce(b, b.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * b.mass });
+        applyForce(b, b.position, { x: 0, y: -gravityY() * gravityScale() * b.mass });
         const rizz = Math.floor(now / 7e3) % 2 === 0;
         b.bossType = rizz ? "rizard_rizz" : "rizard_tizz";
         if (bs.lastMode !== b.bossType) {
@@ -5372,7 +5450,7 @@
         if (rizz) {
           if (!bs.wp || Math.hypot(bs.wp.x - b.position.x, bs.wp.y - b.position.y) < 60) bs.wp = { x: rand(180, W - 180), y: rand(90, 300) };
           const dx = bs.wp.x - b.position.x, dy = bs.wp.y - b.position.y, d = Math.hypot(dx, dy) || 1;
-          Body.setVelocity(b, { x: b.velocity.x * 0.9 + dx / d * 1, y: b.velocity.y * 0.9 + dy / d * 1 });
+          setVelocity(b, { x: b.velocity.x * 0.9 + dx / d * 1, y: b.velocity.y * 0.9 + dy / d * 1 });
           if (now > (bs.nextCharm || (bs.nextCharm = now + 3200))) {
             bs.nextCharm = now + bcd(bs, 3600, 5e3);
             spawnRing(b.position.x, b.position.y, "#ff9ecb");
@@ -5382,7 +5460,7 @@
               if (Math.hypot(p.body.position.x - b.position.x, p.body.position.y - b.position.y) < 440) {
                 p.reversedUntil = now + 2600;
                 const pull = Math.sign(b.position.x - p.body.position.x) || 1;
-                Body.setVelocity(p.body, { x: p.body.velocity.x + pull * 5, y: -4 });
+                setVelocity(p.body, { x: p.body.velocity.x + pull * 5, y: -4 });
                 spawnBurst(p.body.position.x, p.body.position.y - 10, "#ff9ecb", 8, { speed: 4, up: 3, g: -0.03 });
               }
             }
@@ -5401,7 +5479,7 @@
             bs.focusPt = { x: rand(240, W - 240), y: rand(110, 240) };
           }
           const fdx = bs.focusPt.x - b.position.x, fdy = bs.focusPt.y - b.position.y, fd = Math.hypot(fdx, fdy) || 1;
-          Body.setVelocity(b, { x: b.velocity.x * 0.85 + fdx / fd * 0.9, y: b.velocity.y * 0.85 + fdy / fd * 0.9 });
+          setVelocity(b, { x: b.velocity.x * 0.85 + fdx / fd * 0.9, y: b.velocity.y * 0.85 + fdy / fd * 0.9 });
           if (now > (bs.nextTrack || (bs.nextTrack = now + 850))) {
             bs.nextTrack = now + bcd(bs, 800, 1100);
             const t = bossAliveTarget(b.position);
@@ -5432,11 +5510,11 @@
       color: "#b39ddb",
       secret: true,
       make() {
-        return Bodies.circle(W / 2, 150, 32, { density: 0.011, frictionAir: 0.1, label: "boss" });
+        return createCircle(W / 2, 150, 32, { density: 0.011, frictionAir: 0.1, label: "boss" });
       },
       update(bs, now) {
         const b = bs.body;
-        Body.applyForce(b, b.position, { x: 0, y: -engine.gravity.y * engine.gravity.scale * b.mass });
+        applyForce(b, b.position, { x: 0, y: -gravityY() * gravityScale() * b.mass });
         const de = Math.floor(now / 7e3) % 2 === 0;
         b.bossType = de ? "manu_de" : "manu_mx";
         if (bs.lastMode !== b.bossType) {
@@ -5449,9 +5527,9 @@
             doFlash("#e15d5d", 0.2);
           }
         }
-        Body.setVelocity(b, { x: b.velocity.x * 0.92 + Math.sin(now * 1e-3) * 0.8, y: b.velocity.y * 0.9 + Math.sin(now * 3e-3) * 0.3 });
-        if (b.position.y < 90) Body.setVelocity(b, { x: b.velocity.x, y: 1.5 });
-        if (b.position.y > 340) Body.setVelocity(b, { x: b.velocity.x, y: -1.5 });
+        setVelocity(b, { x: b.velocity.x * 0.92 + Math.sin(now * 1e-3) * 0.8, y: b.velocity.y * 0.9 + Math.sin(now * 3e-3) * 0.3 });
+        if (b.position.y < 90) setVelocity(b, { x: b.velocity.x, y: 1.5 });
+        if (b.position.y > 340) setVelocity(b, { x: b.velocity.x, y: -1.5 });
         if (de) {
           if (now > (bs.nextDe || (bs.nextDe = now + 1500))) {
             bs.nextDe = now + bcd(bs, 1500, 1500);
@@ -5568,7 +5646,7 @@
   var ENV_EVENT_CHANCE = 0.2;
   function platformSpots(m, n, rng) {
     const rr = rng ? (a, b) => a + rng() * (b - a) : rand;
-    const solids = Composite.allBodies(m.composite).filter((b) => b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 && b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
+    const solids = allBodies(m.composite).filter((b) => b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 && b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
     const spots = [];
     for (let tries = 0; tries < n * 10 && spots.length < n; tries++) {
       const x = rr(90, W - 90);
@@ -5590,11 +5668,11 @@
       start(m, now) {
         m.data.vines = [];
         for (const s of platformSpots(m, 12)) {
-          const v = Bodies.rectangle(s.x, s.y - 24, 22, 48, { isStatic: true, isSensor: true, label: "vine" });
+          const v = createBox(s.x, s.y - 24, 22, 48, { isStatic: true, isSensor: true, label: "vine" });
           v.render.fillStyle = "#4f8a3d";
           v.kinematic = true;
           v.bornAt = now;
-          Composite.add(m.composite, v);
+          addTo(m.composite, v);
           m.data.vines.push(v);
         }
       },
@@ -5616,7 +5694,7 @@
       color: "#bfe8ff",
       start(m) {
         m.data.eventIcy = true;
-        for (const b of Composite.allBodies(m.composite)) {
+        for (const b of allBodies(m.composite)) {
           if (b.isStatic && !b.isSensor) b.friction = 0.01;
         }
       }
@@ -5648,7 +5726,7 @@
       color: "#e8d5ff",
       start() {
         game.baseGravity *= 0.45;
-        engine.gravity.y *= 0.45;
+        setGravityY(gravityY() * 0.45);
       }
     },
     {
@@ -5669,9 +5747,9 @@
         if (now < (m.data.quakeUntil || 0)) {
           addShake(1.3);
           if (simRandom() < 0.25) {
-            for (const b of Composite.allBodies(world)) {
+            for (const b of allBodies()) {
               if (b.isStatic || b.isSensor) continue;
-              Body.setVelocity(b, { x: b.velocity.x + perSecond(rand(-1.6, 1.6)), y: b.velocity.y - perSecond(rand(0, 1.2)) });
+              addVelocity(b, { x: perSecond(rand(-1.6, 1.6)), y: -perSecond(rand(0, 1.2)) });
             }
           }
         }
@@ -5682,7 +5760,7 @@
       name: "RUBBER WORLD",
       color: "#ff8fc7",
       start(m) {
-        for (const b of Composite.allBodies(m.composite)) {
+        for (const b of allBodies(m.composite)) {
           if (b.isStatic && !b.isSensor) b.restitution = 0.9;
         }
       }
@@ -5696,10 +5774,10 @@
           m.data.nextCritter = now + rand(2200, 3600);
           if ([...summons].filter((b) => b.label === "critter").length < 8) {
             const side = pick([-1, 1]);
-            const b = Bodies.circle(side < 0 ? -14 : W + 14, rand(80, 300), 9, { density: 2e-3, friction: 0.5, restitution: 0.4, label: "critter" });
+            const b = createCircle(side < 0 ? -14 : W + 14, rand(80, 300), 9, { density: 2e-3, friction: 0.5, restitution: 0.4, label: "critter" });
             b.critter = { hopAt: 0, dir: -side, hop: 6, speed: 4 };
             summon(b, { life: 22e3, color: pick(["#9be15d", "#e15d5d", "#c084fc"]), contactDamage: 6 });
-            Body.setVelocity(b, { x: -side * 4, y: 0 });
+            setVelocity(b, { x: -side * 4, y: 0 });
           }
         }
       }
@@ -5729,13 +5807,13 @@
   function defineMap(def) {
     MAPS.push(def);
   }
-  function addBody(m, body, color) {
+  function addBody2(m, body, color) {
     if (color) body.render.fillStyle = color;
-    Composite.add(m.composite, body);
+    addTo(m.composite, body);
     return body;
   }
   function addStatic(m, x, y, w, h, opts = {}) {
-    const b = Bodies.rectangle(x, y, w, h, {
+    const b = createBox(x, y, w, h, {
       isStatic: true,
       friction: opts.friction ?? 0.6,
       restitution: opts.restitution ?? 0,
@@ -5744,10 +5822,10 @@
     });
     b.w = w;
     b.h = h;
-    return addBody(m, b, opts.color || "#171221");
+    return addBody2(m, b, opts.color || "#171221");
   }
   function addDestructible(m, x, y, w, h, opts = {}) {
-    const b = Bodies.rectangle(x, y, w, h, { isStatic: true, friction: 0.6, restitution: opts.rest ?? 0, angle: opts.angle ?? 0, label: "destructible" });
+    const b = createBox(x, y, w, h, { isStatic: true, friction: 0.6, restitution: opts.rest ?? 0, angle: opts.angle ?? 0, label: "destructible" });
     b.w = w;
     b.h = h;
     b.maxHp = opts.hp ?? 45;
@@ -5755,7 +5833,7 @@
     b.dcolor = opts.color || "#6b4a2a";
     b.debrisN = opts.debris ?? 4;
     b.kind = opts.kind || "wood";
-    return addBody(m, b, b.dcolor);
+    return addBody2(m, b, b.dcolor);
   }
   function damageDestructible(b, dmg) {
     if (b.hp == null || b.hp <= 0) return;
@@ -5768,17 +5846,17 @@
   }
   function breakDestructible(b) {
     const { x, y } = b.position;
-    Composite.remove(currentMap.composite, b);
+    removeFrom(currentMap.composite, b);
     (currentMap.data.broken ||= []).push([Math.round(x), Math.round(y)]);
     spawnParticles(x, y, b.dcolor, 16, 6, 40);
     for (let i = 0; i < (b.debrisN || 4); i++) {
-      const g = Bodies.rectangle(x + rand(-b.w / 3, b.w / 3), y + rand(-b.h / 3, b.h / 3), rand(6, 13), rand(6, 13), { density: 1e-3, frictionAir: 0.02, label: "gib" });
+      const g = createBox(x + rand(-b.w / 3, b.w / 3), y + rand(-b.h / 3, b.h / 3), rand(6, 13), rand(6, 13), { density: 1e-3, frictionAir: 0.02, label: "gib" });
       g.color = b.dcolor;
       g.dieAt = simNow() + 2600;
-      Body.setVelocity(g, { x: rand(-6, 6), y: rand(-9, -2) });
-      Body.setAngularVelocity(g, rand(-0.5, 0.5));
+      setVelocity(g, { x: rand(-6, 6), y: rand(-9, -2) });
+      setAngularVelocity(g, rand(-0.5, 0.5));
       gibs.add(g);
-      Composite.add(world, g);
+      addBody(g);
     }
     explode(x, y, 80, 10, 9, null);
     if (b.kind === "ice") {
@@ -5900,14 +5978,14 @@
   function addLava(m, y = H - 22, acid = false) {
     m.data.lavaY = y;
     m.data.acid = acid;
-    m.data.lavaBody = Bodies.rectangle(W / 2, y + 30, W * 2, 60, { isStatic: true, isSensor: true, label: "lava" });
-    Composite.add(m.composite, m.data.lavaBody);
+    m.data.lavaBody = createBox(W / 2, y + 30, W * 2, 60, { isStatic: true, isSensor: true, label: "lava" });
+    addTo(m.composite, m.data.lavaBody);
   }
   function buildCrateStack(m, cx, bottomY, cols, rows) {
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
-        const crate = Bodies.rectangle(cx - (cols - 1) * 14 + col * 28, bottomY - row * 28, 26, 26, { density: 15e-4, friction: 0.4, label: "crate" });
-        addBody(m, crate, "#b08948");
+        const crate = createBox(cx - (cols - 1) * 14 + col * 28, bottomY - row * 28, 26, 26, { density: 15e-4, friction: 0.4, label: "crate" });
+        addBody2(m, crate, "#b08948");
       }
     }
   }
@@ -5915,8 +5993,8 @@
     for (let row = 0; row < baseCols; row++) {
       const cols = baseCols - row;
       for (let col = 0; col < cols; col++) {
-        const crate = Bodies.rectangle(cx - (cols - 1) * 14 + col * 28, bottomY - row * 28, 26, 26, { density: 15e-4, friction: 0.4, label: "crate" });
-        addBody(m, crate, "#b08948");
+        const crate = createBox(cx - (cols - 1) * 14 + col * 28, bottomY - row * 28, 26, 26, { density: 15e-4, friction: 0.4, label: "crate" });
+        addBody2(m, crate, "#b08948");
       }
     }
   }
@@ -5924,41 +6002,41 @@
     const n = 9, step = (x1 - x0) / n;
     let prev = null;
     for (let i = 0; i < n; i++) {
-      const plank = Bodies.rectangle(x0 + step * (i + 0.5), y, Math.abs(step) - 4, 10, { density: 2e-3, friction: 0.5, label: "plank" });
-      addBody(m, plank, "#8a6f4d");
-      const link = prev ? Constraint.create({ bodyA: prev, bodyB: plank, pointA: { x: step / 2, y: 0 }, pointB: { x: -step / 2, y: 0 }, stiffness: 0.9, length: 4 }) : Constraint.create({ bodyB: plank, pointA: { x: x0, y }, pointB: { x: -step / 2, y: 0 }, stiffness: 0.9, length: 4 });
+      const plank = createBox(x0 + step * (i + 0.5), y, Math.abs(step) - 4, 10, { density: 2e-3, friction: 0.5, label: "plank" });
+      addBody2(m, plank, "#8a6f4d");
+      const link = prev ? createJoint({ bodyA: prev, bodyB: plank, pointA: { x: step / 2, y: 0 }, pointB: { x: -step / 2, y: 0 }, stiffness: 0.9, length: 4 }) : createJoint({ bodyB: plank, pointA: { x: x0, y }, pointB: { x: -step / 2, y: 0 }, stiffness: 0.9, length: 4 });
       link.label = "breakable";
-      Composite.add(m.composite, link);
+      addTo(m.composite, link);
       prev = plank;
     }
-    const end = Constraint.create({ bodyA: prev, pointA: { x: step / 2, y: 0 }, pointB: { x: x1, y }, stiffness: 0.9, length: 4 });
+    const end = createJoint({ bodyA: prev, pointA: { x: step / 2, y: 0 }, pointB: { x: x1, y }, stiffness: 0.9, length: 4 });
     end.label = "breakable";
-    Composite.add(m.composite, end);
+    addTo(m.composite, end);
   }
   function addSeesaw(m, x, y, w = 220) {
-    const plank = Bodies.rectangle(x, y, w, 12, { density: 4e-3, friction: 0.6, label: "plank" });
+    const plank = createBox(x, y, w, 12, { density: 4e-3, friction: 0.6, label: "plank" });
     plank.w = w;
     plank.h = 12;
-    addBody(m, plank, "#8a6f4d");
-    const pivot = Constraint.create({ pointA: { x, y }, bodyB: plank, pointB: { x: 0, y: 0 }, stiffness: 1, length: 0 });
+    addBody2(m, plank, "#8a6f4d");
+    const pivot = createJoint({ pointA: { x, y }, bodyB: plank, pointB: { x: 0, y: 0 }, stiffness: 1, length: 0 });
     pivot.label = "pivot";
-    Composite.add(m.composite, pivot);
+    addTo(m.composite, pivot);
     addStatic(m, x, y + 34, 14, 44);
   }
   function addChandelier(m, x, topY, dropLen, r = 26) {
-    const ball = Bodies.circle(x, topY + dropLen, r, { density: 8e-3, friction: 0.4, label: "ball" });
-    addBody(m, ball, "#100c18");
-    const rope = Constraint.create({ pointA: { x, y: topY }, bodyB: ball, stiffness: 0.95, length: dropLen });
+    const ball = createCircle(x, topY + dropLen, r, { density: 8e-3, friction: 0.4, label: "ball" });
+    addBody2(m, ball, "#100c18");
+    const rope = createJoint({ pointA: { x, y: topY }, bodyB: ball, stiffness: 0.95, length: dropLen });
     rope.label = "breakable";
-    Composite.add(m.composite, rope);
+    addTo(m.composite, rope);
   }
   function addHangingPlatform(m, x, topY, dropLen, w = 150) {
-    const plat = Bodies.rectangle(x, topY + dropLen, w, 14, { density: 3e-3, friction: 0.6, label: "plank" });
+    const plat = createBox(x, topY + dropLen, w, 14, { density: 3e-3, friction: 0.6, label: "plank" });
     plat.w = w;
     plat.h = 14;
-    addBody(m, plat, "#8a6f4d");
+    addBody2(m, plat, "#8a6f4d");
     for (const side of [-1, 1]) {
-      const rope = Constraint.create({
+      const rope = createJoint({
         pointA: { x: x + side * (w / 2 - 10), y: topY },
         bodyB: plat,
         pointB: { x: side * (w / 2 - 10), y: 0 },
@@ -5966,29 +6044,29 @@
         length: dropLen
       });
       rope.label = "breakable";
-      Composite.add(m.composite, rope);
+      addTo(m.composite, rope);
     }
   }
   function addBarrels(m, xs, y) {
     for (const x of xs) {
-      const b = Bodies.circle(x, y, 14, { density: 2e-3, friction: 0.3, restitution: 0.3, label: "barrel" });
-      addBody(m, b, "#7d5a9e");
+      const b = createCircle(x, y, 14, { density: 2e-3, friction: 0.3, restitution: 0.3, label: "barrel" });
+      addBody2(m, b, "#7d5a9e");
     }
   }
   function addPendulumBall(m, x, topY, len, r = 45, shove = 14) {
-    const ball = Bodies.circle(x, topY + len, r, { density: 0.01, friction: 0.3, restitution: 0.4, label: "ball" });
-    addBody(m, ball, "#100c18");
-    const chain = Constraint.create({ pointA: { x, y: topY }, bodyB: ball, stiffness: 1, length: len });
+    const ball = createCircle(x, topY + len, r, { density: 0.01, friction: 0.3, restitution: 0.4, label: "ball" });
+    addBody2(m, ball, "#100c18");
+    const chain = createJoint({ pointA: { x, y: topY }, bodyB: ball, stiffness: 1, length: len });
     chain.label = "chain";
-    Composite.add(m.composite, chain);
-    Body.setVelocity(ball, { x: shove, y: 0 });
+    addTo(m.composite, chain);
+    setVelocity(ball, { x: shove, y: 0 });
     (m.data.pendulums ??= []).push(ball);
     return ball;
   }
   function keepPendulumsSwinging(m) {
     for (const b of m.data.pendulums || []) {
       if (Math.hypot(b.velocity.x, b.velocity.y) < 2.5) {
-        Body.setVelocity(b, { x: b.velocity.x + perSecond(b.position.x < W / 2 ? 1.5 : -1.5), y: b.velocity.y });
+        addVelocity(b, { x: perSecond(b.position.x < W / 2 ? 1.5 : -1.5), y: 0 });
       }
     }
   }
@@ -6005,18 +6083,18 @@
   }
   function updateMovers(m, now) {
     for (const mv of m.data.movers || []) {
-      Body.setPosition(mv.b, { x: mv.x, y: mv.y + Math.sin(now / mv.period * Math.PI * 2 + mv.phase) * mv.ay });
+      setPosition(mv.b, { x: mv.x, y: mv.y + Math.sin(now / mv.period * Math.PI * 2 + mv.phase) * mv.ay });
     }
   }
   function addBumper(m, x, y, r = 22) {
-    const b = Bodies.circle(x, y, r, { isStatic: true, restitution: 1.4, label: "bouncy" });
-    return addBody(m, b, "#ff8fc7");
+    const b = createCircle(x, y, r, { isStatic: true, restitution: 1.4, label: "bouncy" });
+    return addBody2(m, b, "#ff8fc7");
   }
   function addIcicles(m, xs, y = 80) {
     m.data.icicles = [];
     for (const x of xs) {
-      const ice = Bodies.polygon(x, y, 3, 24, { isStatic: true, density: 8e-3, angle: Math.PI / 2, label: "icicle" });
-      addBody(m, ice, "#bfe8ff");
+      const ice = createPolygon(x, y, 3, 24, { isStatic: true, density: 8e-3, angle: Math.PI / 2, label: "icicle" });
+      addBody2(m, ice, "#bfe8ff");
       m.data.icicles.push({ body: ice, shakeAt: 0, fallen: false });
     }
   }
@@ -6030,8 +6108,8 @@
         if (trig) ic.shakeAt = now;
       } else if (now - ic.shakeAt > 350) {
         ic.fallen = true;
-        Body.setStatic(ic.body, false);
-        Body.setVelocity(ic.body, { x: 0, y: 2 });
+        setType(ic.body, "dynamic");
+        setVelocity(ic.body, { x: 0, y: 2 });
       } else if (simRandom() < 0.3) {
         particles.push({ kind: "square", x: ix + rand(-8, 8), y: ic.body.position.y + 20, vx: 0, vy: 1, life: 20, maxLife: 20, color: "#bfe8ff", r: 2 });
       }
@@ -6039,9 +6117,9 @@
   }
   function applyWind(fx) {
     const dv = perSecond(fx);
-    for (const b of Composite.allBodies(world)) {
+    for (const b of allBodies()) {
       if (b.isStatic || b.isSensor) continue;
-      Body.setVelocity(b, { x: b.velocity.x + dv, y: b.velocity.y });
+      addVelocity(b, { x: dv, y: 0 });
     }
   }
   function updateGeysers(m, now) {
@@ -6064,8 +6142,8 @@
       m.data.nextCrate = now + interval;
       if ((m.data.rained || 0) < cap) {
         m.data.rained = (m.data.rained || 0) + 1;
-        const crate = Bodies.rectangle(rand(100, W - 100), -40, 26, 26, { density: 15e-4, friction: 0.4, label: "crate" });
-        addBody(m, crate, "#b08948");
+        const crate = createBox(rand(100, W - 100), -40, 26, 26, { density: 15e-4, friction: 0.4, label: "crate" });
+        addBody2(m, crate, "#b08948");
       }
     }
   }
@@ -6073,9 +6151,9 @@
     if (now > (m.data.nextBoulder || (m.data.nextBoulder = now + 2500))) {
       m.data.nextBoulder = now + interval;
       const side = pick([-1, 1]);
-      const rock = Bodies.circle(side < 0 ? -20 : W + 20, m.data.boulderY ?? 100, 24, { density: 0.01, friction: 0.4, restitution: 0.2, label: "ball" });
-      addBody(m, rock, "#5a5245");
-      Body.setVelocity(rock, { x: -side * rand(8, 14), y: 0 });
+      const rock = createCircle(side < 0 ? -20 : W + 20, m.data.boulderY ?? 100, 24, { density: 0.01, friction: 0.4, restitution: 0.2, label: "ball" });
+      addBody2(m, rock, "#5a5245");
+      setVelocity(rock, { x: -side * rand(8, 14), y: 0 });
     }
   }
   function isLeafy(hex) {
@@ -6109,14 +6187,14 @@
   // src/sim/player/controller.js
   function gravDirFor(p) {
     if (p && simNow() < (p.gravityLockUntil || 0)) return p.gravityLockDir;
-    return engine.gravity.y < 0 ? -1 : 1;
+    return gravityY() < 0 ? -1 : 1;
   }
   function grounded(p) {
     const { x, y } = p.body.position;
     const s = p.sizeScale || 1;
     const dir = gravDirFor(p);
     const y0 = y + 14 * s * dir, y1 = y + 22 * s * dir;
-    const below = Query.region(Composite.allBodies(world), {
+    const below = queryRegion({
       min: { x: x - 11 * s, y: Math.min(y0, y1) },
       max: { x: x + 11 * s, y: Math.max(y0, y1) }
     });
@@ -6133,11 +6211,11 @@
     const len = Math.hypot(speed, vy) || 1;
     return { x: p.facing * (speed / len), y: vy * gdir / len };
   }
-  function shoot(p, { r, speed, vy = 0, color, density = 2e-3, restitution = 0.6, expireMs, gravityScale = 1, angle }) {
+  function shoot(p, { r, speed, vy = 0, color, density = 2e-3, restitution = 0.6, expireMs, gravityScale: gravityScale2 = 1, angle }) {
     const { x, y } = p.body.position;
     const dir = angle != null ? { x: Math.cos(angle), y: Math.sin(angle) } : aimDir(p, speed, vy);
     const spd = Math.hypot(speed, vy);
-    const fb = Bodies.circle(x + dir.x * 28, y - 6 + dir.y * 16, r, {
+    const fb = createCircle(x + dir.x * 28, y - 6 + dir.y * 16, r, {
       density,
       frictionAir: 0,
       restitution,
@@ -6146,45 +6224,45 @@
     });
     fb.owner = p;
     fb.color = color;
-    fb.gravityScale = gravityScale;
+    fb.gravityScale = gravityScale2;
     if (expireMs) fb.expireAt = simNow() + expireMs;
-    Body.setVelocity(fb, { x: dir.x * spd, y: dir.y * spd });
+    setVelocity(fb, { x: dir.x * spd, y: dir.y * spd });
     projectiles.add(fb);
-    Composite.add(world, fb);
+    addBody(fb);
     return fb;
   }
   function dropProjectile(p, x, y, { r = 10, vx = 0, vy = 12, color, density = 4e-3, expireMs = 6e3 }) {
-    if (engine.gravity.y < 0) {
+    if (gravityY() < 0) {
       y = H - y;
       vy = -vy;
     }
-    const fb = Bodies.circle(x, y, r, { density, frictionAir: 0, label: "projectile" });
+    const fb = createCircle(x, y, r, { density, frictionAir: 0, label: "projectile" });
     fb.owner = p;
     fb.color = color;
     fb.gravityScale = 1;
     fb.expireAt = simNow() + expireMs;
-    Body.setVelocity(fb, { x: vx, y: vy });
+    setVelocity(fb, { x: vx, y: vy });
     projectiles.add(fb);
-    Composite.add(world, fb);
+    addBody(fb);
     return fb;
   }
   function removeProjectile(fb) {
     projectiles.delete(fb);
-    Composite.remove(world, fb);
+    removeBody(fb);
   }
   function summon(body, { life = 5e3, color, ...flags } = {}) {
     if (color) body.render.fillStyle = color;
     Object.assign(body, flags);
     body.dieAt = simNow() + life;
     summons.add(body);
-    Composite.add(world, body);
+    addBody(body);
     return body;
   }
   function removeSummon(b) {
     if (!summons.has(b)) return;
     summons.delete(b);
     spawnParticles(b.position.x, b.position.y, b.render.fillStyle || "#e8d5ff", 6, 3, 20);
-    Composite.remove(world, b);
+    removeBody(b);
   }
   function enemiesOf(p) {
     return players.filter((q) => q.alive && q !== p);
@@ -6207,7 +6285,7 @@
     spawnParticles(x, y, "#ffb347", 26, 9);
     spawnParticles(x, y, "#ff5e57", 18, 7);
     if (power >= 18) doFlash("#ffb347", 0.12);
-    for (const body of Composite.allBodies(world)) {
+    for (const body of allBodies()) {
       const dx = body.position.x - x, dy = body.position.y - y;
       const d = Math.hypot(dx, dy);
       if (d > radius || d === 0) continue;
@@ -6220,11 +6298,11 @@
         continue;
       }
       const s = 1 - d / radius;
-      Body.setVelocity(body, {
+      setVelocity(body, {
         x: body.velocity.x + dx / d * power * s,
         y: body.velocity.y + dy / d * power * s - 4 * s
       });
-      Body.setAngularVelocity(body, body.angularVelocity + (simRandom() - 0.5) * 0.4);
+      setAngularVelocity(body, body.angularVelocity + (simRandom() - 0.5) * 0.4);
       if (body.label === "player" && damage) {
         const dmg = damage * (1 - d / (radius * 1.15));
         if (body.player === owner) {
@@ -6235,10 +6313,10 @@
         damageEnemy(body.enemy, damage * (1 - d / (radius * 1.15)), body.position, owner);
       }
     }
-    for (const c of Composite.allConstraints(currentMap.composite)) {
+    for (const c of allJoints(currentMap.composite)) {
       if (c.label !== "breakable") continue;
       const pos = (c.bodyA || c.bodyB).position;
-      if (Math.hypot(pos.x - x, pos.y - y) < radius * 0.75) Composite.remove(currentMap.composite, c);
+      if (Math.hypot(pos.x - x, pos.y - y) < radius * 0.75) removeFrom(currentMap.composite, c);
     }
   }
   function raycastHit(p, angOff = 0) {
@@ -6248,11 +6326,11 @@
       dir = { x: Math.cos(a), y: Math.sin(a) };
     }
     const from = { x: p.body.position.x + dir.x * 22, y: p.body.position.y - 6 + dir.y * 14 };
-    const candidates = Composite.allBodies(world).filter((b) => b !== p.body && !b.isSensor && b.label !== "gib" && b.label !== "projectile" && b.collisionFilter.mask !== 0);
+    const candidates = allBodies().filter((b) => b !== p.body && !b.isSensor && b.label !== "gib" && b.label !== "projectile" && b.collisionFilter.mask !== 0);
     for (let d = 0; d < 1400; d += 10) {
       const pt = { x: from.x + dir.x * d, y: from.y + dir.y * d };
       if (pt.x < -40 || pt.x > W + 40 || pt.y < -60 || pt.y > H + 40) break;
-      const hit = Query.point(candidates, pt)[0];
+      const hit = queryPoint(pt, { bodies: candidates })[0];
       if (hit) return { hit, pt, from, dir };
     }
     return { hit: null, pt: { x: from.x + dir.x * 1400, y: from.y + dir.y * 1400 }, from, dir };
@@ -6279,9 +6357,9 @@
     });
   }
   function groundYAt(x) {
-    const candidates = Composite.allBodies(world).filter((b) => b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0);
+    const candidates = allBodies().filter((b) => b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0);
     for (let y = 0; y < H; y += 12) {
-      if (Query.point(candidates, { x, y })[0]) return y;
+      if (queryPoint({ x, y }, { bodies: candidates })[0]) return y;
     }
     return H - 30;
   }
@@ -6322,7 +6400,7 @@
       net: { k: "sing", x, y },
       update() {
         const R = 350 * (1 + (m - 1) * 0.5);
-        for (const b of Composite.allBodies(world)) {
+        for (const b of allBodies()) {
           if (b.isStatic || b.isSensor) continue;
           const dx = x - b.position.x, dy = y - b.position.y;
           const d = Math.hypot(dx, dy);
@@ -6337,21 +6415,21 @@
               tomes.delete(b);
               hats.delete(b);
               summons.delete(b);
-              Composite.remove(world, b, true);
+              removeBody(b, true);
             }
             continue;
           }
           const s = 1 - d / R;
           const pull = perSecond(0.9) * s, tang = perSecond(0.35) * s;
-          Body.setVelocity(b, {
+          setVelocity(b, {
             x: b.velocity.x + dx / d * pull + -dy / d * tang,
             y: b.velocity.y + dy / d * pull + dx / d * tang
           });
         }
-        for (const c of Composite.allConstraints(currentMap.composite)) {
+        for (const c of allJoints(currentMap.composite)) {
           if (c.label !== "breakable") continue;
           const pos = (c.bodyA || c.bodyB).position;
-          if (Math.hypot(pos.x - x, pos.y - y) < 140) Composite.remove(currentMap.composite, c);
+          if (Math.hypot(pos.x - x, pos.y - y) < 140) removeFrom(currentMap.composite, c);
         }
         if (simRandom() < 0.6) {
           const a = rand(0, Math.PI * 2), dd = rand(60, 180);
@@ -6391,7 +6469,7 @@
           }
         }
         if (tickBody) {
-          for (const b of Composite.allBodies(world)) {
+          for (const b of allBodies()) {
             if (b.isStatic || b.isSensor) continue;
             if (Math.hypot(b.position.x - x, b.position.y - y) < r) tickBody(b, now);
           }
@@ -6459,13 +6537,13 @@
     boltVisual(from.x, from.y, pt.x, pt.y, "#fff89e", width * m);
     spawnParticles(pt.x, pt.y, "#fff89e", 10, 5);
     if (hit && !hit.isStatic) {
-      Body.setVelocity(hit, { x: hit.velocity.x + dir.x * imp * m, y: hit.velocity.y + dir.y * imp * m - imp * 0.2 * m });
+      setVelocity(hit, { x: hit.velocity.x + dir.x * imp * m, y: hit.velocity.y + dir.y * imp * m - imp * 0.2 * m });
       if (hit.label === "player") zapHit(hit.player, dmg * m, p);
     }
     return { hit, pt };
   }
   function summonCritter(p, o = {}) {
-    const b = Bodies.circle(
+    const b = createCircle(
       o.x ?? p.body.position.x + p.facing * 34,
       o.y ?? p.body.position.y - 10,
       o.r ?? 8,
@@ -6534,7 +6612,7 @@
         const dx = t.body.position.x - self.position.x, dy = t.body.position.y - self.position.y;
         const d = Math.hypot(dx, dy) || 1;
         const sp = 13;
-        Body.setVelocity(self, {
+        setVelocity(self, {
           x: self.velocity.x * 0.9 + dx / d * sp * 0.14,
           y: self.velocity.y * 0.9 + dy / d * sp * 0.14
         });
@@ -6551,7 +6629,7 @@
       fb.update = (self, now) => {
         if (!self.turned && now - fb.bornAt > 600) {
           self.turned = true;
-          Body.setVelocity(self, { x: -self.velocity.x, y: self.velocity.y - 2 });
+          setVelocity(self, { x: -self.velocity.x, y: self.velocity.y - 2 });
         }
       };
     }
@@ -6565,7 +6643,7 @@
     cooldown: 900,
     cast(p) {
       const fb = boomBolt(p, { color: "#e69bff", r: 6, speed: 15, vy: 0, g: 0, radius: 110, power: 16, dmg: 24, expireMs: 2500 });
-      fb.update = (self, now) => Body.setVelocity(self, { x: self.velocity.x, y: Math.sin(now * 0.02) * 6 });
+      fb.update = (self, now) => setVelocity(self, { x: self.velocity.x, y: Math.sin(now * 0.02) * 6 });
     }
   });
   regSpell("landmine", {
@@ -6574,7 +6652,7 @@
     cooldown: 2e3,
     cast(p) {
       const m = p.mega || 1;
-      const b = Bodies.rectangle(p.body.position.x + p.facing * 30, p.body.position.y + 8, 16, 8, { density: 3e-3, friction: 0.9, label: "mine" });
+      const b = createBox(p.body.position.x + p.facing * 30, p.body.position.y + 8, 16, 8, { density: 3e-3, friction: 0.9, label: "mine" });
       b.owner = p;
       b.mineBlast = { radius: 130 * m, power: 20 * m, dmg: 35 * m };
       summon(b, { life: 12e3, color: "#b8b8b8" });
@@ -6591,7 +6669,7 @@
       fb.onHit = () => {
         if (fb.stuck) return;
         fb.stuck = true;
-        Body.setStatic(fb, true);
+        setType(fb, "static");
         activeEffects.push({
           until: simNow() + 900,
           draw(now, ctx) {
@@ -6667,7 +6745,7 @@
       const fb = shoot(p, { r: 13 * m, speed: 24, vy: -1, color: "#3d3d4d", gravityScale: 0.9, density: 0.012, restitution: 0.3, expireMs: 4e3 });
       fb.noContactBoom = true;
       fb.contactDamage = 30 * m;
-      Body.setVelocity(p.body, { x: p.body.velocity.x - p.facing * 5, y: p.body.velocity.y });
+      addVelocity(p.body, { x: -p.facing * 5, y: 0 });
     }
   });
   regSpell("bowling", {
@@ -6728,7 +6806,7 @@
         hitSet.add(best);
         boltVisual(from.x, from.y - 8, best.body.position.x, best.body.position.y, "#e3f265", 3 * m);
         damagePlayer(best, dmg * m);
-        Body.setVelocity(best.body, { x: best.body.velocity.x + rand(-6, 6), y: best.body.velocity.y - 8 });
+        addVelocity(best.body, { x: rand(-6, 6), y: -8 });
         from = best.body.position;
         dmg -= 10;
       }
@@ -6779,7 +6857,7 @@
       boltVisual(x + dir.x * 16, y - 6 + dir.y * 16, x + dir.x * 1500, y - 6 + dir.y * 1500, "#ff4df0", 5 * m, 180);
       sfx.lightning();
       doFlash("#ff4df0", 0.2);
-      for (const b of [...Composite.allBodies(world)]) {
+      for (const b of [...allBodies()]) {
         if (b.isStatic || b.isSensor || b === p.body) continue;
         const rx = b.position.x - x, ry = b.position.y - (y - 6);
         const t = rx * dir.x + ry * dir.y;
@@ -6799,7 +6877,7 @@
         tomes.delete(b);
         hats.delete(b);
         summons.delete(b);
-        Composite.remove(world, b, true);
+        removeBody(b, true);
       }
     }
   });
@@ -6834,14 +6912,14 @@
       boltVisual(x + dir.x * 16, y - 6 + dir.y * 16, x + dir.x * 1500, y - 6 + dir.y * 1500, "#9ef0f0", 4 * m, 160);
       sfx.lightning();
       addShake(8);
-      Body.setVelocity(p.body, { x: p.body.velocity.x - dir.x * 8, y: p.body.velocity.y - dir.y * 5 });
-      for (const b of Composite.allBodies(world)) {
+      addVelocity(p.body, { x: -dir.x * 8, y: -dir.y * 5 });
+      for (const b of allBodies()) {
         if (b.isStatic || b.isSensor || b === p.body) continue;
         const rx = b.position.x - x, ry = b.position.y - (y - 6);
         const t = rx * dir.x + ry * dir.y;
         if (t < 0 || t > 1500) continue;
         if (Math.abs(rx * dir.y - ry * dir.x) > 28) continue;
-        Body.setVelocity(b, { x: b.velocity.x + dir.x * 30 * m, y: b.velocity.y + dir.y * 30 * m - 4 });
+        setVelocity(b, { x: b.velocity.x + dir.x * 30 * m, y: b.velocity.y + dir.y * 30 * m - 4 });
         if (b.label === "player") damagePlayer(b.player, 40 * m);
       }
     }
@@ -6850,7 +6928,7 @@
     const m = p.mega || 1;
     const t = nearestEnemy(p, 130);
     if (t) {
-      Body.setVelocity(t.body, { x: t.body.velocity.x + p.facing * 26 * m, y: t.body.velocity.y - 6 });
+      addVelocity(t.body, { x: p.facing * 26 * m, y: -6 });
       damagePlayer(t, 5 * m);
     }
     spawnParticles(frontPos(p, 40).x, p.body.position.y, "#f0e6d2", 8, 5);
@@ -6863,13 +6941,13 @@
       const m = p.mega || 1;
       const { x, y } = p.body.position;
       spawnRing(x, y, "#c8f7f7");
-      for (const b of Composite.allBodies(world)) {
+      for (const b of allBodies()) {
         if (b.isStatic || b.isSensor || b === p.body) continue;
         const dx = b.position.x - x, dy = b.position.y - y;
         const d = Math.hypot(dx, dy);
         if (d > 220 * m || d === 0) continue;
         const s = (1 - d / (220 * m)) * 20 * m;
-        Body.setVelocity(b, { x: b.velocity.x + dx / d * s, y: b.velocity.y + dy / d * s - 4 });
+        setVelocity(b, { x: b.velocity.x + dx / d * s, y: b.velocity.y + dy / d * s - 4 });
       }
     }
   });
@@ -6880,13 +6958,13 @@
     cast(p) {
       const m = p.mega || 1;
       const { x, y } = p.body.position;
-      for (const b of Composite.allBodies(world)) {
+      for (const b of allBodies()) {
         if (b.isStatic || b.isSensor || b === p.body) continue;
         const dx = x - b.position.x, dy = y - b.position.y;
         const d = Math.hypot(dx, dy);
         if (d > 260 * m || d === 0) continue;
         const s = (1 - d / (260 * m)) * 16 * m;
-        Body.setVelocity(b, { x: b.velocity.x + dx / d * s, y: b.velocity.y + dy / d * s - 2 });
+        setVelocity(b, { x: b.velocity.x + dx / d * s, y: b.velocity.y + dy / d * s - 2 });
       }
       spawnRing(x, y, "#b58aff");
     }
@@ -6898,10 +6976,10 @@
     cast(p) {
       const m = p.mega || 1;
       const x = p.body.position.x;
-      for (const b of Composite.allBodies(world)) {
+      for (const b of allBodies()) {
         if (b.isStatic || b.isSensor) continue;
         if (Math.abs(b.position.x - x) > 130 * m) continue;
-        Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y - 18 * m });
+        addVelocity(b, { x: 0, y: -18 * m });
       }
       for (let i = 0; i < 16; i++) particles.push({ kind: "spark", x: x + rand(-100, 100), y: rand(100, H - 60), vx: 0, vy: -rand(8, 14), life: 20, maxLife: 20, color: "#e0ffff", r: 2 });
     }
@@ -6912,7 +6990,7 @@
     cooldown: 2200,
     cast(p) {
       const m = p.mega || 1;
-      Body.setVelocity(p.body, { x: p.body.velocity.x, y: 30 });
+      setVelocity(p.body, { x: p.body.velocity.x, y: 30 });
       const e = {
         until: simNow() + 1600,
         update(now) {
@@ -6946,7 +7024,7 @@
           if (q === p) return;
           const dx = q.body.position.x - x, dy = q.body.position.y - y;
           const d = Math.hypot(dx, dy) || 1;
-          Body.setVelocity(q.body, { x: q.body.velocity.x + dx / d * perSecond(2.4), y: q.body.velocity.y + dy / d * perSecond(1.2) });
+          addVelocity(q.body, { x: dx / d * perSecond(2.4), y: dy / d * perSecond(1.2) });
         }
       });
     }
@@ -6960,7 +7038,7 @@
       if (!t) return;
       const dx = p.body.position.x - t.body.position.x, dy = p.body.position.y - t.body.position.y;
       const d = Math.hypot(dx, dy) || 1;
-      Body.setVelocity(t.body, { x: dx / d * 18, y: dy / d * 18 - 3 });
+      setVelocity(t.body, { x: dx / d * 18, y: dy / d * 18 - 3 });
       damagePlayer(t, 5);
       boltVisual(p.body.position.x, p.body.position.y - 6, t.body.position.x, t.body.position.y, "#ff9ecb", 2, 100);
     }
@@ -6981,11 +7059,11 @@
           e.x += e.vx;
           e.net.x = e.x;
           if (e.x < 40 || e.x > W - 40) e.vx = -e.vx;
-          for (const b of Composite.allBodies(world)) {
+          for (const b of allBodies()) {
             if (b.isStatic || b.isSensor) continue;
             const dx = b.position.x - e.x;
             if (Math.abs(dx) > 120 * m) continue;
-            Body.setVelocity(b, { x: b.velocity.x - Math.sign(dx) * perSecond(0.9) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.5) * m });
+            setVelocity(b, { x: b.velocity.x - Math.sign(dx) * perSecond(0.9) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.5) * m });
           }
         },
         draw(now, ctx) {
@@ -7015,7 +7093,7 @@
     cast(p) {
       const m = p.mega || 1;
       const pos = frontPos(p, 70);
-      const wall = Bodies.rectangle(pos.x, pos.y - 30, 26 * m, 120 * m, { isStatic: true, friction: 0.01, label: "wall" });
+      const wall = createBox(pos.x, pos.y - 30, 26 * m, 120 * m, { isStatic: true, friction: 0.01, label: "wall" });
       summon(wall, { life: 4500, color: "#9be7ff" });
       sfx.freeze();
     }
@@ -7096,9 +7174,9 @@
     cast(p) {
       const m = p.mega || 1;
       for (const q of enemiesOf(p)) {
-        const ice = Bodies.polygon(q.body.position.x + rand(-20, 20), Math.max(30, q.body.position.y - 260), 3, 16 * m, { angle: Math.PI / 2, density: 6e-3, label: "critter" });
+        const ice = createPolygon(q.body.position.x + rand(-20, 20), Math.max(30, q.body.position.y - 260), 3, 16 * m, { angle: Math.PI / 2, density: 6e-3, label: "critter" });
         summon(ice, { life: 3e3, color: "#bfe8ff", contactDamage: 25 * m });
-        Body.setVelocity(ice, { x: 0, y: 6 });
+        setVelocity(ice, { x: 0, y: 6 });
       }
       sfx.freeze();
     }
@@ -7186,7 +7264,7 @@
     selfMove: true,
     cast(p) {
       const dir = aimDir(p, 25, 4);
-      Body.setVelocity(p.body, { x: dir.x * 25, y: dir.y * 25 - 2 });
+      setVelocity(p.body, { x: dir.x * 25, y: dir.y * 25 - 2 });
       p.invulnUntil = simNow() + 600;
       for (let i = 0; i < 20; i++) particles.push({ kind: "spark", x: p.body.position.x - dir.x * i * 4, y: p.body.position.y - dir.y * i * 4 + rand(-8, 8), vx: -dir.x * rand(2, 6), vy: rand(-2, 2), life: 22, maxLife: 22, color: "#ffb347", r: 2.5 });
     }
@@ -7227,7 +7305,7 @@
           if (!t) return;
           const dx = t.body.position.x - self.position.x, dy = t.body.position.y - self.position.y;
           const d = Math.hypot(dx, dy) || 1;
-          Body.setVelocity(self, { x: self.velocity.x * 0.92 + dx / d * 1.6, y: self.velocity.y * 0.92 + dy / d * 1.6 });
+          setVelocity(self, { x: self.velocity.x * 0.92 + dx / d * 1.6, y: self.velocity.y * 0.92 + dy / d * 1.6 });
         };
       }
     }
@@ -7242,7 +7320,7 @@
       const dir = aimDir(p, 1, 0);
       const nx = Math.max(30, Math.min(W - 30, p.body.position.x + dir.x * 220));
       const ny = Math.max(40, Math.min(H - 60, p.body.position.y + dir.y * 160));
-      Body.setPosition(p.body, { x: nx, y: ny });
+      setPosition(p.body, { x: nx, y: ny });
       p.invulnUntil = simNow() + 300;
       spawnParticles(nx, ny, "#c3b1e1", 14, 5);
       sfx.pickup();
@@ -7256,7 +7334,7 @@
     cast(p) {
       const m = p.mega || 1;
       explode(p.body.position.x, p.body.position.y + 16, 120 * m, 18 * m, 15 * m, p);
-      Body.setVelocity(p.body, { x: p.body.velocity.x, y: -26 });
+      setVelocity(p.body, { x: p.body.velocity.x, y: -26 });
     }
   });
   regSpell("ghostwalk", { name: "Ghost Walk", color: "#e8e8ff", cooldown: 4e3, cast(p) {
@@ -7273,8 +7351,8 @@
       if (!others.length) return;
       const t = pick(others);
       const a = { ...p.body.position }, b = { ...t.body.position };
-      Body.setPosition(p.body, b);
-      Body.setPosition(t.body, a);
+      setPosition(p.body, b);
+      setPosition(t.body, a);
       spawnParticles(a.x, a.y, "#f5b7ff", 12, 5);
       spawnParticles(b.x, b.y, "#f5b7ff", 12, 5);
       spawnText(b.x, b.y - 44, "SWAP!", "#f5b7ff");
@@ -7294,7 +7372,7 @@
     cast(p) {
       spawnParticles(p.body.position.x, p.body.position.y, "#9a9ab0", 30, 5, 60);
       const nx = Math.max(30, Math.min(W - 30, p.body.position.x - p.facing * 170));
-      Body.setPosition(p.body, { x: nx, y: p.body.position.y - 10 });
+      setPosition(p.body, { x: nx, y: p.body.position.y - 10 });
       p.invulnUntil = simNow() + 400;
     }
   });
@@ -7322,10 +7400,10 @@
     cast(p) {
       const pos = frontPos(p, 190);
       for (let i = 0; i < 3; i++) {
-        const crate = Bodies.rectangle(pos.x + (i - 1) * 34, -40 - i * 30, 26, 26, { density: 3e-3, friction: 0.4, label: "crate" });
+        const crate = createBox(pos.x + (i - 1) * 34, -40 - i * 30, 26, 26, { density: 3e-3, friction: 0.4, label: "crate" });
         crate.owner = p;
         summon(crate, { life: 9e3, contactDamage: 14 });
-        Body.setVelocity(crate, { x: 0, y: 9 });
+        setVelocity(crate, { x: 0, y: 9 });
       }
     }
   });
@@ -7337,7 +7415,7 @@
       const m = p.mega || 1;
       const t = nearestEnemy(p);
       const x = t ? t.body.position.x : frontPos(p, 200).x;
-      const anvil = Bodies.rectangle(x, -40, 44 * m, 26 * m, { density: 0.02, friction: 0.8, label: "anvil" });
+      const anvil = createBox(x, -40, 44 * m, 26 * m, { density: 0.02, friction: 0.8, label: "anvil" });
       summon(anvil, { life: 5e3, color: "#2f2f3a", contactDamage: 55 * m });
       sfx.clang();
     }
@@ -7350,7 +7428,7 @@
       const m = p.mega || 1;
       const t = nearestEnemy(p);
       const x = t ? t.body.position.x : frontPos(p, 200).x;
-      const piano = Bodies.rectangle(x, -60, 84 * m, 44 * m, { density: 0.018, friction: 0.8, label: "piano" });
+      const piano = createBox(x, -60, 84 * m, 44 * m, { density: 0.018, friction: 0.8, label: "piano" });
       summon(piano, { life: 5500, color: "#14141c", contactDamage: 80 * m });
       sfx.clang();
       setBanner("\u{1F3B9}", "#fff", 700);
@@ -7362,10 +7440,10 @@
     cooldown: 3e3,
     cast(p) {
       for (let i = 0; i < 3; i++) {
-        const ball = Bodies.circle(p.body.position.x + p.facing * (50 + i * 30), p.body.position.y - 40 - i * 20, 14, { density: 1e-3, restitution: 1.35, friction: 0.01, label: "bouncy" });
+        const ball = createCircle(p.body.position.x + p.facing * (50 + i * 30), p.body.position.y - 40 - i * 20, 14, { density: 1e-3, restitution: 1.35, friction: 0.01, label: "bouncy" });
         ball.owner = p;
         summon(ball, { life: 6e3, color: "#ffb3de", contactDamage: 13 });
-        Body.setVelocity(ball, { x: p.facing * rand(6, 12), y: -rand(3, 9) });
+        setVelocity(ball, { x: p.facing * rand(6, 12), y: -rand(3, 9) });
       }
       sfx.boing();
     }
@@ -7377,7 +7455,7 @@
     cast(p) {
       const m = p.mega || 1;
       const pos = frontPos(p, 80);
-      const wall = Bodies.rectangle(pos.x, pos.y - 30, 30 * m, 130 * m, { isStatic: true, friction: 0.6, label: "wall" });
+      const wall = createBox(pos.x, pos.y - 30, 30 * m, 130 * m, { isStatic: true, friction: 0.6, label: "wall" });
       summon(wall, { life: 5500, color: "#6b6b7a" });
     }
   });
@@ -7388,7 +7466,7 @@
     cast(p) {
       const pos = frontPos(p, 90);
       const gy = groundYAt(pos.x);
-      const tramp = Bodies.rectangle(pos.x, gy - 8, 100, 14, { isStatic: true, restitution: 0.4, friction: 0.1, label: "tramp" });
+      const tramp = createBox(pos.x, gy - 8, 100, 14, { isStatic: true, restitution: 0.4, friction: 0.1, label: "tramp" });
       summon(tramp, { life: 7e3, color: "#ff8fc7" });
       sfx.boing();
     }
@@ -7399,10 +7477,10 @@
     cooldown: 3400,
     cast(p) {
       for (const dir of [-1, 1]) {
-        const d = Bodies.circle(p.body.position.x + dir * 40, p.body.position.y - 10, 15, { density: 4e-3, friction: 0.05, restitution: 0.2, label: "decoy" });
+        const d = createCircle(p.body.position.x + dir * 40, p.body.position.y - 10, 15, { density: 4e-3, friction: 0.05, restitution: 0.2, label: "decoy" });
         d.decoyOf = p;
         summon(d, { life: 5e3 });
-        Body.setVelocity(d, { x: dir * rand(3, 7), y: -5 });
+        setVelocity(d, { x: dir * rand(3, 7), y: -5 });
       }
     }
   });
@@ -7412,7 +7490,7 @@
     cooldown: 4200,
     cast(p) {
       const pos = frontPos(p, 120);
-      const hive = Bodies.rectangle(pos.x, pos.y - 20, 22, 26, { density: 2e-3, friction: 0.6, label: "hive" });
+      const hive = createBox(pos.x, pos.y - 20, 22, 26, { density: 2e-3, friction: 0.6, label: "hive" });
       summon(hive, { life: 3e3, color: "#e8b647" });
       const t0 = simNow();
       let i = 0;
@@ -7422,7 +7500,7 @@
           if (now > t0 + i * 260 && i < 8) {
             i++;
             const bee = shoot(p, { r: 2.5, speed: rand(4, 7), vy: rand(-6, -2), color: "#ffe066", gravityScale: 0, expireMs: 3e3 });
-            Body.setPosition(bee, { x: hive.position.x, y: hive.position.y - 10 });
+            setPosition(bee, { x: hive.position.x, y: hive.position.y - 10 });
             bee.onHit = (self, other) => {
               if (other && other.label === "player") damagePlayer(other.player, 7, p);
             };
@@ -7431,7 +7509,7 @@
               if (!t) return;
               const dx = t.body.position.x - self.position.x, dy = t.body.position.y - self.position.y;
               const d = Math.hypot(dx, dy) || 1;
-              Body.setVelocity(self, { x: self.velocity.x * 0.9 + dx / d * 1.8, y: self.velocity.y * 0.9 + dy / d * 1.8 });
+              setVelocity(self, { x: self.velocity.x * 0.9 + dx / d * 1.8, y: self.velocity.y * 0.9 + dy / d * 1.8 });
             };
           }
         }
@@ -7446,7 +7524,7 @@
       const m = p.mega || 1;
       const t = nearestEnemy(p);
       const x = t ? t.body.position.x + rand(-40, 40) : frontPos(p, 220).x;
-      const rock = Bodies.circle(x, -50, 26 * m, { density: 0.012, friction: 0.4, restitution: 0.2, label: "boulderS" });
+      const rock = createCircle(x, -50, 26 * m, { density: 0.012, friction: 0.4, restitution: 0.2, label: "boulderS" });
       summon(rock, { life: 6e3, color: "#5a5245", contactDamage: 35 * m });
     }
   });
@@ -7456,12 +7534,12 @@
     cooldown: 2400,
     cast(p) {
       const m = p.mega || 1;
-      const saw = Bodies.circle(p.body.position.x + p.facing * 36, p.body.position.y, 15 * m, { density: 4e-3, friction: 0.9, restitution: 0.4, label: "saw" });
+      const saw = createCircle(p.body.position.x + p.facing * 36, p.body.position.y, 15 * m, { density: 4e-3, friction: 0.9, restitution: 0.4, label: "saw" });
       saw.owner = p;
       saw.sawDir = p.facing;
       summon(saw, { life: 3500, color: "#c0c0cc", contactDamage: 18 * m });
-      Body.setVelocity(saw, { x: p.facing * 13, y: -2 });
-      Body.setAngularVelocity(saw, p.facing * 0.9);
+      setVelocity(saw, { x: p.facing * 13, y: -2 });
+      setAngularVelocity(saw, p.facing * 0.9);
     }
   });
   regSpell("blackcat", {
@@ -7489,13 +7567,13 @@
     color: "#c084fc",
     cooldown: 6e3,
     cast(p) {
-      p.gravityLockDir = engine.gravity.y < 0 ? -1 : 1;
+      p.gravityLockDir = gravityY() < 0 ? -1 : 1;
       p.gravityLockUntil = simNow() + 2500;
-      engine.gravity.y = -game.baseGravity;
+      setGravityY(-game.baseGravity);
       doFlash("#c084fc", 0.3);
       setBanner("GRAVITY!", "#c084fc", 1e3);
       activeEffects.push({ until: simNow() + 2500, onEnd() {
-        engine.gravity.y = game.baseGravity;
+        setGravityY(game.baseGravity);
       } });
     }
   });
@@ -7504,10 +7582,10 @@
     color: "#d8d8f0",
     cooldown: 6e3,
     cast() {
-      engine.gravity.y = game.baseGravity * 0.3;
+      setGravityY(game.baseGravity * 0.3);
       setBanner("LOW GRAVITY", "#d8d8f0", 1e3);
       activeEffects.push({ until: simNow() + 4e3, onEnd() {
-        engine.gravity.y = game.baseGravity;
+        setGravityY(game.baseGravity);
       } });
     }
   });
@@ -7518,9 +7596,9 @@
     cast(p) {
       addShake(24);
       sfx.explosion();
-      for (const b of Composite.allBodies(world)) {
+      for (const b of allBodies()) {
         if (b.isStatic || b.isSensor) continue;
-        Body.setVelocity(b, { x: b.velocity.x + rand(-8, 8), y: b.velocity.y - rand(2, 10) });
+        addVelocity(b, { x: rand(-8, 8), y: -rand(2, 10) });
       }
     }
   });
@@ -7530,10 +7608,10 @@
     cooldown: 3600,
     cast(p) {
       const m = p.mega || 1;
-      let loose = Composite.allBodies(world).filter((b) => !b.isStatic && !b.isSensor && b.label !== "player" && b.label !== "boss" && Math.hypot(b.position.x - p.body.position.x, b.position.y - p.body.position.y) < 520);
+      let loose = allBodies().filter((b) => !b.isStatic && !b.isSensor && b.label !== "player" && b.label !== "boss" && Math.hypot(b.position.x - p.body.position.x, b.position.y - p.body.position.y) < 520);
       if (loose.length < 5) {
         for (let i = 0; i < 6; i++) {
-          const junk = Bodies.polygon(p.body.position.x + rand(-70, 70), p.body.position.y - rand(20, 90), pick([3, 4, 5, 6]), rand(9, 16), { density: 25e-4, frictionAir: 0.01, label: "ball" });
+          const junk = createPolygon(p.body.position.x + rand(-70, 70), p.body.position.y - rand(20, 90), pick([3, 4, 5, 6]), rand(9, 16), { density: 25e-4, frictionAir: 0.01, label: "ball" });
           junk.color = "#b39ddb";
           junk.owner = p;
           summon(junk, { life: 4e3, color: "#b39ddb", contactDamage: 12 * m });
@@ -7546,7 +7624,7 @@
         if (!t) break;
         const dx = t.body.position.x - b.position.x, dy = t.body.position.y - b.position.y;
         const d = Math.hypot(dx, dy) || 1;
-        Body.setVelocity(b, { x: dx / d * 18, y: dy / d * 18 - 3 });
+        setVelocity(b, { x: dx / d * 18, y: dy / d * 18 - 3 });
         if (simRandom() < 0.5) spawnParticles(b.position.x, b.position.y, "#b39ddb", 3, 2, 16);
       }
     }
@@ -7577,8 +7655,8 @@
       for (const q of players) {
         if (!q.alive) continue;
         spawnParticles(q.body.position.x, q.body.position.y, "#ff4df0", 10, 4);
-        Body.setPosition(q.body, { x: rand(100, W - 100), y: rand(80, 300) });
-        Body.setVelocity(q.body, { x: 0, y: 0 });
+        setPosition(q.body, { x: rand(100, W - 100), y: rand(80, 300) });
+        setVelocity(q.body, { x: 0, y: 0 });
         spawnParticles(q.body.position.x, q.body.position.y, "#ff4df0", 10, 4);
       }
     }
@@ -7616,7 +7694,7 @@
       }
       const t = nearestEnemy(p, 200 * m);
       if (t && Math.sign(t.body.position.x - p.body.position.x) === p.facing) {
-        Body.setVelocity(t.body, { x: t.body.velocity.x + p.facing * 14 * m, y: t.body.velocity.y - 5 });
+        addVelocity(t.body, { x: p.facing * 14 * m, y: -5 });
       }
       sfx.squeak();
     }
@@ -7658,7 +7736,7 @@
     cooldown: 1400,
     cast(p) {
       const pos = frontPos(p, 60);
-      const peel = Bodies.rectangle(pos.x, pos.y, 16, 6, { density: 1e-3, friction: 0.05, label: "banana" });
+      const peel = createBox(pos.x, pos.y, 16, 6, { density: 1e-3, friction: 0.05, label: "banana" });
       peel.owner = p;
       summon(peel, { life: 1e4, color: "#ffe135", armAt: simNow() + 700 });
     }
@@ -7679,7 +7757,7 @@
       if (target) {
         const dx = p.body.position.x - target.position.x, dy = p.body.position.y - target.position.y;
         const d = Math.hypot(dx, dy) || 1;
-        Body.setVelocity(target, { x: dx / d * 20, y: dy / d * 20 - 2 });
+        setVelocity(target, { x: dx / d * 20, y: dy / d * 20 - 2 });
         boltVisual(p.body.position.x, p.body.position.y, target.position.x, target.position.y, "#7ae7c7", 2, 100);
         spawnText(p.body.position.x, p.body.position.y - 44, "YOINK!", "#7ae7c7");
       } else {
@@ -7687,7 +7765,7 @@
         if (t) {
           const dx = p.body.position.x - t.body.position.x, dy = p.body.position.y - t.body.position.y;
           const d = Math.hypot(dx, dy) || 1;
-          Body.setVelocity(t.body, { x: dx / d * 16, y: dy / d * 16 - 3 });
+          setVelocity(t.body, { x: dx / d * 16, y: dy / d * 16 - 3 });
           spawnText(p.body.position.x, p.body.position.y - 44, "YOINK!", "#7ae7c7");
         }
       }
@@ -7704,7 +7782,7 @@
     cast(p) {
       statusBolt(p, { color: "#ff6b81", r: 6, speed: 16, vy: -4, dmg: 5 }, (q, m) => {
         q.floatyUntil = simNow() + 1800 * m;
-        Body.setVelocity(q.body, { x: q.body.velocity.x, y: -7 });
+        setVelocity(q.body, { x: q.body.velocity.x, y: -7 });
         spawnText(q.body.position.x, q.body.position.y - 44, "UP UP", "#ff6b81");
         sfx.boing?.();
       });
@@ -7717,7 +7795,7 @@
     cast(p) {
       statusBolt(p, { color: "#5a6b7a", r: 6, speed: 16, vy: -4, dmg: 5 }, (q, m) => {
         q.heavyUntil = simNow() + 2600 * m;
-        Body.setVelocity(q.body, { x: q.body.velocity.x, y: 11 });
+        setVelocity(q.body, { x: q.body.velocity.x, y: 11 });
         spawnText(q.body.position.x, q.body.position.y - 44, "HEAVY", "#5a6b7a");
         sfx.thud?.();
       });
@@ -7803,7 +7881,7 @@
       const m = p.mega || 1;
       const pos = frontPos(p, 140);
       const gy = groundYAt(pos.x);
-      const rod = Bodies.rectangle(pos.x, gy - 40, 8, 80, { isStatic: true, label: "wall" });
+      const rod = createBox(pos.x, gy - 40, 8, 80, { isStatic: true, label: "wall" });
       summon(rod, { life: 5e3, color: "#e3f265" });
       const t0 = simNow();
       let next2 = t0 + 700;
@@ -7826,7 +7904,7 @@
       const m = p.mega || 1;
       const pos = frontPos(p, 110);
       const gy = groundYAt(pos.x);
-      const coil = Bodies.rectangle(pos.x, gy - 25, 14, 50, { isStatic: true, label: "wall" });
+      const coil = createBox(pos.x, gy - 25, 14, 50, { isStatic: true, label: "wall" });
       summon(coil, { life: 4e3, color: "#9ef0f0" });
       const t0 = simNow();
       let next2 = t0 + 400;
@@ -7856,7 +7934,7 @@
       const fb = shoot(p, { r: 14 * m, speed: 18, vy: -5, color: "#d8d8e0", gravityScale: 0.8, density: 0.015, restitution: 0.3, expireMs: 3e3 });
       fb.noContactBoom = true;
       fb.contactDamage = 45 * m;
-      Body.setAngularVelocity(fb, p.facing * 0.5);
+      setAngularVelocity(fb, p.facing * 0.5);
       sfx.clang();
       spawnText(p.body.position.x, p.body.position.y - 50, "EVERYTHING!", "#d8d8e0");
     }
@@ -8038,7 +8116,7 @@
       }
       const d = aimDir(p, 1, 0);
       const px = Math.max(30, Math.min(W - 30, pt.x - d.x * 16));
-      const pillar = Bodies.rectangle(px, pt.y - 42, 26 * Math.min(m, 1.5), 110 * Math.min(m, 1.5), { isStatic: true, friction: 0.01, label: "wall" });
+      const pillar = createBox(px, pt.y - 42, 26 * Math.min(m, 1.5), 110 * Math.min(m, 1.5), { isStatic: true, friction: 0.01, label: "wall" });
       summon(pillar, { life: 3500, color: "#bfe8ff" });
       spawnBurst(pt.x, pt.y, "#eaffff", 14, { kind: "spark", speed: 8, r: 2 });
       spawnBurst(px, pt.y - 70, "#9ef0f0", 10, { speed: 3, up: 2, g: 0.04, life: 40 });
@@ -8064,12 +8142,12 @@
           e.x += e.vx;
           e.net.x = e.x;
           if (e.x < 50 || e.x > W - 50) e.vx = -e.vx;
-          for (const b of Composite.allBodies(world)) {
+          for (const b of allBodies()) {
             if (b.isStatic || b.isSensor) continue;
             if (b.label === "player" && b.player === p) continue;
             const dx = b.position.x - e.x;
             if (Math.abs(dx) > 110 * m) continue;
-            Body.setVelocity(b, { x: b.velocity.x - Math.sign(dx || 1) * perSecond(0.8) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.6) * m });
+            setVelocity(b, { x: b.velocity.x - Math.sign(dx || 1) * perSecond(0.8) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.6) * m });
             if (b.label === "player" && b.player.alive) b.player.burnUntil = Math.max(b.player.burnUntil || 0, now + 900 * m);
           }
         },
@@ -8103,7 +8181,7 @@
         if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 440) {
           q.frozenUntil = simNow() + 800 * m;
           q.body.frictionAir = 1e-3;
-          Body.setVelocity(q.body, { x: q.body.velocity.x + p.facing * 6, y: q.body.velocity.y });
+          addVelocity(q.body, { x: p.facing * 6, y: 0 });
         }
       }
       spawnParticles(x + p.facing * 200, y, "#d8f4ff", 22, 6);
@@ -8192,7 +8270,7 @@
     cast(p) {
       zapRay(p, 44, 30, 4);
       addShake(9);
-      Body.setVelocity(p.body, { x: p.body.velocity.x - p.facing * 8, y: p.body.velocity.y - 4 });
+      addVelocity(p.body, { x: -p.facing * 8, y: -4 });
       for (let i = 0; i < 3; i++) boomBolt(p, { selfSafe: true, color: "#c0c0cc", r: 4, vy: rand(-6, 0), speed: rand(18, 26), radius: 60, power: 12, dmg: 12 });
       sfx.lightning();
     }
@@ -8254,7 +8332,7 @@
       const { x, y } = p.body.position;
       for (const q of enemiesOf(p)) {
         const dx = x - q.body.position.x, dy = y - 120 - q.body.position.y, d = Math.hypot(dx, dy) || 1;
-        Body.setVelocity(q.body, { x: q.body.velocity.x + dx / d * 9, y: -6 + dy / d * 4 });
+        setVelocity(q.body, { x: q.body.velocity.x + dx / d * 9, y: -6 + dy / d * 4 });
         damagePlayer(q, 10 * m, p);
       }
       spawnRing(x, y, "#c8f7f7");
@@ -8400,7 +8478,7 @@
       for (let i = 0; i < 6; i++) boomBolt(p, { selfSafe: true, color: "#d8c48a", r: 4, vy: rand(-6, 2), speed: rand(16, 26), radius: 55, power: 12, dmg: 10 });
       for (const q of enemiesOf(p)) if (Math.abs(q.body.position.x - p.body.position.x) < 500 && (q.body.position.x - p.body.position.x) * p.facing > 0) {
         q.reversedUntil = simNow() + 1400 * m;
-        Body.setVelocity(q.body, { x: q.body.velocity.x + p.facing * 7, y: q.body.velocity.y - 2 });
+        addVelocity(q.body, { x: p.facing * 7, y: -2 });
       }
       spawnParticles(p.body.position.x + p.facing * 120, p.body.position.y, "#d8c48a", 20, 6);
       sfx.cast();
@@ -8416,7 +8494,7 @@
       p.speedUntil = simNow() + 3e3;
       p.jumpBoostUntil = simNow() + 3e3;
       p.featherUntil = simNow() + 2e3;
-      for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 240) Body.setVelocity(q.body, { x: (q.body.position.x - p.body.position.x) * 0.05 + Math.sign(q.body.position.x - p.body.position.x) * 8, y: -7 });
+      for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 240) setVelocity(q.body, { x: (q.body.position.x - p.body.position.x) * 0.05 + Math.sign(q.body.position.x - p.body.position.x) * 8, y: -7 });
       spawnText(p.body.position.x, p.body.position.y - 50, "ZEPHYR", "#dfffff");
       spawnParticles(p.body.position.x, p.body.position.y, "#dfffff", 16, 5);
       sfx.boing?.();
@@ -8434,7 +8512,7 @@
       for (const q of enemiesOf(p)) {
         const dx = cx - q.body.position.x, dy = cy - q.body.position.y, d = Math.hypot(dx, dy) || 1;
         if (d < 400) {
-          Body.setVelocity(q.body, { x: q.body.velocity.x + dx / d * 10, y: q.body.velocity.y + dy / d * 6 });
+          addVelocity(q.body, { x: dx / d * 10, y: dy / d * 6 });
           q.heavyUntil = simNow() + 2e3 * m;
         }
       }
@@ -8497,7 +8575,7 @@
         else if (roll === 2) q.shrinkUntil = now + 3500 * m;
         else if (roll === 3) {
           q.floatyUntil = now + 2500 * m;
-          Body.setVelocity(q.body, { x: q.body.velocity.x, y: -9 });
+          setVelocity(q.body, { x: q.body.velocity.x, y: -9 });
         } else q.heavyUntil = now + 2500 * m;
         chaosBurst(q.body.position.x, q.body.position.y, 12, { speed: 5, up: 2 });
       }
@@ -8565,7 +8643,7 @@
         q.floatyUntil = now + 2600 * m;
         q.reversedUntil = now + 1600 * m;
         const ang = Math.atan2(q.body.position.y - y, q.body.position.x - x) + Math.PI / 2;
-        Body.setVelocity(q.body, { x: Math.cos(ang) * 10, y: -8 });
+        setVelocity(q.body, { x: Math.cos(ang) * 10, y: -8 });
       }
       for (let i = 0; i < 20; i++) {
         const a = i / 20 * Math.PI * 2;
@@ -8615,7 +8693,7 @@
       const sx = p.body.position.x + dir.x * 240, sy = p.body.position.y + dir.y * 240;
       spawnSingularity(sx, sy, m, p, { selfSafe: true });
       for (const q of enemiesOf(p)) {
-        Body.setPosition(q.body, { x: rand(120, W - 120), y: rand(120, 360) });
+        setPosition(q.body, { x: rand(120, W - 120), y: rand(120, 360) });
         chaosBurst(q.body.position.x, q.body.position.y, 12, { speed: 6 });
       }
       doFlash("#b06bff", 0.35);
@@ -8657,8 +8735,8 @@
     firstDrop = true;
   }
   function tomeDropSpot() {
-    const g = engine.gravity.y;
-    const solids = Composite.allBodies(world).filter((b) => (b.isStatic || b.label === "plank") && !b.isSensor && b.collisionFilter.mask !== 0 && b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
+    const g = gravityY();
+    const solids = allBodies().filter((b) => (b.isStatic || b.label === "plank") && !b.isSensor && b.collisionFilter.mask !== 0 && b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
     for (let tries = 0; tries < 24; tries++) {
       const x = rand(90, W - 90);
       const col = solids.filter((b) => x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6);
@@ -8688,11 +8766,11 @@
     } while (spell === lastTomeSpell && pool.length > 1);
     lastTomeSpell = spell;
     const spot = tomeDropSpot();
-    const tome = Bodies.rectangle(spot.x, spot.y, 20, 24, { density: 1e-3, frictionAir: 0.05, label: "tome" });
+    const tome = createBox(spot.x, spot.y, 20, 24, { density: 1e-3, frictionAir: 0.05, label: "tome" });
     tome.spell = spell;
     tome.bornAt = now;
     tomes.add(tome);
-    Composite.add(world, tome);
+    addBody(tome);
   }
   onWorldReset(() => {
     tomes.clear();
@@ -9092,8 +9170,8 @@
       else if (roll < 0.54) buildCrateStack(m, s.x, s.y - 14, 2, pk([3, 4]));
       else if (roll < 0.9) addThemedCover(m, s.x, s.y + 8, rr, pk);
       else {
-        const big = Bodies.rectangle(s.x, s.y - 24, 42, 42, { density: 4e-3, friction: 0.6, label: "crate" });
-        addBody(m, big, "#9a7440");
+        const big = createBox(s.x, s.y - 24, 42, 42, { density: 4e-3, friction: 0.6, label: "crate" });
+        addBody2(m, big, "#9a7440");
       }
     }
   }
@@ -9102,7 +9180,7 @@
   function ensureTraversable(m, rng) {
     if ((m.def.gravity ?? 2) < 0) return;
     const rr = (a, b) => a + rng() * (b - a);
-    const walkable = Composite.allBodies(m.composite).filter((b) => !b.isSensor && b.label !== "spikes" && b.collisionFilter.mask !== 0 && (b.isStatic || b.label === "plank") && b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
+    const walkable = allBodies(m.composite).filter((b) => !b.isSensor && b.label !== "spikes" && b.collisionFilter.mask !== 0 && (b.isStatic || b.label === "plank") && b.bounds.min.x > -60 && b.bounds.max.x < W + 60);
     const deathY = (m.data.lavaY ?? H) - 24;
     const step = 16;
     const cols = [];
@@ -9148,7 +9226,7 @@
     const rr = (a, b) => a + rng() * (b - a);
     const pk = (arr) => arr[Math.floor(rng() * arr.length)];
     const want = m.def.cozy ? 2 : 3;
-    const have = Composite.allBodies(m.composite).filter((b) => b.label === "destructible").length;
+    const have = allBodies(m.composite).filter((b) => b.label === "destructible").length;
     if (have >= want * 3) return;
     const spots = platformSpots(m, want, rng);
     for (const s of spots) addThemedCover(m, s.x, s.y + 8, rr, pk);
@@ -9207,25 +9285,25 @@
     bannerHyper = hyper;
   }
   function loadMap(index) {
-    for (const fb of projectiles) Composite.remove(world, fb);
+    for (const fb of projectiles) removeBody(fb);
     projectiles.clear();
-    for (const g of gibs) Composite.remove(world, g);
+    for (const g of gibs) removeBody(g);
     gibs.clear();
-    for (const t of tomes) Composite.remove(world, t);
+    for (const t of tomes) removeBody(t);
     tomes.clear();
-    for (const h of hats) Composite.remove(world, h);
+    for (const h of hats) removeBody(h);
     hats.clear();
-    for (const s of summons) Composite.remove(world, s);
+    for (const s of summons) removeBody(s);
     summons.clear();
     activeEffects.length = 0;
     particles.length = 0;
-    if (currentMap) Composite.remove(world, currentMap.composite);
+    if (currentMap) removeBody(currentMap.composite);
     const def = MAPS[index];
-    const m = { def, composite: Composite.create(), data: {} };
+    const m = { def, composite: createComposite(), data: {} };
     for (const x of [-30, W + 30]) {
-      const wall = Bodies.rectangle(x, H / 2, 60, H * 3, { isStatic: true });
+      const wall = createBox(x, H / 2, 60, H * 3, { isStatic: true });
       wall.render.fillStyle = "#171221";
-      Composite.add(m.composite, wall);
+      addTo(m.composite, wall);
     }
     def.build(m);
     game.mapSeed = simRandom() * 4294967295 >>> 0;
@@ -9235,11 +9313,11 @@
     if (def.stars) {
       m.data.starfield = Array.from({ length: 70 }, () => ({ x: rand(0, W), y: rand(0, H - 160), r: rand(0.5, 1.8), tw: rand(0, 6.28) }));
     }
-    Composite.add(world, m.composite);
+    addBody(m.composite);
     currentMap = m;
     game.mapIndex = index;
     game.baseGravity = def.gravity ?? 2;
-    engine.gravity.y = game.baseGravity;
+    setGravityY(game.baseGravity);
     game.envEvent = null;
     game.boss = null;
   }
@@ -9351,7 +9429,7 @@
 
   // src/sim/player/lifecycle.js
   function groundInColumn(x) {
-    return Composite.allBodies(currentMap.composite).some((b) => b.isStatic && !b.isSensor && b.label !== "lava" && b.collisionFilter.mask !== 0 && x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6 && b.bounds.min.y > 100);
+    return allBodies(currentMap.composite).some((b) => b.isStatic && !b.isSensor && b.label !== "lava" && b.collisionFilter.mask !== 0 && x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6 && b.bounds.min.y > 100);
   }
   function spawnPointFor(p) {
     const spawns = currentMap.def.spawns;
@@ -9369,12 +9447,12 @@
   function setPlayerScale(p, target) {
     const ratio = target / p.sizeScale;
     if (Math.abs(ratio - 1) < 0.01) return;
-    Body.scale(p.body, ratio, ratio);
+    scaleBody(p.body, ratio, ratio);
     p.sizeScale = target;
     spawnParticles(p.body.position.x, p.body.position.y, "#e8d5ff", 6, 3);
   }
   function spawnPlayer(p, pos) {
-    if (!p.alive) Composite.add(world, p.body);
+    if (!p.alive) addBody(p.body);
     p.alive = true;
     p.hp = MAX_HP;
     p.airJumps = 1;
@@ -9385,15 +9463,15 @@
     clearStatuses(p);
     setPlayerScale(p, 1);
     p.body.frictionAir = 0.02;
-    Body.setPosition(p.body, pos);
-    Body.setVelocity(p.body, { x: 0, y: 0 });
-    Body.setAngularVelocity(p.body, 0);
-    Body.setAngle(p.body, 0);
+    setPosition(p.body, pos);
+    setVelocity(p.body, { x: 0, y: 0 });
+    setAngularVelocity(p.body, 0);
+    setAngle(p.body, 0);
     spawnParticles(pos.x, pos.y, "#e8d5ff", 12, 5);
   }
   function despawnPlayer(p) {
     if (!p.alive) return;
-    Composite.remove(world, p.body);
+    removeBody(p.body);
     p.alive = false;
   }
   function healPlayer(p, amt) {
@@ -9515,13 +9593,13 @@
   function knockHatOff(p) {
     const { x, y } = p.body.position;
     const s = p.sizeScale || 1;
-    const hat = Bodies.polygon(x, y - 22 * s, 3, 8, { density: 8e-4, frictionAir: 0.02, angle: -Math.PI / 2, label: "gib" });
+    const hat = createPolygon(x, y - 22 * s, 3, 8, { density: 8e-4, frictionAir: 0.02, angle: -Math.PI / 2, label: "gib" });
     hat.color = p.hat;
     hat.dieAt = simNow() + 3500;
-    Body.setVelocity(hat, { x: p.body.velocity.x * 0.5 + rand(-3, 3), y: -7 * (engine.gravity.y < 0 ? -1 : 1) });
-    Body.setAngularVelocity(hat, rand(-0.4, 0.4));
+    setVelocity(hat, { x: p.body.velocity.x * 0.5 + rand(-3, 3), y: -7 * (gravityY() < 0 ? -1 : 1) });
+    setAngularVelocity(hat, rand(-0.4, 0.4));
     gibs.add(hat);
-    Composite.add(world, hat);
+    addBody(hat);
     statFor(p).hatsLost++;
     spawnText(x, y - 52 * s, "THE SHAME!", p.hat);
     sfx.squeak();
@@ -9536,15 +9614,15 @@
     doFlash(p.color, 0.12);
     if (game.state === "PLAY") slowMo(0.3, 550);
     for (let i = 0; i < 6; i++) {
-      const gib = Bodies.rectangle(x, y, 14, 4, { density: 1e-3, frictionAir: 0.01, label: "gib" });
+      const gib = createBox(x, y, 14, 4, { density: 1e-3, frictionAir: 0.01, label: "gib" });
       gib.color = p.color;
       gib.dieAt = simNow() + 3e3;
-      Body.setVelocity(gib, { x: (simRandom() - 0.5) * 16, y: -6 - simRandom() * 8 });
-      Body.setAngularVelocity(gib, (simRandom() - 0.5) * 0.6);
+      setVelocity(gib, { x: (simRandom() - 0.5) * 16, y: -6 - simRandom() * 8 });
+      setAngularVelocity(gib, (simRandom() - 0.5) * 0.6);
       gibs.add(gib);
-      Composite.add(world, gib);
+      addBody(gib);
     }
-    Composite.remove(world, p.body);
+    removeBody(p.body);
     if (game.state === "PLAY") {
       creditKill(p);
       p.ghost = { x, y: y - 10, nextGust: 0 };
@@ -9562,7 +9640,7 @@
         const m = p.mega || 1;
         const fb = shoot(p, { r: 7 * m, speed: 20, vy: -6, color: "#ffb347", gravityScale: 0.45 });
         fb.onHit = () => explode(fb.position.x, fb.position.y, 150 * m, 22 * m, 35 * m, fb.owner);
-        Body.setVelocity(p.body, { x: p.body.velocity.x - p.facing * 2, y: p.body.velocity.y });
+        addVelocity(p.body, { x: -p.facing * 2, y: 0 });
       }
     },
     gust: {
@@ -9574,7 +9652,7 @@
         const range = 240 * m;
         const { x, y } = p.body.position;
         const dir = aimDir(p, 1, 0);
-        for (const b of Composite.allBodies(world)) {
+        for (const b of allBodies()) {
           if (b.isStatic || b === p.body || b.isSensor) continue;
           const dx = b.position.x - x, dy = b.position.y - y;
           const d = Math.hypot(dx, dy);
@@ -9583,12 +9661,12 @@
           const s = 1 - d / range;
           if (b.label === "projectile") {
             const spd = Math.hypot(b.velocity.x, b.velocity.y);
-            Body.setVelocity(b, { x: dir.x * spd, y: dir.y * spd });
+            setVelocity(b, { x: dir.x * spd, y: dir.y * spd });
             continue;
           }
-          Body.setVelocity(b, { x: b.velocity.x + dir.x * 18 * m * s, y: b.velocity.y + dir.y * 18 * m * s - 3 * s });
+          setVelocity(b, { x: b.velocity.x + dir.x * 18 * m * s, y: b.velocity.y + dir.y * 18 * m * s - 3 * s });
         }
-        Body.setVelocity(p.body, { x: p.body.velocity.x - dir.x * 7, y: p.body.velocity.y - dir.y * 4 - 2 });
+        setVelocity(p.body, { x: p.body.velocity.x - dir.x * 7, y: p.body.velocity.y - dir.y * 4 - 2 });
         for (let i = 0; i < 14; i++) {
           particles.push({ kind: "spark", x: x + dir.x * 20, y: y - 6 + dir.y * 20 + rand(-10, 10), vx: dir.x * rand(6, 14), vy: dir.y * rand(6, 14) + rand(-1, 1), life: 18, maxLife: 18, color: "#d7f5ef", r: 2 });
         }
@@ -9609,7 +9687,7 @@
         boltVisual(from.x, from.y, pt.x, pt.y, "#fff89e", 3 * m);
         spawnParticles(pt.x, pt.y, "#fff89e", 12, 6);
         if (hit && !hit.isStatic) {
-          Body.setVelocity(hit, { x: hit.velocity.x + dir.x * 28 * m, y: hit.velocity.y + dir.y * 28 * m - 8 * m });
+          setVelocity(hit, { x: hit.velocity.x + dir.x * 28 * m, y: hit.velocity.y + dir.y * 28 * m - 8 * m });
           if (hit.label === "player") damagePlayer(hit.player, 50 * m);
         }
       }
@@ -9714,8 +9792,8 @@
       addStatic(m, 180, 560, 360, 40);
       addStatic(m, W - 180, 560, 360, 40);
       for (let i = 0; i < 9; i++) {
-        const c = Bodies.rectangle(400 + i * 55, 528, 26, 26, { density: 15e-4, friction: 0.4, label: "crate" });
-        addBody(m, c, "#b08948");
+        const c = createBox(400 + i * 55, 528, 26, 26, { density: 15e-4, friction: 0.4, label: "crate" });
+        addBody2(m, c, "#b08948");
       }
       addLava(m);
     } },
@@ -9751,8 +9829,8 @@
       addStatic(m, W - 120, 500, 240, 400);
       addStatic(m, W / 2, 680, W, 60);
       for (let i = 0; i < 24; i++) {
-        const c = Bodies.rectangle(rand(300, W - 300), rand(350, 600), 26, 26, { density: 15e-4, friction: 0.4, label: "crate" });
-        addBody(m, c, "#b08948");
+        const c = createBox(rand(300, W - 300), rand(350, 600), 26, 26, { density: 15e-4, friction: 0.4, label: "crate" });
+        addBody2(m, c, "#b08948");
       }
     }, s: [{ x: 120, y: 240 }, { x: W - 120, y: 240 }, { x: 400, y: 120 }, { x: W - 400, y: 120 }] },
     { n: "Seesaw Storage", b(m) {
@@ -9793,7 +9871,7 @@
       m.data.lavaBase = H - 40;
     }, u(m, now) {
       m.data.lavaY = m.data.lavaBase + Math.sin(now / 2400) * 90 - 60;
-      Body.setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 });
+      setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 });
     }, s: [{ x: 110, y: 180 }, { x: W - 110, y: 180 }, { x: W / 2 - 80, y: 300 }, { x: W / 2 + 80, y: 300 }] },
     { n: "Chandelier Hall", b(m) {
       addStatic(m, W / 2, 650, W - 100, 44);
@@ -9856,7 +9934,7 @@
       m.data.lavaRise = true;
     }, u(m, now, dt) {
       m.data.lavaY = Math.max(160, m.data.lavaY - 12 * dt / 1e3);
-      Body.setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 });
+      setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 });
     }, s: [{ x: W - 250, y: 500 }, { x: 250, y: 420 }, { x: W - 250, y: 320 }, { x: 250, y: 220 }] }
   ]);
   theme("Frost Fields", { bg: "#1c2531", icy: true, cover: "ice" }, [
@@ -9886,8 +9964,8 @@
     }, u(m, now) {
       if (now > (m.data.nextIce || 0)) {
         m.data.nextIce = now + rand(1800, 3200);
-        const chunk = Bodies.polygon(rand(120, W - 120), -30, pick([3, 4, 5]), rand(12, 22), { density: 4e-3, label: "ball" });
-        addBody(m, chunk, "#bfe8ff");
+        const chunk = createPolygon(rand(120, W - 120), -30, pick([3, 4, 5]), rand(12, 22), { density: 4e-3, label: "ball" });
+        addBody2(m, chunk, "#bfe8ff");
       }
     } },
     { n: "Igloo", b(m) {
@@ -9922,8 +10000,8 @@
       addStatic(m, W / 2, 640, W - 120, 40, { friction: 0.01, color: "#3d5a73" });
       for (const x of [300, W / 2, W - 300]) {
         for (let i = 0; i < 3; i++) {
-          const ball = Bodies.circle(x, 590 - i * 38, 22 - i * 5, { density: 1e-3, friction: 0.3, label: "ball" });
-          addBody(m, ball, "#f4fbff");
+          const ball = createCircle(x, 590 - i * 38, 22 - i * 5, { density: 1e-3, friction: 0.3, label: "ball" });
+          addBody2(m, ball, "#f4fbff");
         }
       }
       addLava(m, H - 10);
@@ -9961,9 +10039,9 @@
       addStatic(m, W - 200, 540, 320, 34);
       addStatic(m, W / 2, 300, 200, 26);
     }, u(m) {
-      for (const b of Composite.allBodies(world)) {
+      for (const b of allBodies()) {
         if (b.isStatic || b.isSensor) continue;
-        if (Math.abs(b.position.x - W / 2) < 110) Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y - perSecond(0.9) });
+        if (Math.abs(b.position.x - W / 2) < 110) addVelocity(b, { x: 0, y: -perSecond(0.9) });
       }
       if (simRandom() < 0.4) particles.push({ kind: "spark", x: W / 2 + rand(-100, 100), y: rand(300, H), vx: 0, vy: -9, life: 18, maxLife: 18, color: "#e0ffff", r: 2 });
     }, s: [{ x: 200, y: 120 }, { x: W - 200, y: 120 }, { x: 340, y: 120 }, { x: W - 340, y: 120 }] },
@@ -10039,9 +10117,9 @@
       addLava(m);
       m.data.belts = [{ x0: 40, x1: 620, y: 582, dir: 1 }, { x0: W - 620, x1: W - 40, y: 432, dir: -1 }];
     }, u(m) {
-      for (const belt of m.data.belts) for (const b of Composite.allBodies(world)) {
+      for (const belt of m.data.belts) for (const b of allBodies()) {
         if (b.isStatic || b.isSensor) continue;
-        if (b.position.x > belt.x0 && b.position.x < belt.x1 && Math.abs(b.position.y - belt.y + 20) < 34) Body.setVelocity(b, { x: Math.max(-9, Math.min(9, b.velocity.x + belt.dir * perSecond(0.25))), y: b.velocity.y });
+        if (b.position.x > belt.x0 && b.position.x < belt.x1 && Math.abs(b.position.y - belt.y + 20) < 34) setVelocity(b, { x: Math.max(-9, Math.min(9, b.velocity.x + belt.dir * perSecond(0.25))), y: b.velocity.y });
       }
     }, s: [{ x: 320, y: 120 }, { x: W - 320, y: 120 }, { x: 160, y: 120 }, { x: W - 160, y: 120 }] },
     { n: "Hammer Time", b(m) {
@@ -10058,9 +10136,9 @@
       m.data.belts = [{ x0: 100, x1: W - 100, y: 602, dir: 1 }];
     }, u(m, now) {
       updateCrateRain(m, now, 24, 3e3);
-      for (const belt of m.data.belts) for (const b of Composite.allBodies(world)) {
+      for (const belt of m.data.belts) for (const b of allBodies()) {
         if (b.isStatic || b.isSensor) continue;
-        if (b.position.x > belt.x0 && b.position.x < belt.x1 && Math.abs(b.position.y - belt.y + 20) < 34) Body.setVelocity(b, { x: Math.max(-9, Math.min(9, b.velocity.x + belt.dir * perSecond(0.25))), y: b.velocity.y });
+        if (b.position.x > belt.x0 && b.position.x < belt.x1 && Math.abs(b.position.y - belt.y + 20) < 34) setVelocity(b, { x: Math.max(-9, Math.min(9, b.velocity.x + belt.dir * perSecond(0.25))), y: b.velocity.y });
       }
     } },
     { n: "Twin Wrecking", b(m) {
@@ -10088,7 +10166,7 @@
       addStatic(m, W - 140, 480, 240, 30);
       addSpinner(m, W / 2, 400, 340, 0.014);
       const cross = addSpinner(m, W / 2, 400, 340, 0.014);
-      Body.setAngle(cross, Math.PI / 2);
+      setAngle(cross, Math.PI / 2);
       addLava(m);
     }, s: [{ x: 140, y: 120 }, { x: W - 140, y: 120 }, { x: W / 2 - 100, y: 560 }, { x: W / 2 + 100, y: 560 }] },
     { n: "The Gauntlet", b(m) {
@@ -10099,9 +10177,9 @@
       m.data.belts = [{ x0: 80, x1: W - 80, y: 632, dir: -1 }];
     }, u(m, now) {
       keepPendulumsSwinging(m);
-      for (const belt of m.data.belts) for (const b of Composite.allBodies(world)) {
+      for (const belt of m.data.belts) for (const b of allBodies()) {
         if (b.isStatic || b.isSensor) continue;
-        if (b.position.x > belt.x0 && b.position.x < belt.x1 && Math.abs(b.position.y - belt.y + 20) < 34) Body.setVelocity(b, { x: Math.max(-9, Math.min(9, b.velocity.x + belt.dir * perSecond(0.25))), y: b.velocity.y });
+        if (b.position.x > belt.x0 && b.position.x < belt.x1 && Math.abs(b.position.y - belt.y + 20) < 34) setVelocity(b, { x: Math.max(-9, Math.min(9, b.velocity.x + belt.dir * perSecond(0.25))), y: b.velocity.y });
       }
     } }
   ]);
@@ -10145,9 +10223,9 @@
     }, u(m, now) {
       for (const v of m.data.vents) {
         if (Math.sin(now / 900 + v.x) > 0.7) {
-          for (const b of Composite.allBodies(world)) {
+          for (const b of allBodies()) {
             if (b.isStatic || b.isSensor) continue;
-            if (Math.abs(b.position.x - v.x) < 60) Body.setVelocity(b, { x: b.velocity.x, y: b.velocity.y - perSecond(1.4) });
+            if (Math.abs(b.position.x - v.x) < 60) addVelocity(b, { x: 0, y: -perSecond(1.4) });
           }
           if (!v.blowing) {
             v.blowing = true;
@@ -10186,7 +10264,7 @@
     }, u(m, now) {
       const burp = Math.max(0, Math.sin(now / 1700)) ** 6;
       m.data.lavaY = m.data.lavaBase - burp * 260;
-      Body.setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 });
+      setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 });
     }, s: [{ x: 130, y: 200 }, { x: W - 130, y: 200 }, { x: W / 2 - 80, y: 300 }, { x: W / 2 + 80, y: 300 }] }
   ]);
   theme("Deep Space", { bg: "#141426", stars: true, cover: "pillar" }, [
@@ -10199,8 +10277,8 @@
     { n: "Asteroid Belt", cozy: true, gravity: 0.5, b(m) {
       addStatic(m, W / 2, 660, 500, 36, { color: "#2a2a40" });
       for (let i = 0; i < 10; i++) {
-        const rock = Bodies.polygon(rand(100, W - 100), rand(150, 450), pick([5, 6, 7]), rand(14, 30), { density: 3e-3, frictionAir: 0.02, label: "ball" });
-        addBody(m, rock, "#4a4a5f");
+        const rock = createPolygon(rand(100, W - 100), rand(150, 450), pick([5, 6, 7]), rand(14, 30), { density: 3e-3, frictionAir: 0.02, label: "ball" });
+        addBody2(m, rock, "#4a4a5f");
       }
     }, s: [{ x: W / 2 - 180, y: 120 }, { x: W / 2 + 180, y: 120 }, { x: W / 2 - 60, y: 120 }, { x: W / 2 + 60, y: 120 }] },
     { n: "Zero-G Arena", gravity: 0.15, b(m) {
@@ -10215,11 +10293,11 @@
       addStatic(m, 160, 420, 220, 26, { color: "#2a2a40" });
       addStatic(m, W - 160, 420, 220, 26, { color: "#2a2a40" });
     }, u(m) {
-      for (const b of Composite.allBodies(world)) {
+      for (const b of allBodies()) {
         if (b.isStatic || b.isSensor) continue;
         const dx = W / 2 - b.position.x, dy = 360 - b.position.y;
         const d = Math.hypot(dx, dy) || 1;
-        if (d < 420) Body.setVelocity(b, { x: b.velocity.x + dx / d * perSecond(0.35), y: b.velocity.y + dy / d * perSecond(0.35) });
+        if (d < 420) addVelocity(b, { x: dx / d * perSecond(0.35), y: dy / d * perSecond(0.35) });
       }
     }, s: [{ x: 160, y: 120 }, { x: W - 160, y: 120 }, { x: 300, y: 120 }, { x: W - 300, y: 120 }] },
     { n: "Solar Array", cozy: true, gravity: 1.2, b(m) {
@@ -10237,8 +10315,8 @@
     { n: "Junkyard Orbit", gravity: 0.6, b(m) {
       addStatic(m, W / 2, 660, W - 300, 36, { color: "#2a2a40" });
       for (let i = 0; i < 12; i++) {
-        const junk = Bodies.rectangle(rand(150, W - 150), rand(150, 480), rand(16, 42), rand(10, 22), { density: 2e-3, frictionAir: 0.015, label: "crate" });
-        addBody(m, junk, "#5a5a6f");
+        const junk = createBox(rand(150, W - 150), rand(150, 480), rand(16, 42), rand(10, 22), { density: 2e-3, frictionAir: 0.015, label: "crate" });
+        addBody2(m, junk, "#5a5a6f");
       }
     }, s: [{ x: W / 2 - 200, y: 120 }, { x: W / 2 + 200, y: 120 }, { x: W / 2 - 80, y: 120 }, { x: W / 2 + 80, y: 120 }] },
     { n: "Flip Zone", gravity: 1.5, b(m) {
@@ -10249,8 +10327,8 @@
     }, u(m, now) {
       const flipped = Math.floor(now / 8e3) % 2 === 1;
       const want = flipped ? -game.baseGravity : game.baseGravity;
-      if (engine.gravity.y !== want) {
-        engine.gravity.y = want;
+      if (gravityY() !== want) {
+        setGravityY(want);
         doFlash("#c084fc", 0.25);
         setBanner(flipped ? "GRAVITY UP!" : "GRAVITY DOWN!", "#c084fc", 900);
       }
@@ -10268,8 +10346,8 @@
       addStatic(m, W - 300, 560, 260, 28, { color: "#2a2a40" });
       addStatic(m, W / 2, 360, 220, 24, { color: "#2a2a40" });
       for (let i = 0; i < 6; i++) {
-        const rock = Bodies.polygon(rand(100, W - 100), rand(120, 320), 6, rand(12, 20), { density: 3e-3, frictionAir: 0.02, label: "ball" });
-        addBody(m, rock, "#4a4a5f");
+        const rock = createPolygon(rand(100, W - 100), rand(120, 320), 6, rand(12, 20), { density: 3e-3, frictionAir: 0.02, label: "ball" });
+        addBody2(m, rock, "#4a4a5f");
       }
     }, s: [{ x: 300, y: 120 }, { x: W - 300, y: 120 }, { x: W / 2 - 60, y: 120 }, { x: W / 2 + 60, y: 120 }] }
   ]);
@@ -10278,8 +10356,8 @@
       addStatic(m, W / 2, 650, W - 80, 44, { color: "#3a3226" });
       for (const x of [280, 560, 840, 1060]) {
         for (let i = 0; i < 4; i++) {
-          const seg = Bodies.rectangle(x, 596 - i * 66, 36, 62, { density: 4e-3, friction: 0.6, label: "crate" });
-          addBody(m, seg, "#8a7a5c");
+          const seg = createBox(x, 596 - i * 66, 36, 62, { density: 4e-3, friction: 0.6, label: "crate" });
+          addBody2(m, seg, "#8a7a5c");
         }
       }
       addLava(m, H - 10);
@@ -10287,14 +10365,14 @@
     { n: "Collapsing Temple", b(m) {
       addStatic(m, 200, 620, 340, 40, { color: "#3a3226" });
       addStatic(m, W - 200, 620, 340, 40, { color: "#3a3226" });
-      const roof = Bodies.rectangle(W / 2, 260, 460, 26, { density: 6e-3, label: "plank" });
+      const roof = createBox(W / 2, 260, 460, 26, { density: 6e-3, label: "plank" });
       roof.w = 460;
       roof.h = 26;
-      addBody(m, roof, "#8a7a5c");
+      addBody2(m, roof, "#8a7a5c");
       for (const side of [-1, 1]) {
-        const rope = Constraint.create({ pointA: { x: W / 2 + side * 210, y: 40 }, bodyB: roof, pointB: { x: side * 210, y: 0 }, stiffness: 0.9, length: 200 });
+        const rope = createJoint({ pointA: { x: W / 2 + side * 210, y: 40 }, bodyB: roof, pointB: { x: side * 210, y: 0 }, stiffness: 0.9, length: 200 });
         rope.label = "breakable";
-        Composite.add(m.composite, rope);
+        addTo(m.composite, rope);
       }
       addLava(m);
     }, s: [{ x: 200, y: 120 }, { x: W - 200, y: 120 }, { x: 340, y: 120 }, { x: W - 340, y: 120 }] },
@@ -10321,8 +10399,8 @@
     { n: "Obelisk Duel", b(m) {
       addStatic(m, W / 2, 650, W - 200, 40, { color: "#3a3226" });
       for (const x of [360, W - 360]) {
-        const ob = Bodies.rectangle(x, 540, 30, 180, { density: 5e-3, label: "crate" });
-        addBody(m, ob, "#8a7a5c");
+        const ob = createBox(x, 540, 30, 180, { density: 5e-3, label: "crate" });
+        addBody2(m, ob, "#8a7a5c");
       }
       addBarrels(m, [W / 2 - 60, W / 2 + 60], 600);
       addLava(m, H - 10);
@@ -10389,10 +10467,10 @@
       addStatic(m, W - 150, 500, 220, 28, { color: "#2a3242" });
       addLava(m);
     }, u(m, now) {
-      for (const b of Composite.allBodies(world)) {
+      for (const b of allBodies()) {
         if (b.isStatic || b.isSensor) continue;
         const off = b.position.x - W / 2;
-        if (Math.abs(off) > 240) Body.setVelocity(b, { x: b.velocity.x - Math.sign(off) * perSecond(0.3), y: b.velocity.y });
+        if (Math.abs(off) > 240) addVelocity(b, { x: -Math.sign(off) * perSecond(0.3), y: 0 });
       }
     }, s: [{ x: 150, y: 120 }, { x: W - 150, y: 120 }, { x: W / 2 - 80, y: 120 }, { x: W / 2 + 80, y: 120 }] },
     { n: "Lightning Rods", b(m) {
@@ -10477,19 +10555,19 @@
       const ring = [[W / 2, 660], [280, 540], [W - 280, 540], [380, 340], [W - 380, 340], [W / 2, 220]];
       for (const [x, y] of ring) addStatic(m, x, y, 180, 22, { color: "#1f1830" });
     }, u(m) {
-      for (const b of Composite.allBodies(world)) {
+      for (const b of allBodies()) {
         if (b.isStatic || b.isSensor) continue;
         const dx = W / 2 - b.position.x, dy = 430 - b.position.y;
         const d = Math.hypot(dx, dy) || 1;
-        if (d > 60 && d < 500) Body.setVelocity(b, { x: b.velocity.x + dx / d * perSecond(0.25), y: b.velocity.y + dy / d * perSecond(0.25) });
+        if (d > 60 && d < 500) addVelocity(b, { x: dx / d * perSecond(0.25), y: dy / d * perSecond(0.25) });
       }
     }, s: [{ x: 280, y: 120 }, { x: W - 280, y: 120 }, { x: 380, y: 120 }, { x: W - 380, y: 120 }] },
     { n: "Antigrav", gravity: -1.4, b(m) {
       addStatic(m, W / 2, 100, W - 200, 36, { color: "#1f1830" });
       addStatic(m, 260, 260, 240, 26, { color: "#1f1830" });
       addStatic(m, W - 260, 260, 240, 26, { color: "#1f1830" });
-      const top = Bodies.rectangle(W / 2, -40, W * 2, 60, { isStatic: true, isSensor: true, label: "lava" });
-      Composite.add(m.composite, top);
+      const top = createBox(W / 2, -40, W * 2, 60, { isStatic: true, isSensor: true, label: "lava" });
+      addTo(m.composite, top);
       m.data.voidTop = true;
     }, s: [{ x: 260, y: 400 }, { x: W - 260, y: 400 }, { x: W / 2 - 80, y: 400 }, { x: W / 2 + 80, y: 400 }] },
     { n: "Blink", b(m) {
@@ -10500,8 +10578,8 @@
     }, u(m, now) {
       const flipped = Math.floor(now / 6e3) % 2 === 1;
       const want = flipped ? -game.baseGravity : game.baseGravity;
-      if (engine.gravity.y !== want) {
-        engine.gravity.y = want;
+      if (gravityY() !== want) {
+        setGravityY(want);
         doFlash("#ff4df0", 0.25);
         setBanner("BLINK", "#ff4df0", 700);
       }
@@ -10517,11 +10595,11 @@
       addStatic(m, W - 200, 480, 320, 30, { color: "#1f1830" });
       addStatic(m, W / 2, 300, 240, 26, { color: "#1f1830" });
     }, u(m, now) {
-      for (const b of Composite.allBodies(world)) {
+      for (const b of allBodies()) {
         if (b.isStatic || b.isSensor) continue;
         const dx = W / 2 - b.position.x, dy = 720 - b.position.y;
         const d = Math.hypot(dx, dy) || 1;
-        if (d < 480) Body.setVelocity(b, { x: b.velocity.x + dx / d * perSecond(0.3), y: b.velocity.y + dy / d * perSecond(0.3) });
+        if (d < 480) addVelocity(b, { x: dx / d * perSecond(0.3), y: dy / d * perSecond(0.3) });
       }
       if (simRandom() < 0.4) particles.push({ kind: "square", x: W / 2 + rand(-160, 160), y: H - rand(10, 60), vx: 0, vy: 2, life: 18, maxLife: 18, color: "#a55eea", r: 2.5 });
     }, s: [{ x: 200, y: 120 }, { x: W - 200, y: 120 }, { x: 340, y: 120 }, { x: W - 340, y: 120 }] },
@@ -10533,7 +10611,7 @@
       });
       addStatic(m, W / 2, 680, 400, 24, { color: "#1f1830" });
     }, u(m, now) {
-      engine.gravity.y = game.baseGravity * (1 + Math.sin(now / 2600) * 0.5);
+      setGravityY(game.baseGravity * (1 + Math.sin(now / 2600) * 0.5));
     }, s: [{ x: W / 2 - 140, y: 120 }, { x: W / 2 + 140, y: 120 }, { x: W / 2 - 50, y: 120 }, { x: W / 2 + 50, y: 120 }] },
     { n: "Everything", b(m) {
       addStatic(m, 170, 520, 300, 36, { color: "#1f1830" });
@@ -10551,7 +10629,7 @@
       updateIcicles(m, now);
       applyWind(Math.sin(now / 1700) * 0.18);
       m.data.lavaY = Math.max(400, m.data.lavaY - 4 * dt / 1e3);
-      Body.setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 });
+      setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 });
     }, s: [{ x: 170, y: 120 }, { x: W - 170, y: 120 }, { x: 320, y: 120 }, { x: W - 320, y: 120 }] }
   ]);
   theme("Classic", { bg: "#241d2e", cover: "crate" }, [
@@ -10592,7 +10670,7 @@
       addLava(m);
     }, u(m, now, dt) {
       m.data.lavaY = Math.max(210, m.data.lavaY - 14 * dt / 1e3);
-      Body.setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 });
+      setPosition(m.data.lavaBody, { x: W / 2, y: m.data.lavaY + 30 });
     }, s: [{ x: W / 2 - 100, y: 600 }, { x: W / 2 + 100, y: 600 }, { x: 240, y: 460 }, { x: W - 240, y: 460 }] },
     { n: "Pendulum Prime", bg: "#221c2b", b(m) {
       addStatic(m, W / 2, 645, 660, 40);

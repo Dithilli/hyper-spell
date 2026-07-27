@@ -2,7 +2,8 @@
 // particles and the per-frame composite. Everything here reads sim state and
 // writes nothing back.
 import { ctx } from './canvas.js';
-import { Body, Composite, engine, world, W, H, constraintEnds } from '../sim/world.js';
+import { W, H } from '../sim/world.js';
+import { allBodies, allJoints, gravityY, jointEnds } from '../sim/phys/facade.js';
 import { rand, pick } from '../sim/rng.js';
 import * as art from './artkit.js';
 import {
@@ -297,7 +298,7 @@ export function drawTerrainBody(b, now) {
     drawStoryTerrain(ctx, {
       vertices: b.vertices, bounds: b.bounds, angle: b.angle, now,
       color: b.render.fillStyle || '#2a2336', crust: mapCrustKind(),
-      flip: engine.gravity.y < 0,
+      flip: gravityY() < 0,
     });
   } else {
     drawBodyRounded(b, b.render.fillStyle || '#171221');
@@ -305,7 +306,7 @@ export function drawTerrainBody(b, now) {
 }
 
 export function drawMapBodies(now) {
-  for (const b of Composite.allBodies(currentMap.composite)) {
+  for (const b of allBodies(currentMap.composite)) {
     if (b.label === 'lava') continue;
     if (b.phantom) ctx.globalAlpha = b.phantomSolid === false ? 0.18 : 0.85;
     if (b.label === 'crate') drawCrate(b);
@@ -319,9 +320,9 @@ export function drawMapBodies(now) {
     }
     ctx.globalAlpha = 1;
   }
-  for (const c of Composite.allConstraints(currentMap.composite)) {
+  for (const c of allJoints(currentMap.composite)) {
     if (c.label !== 'breakable' && c.label !== 'chain') continue;
-    const [a, b] = constraintEnds(c);
+    const [a, b] = jointEnds(c);
     if (c.label === 'chain') {
       ctx.strokeStyle = '#0d0a14';
       ctx.lineWidth = 5;

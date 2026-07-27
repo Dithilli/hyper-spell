@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runTape } from './harness/tape.js';
 import { makeRng, reseed, simRandom } from '../src/sim/rng.js';
-import { Bodies, Common, Composite, createWorld, destroyWorld } from '../src/sim/world.js';
+import { createWorld, destroyWorld } from '../src/sim/world.js';
+import { allBodies, createBox, createComposite, physRandomSeed } from '../src/sim/phys/facade.js';
 import { addStatic } from '../src/sim/maps/builders.js';
 import { buildMapExtras } from '../src/sim/maps/extras.js';
 
@@ -29,11 +30,11 @@ test('different seeds produce different runs', () => {
 // snapshot — so a client whose global stream sits at a different offset than the
 // host's must still generate byte-identical geometry. The two must not couple.
 function extrasFingerprint(seed) {
-  const m = { def: { cover: 'pillar' }, composite: Composite.create(), data: {} };
+  const m = { def: { cover: 'pillar' }, composite: createComposite(), data: {} };
   addStatic(m, 150, 500, 260, 24, {});   // two ledges with a void too wide to
   addStatic(m, 760, 460, 260, 24, {});   // clear — forces steppers, props, cover
   buildMapExtras(m, seed);
-  return Composite.allBodies(m.composite).map(
+  return allBodies(m.composite).map(
     b => `${b.label}|${b.position.x.toFixed(9)}|${b.position.y.toFixed(9)}|${b.area.toFixed(9)}`,
   );
 }
@@ -68,11 +69,11 @@ test('map extras derive from the map seed alone, not the round stream', () => {
 // The seed assertion cannot be satisfied by luck, and the eight-colour sequence
 // keeps the test honest about what the reset is FOR.
 test('a rebuilt world starts matter-js own RNG where the first one did', () => {
-  const uncoloured = () => Bodies.rectangle(0, 0, 10, 10).render.fillStyle;
+  const uncoloured = () => createBox(0, 0, 10, 10).render.fillStyle;
   const runs = [];
   for (let run = 0; run < 2; run++) {
     createWorld();
-    assert.equal(Common._seed, 0, 'createWorld must reset matter-js own RNG');
+    assert.equal(physRandomSeed(), 0, 'createWorld must reset matter-js own RNG');
     runs.push(Array.from({ length: 8 }, uncoloured));
     for (let i = 0; i < 137; i++) uncoloured(); // a match's worth of bodies
     destroyWorld();

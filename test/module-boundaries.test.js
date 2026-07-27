@@ -30,6 +30,45 @@ test('src/sim never imports render, net, or platform', () => {
   assert.deepEqual(offenders, [], `sim must not depend on outer layers:\n${offenders.join('\n')}`);
 });
 
+// The physics facade is only a seam if nothing reaches around it. Phase 2 swaps
+// matter-js for planck.js by writing a second backend beside the first and
+// changing one import in src/sim/phys/facade.js; every file that names a Matter
+// namespace directly is a file that swap would silently miss. This started at
+// 332 call sites across 20 files and is now zero.
+test('only src/sim/phys/* imports matter-js', () => {
+  const offenders = [];
+  for (const file of walk('src/sim')) {
+    if (file.includes(join('sim', 'phys'))) continue;
+    if (/from\s+['"]matter-js['"]|require\(\s*['"]matter-js['"]\s*\)/.test(readFileSync(file, 'utf8'))) {
+      offenders.push(file);
+    }
+  }
+  assert.deepEqual(offenders, [], `only src/sim/phys/* may import matter-js:\n${offenders.join('\n')}`);
+});
+
+// Importing the module is one way round the facade; naming a Matter namespace
+// that some other module re-exported is the other, and it is the one this
+// codebase actually had — src/sim/world.js used to destructure matter-js and
+// hand `Bodies`, `Body`, `Composite`, `Query`, `Constraint`, `Events`, `Engine`,
+// `Vector` and `Common` to twenty files. The facade cannot be swapped while a
+// single one of those survives, so the gate is on the call shape, not just the
+// import.
+test('nothing outside src/sim/phys calls a Matter namespace', () => {
+  const MATTER_CALL = /\b(Bodies|Body|Composite|Constraint|Events|Engine|Query|Vector|Common)\.[A-Za-z_]/;
+  const offenders = [];
+  for (const dir of ['src', 'test']) {
+    for (const file of walk(dir)) {
+      if (file.includes(join('sim', 'phys'))) continue;
+      readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
+        if (MATTER_CALL.test(line) && !line.trimStart().startsWith('//')) {
+          offenders.push(`${file}:${i + 1}  ${line.trim()}`);
+        }
+      });
+    }
+  }
+  assert.deepEqual(offenders, [], `use src/sim/phys/facade.js:\n${offenders.join('\n')}`);
+});
+
 // THE ONE EXEMPTION. src/sim/pace.js measures its hitstop on the env clock, and
 // it has to: `ms` at all 14 slowMo call sites is a real-world duration, and
 // simNow() is the clock the hitstop itself slows. Measuring the deadline on sim
