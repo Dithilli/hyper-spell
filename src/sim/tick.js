@@ -4,8 +4,7 @@
 // times per frame and always with the same step. The dedicated server
 // (server/sim-host.js) drives the same loop with the draw half never running.
 import { Body, Composite, Engine, engine, world, W, H } from './world.js';
-import { random } from './env.js';
-import { rand } from './rng.js';
+import { simRandom, rand } from './rng.js';
 import { particles, updateParticles } from './fx.js';
 import { updatePace } from './pace.js';
 import { TICK_MS, advanceTick, simNow } from './time.js';
@@ -36,7 +35,7 @@ export function postPhysics(now) {
   const wrap = currentMap.def.wrap;
   for (const fb of [...projectiles]) {
     fb.update?.(fb, now);
-    if (random() < 0.7) {
+    if (simRandom() < 0.7) {
       particles.push({ kind: 'square', x: fb.position.x, y: fb.position.y, vx: rand(-0.5, 0.5), vy: rand(-0.5, 0.5), life: 14, maxLife: 14, color: fb.color || '#ffb347', r: 2.5 });
     }
     if (fb.expireAt && now > fb.expireAt) {

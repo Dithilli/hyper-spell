@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { hashSnapshot } from './harness/hash.js';
 import { makeClock } from './harness/clock.js';
-import { seededRandom } from './harness/seeded-random.js';
+import { reseed } from '../src/sim/rng.js';
 import { createSim } from '../src/platform/node.js';
 
 // The complete set of fields the digest is allowed to skip. Written out here on
@@ -97,7 +97,8 @@ test('the live snapshot carries no field the digest is blind to', () => {
   // proves the hand-written snapshot has not drifted from what the sim emits.
   const tape = JSON.parse(readFileSync('test/tape/one-round.input.json', 'utf8'));
   const clock = makeClock(0);
-  const sim = createSim({ clock, random: seededRandom(12345) });
+  reseed(12345); // the sim owns its stream — seed it before createSim's loadMap(0) draws
+  const sim = createSim({ clock });
   const bridge = sim.bridge;
   try {
     const slots = tape.players.map((p) => bridge.addPlayer({ name: p.name }));

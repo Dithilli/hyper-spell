@@ -4,8 +4,8 @@
 // flat 1/106 pool needed thousands of rounds per spell for signal. Any id NOT in
 // the table defaults to 'common', so a newly added spell always appears rather
 // than silently vanishing from the pool.
+import { simRandom } from '../rng.js';
 import { SPELLS } from './registry.js';
-import { random } from '../env.js';
 
 export const TIER_WEIGHT = { common: 100, uncommon: 45, rare: 12, legendary: 4, hybrid: 0 };
 export const TIER_COLOR  = { common: '#c9c9d6', uncommon: '#7bd88f', rare: '#4ecdff', legendary: '#ffd166', hybrid: '#ff4df0' };
@@ -78,7 +78,7 @@ export function weightedSpellPick(ids) {
   if (!ids.length) return null;
   let total = 0;
   for (const id of ids) total += TIER_WEIGHT[spellTier(id)] || 1;
-  let r = random() * total;
+  let r = simRandom() * total;
   for (const id of ids) {
     r -= TIER_WEIGHT[spellTier(id)] || 1;
     if (r <= 0) return id;

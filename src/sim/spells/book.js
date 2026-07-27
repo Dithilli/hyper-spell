@@ -4,9 +4,8 @@
 // module header below and the effect draw() closures, which now take the render
 // surface as an argument instead of reaching for a global ctx.
 import { Bodies, Body, Composite, world, engine, W, H } from '../world.js';
-import { random } from '../env.js';
 import { simNow } from '../time.js';
-import { rand, pick } from '../rng.js';
+import { simRandom, rand, pick } from '../rng.js';
 import { particles, spawnParticles, spawnRing, spawnText, addShake, doFlash } from '../fx.js';
 import { slowMo } from '../pace.js';
 import { sfx } from '../sfx.js';
@@ -502,7 +501,7 @@ regSpell('blizzard', {
       tick(q, now) {
         if (q === p) return;
         q.frozenUntil = Math.max(q.frozenUntil, now + 200);
-        if (random() < 0.02) damagePlayer(q, 3);
+        if (simRandom() < 0.02) damagePlayer(q, 3);
       },
       draw(now, ctx) {
         ctx.globalAlpha = 0.14;
@@ -889,7 +888,7 @@ regSpell('poltergeist', {
       const dx = t.body.position.x - b.position.x, dy = t.body.position.y - b.position.y;
       const d = Math.hypot(dx, dy) || 1;
       Body.setVelocity(b, { x: (dx / d) * 18, y: (dy / d) * 18 - 3 });
-      if (random() < 0.5) spawnParticles(b.position.x, b.position.y, '#b39ddb', 3, 2, 16);
+      if (simRandom() < 0.5) spawnParticles(b.position.x, b.position.y, '#b39ddb', 3, 2, 16);
     }
   },
 });

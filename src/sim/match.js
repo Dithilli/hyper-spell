@@ -1,9 +1,8 @@
 // match.js — the state machine: round and match flow, the arena currently
 // loaded, and the banner that narrates both.
 import { Composite, Bodies, world, engine, W, H, onWorldReset } from './world.js';
-import { random } from './env.js';
 import { simNow } from './time.js';
-import { rand } from './rng.js';
+import { simRandom, rand, reseed } from './rng.js';
 import { particles, doFlash } from './fx.js';
 import { slowMo } from './pace.js';
 import { sfx } from './sfx.js';
@@ -67,9 +66,15 @@ export function loadMap(index) {
   def.build(m);
   // seeded extras (gap steppers, scattered cover) — the seed rides the snapshot
   // so LAN clients regenerate the exact same statics
-  game.mapSeed = (random() * 0xffffffff) >>> 0;
+  game.mapSeed = (simRandom() * 0xffffffff) >>> 0;
   m.data.seed = game.mapSeed;
   buildMapExtras(m, game.mapSeed);
+  // The round's own stream, restarted here so a round replays from one number.
+  // It is derived from the map seed but deliberately NOT equal to it: the map
+  // seed already drives buildMapExtras above, and a round whose first gameplay
+  // draw repeated the extras' first draw would correlate the two. The golden
+  // ratio constant is the usual cheap decorrelator.
+  reseed(game.mapSeed ^ 0x9e3779b9);
   if (def.stars) {
     m.data.starfield = Array.from({ length: 70 }, () => ({ x: rand(0, W), y: rand(0, H - 160), r: rand(0.5, 1.8), tw: rand(0, 6.28) }));
   }
@@ -89,7 +94,7 @@ export function startRound(index) {
   resetTelemetry(); // fresh per-round balance tally
   const bossTime = game.totalRounds % BOSS_EVERY === 0;
   let tries = 0;
-  while (bossTime && MAPS[index].cozy && ++tries < 60) index = Math.floor(random() * MAPS.length);
+  while (bossTime && MAPS[index].cozy && ++tries < 60) index = Math.floor(simRandom() * MAPS.length);
   loadMap(index);
   for (const p of players) {
     clearSpells(p);
@@ -165,7 +170,7 @@ export function checkRoundEnd() {
 export function nextMapIndex() {
   const crowded = players.length >= 6; // cozy maps can't hold a big lobby
   let i, tries = 0;
-  do { i = Math.floor(random() * MAPS.length); }
+  do { i = Math.floor(simRandom() * MAPS.length); }
   while ((i === game.mapIndex || (crowded && MAPS[i].cozy)) && ++tries < 60);
   return i;
 }

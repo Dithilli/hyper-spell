@@ -2,14 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createSim } from '../src/platform/node.js';
 import { makeClock } from './harness/clock.js';
-import { seededRandom } from './harness/seeded-random.js';
+import { reseed } from '../src/sim/rng.js';
 import { TICK_MS, simNow } from '../src/sim/time.js';
 
 // A freeze declared as 1500ms must last 1500ms of GAME time, even when the
 // pace drops to 0.3 for hitstop. Under the old two-clock model it expired in
 // roughly a third of that.
 test('status durations are unaffected by hitstop', async () => {
-  const { bridge, destroy } = createSim({ clock: makeClock(0), random: seededRandom(7) });
+  reseed(7); // the sim owns its stream — seed it before createSim's loadMap(0) draws
+  const { bridge, destroy } = createSim({ clock: makeClock(0) });
   const slot = bridge.addPlayer({ name: 'A' });
   bridge.addPlayer({ name: 'B' });
   bridge.start();
@@ -37,7 +38,8 @@ test('status durations are unaffected by hitstop', async () => {
 // the drift grows with uptime, which no short test would catch. Pinning the env
 // clock somewhere far from tick 0 makes the two clocks impossible to confuse.
 test('the wire snapshot reads the same clock the sim writes its deadlines on', () => {
-  const { bridge, destroy } = createSim({ clock: makeClock(500_000), random: seededRandom(3) });
+  reseed(3);
+  const { bridge, destroy } = createSim({ clock: makeClock(500_000) });
   try {
     const slot = bridge.addPlayer({ name: 'A' });
     bridge.addPlayer({ name: 'B' });
@@ -62,7 +64,8 @@ test('the wire snapshot reads the same clock the sim writes its deadlines on', (
 // hang on it forever, which is what the 400-tick ceiling above catches.
 test('simNow advances one tick per stepSim, independently of the host clock', () => {
   const clock = makeClock(1_000_000); // a host clock that is nowhere near tick 0…
-  const { bridge, destroy } = createSim({ clock, random: seededRandom(7) });
+  reseed(7);
+  const { bridge, destroy } = createSim({ clock });
   try {
     bridge.addPlayer({ name: 'A' });
     bridge.addPlayer({ name: 'B' });

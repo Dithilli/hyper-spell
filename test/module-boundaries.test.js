@@ -67,3 +67,29 @@ test('src/sim touches no browser or wall-clock globals', () => {
   // than leaving a hole in the gate.
   assert.ok(exemptedSites > 0, `${CLOCK_EXEMPT} no longer reads the env clock — drop the exemption`);
 });
+
+// No exemption here, not even for pace.js: the clock carve-out above is about
+// real time, and randomness has nothing to do with real time. A single
+// Math.random anywhere under src/sim is entropy the round seed cannot reach, so
+// the round stops being replayable. src/render/** keeps Math.random on purpose —
+// cosmetic draw-code randomness is legal and desirable, and out of scope here.
+test('src/sim uses the seeded RNG, never Math.random', () => {
+  const offenders = [];
+  for (const file of walk('src/sim')) {
+    readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
+      if (/Math\.random\s*\(/.test(line) && !line.trimStart().startsWith('//')) {
+        offenders.push(`${file}:${i + 1}  ${line.trim()}`);
+      }
+    });
+  }
+  assert.deepEqual(offenders, [], `use simRandom():\n${offenders.join('\n')}`);
+});
+
+// The injection point is gone, and staying gone is the point of the task: a
+// `random` option on createSim would let a caller hand the sim a stream the sim
+// does not control, which is exactly the process-global swap this replaced.
+test('src/sim/env.js injects a clock and nothing else', () => {
+  const src = readFileSync('src/sim/env.js', 'utf8');
+  const exported = [...src.matchAll(/^export (?:let|const|function) (\w+)/gm)].map((m) => m[1]);
+  assert.deepEqual(exported.sort(), ['performance', 'setClock']);
+});

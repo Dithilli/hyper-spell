@@ -9,9 +9,8 @@
 // header below and the effect draw() closures, which now take the render surface
 // as an argument instead of reaching for a global ctx.
 import { Bodies, Body, Composite, world, W, H } from '../world.js';
-import { random } from '../env.js';
 import { simNow } from '../time.js';
-import { rand } from '../rng.js';
+import { simRandom, rand } from '../rng.js';
 import {
   spawnParticles, spawnRing, spawnText, addShake, doFlash, spawnBurst,
 } from '../fx.js';
@@ -569,7 +568,7 @@ regHybrid('pandemonium', {
   cast(p) {
     const m = p.mega || 1, now = simNow();
     for (const q of enemiesOf(p)) {
-      const roll = Math.floor(random() * 5);
+      const roll = Math.floor(simRandom() * 5);
       if (roll === 0) q.frozenUntil = now + 1000 * m;
       else if (roll === 1) q.reversedUntil = now + 2500 * m;
       else if (roll === 2) q.shrinkUntil = now + 3500 * m;

@@ -1,8 +1,7 @@
 // player/combat.js — taking damage, losing the hat, and dying.
 import { Bodies, Body, Composite, world, engine } from '../world.js';
-import { random } from '../env.js';
 import { simNow } from '../time.js';
-import { rand } from '../rng.js';
+import { simRandom, rand } from '../rng.js';
 import { spawnParticles, spawnText, addShake, doFlash } from '../fx.js';
 import { slowMo } from '../pace.js';
 import { sfx } from '../sfx.js';
@@ -70,8 +69,8 @@ export function killPlayer(p) {
     const gib = Bodies.rectangle(x, y, 14, 4, { density: 0.001, frictionAir: 0.01, label: 'gib' });
     gib.color = p.color;
     gib.dieAt = simNow() + 3000;
-    Body.setVelocity(gib, { x: (random() - 0.5) * 16, y: -6 - random() * 8 });
-    Body.setAngularVelocity(gib, (random() - 0.5) * 0.6);
+    Body.setVelocity(gib, { x: (simRandom() - 0.5) * 16, y: -6 - simRandom() * 8 });
+    Body.setAngularVelocity(gib, (simRandom() - 0.5) * 0.6);
     gibs.add(gib);
     Composite.add(world, gib);
   }

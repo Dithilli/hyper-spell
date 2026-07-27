@@ -1,9 +1,8 @@
 // maps/builders.js — the map registry and the shared builders every map def
 // composes its arena from.
 import { Bodies, Body, Composite, Constraint, world, W, H } from '../world.js';
-import { random } from '../env.js';
 import { simNow } from '../time.js';
-import { rand, pick } from '../rng.js';
+import { simRandom, rand, pick } from '../rng.js';
 import { particles, spawnParticles, spawnBurst, addShake } from '../fx.js';
 import { sfx } from '../sfx.js';
 import { currentMap } from '../match.js';
@@ -51,7 +50,7 @@ export function addDestructible(m, x, y, w, h, opts = {}) {
 export function damageDestructible(b, dmg) {
   if (b.hp == null || b.hp <= 0) return;
   // ambient life: the FIRST hit on an untouched canopy startles a few birds out
-  if (b.hp === b.maxHp && b.kind === 'wood' && isLeafy(b.dcolor) && random() < 0.75) {
+  if (b.hp === b.maxHp && b.kind === 'wood' && isLeafy(b.dcolor) && simRandom() < 0.75) {
     spawnBurst(b.position.x, b.position.y - 10, '#2c2438', 3, { kind: 'bird', dir: -Math.PI / 2, spread: 1.8, speed: 2.5, up: 3, g: -0.02, life: 85, r: 3 });
   }
   b.hp -= dmg;
@@ -363,7 +362,7 @@ export function updateIcicles(m, now) {
       ic.fallen = true;
       Body.setStatic(ic.body, false);
       Body.setVelocity(ic.body, { x: 0, y: 2 });
-    } else if (random() < 0.3) {
+    } else if (simRandom() < 0.3) {
       particles.push({ kind: 'square', x: ix + rand(-8, 8), y: ic.body.position.y + 20, vx: 0, vy: 1, life: 20, maxLife: 20, color: '#bfe8ff', r: 2 });
     }
   }

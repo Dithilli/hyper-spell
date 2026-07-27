@@ -3,8 +3,7 @@
 // visuals reach LAN clients and the killcam through the snapshot's `ev` field
 // (drawn in src/render/draw-env.js).
 import { Bodies, Body, Composite, world, engine, W, H } from './world.js';
-import { random } from './env.js';
-import { rand, pick } from './rng.js';
+import { simRandom, rand, pick } from './rng.js';
 import { spawnParticles, addShake, doFlash } from './fx.js';
 import { sfx } from './sfx.js';
 import { game, setBanner, currentMap } from './match.js';
@@ -118,7 +117,7 @@ export const ENV_EVENTS = [
       }
       if (now < (m.data.quakeUntil || 0)) {
         addShake(1.3);
-        if (random() < 0.25) {
+        if (simRandom() < 0.25) {
           for (const b of Composite.allBodies(world)) {
             if (b.isStatic || b.isSensor) continue;
             Body.setVelocity(b, { x: b.velocity.x + rand(-1.6, 1.6), y: b.velocity.y - rand(0, 1.2) });
@@ -167,7 +166,7 @@ export function envEventById(id) {
 
 export function rollEnvEvent(now) {
   game.envEvent = null;
-  if (random() >= ENV_EVENT_CHANCE) return;
+  if (simRandom() >= ENV_EVENT_CHANCE) return;
   const def = pick(ENV_EVENTS);
   game.envEvent = { def, announced: false };
   def.start?.(currentMap, now);

@@ -5,17 +5,20 @@ import '../../dist/extra-content.pack.js'; // pre-seeds globalThis.__hsPackData
 import '../sim/content.js';                // fills SPELLS and MAPS, in order
 import '../render/content-pack.js';        // the optional-content unlock probe
 import { createWorld, destroyWorld } from '../sim/world.js';
-import { setClock, setRandom, restoreRandom } from '../sim/env.js';
+import { setClock } from '../sim/env.js';
 import { resetTick } from '../sim/time.js';
 import { setStorage } from '../sim/storage.js';
 import { clearAllScheduled } from '../sim/schedule.js';
 import { loadMap } from '../sim/match.js';
 import { installServerBridge, uninstallServerBridge } from '../net/server-bridge.js';
 
-// opts: { onFx(name, args), telemetrySink(rec), onPackUnlocked(src), clock, random, storage }
+// opts: { onFx(name, args), telemetrySink(rec), onPackUnlocked(src), clock, storage }
+//
+// There is no `random` option: the sim owns its stream (src/sim/rng.js) and
+// reseeds it per round from the map seed. A caller that wants a reproducible run
+// calls reseed(seed) before createSim — loadMap(0) below already draws.
 export function createSim(opts = {}) {
   setClock(opts.clock ?? globalThis.performance);
-  setRandom(opts.random ?? Math.random);
   setStorage(opts.storage);
   // the tick counter is sim state like any other: a rebuilt sim (the crash
   // watchdog in server/sim-host.js) has to start from the same tick 0 the first
@@ -33,7 +36,6 @@ export function createSim(opts = {}) {
     destroy() {
       clearAllScheduled();
       uninstallServerBridge();
-      restoreRandom();
       destroyWorld();
     },
   };

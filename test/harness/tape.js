@@ -1,19 +1,24 @@
 import { makeClock } from './clock.js';
-import { seededRandom } from './seeded-random.js';
 import { hashSnapshot } from './hash.js';
 import { createSim } from '../../src/platform/node.js';
+import { reseed } from '../../src/sim/rng.js';
 import { TICK_MS } from '../../src/sim/time.js';
 
 // input tape format: { players: [{ name }], frames: [ { "0": {m,j,c,c2,b,a}, ... } ] }
 // A frame index beyond the tape's length repeats the last frame.
 export function runTape({ tape, ticks, seed = 12345 }) {
   const clock = makeClock(0);
-  const sim = createSim({ clock, random: seededRandom(seed) });
+  // The sim owns its randomness; there is nothing to inject. Seeding happens
+  // BEFORE createSim because createSim's loadMap(0) already draws the first map
+  // seed off the stream, and that draw is part of the run the tape hashes.
+  reseed(seed);
+  const sim = createSim({ clock });
   const b = sim.bridge;
 
   // destroy() in a finally: a throw mid-tick must still flush the sim's
-  // scheduled timers and reset its seeded stream, or every later run in this
-  // process inherits them. test/harness-hash.test.js does the same.
+  // scheduled timers, or every later run in this process inherits them.
+  // The stream needs no unwinding — every run reseeds it on the way in.
+  // test/harness-hash.test.js does the same.
   try {
     const slots = tape.players.map((p) => b.addPlayer({ name: p.name }));
     b.start();
