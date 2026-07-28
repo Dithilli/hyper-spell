@@ -247,3 +247,13 @@ test('a menu waiting on the wrong screen is told when that changes', () => {
   kit.room.endEmptySession();
   assert.equal(waiting.last('sessionState').live, false);
 });
+
+test('the host is told about their session once, not again when they take a seat', () => {
+  const kit = makeRoom();
+  const a = kit.connect({ name: 'HOST' });
+  a.emit({ t: 'host' });
+  const { code } = a.last('session');
+  a.emit({ t: 'join', name: 'HOST', code });
+  assert.equal(a.all('session').length, 1, 'the join reply repeated the session');
+  assert.equal(typeof a.last('you').slot, 'number', 'the host did not get a seat');
+});

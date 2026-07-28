@@ -11,7 +11,9 @@ import { defineConfig, devices } from '@playwright/test';
 // the test server: the suite resets matches, spams telemetry and fills lobbies,
 // and doing that to a live game someone is playing would be rude and would also
 // make the run unreproducible.
-export const TEST_PORT = 8791;
+// Overridable so a second checkout (a worktree, a parallel branch) can run the
+// suite at the same time without the two fighting over one port.
+export const TEST_PORT = Number(process.env.HS_TEST_PORT) || 8791;
 export const BASE_URL = `http://127.0.0.1:${TEST_PORT}`;
 
 // Which checkout serves the game. Defaults to this one, which is what you want

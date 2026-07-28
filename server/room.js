@@ -305,9 +305,15 @@ class Room {
     if (normalizeCode(msg.code) !== this.session.code) { this.denyJoin(conn, 'code'); return; }
     // the code is what grants access, and a seat is a separate question: a
     // correct code into a full match still admits you as a spectator, which is
-    // what any connection at all used to get for free
+    // what any connection at all used to get for free.
+    //
+    // Told once per connection. The host is already in the session it just
+    // minted, and a second `session` to that socket reads as "somebody let you
+    // in" — which is the menu's cue to close, over the code screen it is in the
+    // middle of showing them.
+    const wasIn = conn.authed;
     conn.authed = true;
-    this.send(conn, { t: 'session', code: this.session.code });
+    if (!wasIn) this.send(conn, { t: 'session', code: this.session.code });
     // One cleaned string for the seat, the reservation key and the reset
     // banner. The sim cleans the PLAYER's name inside addPlayer; this one is
     // the room's own copy, and it used to be whatever bytes arrived — which

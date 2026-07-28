@@ -56,7 +56,14 @@ let serverWorld = null; // {t:'world', world, spells} — constants, stashed for
 // chunked to stay under the 128KB WS frame cap. See render/content-pack.js.
 let packChunks = null;            // chunk reassembly buffer
 let packInstalled = false;        // run-once guard
-let hooks = { status() {}, welcome() {} };
+let hooks = { status() {}, welcome() {}, session() {}, sessionState() {}, denied() {} };
+
+// the session this tab is in, once the server confirms the code. The lobby
+// panel draws it so anyone in the room can read it out to a latecomer.
+let sessionCodeValue = null;
+export const sessionCode = () => sessionCodeValue;
+let prevCast = false;   // cast edge, for the throttled join retry below
+let nextJoinAt = 0;
 
 // which sim owns this browser's match — the frame loop asks before stepping
 export function netMode() { return currentNetMode; }
@@ -148,6 +155,19 @@ export function connect(h) {
   };
 }
 
+// Start a session on this server and take its code (the menu's START A
+// SESSION). Minting does not seat you — the `session` reply below joins with
+// the code it just handed us, so the host is a wizard and not a spectator of
+// their own session.
+export function hostSession() { emit({ t: 'host' }); }
+
+// Enter a session that is already running. The server normalizes the code, so
+// whatever shape the player typed goes as typed.
+export function joinSession(code) {
+  sessionCodeValue = code;
+  emit({ t: 'join', name: myName(), code });
+}
+
 function handleMessage(msg) {
   switch (msg.t) {
     case 'welcome':
@@ -156,9 +176,26 @@ function handleMessage(msg) {
         ws.close();
         return;
       }
+      // Connected, but not in anything yet: the menu decides whether this tab
+      // hosts a session or asks for a code. netMode stays 'couch' until we are
+      // actually in one, so a player still typing a code is not stranded in an
+      // online view with no snapshots to render.
+      hooks.welcome({ sessionLive: !!msg.session });
+      break;
+    case 'session':
+      sessionCodeValue = msg.code;
+      // a mid-match refresh should not have to retype the code; the room's
+      // name-keyed reservation gives the seat back on the other side
+      try { sessionStorage.setItem('hs-code', msg.code); } catch {}
       setNetMode('online');
-      hooks.welcome();
-      emit({ t: 'join', name: myName() }); // the menu already asked for the name — just go
+      if (msg.host) emit({ t: 'join', name: myName(), code: msg.code });
+      hooks.session({ code: msg.code, host: !!msg.host });
+      break;
+    case 'sessionState':
+      hooks.sessionState({ live: !!msg.live });
+      break;
+    case 'sessionDenied':
+      hooks.denied(msg.reason);
       break;
     case 'badVersion':
       // server told us we're stale before we ever saw a snapshot
@@ -173,7 +210,11 @@ function handleMessage(msg) {
       serverWorld = msg;
       break;
     case 'joinDenied':
-      joinDeniedMsg = msg.reason === 'full' ? 'match is full (8 wizards) — spectating' : 'join refused — spectating';
+      joinDeniedMsg = msg.reason === 'full' ? 'match is full (8 wizards) — spectating'
+        : msg.reason === 'code' ? 'wrong code'
+        : msg.reason === 'nosession' ? 'no session is running yet'
+        : 'join refused — spectating';
+      hooks.denied(msg.reason);
       break;
     case 'snap':
       pushSnapshot(msg);
@@ -297,7 +338,14 @@ function sendInput(now) {
     const me = snapCur.ps.find(q => q.s === mySlot);
     if (me) aim = Math.atan2(mouse.y - me.y, mouse.x - me.x);
   }
-  if (!joined && (cast || mouse.down)) emit({ t: 'join', name: myName() }); // retry after a denial
+  // retry a denied join on a fresh cast EDGE, at most once a second. This ran
+  // on every rendered frame, so a full match answered 144 denials a second to
+  // a player who was simply holding fire.
+  if (!joined && sessionCodeValue && cast && !prevCast && now > nextJoinAt) {
+    nextJoinAt = now + 1000;
+    emit({ t: 'join', name: myName(), code: sessionCodeValue });
+  }
+  prevCast = cast;
   if (joined) emit({ t: 'input', m: move, j: jump ? 1 : 0, c: cast ? 1 : 0, c2: cast2 ? 1 : 0, b: block ? 1 : 0, a: aim });
   // lobby verbs become messages; the server's sim answers with banners/fx
   const edge = (code, fn) => {
@@ -341,9 +389,11 @@ function drawOnlineLobby(snap, now) {
     readyLine: !ready ? (wave ? 'NEED AT LEAST 1 WIZARD' : 'NEED AT LEAST 2 WIZARDS')
       : wave ? `SPACE — WAVE SURVIVAL${snap.bw ? `  (BEST: WAVE ${snap.bw})` : ''}`
       : `SPACE TO FIGHT — FIRST TO ${snap.wn} WINS`,
-    controlsLine: wave
+    // the code stays on screen for the whole lobby, so whoever is in the room
+    // can read it to a latecomer without going back to the menu
+    controlsLine: (sessionCodeValue ? `CODE ${sessionCodeValue.slice(0, 3)}-${sessionCodeValue.slice(3)} · ` : '') + (wave
       ? 'M switches back to VERSUS · co-op: everyone fights the waves together · B adds a bot'
-      : `M = WAVE SURVIVAL · 1–9 sets win target (${snap.wn}) · B adds a bot · R resets`,
+      : `M = WAVE SURVIVAL · 1–9 sets win target (${snap.wn}) · B adds a bot · R resets`),
   });
 }
 

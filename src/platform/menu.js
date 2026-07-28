@@ -1,11 +1,13 @@
-// menu.js — the opening mode menu: name entry, COUCH or PLAY ONLINE.
+// menu.js — the opening mode menu: name entry, COUCH or PLAY ONLINE, and then
+// the session screen — start one and share its code, or type the code of the
+// session already running on this server.
 //
 // js/net.js built this DOM inside an IIFE that ran the moment the script
 // loaded. It is now mounted explicitly by the browser entry, so the dev harness
 // pages that never wanted it can leave it out.
 import { cleanName } from '../sim/lobby.js';
 import { ensureAudio } from '../render/audio.js';
-import { connect } from '../net/client.js';
+import { connect, hostSession, joinSession } from '../net/client.js';
 
 function btnCss(color) {
   return `min-width:420px;padding:14px 26px;font-family:Georgia,serif;font-size:18px;cursor:pointer;background:transparent;border:2px solid ${color};color:${color};border-radius:8px;`;
@@ -50,11 +52,76 @@ export function mountMenu() {
     <div id="netstatus" style="color:#675a7d;font-size:13px;margin-top:10px"></div>`;
   document.body.appendChild(menu);
   const statusEl = () => document.getElementById('netstatus');
+  const setStatus = (text) => { const el = statusEl(); if (el) el.textContent = text; };
 
   const nameInput = menu.querySelector('#netname');
   nameInput.value = localStorage.getItem('hs-name-0') || '';
   // typing here must not reach the game's shortcuts (B adds bots, digits set wins…)
   for (const ev of ['keydown', 'keyup']) nameInput.addEventListener(ev, e => e.stopPropagation());
+
+  // An invite link carries the code (?code=ABC-DEF), and a mid-match refresh
+  // remembers the one this tab was in. Either way the player should not have to
+  // type six characters they were handed.
+  const urlCode = new URLSearchParams(location.search).get('code') || '';
+  let storedCode = '';
+  try { storedCode = sessionStorage.getItem('hs-code') || ''; } catch {}
+
+  // The second screen lives in its own element so the first one — logo, name,
+  // the two mode buttons — is untouched until PLAY ONLINE is clicked.
+  const panel = document.createElement('div');
+  panel.id = 'hspanel';
+  panel.style.cssText = 'display:none;flex-direction:column;gap:12px;align-items:center;';
+  menu.appendChild(panel);
+
+  function showSessionScreen(sessionLive) {
+    for (const b of menu.querySelectorAll('button[data-mode]')) b.style.display = 'none';
+    nameInput.style.display = 'none';
+    panel.style.display = 'flex';
+    panel.innerHTML = sessionLive
+      ? `<div style="color:#9c8ab8;font-size:14px">a session is running on this server — enter its code</div>
+         <input id="hscode" maxlength="9" placeholder="ABC-DEF" autocomplete="off"
+           style="min-width:280px;padding:12px 20px;font-family:Menlo,monospace;font-size:24px;text-align:center;letter-spacing:.25em;background:transparent;border:2px solid #675a7d;color:#e8d5ff;border-radius:8px;text-transform:uppercase;outline:none;">
+         <button data-act="join" style="${btnCss('#ffd166')}">JOIN THE SESSION</button>`
+      : `<div style="color:#9c8ab8;font-size:14px">no session is running — start one and share the code</div>
+         <button data-act="host" style="${btnCss('#7bd88f')}">START A SESSION</button>`;
+    const codeInput = panel.querySelector('#hscode');
+    if (!codeInput) return;
+    codeInput.value = urlCode || storedCode;
+    // same guard the name box needs: a code is letters and digits, and those
+    // are the game's lobby shortcuts
+    for (const ev of ['keydown', 'keyup']) codeInput.addEventListener(ev, e => e.stopPropagation());
+    codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinSession(codeInput.value); });
+    codeInput.focus();
+    if (urlCode) { setStatus('joining…'); joinSession(urlCode); } // an invite link is already an answer
+  }
+
+  // the host's own screen: the code, big enough to read across a room
+  let inviteLink = '';
+  function showCodeScreen(code) {
+    inviteLink = `${location.origin}/?code=${encodeURIComponent(code)}`;
+    panel.innerHTML = `
+      <div style="color:#9c8ab8;font-size:14px">your session is live — share this</div>
+      <div id="hscodebig" style="font:900 64px Menlo,monospace;letter-spacing:.15em;color:#ffd166;text-shadow:0 0 22px rgba(255,209,102,.5)"></div>
+      <button data-act="copy" style="${btnCss('#4ecdc4')}">COPY THE INVITE LINK</button>
+      <button data-act="play" style="${btnCss('#ffd166')}">ENTER THE LOBBY</button>`;
+    // textContent, not interpolation: the code arrives over the wire, and a
+    // string from the network has no business being parsed as markup
+    panel.querySelector('#hscodebig').textContent = `${code.slice(0, 3)}-${code.slice(3)}`;
+    setStatus('the code stays on screen in the lobby too');
+  }
+
+  panel.addEventListener('click', (e) => {
+    const act = e.target?.dataset?.act;
+    if (act === 'host') { setStatus('starting a session…'); hostSession(); }
+    if (act === 'join') { setStatus('joining…'); joinSession(panel.querySelector('#hscode').value); }
+    if (act === 'play') menu.remove();
+    if (act === 'copy') {
+      navigator.clipboard?.writeText(inviteLink)
+        .then(() => { e.target.textContent = 'COPIED — PASTE IT IN SLACK'; })
+        .catch(() => { e.target.textContent = inviteLink; }); // no clipboard permission: show it to copy by hand
+    }
+  });
+
   menu.addEventListener('click', e => {
     const mode = e.target?.dataset?.mode;
     if (!mode) return;
@@ -63,9 +130,19 @@ export function mountMenu() {
     globalThis.nameSetViaMenu = true; // the menu was player 1's name UI — lobby must not re-open an edit
     ensureAudio();
     if (mode === 'couch') { menu.remove(); return; }
+    setStatus('connecting…');
     connect({
-      status(text) { const el = statusEl(); if (el) el.textContent = text; },
-      welcome() { menu.remove(); },
+      status: setStatus,
+      welcome: ({ sessionLive }) => showSessionScreen(sessionLive),
+      // a session this tab did not mint means we are in and playing; one it did
+      // mint shows the code first
+      session: ({ code, host }) => { if (host) showCodeScreen(code); else menu.remove(); },
+      sessionState: ({ live }) => showSessionScreen(live),
+      denied: (reason) => setStatus(
+        reason === 'exists' ? 'someone else just started one — enter their code'
+        : reason === 'code' ? 'that code does not match — check it and try again'
+        : reason === 'full' ? 'the match is full — you are watching'
+        : 'no session is running yet'),
     });
   });
 }
