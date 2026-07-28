@@ -4941,6 +4941,9 @@
     const found = Query.region(bodies, aabb);
     return opts.filter ? found.filter(opts.filter) : found;
   }
+  function pointInBody(body, point) {
+    return Vertices.contains(body.vertices, point);
+  }
   function queryRadius(center, r, opts = {}) {
     const bodies = allBodies(opts.container);
     const out = [];
@@ -6206,6 +6209,7 @@
     let prev = null;
     for (let i = 0; i < n; i++) {
       const plank = createBox(x0 + step * (i + 0.5), y, Math.abs(step) - 4, 10, { density: 2e-3, friction: 0.5, label: "plank" });
+      plank.rope = true;
       addBody2(m, plank, "#8a6f4d");
       const link = prev ? createJoint({ bodyA: prev, bodyB: plank, pointA: { x: step / 2, y: 0 }, pointB: { x: -step / 2, y: 0 }, stiffness: 0.9, length: 4 }) : createJoint({ bodyB: plank, pointA: { x: x0, y }, pointB: { x: -step / 2, y: 0 }, stiffness: 0.9, length: 4 });
       link.label = "breakable";
@@ -9523,22 +9527,202 @@
     bannerHyper = false;
   });
 
-  // src/sim/player/lifecycle.js
-  function groundInColumn(x) {
-    return queryRegion(column(x), {
-      container: currentMap.composite,
-      filter: (b) => b.isStatic && !b.isSensor && b.label !== "lava" && b.collisionFilter.mask !== 0 && x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6 && b.bounds.min.y > 100
-    }).length > 0;
+  // src/sim/maps/reach.js
+  var REACH_CELL = 16;
+  var REACH_PAD = 15;
+  var REACH_CLIMB = 21;
+  var REACH_SHARE = 0.35;
+  function buildReach(m) {
+    const cols = Math.ceil(W / REACH_CELL), rows = Math.ceil(H / REACH_CELL);
+    const n = cols * rows;
+    const solid = new Uint8Array(n), firm = new Uint8Array(n);
+    for (const b of allBodies(m.composite)) {
+      if (!b.isStatic && b.label !== "plank" || b.isSensor || b.collisionFilter.mask === 0 || b.label === "lava") continue;
+      const solidOnly = !!b.rope || b.label === "destructible";
+      const x0 = Math.max(0, Math.floor((b.bounds.min.x - REACH_PAD) / REACH_CELL));
+      const x1 = Math.min(cols - 1, Math.floor((b.bounds.max.x + REACH_PAD) / REACH_CELL));
+      const y0 = Math.max(0, Math.floor((b.bounds.min.y - REACH_PAD) / REACH_CELL));
+      const y1 = Math.min(rows - 1, Math.floor((b.bounds.max.y + REACH_PAD) / REACH_CELL));
+      for (let cy = y0; cy <= y1; cy++) {
+        for (let cx = x0; cx <= x1; cx++) {
+          const i = cy * cols + cx;
+          if (solid[i] && (solidOnly || firm[i])) continue;
+          const x = cx * REACH_CELL + REACH_CELL / 2, y = cy * REACH_CELL + REACH_CELL / 2;
+          if (pointInBody(b, { x, y }) || pointInBody(b, { x: x - REACH_PAD, y }) || pointInBody(b, { x: x + REACH_PAD, y }) || pointInBody(b, { x, y: y - REACH_PAD }) || pointInBody(b, { x, y: y + REACH_PAD })) {
+            solid[i] = 1;
+            if (!solidOnly) firm[i] = 1;
+          }
+        }
+      }
+    }
+    const gdir = (m.def.gravity ?? 2) < 0 ? -1 : 1;
+    const deadFrom = gdir > 0 ? (m.data.lavaY ?? H + 40) - 8 : null;
+    const pass = new Uint8Array(n), stand = new Uint8Array(n), footing = new Uint8Array(n);
+    for (let cy = 0; cy < rows; cy++) {
+      for (let cx = 0; cx < cols; cx++) {
+        const i = cy * cols + cx;
+        if (solid[i]) continue;
+        if (deadFrom != null && (cy + 1) * REACH_CELL > deadFrom) continue;
+        const head = i - gdir * cols;
+        if (head < 0 || head >= n || solid[head]) continue;
+        pass[i] = 1;
+        const foot = i + gdir * cols;
+        if (foot < 0 || foot >= n) continue;
+        if (solid[foot]) stand[i] = 1;
+        if (firm[foot]) footing[i] = 1;
+      }
+    }
+    return { cols, rows, solid, pass, stand, footing, gdir, wrap: !!m.def.wrap, escape: /* @__PURE__ */ new Map() };
   }
+  function reachFrom(g, start) {
+    const { cols, pass, stand, gdir, wrap } = g;
+    const best = new Int16Array(pass.length).fill(-1);
+    best[start] = REACH_CLIMB;
+    const stack = [start];
+    while (stack.length) {
+      const i = stack.pop();
+      const b = best[i];
+      const cx = i % cols, cy = (i - cx) / cols;
+      const step = (ni, nb) => {
+        if (nb < 0 || ni < 0 || ni >= pass.length || !pass[ni]) return;
+        const v = stand[ni] ? REACH_CLIMB : nb;
+        if (v <= best[ni]) return;
+        best[ni] = v;
+        stack.push(ni);
+      };
+      step(i + gdir * cols, b);
+      step(i - gdir * cols, b - 1);
+      const air = stand[i] ? b : b - 1;
+      if (cx > 0) step(i - 1, air);
+      else if (wrap) step(cy * cols + cols - 1, air);
+      if (cx < cols - 1) step(i + 1, air);
+      else if (wrap) step(cy * cols, air);
+    }
+    return best;
+  }
+  function reachCount(g, best) {
+    let n = 0;
+    for (let i = 0; i < best.length; i++) if (best[i] >= 0 && g.stand[i]) n++;
+    return n;
+  }
+  function reachLanding(g, x, y) {
+    const { cols, rows, pass, stand, gdir } = g;
+    const cx = Math.max(0, Math.min(cols - 1, Math.floor(x / REACH_CELL)));
+    const cy = Math.max(0, Math.min(rows - 1, Math.floor(y / REACH_CELL)));
+    let i = cy * cols + cx;
+    if (!pass[i]) return -1;
+    for (let t = 0; t < rows; t++) {
+      if (stand[i]) return i;
+      const next2 = i + gdir * cols;
+      if (next2 < 0 || next2 >= pass.length || !pass[next2]) return -1;
+      i = next2;
+    }
+    return -1;
+  }
+  function reachEscape(g, land) {
+    let k = land;
+    while (k % g.cols > 0 && g.stand[k - 1]) k--;
+    let n = g.escape.get(k);
+    if (n == null) {
+      n = reachCount(g, reachFrom(g, k));
+      g.escape.set(k, n);
+    }
+    return n;
+  }
+  function reachInfo(m) {
+    if (m.data.reach) return m.data.reach;
+    const g = buildReach(m);
+    const seeds = m.def.spawns.map((s) => reachLanding(g, s.x, s.y));
+    for (let cx = 2; cx < g.cols; cx += 5) {
+      for (let cy = 0; cy < g.rows; cy++) {
+        const i = cy * g.cols + cx;
+        if (g.stand[i]) {
+          seeds.push(i);
+          break;
+        }
+      }
+    }
+    g.arenaN = 1;
+    for (const i of seeds) if (i >= 0) g.arenaN = Math.max(g.arenaN, reachEscape(g, i));
+    m.data.reach = g;
+    return g;
+  }
+  function reachLandable(g, i) {
+    const cx = i % g.cols;
+    return !!g.footing[i] && cx > 0 && cx < g.cols - 1 && !!g.footing[i - 1] && !!g.footing[i + 1];
+  }
+  function reachSpots(g) {
+    if (g.spots) return g.spots;
+    g.spots = [];
+    for (let i = 0; i < g.stand.length; i++) {
+      const cx = i % g.cols;
+      if (cx < 3 || cx > g.cols - 4) continue;
+      if (!reachLandable(g, i)) continue;
+      g.spots.push({ i, x: cx * REACH_CELL + REACH_CELL / 2, y: (i - cx) / g.cols * REACH_CELL + REACH_CELL / 2 });
+    }
+    return g.spots;
+  }
+  var DROP_LABELS = /* @__PURE__ */ new Set(["crate", "barrel", "ball"]);
+  function dropColumnClear(m, x, y0, y1) {
+    y1 += y1 >= y0 ? REACH_PAD : -REACH_PAD;
+    const lo = Math.min(y0, y1), hi = Math.max(y0, y1);
+    for (const b of allBodies(m.composite)) {
+      if (b.isStatic || b.isSensor || !DROP_LABELS.has(b.label)) continue;
+      if (b.bounds.max.x < x - 18 || b.bounds.min.x > x + 18) continue;
+      if (b.bounds.max.y < lo || b.bounds.min.y > hi) continue;
+      return false;
+    }
+    return true;
+  }
+  function arenaSpawnNear(m, x, y, busy = []) {
+    const g = reachInfo(m);
+    const cost = (s) => Math.abs(s.x - x) + Math.abs(s.y - y) * 0.35;
+    const ranked = reachSpots(g).filter((s) => !busy.some((q) => Math.hypot(q.x - s.x, q.y - s.y) < 70)).sort((a, b) => cost(a) - cost(b));
+    for (const needClear of [true, false]) {
+      for (const s of ranked) {
+        if (reachEscape(g, s.i) < g.arenaN * REACH_SHARE) continue;
+        let lift = 0;
+        while (lift < 8) {
+          const above = s.i - g.gdir * g.cols * (lift + 1);
+          if (above < 0 || above >= g.pass.length || !g.pass[above]) break;
+          lift++;
+        }
+        const y0 = s.y - g.gdir * lift * REACH_CELL;
+        if (needClear && !dropColumnClear(m, s.x, y0, s.y)) continue;
+        return { x: s.x, y: y0 };
+      }
+    }
+    return null;
+  }
+  var SPAWN_CLEAR = 44;
+  function safeSpawnPoint(m, x, y, busy = []) {
+    const g = reachInfo(m);
+    const escapes = (i) => i >= 0 && reachEscape(g, i) >= g.arenaN * REACH_SHARE;
+    const cellX = (i) => i % g.cols * REACH_CELL + REACH_CELL / 2;
+    const clearOfBusy = (px) => !busy.some((q) => Math.abs(q.x - px) < SPAWN_CLEAR);
+    const sound = (i) => i >= 0 && reachLandable(g, i) && escapes(i) && dropColumnClear(m, cellX(i), y, (i - i % g.cols) / g.cols * REACH_CELL);
+    const land = reachLanding(g, x, y);
+    if (escapes(land)) {
+      if (sound(land) && clearOfBusy(cellX(land))) return { x: cellX(land), y };
+      for (let d = 1; d <= 11; d++) {
+        for (const side of [-1, 1]) {
+          const nx = x + side * d * REACH_CELL;
+          if (nx < 40 || nx > W - 40) continue;
+          const ni = reachLanding(g, nx, y);
+          if (sound(ni) && clearOfBusy(cellX(ni))) return { x: cellX(ni), y };
+        }
+      }
+    }
+    return arenaSpawnNear(m, x, y, busy) || { x, y };
+  }
+
+  // src/sim/player/lifecycle.js
   function spawnPointFor(p) {
     const spawns = currentMap.def.spawns;
     const base2 = spawns[p.slot % spawns.length];
     const jitter = p.slot >= spawns.length ? (p.slot - spawns.length + 1) * 26 * (p.slot % 2 ? 1 : -1) : 0;
-    if (!groundInColumn(base2.x + jitter)) {
-      const spot = platformSpots(currentMap, 3).find((s) => groundInColumn(s.x));
-      if (spot) return { x: spot.x, y: Math.max(80, spot.y - 150) };
-    }
-    return { x: Math.max(40, Math.min(W - 40, base2.x + jitter)), y: base2.y };
+    const busy = players.filter((q) => q !== p && q.alive && q.body).map((q) => ({ x: q.body.position.x, y: q.body.position.y }));
+    return safeSpawnPoint(currentMap, Math.max(40, Math.min(W - 40, base2.x + jitter)), base2.y, busy);
   }
   var players = [];
   var gibs = /* @__PURE__ */ new Set();

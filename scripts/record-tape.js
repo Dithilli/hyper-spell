@@ -59,10 +59,35 @@ import { runTape } from '../test/harness/tape.js';
 // Do not copy this reseed without repeating that scan — the scan is the
 // load-bearing part, not the new number.
 //
+// THE SPAWN-SAFETY TASK MOVED IT AGAIN, 12353 -> 12372, the third instance of
+// the same reshuffle. The escape analysis nudges or relocates any spawn a
+// wizard cannot get out of, so nearly every round now opens from a slightly
+// different place; 12353 fell from five rounds to two, under the floor.
+// Round counts, seeds 12353..12372, before and after:
+//
+//   before  5 2 4 2 1 1 3 3 3 3 1 3 1 2 1 1 . . . .
+//   after   2 1 2 4 1 1 2 4 3 3 3 2 1 1 3 2 1 1 1 6
+//
+// 12372 is the lowest seed from 12353 up that crosses five; it crosses six, so
+// the `rounds >= 3` guard keeps three rounds of margin.
+//
+// And the separate claim — that the sim did not get less lethal — measured over
+// seeds 1..400 as the note above insists, rather than asserted:
+//
+//   before  mean 2.170, range 1..6
+//   after   mean 2.083, range 1..6
+//
+// Rounds get slightly LONGER on average (a 4% drop in rounds-per-tape), which
+// is the expected direction and the point of the change: wizards that used to
+// open a round already falling out of the world now land somewhere they can
+// fight from, so fewer rounds resolve inside 4,200 ticks. The range is
+// unchanged. Fewer rounds here is the fix working, not the sim going quiet —
+// and 12353 in particular drew badly, as 12348 did before it.
+//
 // The short tape keeps 12345 so its golden moves for behaviour alone.
 const TAPES = [
   { name: 'one-round', ticks: 600, seed: 12345 },
-  { name: 'three-rounds', ticks: 4200, seed: 12353 },
+  { name: 'three-rounds', ticks: 4200, seed: 12372 },
 ];
 
 for (const { name, ticks, seed } of TAPES) {

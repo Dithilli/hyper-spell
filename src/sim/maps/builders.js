@@ -251,6 +251,7 @@ export function buildBridge(m, x0, x1, y) {
   let prev = null;
   for (let i = 0; i < n; i++) {
     const plank = createBox(x0 + step * (i + 0.5), y, Math.abs(step) - 4, 10, { density: 0.002, friction: 0.5, label: 'plank' });
+    plank.rope = true; // walk across it all you like — but the slack won't catch a sky-drop
     addBody(m, plank, '#8a6f4d');
     const link = prev
       ? createJoint({ bodyA: prev, bodyB: plank, pointA: { x: step / 2, y: 0 }, pointB: { x: -step / 2, y: 0 }, stiffness: 0.9, length: 4 })

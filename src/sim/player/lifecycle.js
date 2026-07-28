@@ -1,15 +1,15 @@
 // player/lifecycle.js — the roster: who exists, how they are built, where they
 // spawn, and which spells they hold.
-import { W, column, onWorldReset } from '../world.js';
+import { W, onWorldReset } from '../world.js';
 import {
-  addBody, createCircle, newCollisionGroup, queryRegion, removeBody, scaleBody,
+  addBody, createCircle, newCollisionGroup, removeBody, scaleBody,
   setAngle, setAngularVelocity, setFrictionAir, setPosition, setVelocity,
 } from '../phys/facade.js';
 import { simNow } from '../time.js';
 import { spawnParticles, spawnText } from '../fx.js';
 import { IDLE_INPUT } from '../input-contract.js';
 import { currentMap } from '../match.js';
-import { platformSpots } from '../events.js';
+import { safeSpawnPoint } from '../maps/reach.js';
 import { BASE_FRICTION_AIR, clearStatuses } from './status.js';
 
 export const MAX_PLAYERS = 8;
@@ -25,25 +25,22 @@ export const PLAYER_DEFS = [
   { name: 'P8', color: '#7f9cf5', hat: '#5a6fc2' },
 ];
 
-// is there anything solid in the column at x to land on?
-export function groundInColumn(x) {
-  return queryRegion(column(x), {
-    container: currentMap.composite,
-    filter: (b) => b.isStatic && !b.isSensor && b.label !== 'lava' && b.collisionFilter.mask !== 0 &&
-      x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6 && b.bounds.min.y > 100,
-  }).length > 0;
-}
-
 export function spawnPointFor(p) {
   const spawns = currentMap.def.spawns;
   const base = spawns[p.slot % spawns.length];
   const jitter = p.slot >= spawns.length ? (p.slot - spawns.length + 1) * 26 * (p.slot % 2 ? 1 : -1) : 0;
-  // safety net: a spawn over a straight drop gets moved onto a real platform
-  if (!groundInColumn(base.x + jitter)) {
-    const spot = platformSpots(currentMap, 3).find(s => groundInColumn(s.x));
-    if (spot) return { x: spot.x, y: Math.max(80, spot.y - 150) };
-  }
-  return { x: Math.max(40, Math.min(W - 40, base.x + jitter)), y: base.y };
+  // The guarantee: never open a round somewhere you can't get out of. The
+  // authored spot stands unless the drop is buried in geometry, falls straight
+  // into the lava, or lands in a pocket walled off from the arena — see the
+  // escape analysis in src/sim/maps/reach.js, which nudges or relocates as
+  // little as it can, and keeps clear of the wizards already standing there.
+  //
+  // This replaces a groundInColumn() check that only asked "is there anything
+  // solid below this x". That answers nothing about whether the wizard can
+  // LEAVE where it lands, and nothing about what it hits on the way down.
+  const busy = players.filter(q => q !== p && q.alive && q.body)
+    .map(q => ({ x: q.body.position.x, y: q.body.position.y }));
+  return safeSpawnPoint(currentMap, Math.max(40, Math.min(W - 40, base.x + jitter)), base.y, busy);
 }
 
 export const players = [];
