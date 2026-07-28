@@ -226,6 +226,18 @@ test('createWorld returns the stack to base 2 with nothing on it', () => {
 // the engine would reintroduce exactly the failure this task closed, and would
 // do it silently — the stack would still hold the right modifiers while the
 // world had the wrong gravity.
+//
+// THE GATE COVERS BOTH DOORS, NOT JUST TODAY'S. The facade exports two gravity
+// writers: setGravityY(y) and the vector-form setGravity({x, y, scale}). The
+// second has no callers at all right now, which is exactly what makes it
+// dangerous — a gate pinned to the name that happens to be in use today would
+// stay green while `setGravity({ x: 0, y: v })` reintroduced C2. This is the
+// same class of hole as a tag registry that lists today's tags: a guard that
+// cannot see tomorrow's writer protects nothing when the writer arrives, and it
+// cannot be added retroactively.
+//
+// server/ is walked as well as src/: the sim runs in the server process, and a
+// host-side write would clobber the stack exactly as an in-sim one would.
 test('nothing but src/sim/gravity.js writes gravity', () => {
   const walk = (dir, out = []) => {
     for (const name of readdirSync(dir)) {
@@ -235,16 +247,22 @@ test('nothing but src/sim/gravity.js writes gravity', () => {
     }
     return out;
   };
+  const WRITER = /\bsetGravity(Y)?\s*\(/;
   const offenders = [];
-  for (const file of walk('src')) {
+  for (const file of [...walk('src'), ...walk('server')]) {
     if (file === join('src', 'sim', 'gravity.js') || file.includes(join('sim', 'phys'))) continue;
     readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
-      if (/\bsetGravityY\s*\(/.test(line) && !line.trimStart().startsWith('//')) {
+      if (WRITER.test(line) && !line.trimStart().startsWith('//')) {
         offenders.push(`${file}:${i + 1}  ${line.trim()}`);
       }
     });
   }
   assert.deepEqual(offenders, [], `gravity is composed, not assigned — use setBase/push:\n${offenders.join('\n')}`);
+  // and the gate has to be looking at something: if the facade ever stops
+  // exporting a second, vector-form writer, this carve-out is stale rather than
+  // load-bearing and the regex should be simplified back.
+  assert.match(readFileSync(join('src', 'sim', 'phys', 'facade.js'), 'utf8'), /^\s*setGravity,$/m,
+    'facade no longer exports the vector-form writer — narrow WRITER back to setGravityY');
 });
 
 // ---------------------------------------------------------------------------
