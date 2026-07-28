@@ -47,10 +47,38 @@ export async function waitForWire(wire, predicate, { timeoutMs = 20_000, label =
   throw new Error(`timed out waiting for ${label}; the server sent: ${seen}`);
 }
 
+// A server holds one session, and every tab after the first needs its code.
+// Keyed by base URL because each test gets its own server on its own port —
+// the first tab into one hosts, and the rest read the code from here rather
+// than every online spec having to thread it through by hand.
+const sessionCodes = new Map();
+
 /**
- * Open a tab, name the wizard, and click PLAY ONLINE. Resolves once the server
- * has welcomed the tab and the menu has gone away — which is the client's own
- * definition of "I am in" (menu.js passes welcome() { menu.remove() }).
+ * Get past the session screen: start the session if nobody has, otherwise type
+ * the code of the one that is running. Returns the code, canonical.
+ */
+export async function enterSession(page, baseUrl) {
+  await page.waitForSelector('#hspanel');
+  const hostButton = page.locator('button[data-act="host"]');
+  if (await hostButton.isVisible().catch(() => false)) {
+    await hostButton.click();
+    const shown = (await page.locator('#hscodebig').textContent()).trim();
+    const code = shown.replace('-', '');
+    sessionCodes.set(baseUrl, code);
+    await page.click('button[data-act="play"]'); // ENTER THE LOBBY
+    return code;
+  }
+  const code = sessionCodes.get(baseUrl);
+  if (!code) throw new Error(`a session is already running at ${baseUrl} and this worker never saw its code`);
+  await page.fill('#hscode', code);
+  await page.click('button[data-act="join"]');
+  return code;
+}
+
+/**
+ * Open a tab, name the wizard, click PLAY ONLINE, and get through the session
+ * screen. Resolves once the server has welcomed the tab and the menu has gone
+ * away — which is the client's own definition of "I am in".
  */
 export async function joinOnline(context, baseUrl, name, { expectWelcome = true } = {}) {
   const page = await context.newPage();
@@ -61,12 +89,14 @@ export async function joinOnline(context, baseUrl, name, { expectWelcome = true 
   await page.click('button[data-mode="online"]');
   if (expectWelcome) {
     await waitForWire(wire, w => w.got('welcome').length > 0, { label: `${name}'s welcome` });
+    const code = await enterSession(page, baseUrl);
     await page.waitForSelector('#netmenu', { state: 'detached', timeout: 15_000 });
+    return { page, wire, name, code };
   }
   return { page, wire, name };
 }
 
-/** Open a tab and connect WITHOUT taking a seat — a spectator. */
+/** Open a tab and leave it on the menu — connected to nothing. */
 export async function spectate(context, baseUrl) {
   const page = await context.newPage();
   const wire = watchSockets(page);

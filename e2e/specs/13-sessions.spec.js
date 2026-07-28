@@ -9,6 +9,7 @@
 // session, and every test here begins from "nobody has hosted yet".
 import { test, expect } from '../support/fixtures.js';
 import { startServer } from '../support/server.js';
+import { watchSockets, waitForWire } from '../support/online.js';
 
 const CHAR = '[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]';
 const CODE_RE = new RegExp(`^${CHAR}{3}-${CHAR}{3}$`);
@@ -93,5 +94,44 @@ test.describe('session codes', () => {
     }));
     expect(snaps, 'a codeless connection was streamed the match').toBe(0);
     await hostPage.close();
+  });
+
+  // The three frames the session handshake added to the protocol, read off the
+  // socket rather than inferred from the screen. `session` carries the code,
+  // `sessionDenied` refuses a second host, and `sessionState` is what flips a
+  // menu that is sitting on the wrong screen when the answer changes under it.
+  test('the session handshake is on the wire: session, sessionDenied, sessionState', async ({ page, context }) => {
+    const waiting = await context.newPage();
+    const waitingWire = watchSockets(waiting);
+    await waiting.goto(`${server.url}/index.html`);
+    await waiting.locator('#netname').fill('WAITING');
+    await waiting.locator('button[data-mode="online"]').click();
+    await expect(waiting.locator('button[data-act="host"]')).toBeVisible();
+
+    const wire = watchSockets(page);
+    await online(page, 'HOST');
+    await page.locator('button[data-act="host"]').click();
+    await waitForWire(wire, w => w.got('session').length > 0, { label: 'the minted session' });
+    const minted = wire.first('session');
+    expect(minted.host, 'the tab that minted it should be told so').toBe(true);
+    expect(minted.code).toMatch(new RegExp(`^${CHAR}{6}$`));
+
+    // the menu that was offering START A SESSION is told one now exists
+    await waitForWire(waitingWire, w => w.got('sessionState').length > 0, { label: 'the waiting menu being told' });
+    expect(waitingWire.first('sessionState').live).toBe(true);
+    await expect(waiting.locator('#hscode')).toBeVisible();
+
+    // …and its own attempt to host is refused, because one is already running
+    await waiting.locator('#hscode').fill(minted.code);
+    await waiting.evaluate(() => {
+      // the menu offers no host button now, so ask the server directly for the
+      // refusal the second-host rule produces
+      const ws = new WebSocket(`ws://${location.host}/ws`);
+      ws.onopen = () => { ws.send(JSON.stringify({ t: 'hello', v: 9 })); ws.send(JSON.stringify({ t: 'host' })); };
+      globalThis.__probe = ws;
+    });
+    await waitForWire(waitingWire, w => w.got('sessionDenied').length > 0, { label: 'the second host being refused' });
+    expect(waitingWire.first('sessionDenied').reason).toBe('exists');
+    await waiting.close();
   });
 });

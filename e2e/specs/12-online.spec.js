@@ -28,7 +28,7 @@ test.describe('getting in', () => {
 
     const welcome = wire.first('welcome');
     expect(welcome.v, 'the server should state its game version').toBeGreaterThan(0);
-    expect(welcome.proto).toBe(2);
+    expect(welcome.proto, 'proto 3 added the session handshake').toBe(3);
     await expect(page.locator('#netmenu')).toHaveCount(0);
     await expect(page.locator('canvas#game')).toBeVisible();
 
@@ -80,16 +80,20 @@ test.describe('getting in', () => {
     expect(probe, 'the online client drew a blank canvas from the server snapshots').toBeGreaterThan(8);
   });
 
-  test('a tab that never clicks a button is a spectator and still gets the match', async ({ context, errors }) => {
+  test('a tab that never enters the code is shown nothing at all', async ({ context, errors }) => {
     void errors;
     const player = await joinOnline(context, server.url, 'PLAYER');
     await waitForWire(player.wire, w => w.got('you').length > 0, { label: 'the player seat' });
 
+    // Watching used to be free — connect, never join, and the room streamed you
+    // the whole match. A session code that still let you do that would be
+    // decorative, so the gate covers watching too (server/room.js broadcast).
+    // Spectating on purpose is {t:'watch', code}; 13-sessions.spec.js proves the
+    // gate from the other side.
     const watcher = await spectate(context, server.url);
     await watcher.page.waitForTimeout(1200);
-    // Never joined: no seat, but the room still streams to it. Spectators are
-    // unlimited by design (README) and this is what makes that true.
-    expect(watcher.wire.got('you'), 'a spectator must not be given a seat').toHaveLength(0);
+    expect(watcher.wire.got('you'), 'a tab on the menu must not be given a seat').toHaveLength(0);
+    expect(watcher.wire.got('snap'), 'a tab with no code must not be streamed the match').toHaveLength(0);
     await expect(watcher.page.locator('#netmenu')).toBeVisible();
   });
 });
