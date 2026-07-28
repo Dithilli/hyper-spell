@@ -2,3 +2,5 @@
 .tmp-shots/
 node_modules
 dist/*.map
+test-results/
+playwright-report/
