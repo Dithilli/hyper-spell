@@ -22,10 +22,18 @@ const TICK_MS = 1000 / 60;
 const SNAP_MS = 32; // ~30Hz, mirrors the old netHostTick gate
 
 class SimHost {
-  // opts: { onSnapshot(snapObj), onFx({f,a}), telemetrySink(rec) }
-  constructor(opts) {
-    this.opts = opts;
+  // opts: { onSnapshot(snapObj), onFx({f,a}), onCrash(), onPackUnlocked(src), telemetrySink(rec) }
+  constructor(opts = {}) {
+    this.opts = { ...opts };
     this.fxQueue = [];
+  }
+
+  // The transport registers its callbacks here rather than assigning into
+  // `opts` from outside. The host owns its own field, and what a room needs
+  // from it is stated in one place instead of four assignments in the room's
+  // constructor.
+  setHandlers(handlers) {
+    Object.assign(this.opts, handlers);
   }
 
   buildContext() {
