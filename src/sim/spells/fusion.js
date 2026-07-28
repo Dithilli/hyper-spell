@@ -8,7 +8,7 @@
 // Content file: moved verbatim from js/hybrids.js. The only edits are the module
 // header below, and the cosmetics: an effect's draw() closure is now a `vfx`
 // descriptor the renderer interprets. No hybrid's numbers or behaviour moved.
-import { W, H, column } from '../world.js';
+import { W, column } from '../world.js';
 import {
   addVelocity, createBox, queryRegion, setPosition,
   setVelocity,

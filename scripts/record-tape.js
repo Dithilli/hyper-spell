@@ -43,10 +43,12 @@ import { runTape } from '../test/harness/tape.js';
 // of margin on the `rounds >= 3` guard.
 //
 // That the sim did not get less lethal is a separate claim, measured separately
-// over seeds 1..120: mean rounds 2.183 before, 2.117 after, range 1..5 before
-// and 1..6 after. The distribution is unchanged; 12348 simply drew badly after
-// the reshuffle. Do not copy this reseed without repeating that scan — the scan
-// is the load-bearing part, not the new number.
+// over seeds 1..400: mean rounds 2.152 before, 2.170 after; range 1..5 before,
+// 1..6 after. (The first 120 seeds alone read 2.183 vs 1.950, which is the size
+// of swing 120 samples of a 1..6 variable produce on their own — hence 400.)
+// The distribution is unchanged; 12348 simply drew badly after the reshuffle.
+// Do not copy this reseed without repeating that scan — the scan is the
+// load-bearing part, not the new number.
 //
 // The short tape keeps 12345 so its golden moves for behaviour alone.
 const TAPES = [

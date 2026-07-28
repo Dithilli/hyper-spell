@@ -9,7 +9,6 @@ import { allBodies, allJoints, gravityY, jointEnds } from '../sim/phys/facade.js
 // rate, and every number it used to take off the round's seeded stream made the
 // match a function of the viewer's refresh rate (defect D1).
 import { fxRange as rand, fxPick as pick } from './fx.js';
-import * as art from './artkit.js';
 import {
   drawStoryBackdrop, drawStoryCrate, drawStoryDestructible, drawStorySpikes, drawStoryTerrain, shade,
 } from './artkit.js';

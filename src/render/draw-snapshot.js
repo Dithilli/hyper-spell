@@ -3,7 +3,6 @@
 import { ctx } from './canvas.js';
 import { W, H } from '../sim/world.js';
 import { allBodies } from '../sim/phys/facade.js';
-import * as art from './artkit.js';
 import { rgba } from './artkit.js';
 import { currentMap } from '../sim/match.js';
 import { players, gibs } from '../sim/player/lifecycle.js';
