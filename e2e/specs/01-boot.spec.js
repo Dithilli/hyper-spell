@@ -9,7 +9,9 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+// The checkout under test, which is this one unless HS_E2E_GAME_DIR points the
+// suite at another (see GAME_DIR in playwright.config.js).
+const REPO = process.env.HS_E2E_GAME_DIR || join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const listJs = dir => readdirSync(dir, { withFileTypes: true }).flatMap(e =>
   e.isDirectory() ? listJs(join(dir, e.name)) : e.name.endsWith('.js') ? [join(dir, e.name)] : []);

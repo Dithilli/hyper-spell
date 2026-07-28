@@ -14,6 +14,12 @@ import { defineConfig, devices } from '@playwright/test';
 export const TEST_PORT = 8791;
 export const BASE_URL = `http://127.0.0.1:${TEST_PORT}`;
 
+// Which checkout serves the game. Defaults to this one, which is what you want
+// almost always. Point it at a worktree to run today's suite against another
+// revision — a release tag, a branch, or a known-good commit while the working
+// tree is mid-refactor and does not boot.
+export const GAME_DIR = process.env.HS_E2E_GAME_DIR || process.cwd();
+
 export default defineConfig({
   testDir: './e2e/specs',
   // The content sweeps mean a "test" can be 142 casts or 110 map builds, so the
@@ -46,6 +52,7 @@ export default defineConfig({
   // over a single shared lobby.
   webServer: {
     command: `node server/serve.js`,
+    cwd: GAME_DIR,
     env: { PORT: String(TEST_PORT) },
     url: BASE_URL,
     reuseExistingServer: false,

@@ -5,7 +5,7 @@
 // than tapping it.
 import { test, expect } from '../support/fixtures.js';
 import { GamePage } from '../support/game.js';
-import { installFakeGamepads, padPress, padHold } from '../support/gamepad.js';
+import { installFakeGamepads, padPress, padPressUntil, padHold } from '../support/gamepad.js';
 import { loadManifest } from '../tools/surface.js';
 
 const manifest = loadManifest();
@@ -136,8 +136,7 @@ test.describe('gamepad control', () => {
 
     expect(await game.playerCount()).toBe(0);
     await game.read(() => globalThis.__pad.plug(0));
-    await padPress(game, [0]);
-    await game.waitFor(() => globalThis.HS.players.length === 1, { label: 'the pad wizard to sit down' });
+    await padPressUntil(game, [0], () => globalThis.HS.players.length === 1, { label: 'the pad wizard to sit down' });
     expect(await game.read(() => globalThis.HS.players[0].controller.index)).toBe(0);
   });
 
@@ -147,11 +146,9 @@ test.describe('gamepad control', () => {
     const game = new GamePage(page);
     await game.boot();
     await game.read(() => globalThis.__pad.plug(0));
-    await padPress(game, [0]);
-    await game.waitFor(() => globalThis.HS.players.length === 1, { label: 'the pad wizard' });
+    await padPressUntil(game, [0], () => globalThis.HS.players.length === 1, { label: 'the pad wizard' });
 
-    await padPress(game, [8]); // BACK — add a bot
-    await game.waitFor(() => globalThis.HS.players.length === 2, { label: 'the bot the pad asked for' });
+    await padPressUntil(game, [8], () => globalThis.HS.players.length === 2, { label: 'the bot the pad asked for' });
 
     const wins = (await game.state()).winsNeeded;
     await padPress(game, [12]); // d-pad up — win target +
@@ -169,11 +166,9 @@ test.describe('gamepad control', () => {
     const game = new GamePage(page);
     await game.boot();
     await game.read(() => globalThis.__pad.plug(0));
-    await padPress(game, [0]);
-    await game.waitFor(() => globalThis.HS.players.length === 1, { label: 'the pad wizard' });
+    await padPressUntil(game, [0], () => globalThis.HS.players.length === 1, { label: 'the pad wizard' });
 
-    await padPress(game, [3]); // Y — name your wizard
-    await game.waitFor(() => !!globalThis.HS.nameEdit, { label: 'the letter ribbon' });
+    await padPressUntil(game, [3], () => !!globalThis.HS.nameEdit, { label: 'the letter ribbon (Y)' });
     expect(await game.read(() => globalThis.HS.nameEdit.pad)).toBe(0);
 
     const alphabet = manifest.constants.PAD_ALPHABET;
@@ -195,10 +190,8 @@ test.describe('gamepad control', () => {
     const game = new GamePage(page);
     await game.boot();
     await game.read(() => globalThis.__pad.plug(0));
-    await padPress(game, [0]);
-    await game.waitFor(() => globalThis.HS.players.length === 1, { label: 'the pad wizard' });
-    await padPress(game, [8]); // a bot to fight
-    await game.waitFor(() => globalThis.HS.players.length === 2, { label: 'the bot' });
+    await padPressUntil(game, [0], () => globalThis.HS.players.length === 1, { label: 'the pad wizard' });
+    await padPressUntil(game, [8], () => globalThis.HS.players.length === 2, { label: 'the bot' });
     await game.startMatch();
     await game.advanceSim(30);
 
@@ -217,10 +210,8 @@ test.describe('gamepad control', () => {
     const game = new GamePage(page);
     await game.boot();
     await game.read(() => globalThis.__pad.plug(0));
-    await padPress(game, [0]);
-    await game.waitFor(() => globalThis.HS.players.length === 1, { label: 'the pad wizard' });
-    await padPress(game, [8]);
-    await game.waitFor(() => globalThis.HS.players.length === 2, { label: 'the bot' });
+    await padPressUntil(game, [0], () => globalThis.HS.players.length === 1, { label: 'the pad wizard' });
+    await padPressUntil(game, [8], () => globalThis.HS.players.length === 2, { label: 'the bot' });
     await game.startMatch();
 
     await game.read(() => globalThis.__pad.unplug(0));

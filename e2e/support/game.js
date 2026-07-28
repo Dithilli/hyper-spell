@@ -32,7 +32,14 @@ export class GamePage {
   // side of that conversation produces nonsense.
   async boot({ clock = true, query = 'nomenu', path = '/index.html' } = {}) {
     if (clock) {
+      // install() alone does NOT stop the page: it swaps in fake timers that
+      // still follow the wall clock, and the game went right on simulating
+      // 850ms per real second (paceScale x 1s) between two adjacent evaluate
+      // calls. pauseAt() is what actually holds time still, and holding it still
+      // is the difference between a sweep that measures the spell and one that
+      // measures how loaded the machine was.
       await this.page.clock.install();
+      await this.page.clock.pauseAt(Date.now());
       this.frozen = true;
     }
     await this.page.goto(query ? `${path}?${query}` : path);
@@ -102,6 +109,26 @@ export class GamePage {
   /** A key that must NOT be held across a frame — for testing edge behaviour. */
   async tap(code) { await this.page.keyboard.press(code); }
 
+  /**
+   * Press a key until it takes, the way a player does when nothing happens.
+   *
+   * Polled controls are edge-triggered, so a press made while the game is
+   * ignoring input is not queued — it is gone. Joining is locked out for the
+   * first 350ms of sim time and for 350ms after any name edit (join.js:98), and
+   * whether a given press lands inside one of those windows depends on how many
+   * catch-up ticks the first animation frame ran. Waiting cannot recover a lost
+   * edge; only pressing again can.
+   */
+  async pressUntil(code, predicate, { attempts = 25, arg = undefined, label = 'the key to take' } = {}) {
+    for (let i = 0; i < attempts; i++) {
+      if (await this.page.evaluate(predicate, arg)) return;
+      await this.press(code);
+      if (await this.page.evaluate(predicate, arg)) return;
+      await this.advance(100);
+    }
+    throw new Error(`pressed ${code} ${attempts} times waiting for ${label}`);
+  }
+
   // Hold a key across real sim ticks — the only way to test movement, which is
   // polled inside stepSim rather than handled on the keydown edge.
   async hold(code, ticks) {
@@ -134,14 +161,20 @@ export class GamePage {
    */
   async seatKeyboardPlayer(which = 0, { confirmName = true } = {}) {
     const before = await this.playerCount();
-    await this.press(which === 0 ? 'KeyE' : 'Enter');
-    await this.waitFor(n => globalThis.HS.players.length > n, { arg: before, label: 'a wizard to take a seat' });
+    await this.pressUntil(which === 0 ? 'KeyE' : 'Enter',
+      n => globalThis.HS.players.length > n, { arg: before, label: 'a wizard to take a seat' });
     if (confirmName && await this.nameEditOpen()) {
       await this.press('Escape');
       await this.waitFor(() => !globalThis.HS.nameEdit, { label: 'the name editor to close' });
-      // join.js sets a 350ms lockout after a name edit so the confirming
-      // keypress is not re-read as a join or a start.
-      await this.advance(400);
+      // join.js:98 locks joining for 350ms of SIM time after a name edit, so the
+      // confirming keypress is not re-read as a join or a start.
+      //
+      // Waited on as a condition, not slept through. Sim time advances at
+      // paceScale x wall time (0.85), so advancing 400ms of clock buys only
+      // ~340ms of sim — a hair under the lockout, and the next seat silently
+      // fails to take maybe one run in five.
+      await this.waitFor(() => globalThis.HS.simNow() > globalThis.HS.nameEditEndAt + 360,
+        { label: 'the post-naming join lockout to lapse' });
     }
   }
 
@@ -151,8 +184,7 @@ export class GamePage {
   async addBot(count = 1) {
     for (let i = 0; i < count; i++) {
       const before = await this.playerCount();
-      await this.press('KeyB');
-      await this.waitFor(n => globalThis.HS.players.length > n, { arg: before, label: 'a bot to join' });
+      await this.pressUntil('KeyB', n => globalThis.HS.players.length > n, { arg: before, label: 'a bot to join' });
     }
   }
 
@@ -208,7 +240,28 @@ export class GamePage {
   /** Run a function in the page. HS is a global there; keep these read-only. */
   async read(fn, arg) { return this.page.evaluate(fn, arg); }
 
-  async state() { return this.read(() => JSON.parse(JSON.stringify(globalThis.HS.game))); }
+  /**
+   * The match state as plain data.
+   *
+   * Picked field by field rather than stringified: once a round resolves,
+   * game.winner holds a live player, whose body holds the physics world, which
+   * holds the player again — JSON.stringify throws on the cycle. The winner is
+   * reported here as a name.
+   */
+  async state() {
+    return this.read(() => {
+      const g = globalThis.HS.game;
+      return {
+        state: g.state, mode: g.mode, winsNeeded: g.winsNeeded, mapIndex: g.mapIndex,
+        wave: g.wave, waveState: g.waveState, totalRounds: g.totalRounds ?? 0,
+        baseGravity: g.baseGravity, mapSeed: g.mapSeed ?? null,
+        fightAt: g.fightAt ?? 0, fightShown: !!g.fightShown,
+        winner: g.winner ? g.winner.name : null,
+        boss: g.boss ? (g.boss.def?.name ?? true) : null,
+        envEvent: g.envEvent ? (g.envEvent.name ?? g.envEvent.id ?? true) : null,
+      };
+    });
+  }
   async playerCount() { return this.read(() => globalThis.HS.players.length); }
 
   async players() {
@@ -291,5 +344,102 @@ export class GamePage {
   /** When slot `slot` of player `playerIndex` last cast. Slot-keyed, see above. */
   async lastCastAt(slot = 0, playerIndex = 0) {
     return this.read(([s, pi]) => globalThis.HS.players[pi].casts[s] ?? null, [slot, playerIndex]);
+  }
+
+  /**
+   * Kill a wizard through the game's own killPlayer — the same function the
+   * lava, the spikes and every lethal spell call.
+   *
+   * Round flow needs a death to test, and waiting for two bots to land a killing
+   * blow is a stopwatch, not an assertion: the outcome is a coin flip and the
+   * duration is unbounded. Triggering the real death path keeps everything after
+   * it — onDeath, the 650ms delay, checkRoundEnd, the banner, the replay, the
+   * win tally — exactly the code a real kill runs.
+   */
+  async kill(playerIndex = 0) {
+    await this.read(i => globalThis.HS.killPlayer(globalThis.HS.players[i]), playerIndex);
+  }
+
+  /**
+   * Damage through the real combat path.
+   *
+   * `from` matters: killPlayer credits the kill to whoever last hit the victim
+   * within 4s (awards.js:36). Damage with no source is "the arena did it" — no
+   * kill, no award, no killer in the feed.
+   */
+  async damage(playerIndex, amount, { from = null } = {}) {
+    await this.read(([i, amt, src]) => {
+      const H = globalThis.HS;
+      H.damagePlayer(H.players[i], amt, src == null ? undefined : H.players[src]);
+    }, [playerIndex, amount, from]);
+  }
+
+  async banner() {
+    return this.read(() => ({ text: globalThis.HS.banner, color: globalThis.HS.bannerColor }));
+  }
+
+  /**
+   * Rebuild the round on a given map through the game's own startRound — the
+   * same call the round-end scheduler makes.
+   *
+   * The content sweeps need a clean arena 142 and 110 times over. Playing each
+   * one out through the lobby would take the suite from minutes to an hour and
+   * would not test anything the lobby specs do not already cover.
+   */
+  async restartRound(mapIndex = 0, { awaitFight = true } = {}) {
+    await this.read(i => globalThis.HS.startRound(i), mapIndex);
+    await this.waitFor(() => globalThis.HS.game.state === 'PLAY', { label: 'the rebuilt round' });
+    if (awaitFight) await this.awaitFight();
+  }
+
+  /**
+   * Stand two wizards within arm's reach of each other.
+   *
+   * Spawn points are spread across the arena so round one is not a pile-up, but
+   * that leaves targeted spells with nothing to target: Shove looks for an enemy
+   * within 130px and does nothing at all without one. A sweep that judges those
+   * spells from across the map would call them broken.
+   */
+  async huddle(gap = 55) {
+    await this.read(g => {
+      const H = globalThis.HS;
+      const [a, b] = H.players;
+      if (!a || !b) throw new Error('huddle needs two wizards');
+      const at = { x: a.body.position.x + g, y: a.body.position.y };
+      H.despawnPlayer(b);
+      H.spawnPlayer(b, at);
+    }, gap);
+  }
+
+  /**
+   * Everything a spell could plausibly disturb, in one comparable object.
+   *
+   * Used with two idle keyboard wizards, so the world is still: nothing here
+   * moves on its own except particles and shake, which only ever DECAY. That
+   * asymmetry is what lets a sweep tell "the spell did something" from "0.4s
+   * passed" — an increase is evidence, a decrease is just time.
+   */
+  async fingerprint() {
+    return this.read(() => {
+      const H = globalThis.HS;
+      const n = v => (v == null ? 0 : (v.size ?? v.length ?? 0));
+      const timers = p => Object.keys(p).filter(k => k.endsWith('Until')).map(k => Math.round(p[k] || 0)).join(',');
+      return {
+        effects: n(H.activeEffects),
+        projectiles: n(H.projectiles),
+        summons: n(H.summons),
+        particles: n(H.particles),
+        enemies: n(H.enemies),
+        shake: Math.round((H.shake || 0) * 100),
+        hp: H.players.map(p => Math.round(p.hp)).join(','),
+        timers: H.players.map(timers).join('|'),
+        sizes: H.players.map(p => (p.sizeScale ?? 1).toFixed(3)).join(','),
+        mega: H.players.map(p => p.mega ?? 1).join(','),
+        hats: H.players.map(p => p.hat ?? '-').join(','),
+        pos: H.players.map(p => `${Math.round(p.body.position.x)}:${Math.round(p.body.position.y)}`).join(','),
+        vel: H.players.map(p => `${p.body.velocity.x.toFixed(2)}:${p.body.velocity.y.toFixed(2)}`).join(','),
+        gravity: H.engine?.gravity ? `${H.engine.gravity.x}:${H.engine.gravity.y}` : null,
+      };
+    });
   }
 }

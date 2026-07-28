@@ -55,6 +55,23 @@ export async function padPress(game, buttons, { index = 0, frames = 2 } = {}) {
   await game.advance(Math.ceil(1000 / 60));
 }
 
+/**
+ * Press pad buttons until they take effect, the keyboard's pressUntil for pads.
+ *
+ * Same trap: pad controls are edge-detected against the previous frame, joining
+ * is locked out for the first 350ms of sim time, and a press spent inside that
+ * window is gone rather than queued. Waiting cannot bring back a lost edge.
+ */
+export async function padPressUntil(game, buttons, predicate, { index = 0, attempts = 25, label = 'the pad press to take' } = {}) {
+  for (let i = 0; i < attempts; i++) {
+    if (await game.read(predicate)) return;
+    await padPress(game, buttons, { index });
+    if (await game.read(predicate)) return;
+    await game.advance(100);
+  }
+  throw new Error(`pressed pad ${JSON.stringify(buttons)} ${attempts} times waiting for ${label}`);
+}
+
 /** Hold the stick or a d-pad direction for a while, then centre it. */
 export async function padHold(game, { buttons = [], axes = [], index = 0, ticks = 30 } = {}) {
   await game.read(([i, b, a]) => globalThis.__pad.set(i, { buttons: b, axes: a }), [index, buttons, axes]);

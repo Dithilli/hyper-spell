@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+// The checkout under test — see GAME_DIR in playwright.config.js.
+const GAME_DIR = process.env.HS_E2E_GAME_DIR || REPO;
 
 export default function globalSetup() {
   if (process.env.HS_E2E_SKIP_BUILD) {
@@ -16,10 +18,18 @@ export default function globalSetup() {
     return;
   }
   for (const script of ['build', 'build:guide']) {
-    execFileSync('npm', ['run', script], { cwd: REPO, stdio: 'pipe' });
+    try {
+      execFileSync('npm', ['run', script], { cwd: GAME_DIR, stdio: 'pipe' });
+    } catch (err) {
+      // esbuild reports unresolved imports and syntax errors on stderr. Passing
+      // it through matters: "the suite would not start" is useless next to
+      // "builders.js imports particles, which fx.js no longer exports".
+      const detail = (err.stderr?.toString() || err.stdout?.toString() || err.message).trim();
+      throw new Error(`[e2e] \`npm run ${script}\` failed in ${GAME_DIR} — the game does not build:\n\n${detail}\n`);
+    }
   }
   for (const bundle of ['dist/hyperspell.js', 'dist/spell-guide.js']) {
-    if (!existsSync(join(REPO, bundle))) throw new Error(`[e2e] build produced no ${bundle}`);
+    if (!existsSync(join(GAME_DIR, bundle))) throw new Error(`[e2e] build produced no ${bundle}`);
   }
-  console.log('[e2e] bundles rebuilt from src/');
+  console.log(`[e2e] bundles rebuilt from ${GAME_DIR}/src`);
 }
