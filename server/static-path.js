@@ -2,7 +2,8 @@
 
 const path = require('path');
 
-const PUBLIC_DIRS = new Set(['assets', 'css', 'js']);
+// dist/ holds the built bundles the pages load; src/ is deliberately not public.
+const PUBLIC_DIRS = new Set(['assets', 'css', 'dist']);
 const PUBLIC_TOP_LEVEL_EXTENSIONS = new Set([
   '.css', '.html', '.ico', '.jpeg', '.jpg', '.js', '.png', '.svg', '.webp',
 ]);

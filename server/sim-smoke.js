@@ -1,14 +1,16 @@
-// sim-smoke.js — headless proof the sim runs server-side: boots the vm context,
-// adds bots, plays real matches, and asserts the invariants that matter (no
+// sim-smoke.js — headless proof the sim runs server-side: boots the sim, adds
+// bots, plays real matches, and asserts the invariants that matter (no
 // draw-path execution, no NaN on the wire, state machine cycles, no leak growth
-// across matches). Async, because the round flow schedules itself via setTimeout
-// — the tick loop must yield to the event loop exactly like the real SimHost.
+// across matches). Async because it drives the sim the way the real SimHost
+// does — one fixed step per event-loop turn — not because the sim needs the
+// event loop: round flow is on the tick scheduler now (src/sim/schedule.js), so
+// it advances with the steps below rather than with the wall clock.
 //
 //   node server/sim-smoke.js            # one real match, ~a minute
 //   node server/sim-smoke.js --long     # multi-match leak soak
 'use strict';
 const { performance } = require('perf_hooks');
-const { createSimContext } = require('./sim-context');
+
 
 const LONG = process.argv.includes('--long');
 let pass = 0, fail = 0;
@@ -20,19 +22,15 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const fxLog = [];
 const telLog = [];
-const sim = createSimContext({
-  emitFx: (f, a) => fxLog.push({ f, a }),
-  postTelemetry: rec => telLog.push(rec),
-});
-const b = sim.bridge;
+let sim = null, b = null, renderCanvas = null;
 
-// the same loop shape as server/sim-host.js: ~60Hz, measured dt clamped at 33ms
-let last = performance.now();
+// the same loop shape as server/sim-host.js: one fixed step per iteration.
+// stepSim takes nothing and keeps its own clock (simNow() = tick x TICK_MS), so
+// the only thing the real clock still decides here is how many steps each
+// tickFor / tickUntil window gets through. Round flow rides those steps: the
+// scheduled callbacks (src/sim/schedule.js) are drained at the top of stepSim.
 function tick() {
-  const now = performance.now();
-  const rawDt = Math.min(now - last, 33);
-  last = now;
-  b.stepSim(now, rawDt);
+  b.stepSim();
 }
 async function tickFor(ms) {
   const end = performance.now() + ms;
@@ -47,12 +45,20 @@ async function tickUntil(cond, timeoutMs, label) {
   }
   return cond();
 }
-const snapNow = () => b.takeWireSnapshot(performance.now());
+const snapNow = () => b.takeWireSnapshot();
 
 async function main() {
+  const { createSim } = await import('../src/platform/node.js');
+  renderCanvas = await import('../src/render/canvas.js');
+  sim = createSim({
+    onFx: (f, a) => fxLog.push({ f, a }),
+    telemetrySink: rec => telLog.push(rec),
+  });
+  b = sim.bridge;
+
   ok(b.GAME_VERSION >= 9, `context loaded, GAME_VERSION=${b.GAME_VERSION}`);
   ok(b.state() === 'LOBBY', 'boots into LOBBY');
-  ok(b.packStaged(), 'content-pack payload staged in the context');
+  ok(b.packStaged(), 'content-pack payload staged for the sim');
   const spells0 = b.spellCount();
 
   // ---- lobby commands ----
@@ -148,7 +154,10 @@ async function main() {
   ok(b.packStaged(), 'pack payload still staged (unclaimed)');
 
   // ---- the tripwire: nothing headless ever touched a canvas context ----
-  ok(sim.ctxCounter.calls === 0, `zero ctx-proxy invocations (got ${sim.ctxCounter.calls})`);
+  // There is no fake canvas any more — src/sim cannot import one, so the only
+  // way a draw path could have run is if the headless entry had acquired a real
+  // context. It never calls initCanvas, so this stays null.
+  ok(renderCanvas.ctx === null, `no drawing context was ever acquired (got ${renderCanvas.ctx})`);
 
   if (LONG) {
     console.log('\n-- long soak: 5 matches back to back --');
@@ -165,7 +174,7 @@ async function main() {
     ok(b.audit().bodies <= bodies0 + 8, `bodies bounded across soak (${bodies0} → ${b.audit().bodies})`);
     const heap1 = process.memoryUsage().heapUsed;
     ok(heap1 < heap0 * 3, `heap bounded across soak (${Math.round(heap0 / 1e6)}MB → ${Math.round(heap1 / 1e6)}MB)`);
-    ok(sim.ctxCounter.calls === 0, 'ctx still untouched after soak');
+    ok(renderCanvas.ctx === null, 'still no drawing context after soak');
   }
 
   sim.destroy();

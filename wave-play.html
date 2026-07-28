@@ -7,36 +7,10 @@
 </head>
 <body>
 <canvas id="game" width="1280" height="720"></canvas>
-<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
-<script src="js/core.js"></script>
-<script src="js/profiler.js"></script>
-<script src="js/camera.js"></script>
-<script src="js/bloom.js"></script>
-<script src="js/artkit.js"></script>
-<script src="js/audio.js"></script>
-<script src="js/fx.js"></script>
-<script src="js/awards.js"></script>
-<script src="js/telemetry.js"></script>
-<script src="js/input.js"></script>
-<script src="js/spells.js"></script>
-<script src="js/player.js"></script>
-<script src="js/pickups.js"></script>
-<script src="js/spellbook.js"></script>
-<script src="js/spelltiers.js"></script>
-<script src="js/spellcast.js"></script>
-<script src="js/hybrids.js"></script>
-<script src="js/maps.js"></script>
-<script src="js/mapbook.js"></script>
-<script src="js/events.js"></script>
-<script src="js/boss.js"></script>
-<script src="js/enemies.js"></script>
-<script src="js/bot.js"></script>
-<script src="js/snapshot.js"></script>
+<script>window.requestAnimationFrame = () => 0;</script> <!-- before the bundle: browser.js self-starts the loop -->
+<script src="dist/hyperspell.js?nomenu"></script>
 <!-- freeze auto rAF: we drive frame() synchronously off a mocked clock so the run
      completes instantly (headless Chrome can't drain a timer-driven loop for a shot) -->
-<script>window.requestAnimationFrame = () => 0;</script>
-<script src="js/game.js"></script>
-<script src="js/replay.js"></script>
 <script>
 // Real-play harness: boots the full game, drops in armed bots, starts a wave run,
 // and drives the ACTUAL frame loop (physics + enemy AI + collisions + rendering)
@@ -49,20 +23,25 @@
     performance.now = () => T;
     for (let i = 0; i < 3; i++) addBot();
     startRun();
-    const _spawn = spawnEnemy, _kill = killEnemy;
-    spawnEnemy = function (...a) { const e = _spawn.apply(this, a); if (e) R.spawned++; return e; };
-    killEnemy = function (...a) { R.killed++; return _kill.apply(this, a); };
+    // spawnEnemy/killEnemy are module bindings now, so the counters watch the
+    // live enemy set instead of wrapping the functions
+    let live = new Set();
+    const sampleEnemies = () => {
+      for (const b of enemies) if (!live.has(b)) R.spawned++;
+      for (const b of live) if (!enemies.has(b)) R.killed++;
+      live = new Set(enemies);
+    };
     for (const p of players) { p.slots[0] = 'fireball'; p.casts[0] = -1e9; } // arm the bots
 
     for (let i = 0; i < 300; i++) {           // ~10s at 33ms/frame, fully synchronous
       T += 33;
       frame(T);
+      sampleEnemies();
       R.frames++;
       R.maxEnemies = Math.max(R.maxEnemies, enemies.size);
       R.wave = Math.max(R.wave, game.wave);
       if (game.state === 'RUN_OVER') break;
     }
-    spawnEnemy = _spawn; killEnemy = _kill;
     R.aliveAtEnd = players.filter(p => p.alive).length;
 
     // sample the canvas to prove rendering actually produced pixels (not blank)
