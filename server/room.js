@@ -1,10 +1,17 @@
-// room.js — the single game room: sessions, the v9 protocol, and the seam
-// between websockets and the headless sim (sim-host.js). The room owns identity
-// (who is in which slot), sanitation, rate limits, reconnect reservations, and
-// broadcast backpressure. It never reaches into the sim's globals — everything
-// goes through the bridge's command surface.
+// room.js — the one game room: the session that gates it, the v9 protocol, and
+// the seam between websockets and the headless sim (sim-host.js). The room owns
+// identity (who is in which slot), sanitation, rate limits, reconnect
+// reservations, and broadcast backpressure. It never reaches into the sim's
+// globals — everything goes through the bridge's command surface.
+//
+// ONE room, deliberately. The simulation is process-global — src/net/server-
+// bridge.js keeps its wire controllers and its fx wrappers in module state, and
+// says so — so a second concurrent match in this process would need a worker
+// thread per room. What a server hosts instead is one match at a time, and a
+// session code decides who is in it.
 'use strict';
 const { performance } = require('perf_hooks');
+const { mintCode, normalizeCode, formatCode } = require('./session-code');
 
 const DROP_AT = 64 * 1024;       // per-socket buffered bytes before shedding droppable frames
 const MSG_WINDOW_MS = 5000;      // inbound rate cap window…
@@ -54,6 +61,8 @@ class Conn {
     this.packSent = false;
     this.name = null;
     this.slot = null; // joined ⇔ slot != null
+    this.authed = false; // presented the session code — sees the match at all
+    this.denied = { reason: null, until: 0 }; // last refusal, for the repeat guard
     this.nextChatAt = 0;
     this.nextNameAt = 0;
     this.windowAt = 0;
@@ -68,6 +77,7 @@ class Room {
   constructor(simHost) {
     this.host = simHost;
     this.conns = new Set();
+    this.session = null; // { code, createdAt } — null means nobody has hosted
     this.nextId = 1;
     this.reserved = new Map();      // nameKey -> { slot, expiresAt }
     this.shellSinceRound = new Map(); // slot -> round it went offline (removed next round)
@@ -107,15 +117,64 @@ class Room {
     if (conn.ws.readyState === 1) conn.ws.send(JSON.stringify(msg));
   }
 
-  // snap/fx go to EVERY socket — joined players, spectators, even old-version
-  // clients (that's how a stale tab learns to refresh: snap.v mismatch screen)
+  // snap/fx go to every socket that presented the code — players and
+  // spectators alike. Watching used to be free, which would make the code
+  // decorative: you would not be able to play without one, but you could see
+  // the whole match. The one exception is a client too old to speak this
+  // protocol. It cannot join and cannot act, and a snapshot whose `v` does not
+  // match is exactly what triggers its own "GAME UPDATED — REFRESH" screen.
   broadcast(msg, droppable) {
     const text = JSON.stringify(msg);
     for (const s of this.conns) {
       if (s.ws.readyState !== 1) continue;
+      if (!s.authed && !s.badVersion) continue;
       if (droppable && s.ws.bufferedAmount > DROP_AT) { s.dropped++; continue; }
       s.ws.send(text);
     }
+  }
+
+  // ---- the session: one code-gated occupancy of this server's one match ----
+
+  hostSession(conn) {
+    if (!conn.hello) return;
+    if (this.session) { this.send(conn, { t: 'sessionDenied', reason: 'exists' }); return; }
+    this.session = { code: mintCode(), createdAt: performance.now() };
+    conn.authed = true;
+    console.log(`session ${formatCode(this.session.code)} started`);
+    this.send(conn, { t: 'session', code: this.session.code, host: true });
+    this.announceSession(true, conn);
+  }
+
+  // a menu sitting on the other screen — START A SESSION when one has just
+  // begun, or the code box when the last one ended — flips itself instead of
+  // lying until the player reloads
+  announceSession(live, except) {
+    for (const c of this.conns) {
+      if (c === except || c.authed) continue;
+      this.send(c, { t: 'sessionState', live });
+    }
+  }
+
+  // the room has been empty for EMPTY_RESET_MS: the session is over, the match
+  // goes back to a lobby, and the next person to press START A SESSION hosts.
+  endEmptySession() {
+    const had = !!this.session;
+    this.session = null;
+    this.reserved.clear();
+    this.shellSinceRound.clear();
+    for (const c of this.conns) c.authed = false;
+    this.bridge.reset();
+    if (had) console.log('session over — the room emptied');
+    this.announceSession(false);
+  }
+
+  denyJoin(conn, reason) {
+    const now = performance.now();
+    // the client retries a denied join whenever cast is held; answering every
+    // one of those turns a full match into a flood in both directions
+    if (conn.denied.reason === reason && now < conn.denied.until) return;
+    conn.denied = { reason, until: now + 1000 };
+    this.send(conn, { t: 'joinDenied', reason });
   }
 
   onSnapshot(snap) {
@@ -157,7 +216,11 @@ class Room {
     const conn = new Conn(ws, this.nextId++);
     this.conns.add(conn);
     this.cancelEmptyReset();
-    this.send(conn, { t: 'welcome', v: this.bridge.GAME_VERSION, proto: 2, st: this.bridge.state() });
+    this.send(conn, {
+      t: 'welcome', v: this.bridge.GAME_VERSION, proto: 3,
+      st: this.bridge.state(),
+      session: !!this.session, // the menu picks its screen from this, no round trip
+    });
     ws.on('message', raw => {
       let msg;
       try { msg = JSON.parse(raw); } catch { return; }
@@ -195,6 +258,7 @@ class Room {
     }
     if (conn.badVersion) return;
 
+    if (msg.t === 'host') { this.hostSession(conn); return; }
     if (msg.t === 'join') { this.join(conn, msg); return; }
     if (conn.slot == null) return; // everything below needs a seat
 
@@ -237,6 +301,13 @@ class Room {
 
   join(conn, msg) {
     if (!conn.hello || conn.slot != null) return;
+    if (!this.session) { this.denyJoin(conn, 'nosession'); return; }
+    if (normalizeCode(msg.code) !== this.session.code) { this.denyJoin(conn, 'code'); return; }
+    // the code is what grants access, and a seat is a separate question: a
+    // correct code into a full match still admits you as a spectator, which is
+    // what any connection at all used to get for free
+    conn.authed = true;
+    this.send(conn, { t: 'session', code: this.session.code });
     // One cleaned string for the seat, the reservation key and the reset
     // banner. The sim cleans the PLAYER's name inside addPlayer; this one is
     // the room's own copy, and it used to be whatever bytes arrived — which
@@ -260,7 +331,7 @@ class Room {
     }
 
     const slot = this.bridge.addPlayer({ name, color: msg.color, hat: msg.hat });
-    if (slot == null) { this.send(conn, { t: 'joinDenied', reason: 'full' }); return; }
+    if (slot == null) { this.denyJoin(conn, 'full'); return; }
     conn.slot = slot;
     conn.name = name || null;
     this.send(conn, { t: 'you', slot });
@@ -281,15 +352,13 @@ class Room {
         if (key) this.reserved.set(key, { slot: conn.slot, expiresAt: performance.now() + RESERVE_MS });
       }
     }
-    if (this.conns.size === 0 && this.bridge.state() !== 'LOBBY') {
+    // an empty room ends the session, not just the match: the code that was
+    // shared for it stops working, and the next person to arrive can host
+    if (this.conns.size === 0 && (this.session || this.bridge.state() !== 'LOBBY')) {
       this.emptyResetTimer = setTimeout(() => {
-        if (this.conns.size === 0) {
-          console.log('room empty mid-match — resetting to lobby');
-          this.reserved.clear();
-          this.shellSinceRound.clear();
-          this.bridge.reset();
-        }
+        if (this.conns.size === 0) this.endEmptySession();
       }, EMPTY_RESET_MS);
+      this.emptyResetTimer.unref?.(); // a test that drops its last socket must not wait a minute
     }
   }
 
