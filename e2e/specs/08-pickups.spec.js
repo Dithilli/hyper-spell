@@ -15,6 +15,10 @@ test.describe('tomes', () => {
     await game.seatKeyboardPlayer(0);
     await game.seatKeyboardPlayer(1);
     await game.startMatch();
+    // Wizards open the round armed now (opening loadouts), so an EMPTY slot has
+    // to be made rather than assumed. Clearing both is what makes the assertion
+    // below — that the tome landed in an empty slot — mean anything.
+    await game.read(() => { globalThis.HS.players[0].slots.length = 0; });
     expect((await game.player(0)).slots.filter(Boolean)).toHaveLength(0);
 
     const spellId = await game.read(() => {

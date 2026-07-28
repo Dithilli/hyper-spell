@@ -2354,6 +2354,7 @@
       "Enter",
       "Equal",
       "Escape",
+      "F9",
       "KeyB",
       "KeyM",
       "KeyN",
@@ -2420,6 +2421,8 @@
     "renderFiles": [
       "src/render/artkit.js",
       "src/render/audio.js",
+      "src/render/bloom.js",
+      "src/render/camera.js",
       "src/render/canvas.js",
       "src/render/content-pack.js",
       "src/render/draw-boss.js",
@@ -2431,6 +2434,8 @@
       "src/render/effects.js",
       "src/render/fx.js",
       "src/render/hud.js",
+      "src/render/name-tags.js",
+      "src/render/profiler.js",
       "src/render/replay.js"
     ]
   }

@@ -1,8 +1,20 @@
 # E2E findings
 
-Bugs the browser suite found. Nothing here has been fixed — the specs that catch
-them are left failing on purpose, so the board stays red until someone decides
-what to do about them.
+Bugs the browser suite found. The specs that catch the live ones are left failing
+on purpose, so the board stays red until someone decides what to do about them.
+
+**Board as of the v10 port merge: 188 passed, 2 failed of 190.** Both failures
+are finding 1 (the windy maps). Findings 2 and 3 were build/runtime breakages
+that are long fixed. Finding 5 is load-sensitivity, not a game bug, and did not
+reproduce on this run.
+
+Finding 4 (`statusBolt` spells landing nothing) NO LONGER FAILS THE SUITE, and
+that is recorded here rather than crossed out, because "the spec went green" and
+"the bug is fixed" are different claims and only the first is established. I
+tried to reproduce it directly against this tree and could not — but the same
+crude probe also failed to land an ordinary Fireball, so the probe is what is
+unreliable, not the evidence. Someone should re-check it deliberately before
+this entry is deleted.
 
 Each entry gives the reproduction, what should happen, what does, and the spec
 that catches it.

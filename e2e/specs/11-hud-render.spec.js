@@ -90,11 +90,26 @@ const drawsSomething = async (game, fn, arg, stride = 331) => game.read(([name, 
   const H = globalThis.HS;
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // COLOUR, not alpha. This used to clearRect and count pixels whose alpha rose
+  // above 8 — which stopped meaning anything the moment the canvas became an
+  // opaque context (`getContext('2d', { alpha: false })`, added with the
+  // device-pixel backing store). Every pixel is alpha 255 on an opaque canvas,
+  // so the probe returned 921600 for every renderer including a dead one, and
+  // every `toBeGreaterThan(0)` in this file passed vacuously.
+  //
+  // So: paint a sentinel colour nothing in the game uses, run the layer, and
+  // count pixels that moved off it. Works on either kind of context.
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#ff00ff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
   H[name](...(a ?? [H.simNow()]));
   const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
   let lit = 0;
-  for (let i = 3; i < data.length; i += 4 * step) if (data[i] > 8) lit++;
+  for (let i = 0; i < data.length; i += 4 * step) {
+    if (data[i] !== 255 || data[i + 1] !== 0 || data[i + 2] !== 255) lit++;
+  }
   return lit;
 }, [fn, arg, stride]);
 

@@ -98,8 +98,13 @@ test.describe('a round', () => {
     await game.waitFor(() => globalThis.HS.game.state === 'ROUND_END', { label: 'this round to end' });
     await game.waitFor(() => globalThis.HS.game.state === 'PLAY', { timeoutMs: 40_000, label: 'the next round' });
     // startRound clears every wizard's spells; carrying a tome across rounds
-    // would compound an early lead into an unloseable one.
-    expect(await game.read(() => globalThis.HS.players[0].slots.filter(Boolean).length)).toBe(0);
+    // would compound an early lead into an unloseable one. Since opening
+    // loadouts landed the wizard is then DEALT a fresh hand, so "fresh slots"
+    // no longer means "empty slots" — it means the granted fireball is gone and
+    // something dealt is there instead.
+    const slots = await game.read(() => globalThis.HS.players[0].slots.filter(Boolean));
+    expect(slots.length, 'a new round must deal an opening hand').toBeGreaterThan(0);
+    expect(slots, 'the previous round\'s granted spell must not carry over').not.toContain('fireball');
   });
 });
 

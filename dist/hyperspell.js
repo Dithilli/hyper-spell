@@ -15028,6 +15028,24 @@
   }
   var voiceKeys = () => Object.keys(VOICES);
 
+  // src/render/camera.js
+  var camera_exports = {};
+  __export(camera_exports, {
+    beginWorld: () => beginWorld,
+    cameraEnabled: () => cameraEnabled,
+    cameraParallax: () => cameraParallax,
+    cameraPoints: () => cameraPoints,
+    cameraTarget: () => cameraTarget,
+    cameraViewRect: () => cameraViewRect,
+    cameraZoom: () => cameraZoom,
+    clearFrame: () => clearFrame,
+    endWorld: () => endWorld,
+    resetCamera: () => resetCamera,
+    screenToWorld: () => screenToWorld,
+    setCameraEnabled: () => setCameraEnabled,
+    updateCamera: () => updateCamera
+  });
+
   // src/render/fx.js
   var fx_exports2 = {};
   __export(fx_exports2, {
@@ -15386,6 +15404,11 @@
   });
 
   // src/render/name-tags.js
+  var name_tags_exports = {};
+  __export(name_tags_exports, {
+    claimTagSlot: () => claimTagSlot,
+    resetNameTagSlots: () => resetNameTagSlots
+  });
   var _tagSlots = [];
   function resetNameTagSlots() {
     _tagSlots.length = 0;
@@ -15537,6 +15560,9 @@
   function screenToWorld(sx, sy) {
     const r = cameraViewRect();
     return { x: r.x0 + sx / W * (r.x1 - r.x0), y: r.y0 + sy / H * (r.y1 - r.y0) };
+  }
+  function cameraParallax() {
+    return { dx: CAM2.x - W / 2, dy: CAM2.y - H / 2, zoom: CAM2.zoom };
   }
 
   // src/platform/input-keyboard.js
@@ -15869,6 +15895,12 @@
   }
 
   // src/render/bloom.js
+  var bloom_exports = {};
+  __export(bloom_exports, {
+    applyBloom: () => applyBloom,
+    bloomEnabled: () => bloomEnabled,
+    setBloomEnabled: () => setBloomEnabled
+  });
   var enabled = true;
   var BLOOM = {
     div: 4,
@@ -15882,6 +15914,12 @@
     // crust — stop blooming and only spell cores, embers and lava survive.
     passes: 3
   };
+  function setBloomEnabled(on) {
+    enabled = !!on;
+  }
+  function bloomEnabled() {
+    return enabled;
+  }
   var _bufA = null;
   var _bufB = null;
   var _bctxA = null;
@@ -15942,6 +15980,17 @@
   }
 
   // src/render/profiler.js
+  var profiler_exports = {};
+  __export(profiler_exports, {
+    drawPerfHud: () => drawPerfHud,
+    perfBegin: () => perfBegin,
+    perfCount: () => perfCount,
+    perfDump: () => perfDump,
+    perfEnd: () => perfEnd,
+    perfFrameEnd: () => perfFrameEnd,
+    perfFrameStart: () => perfFrameStart,
+    perfSetEnabled: () => perfSetEnabled
+  });
   var PERF_CAP = 240;
   var PERF_MAX_SLOTS = 32;
   var PERF_HITCH_MS = 22;
@@ -16041,6 +16090,11 @@
     if (id < 0) return;
     if (nested) _nestedPhase[id] = 1;
     (nested ? f.sub : f.ph)[id] += performance.now() - t0;
+  }
+  function perfCount(name, value) {
+    if (!PERF.on || !PERF.cur) return;
+    const id = _countSlots.id(name);
+    if (id >= 0) PERF.cur.cn[id] = value;
   }
   function _recordHitch(f) {
     PERF.hitchTimes.push(f.t);
@@ -19162,6 +19216,10 @@
     draw_boss_exports,
     draw_snapshot_exports,
     replay_exports2,
+    camera_exports,
+    bloom_exports,
+    profiler_exports,
+    name_tags_exports,
     audio_exports,
     input_keyboard_exports,
     input_gamepad_exports,
