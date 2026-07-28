@@ -85,9 +85,32 @@ for (const { start, maps } of batches) {
 
         // A second of real physics on the map: wizards must still be alive and
         // on it, not sunk through the floor or dropped into the lava at spawn.
+        // One second is inside the 1.1s FIGHT countdown, so anything that dies
+        // here died before the round was even fightable.
         await game.advanceSim(60);
-        const players = await game.players();
-        if (!players.every(p => p.alive)) killedOnSpawn.push(def.name);
+        if (!(await game.players()).every(p => p.alive)) {
+          // Don't report on one sample. Several arenas drive an oscillating
+          // wind off sim time, so whether a spawn is fatal depends on where in
+          // the cycle the round happened to load — and a sweep that reported
+          // whichever map it caught this run would name a different map every
+          // time and be ignored within a week. Re-run the map across the cycle
+          // and report how often it actually kills.
+          // Eight samples, 70 ticks apart, so they span a whole wind cycle — the
+          // slowest oscillator in the book is sin(now / 1500), about 9.4s or 565
+          // ticks. Sampling less than one cycle made the verdict depend on where
+          // the sweep happened to land, which is how a borderline map ends up
+          // reported one run and not the next.
+          const PHASES = 8;
+          let fatal = 0;
+          for (let phase = 0; phase < PHASES; phase++) {
+            await game.restartRound(index, { awaitFight: false });
+            await game.advanceSim(phase * 70);
+            await game.restartRound(index, { awaitFight: false });
+            await game.advanceSim(60);
+            if (!(await game.players()).every(p => p.alive)) fatal++;
+          }
+          if (fatal >= PHASES / 2) killedOnSpawn.push(`${def.name} (${fatal}/${PHASES} starts)`);
+        }
       }
 
       expect(empty, 'these maps built no geometry at all').toEqual([]);

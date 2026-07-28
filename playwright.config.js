@@ -70,15 +70,17 @@ export default defineConfig({
     // that exhaustively sweeps 252 pieces of content buys far less than it
     // costs; what these two catch is engine-specific canvas or WebSocket
     // breakage, and @engine marks exactly the specs that would show it.
-    {
-      name: 'firefox',
-      grep: /@engine/,
-      use: { ...devices['Desktop Firefox'] },
-    },
-    {
-      name: 'webkit',
-      grep: /@engine/,
-      use: { ...devices['Desktop Safari'] },
-    },
+    //
+    // Opt-in, because they need system libraries Chromium does not:
+    //
+    //     npx playwright install --with-deps firefox webkit   (needs sudo)
+    //     HS_E2E_ENGINES=1 npm run e2e
+    //
+    // Left on by default they would paint the board red on every machine that
+    // has not run that command, which teaches everyone to ignore a red board.
+    ...(process.env.HS_E2E_ENGINES ? [
+      { name: 'firefox', grep: /@engine/, use: { ...devices['Desktop Firefox'] } },
+      { name: 'webkit', grep: /@engine/, use: { ...devices['Desktop Safari'] } },
+    ] : []),
   ],
 });

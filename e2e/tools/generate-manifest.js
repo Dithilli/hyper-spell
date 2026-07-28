@@ -22,12 +22,15 @@ import { liveSurface, sourceSurface, manifestPath, REPO } from './surface.js';
 
 const argv = process.argv.slice(2);
 const skipBuild = argv.includes('--no-build');
+// The game is read from GAME_DIR; the manifest is always written back here, so
+// running against another checkout still updates this suite's expectations.
+const GAME_DIR = process.env.HS_E2E_GAME_DIR || REPO;
 
 async function main() {
   if (!skipBuild) {
     process.stdout.write('building bundles… ');
     for (const script of ['build', 'build:guide']) {
-      execFileSync('npm', ['run', script], { cwd: REPO, stdio: 'pipe' });
+      execFileSync('npm', ['run', script], { cwd: GAME_DIR, stdio: 'pipe' });
     }
     console.log('done');
   }

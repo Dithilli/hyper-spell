@@ -99,12 +99,16 @@ test.describe('bots', () => {
 });
 
 test.describe('match settings', () => {
-  test('1-9 set the win target', async ({ game }) => {
-    for (const n of [1, 3, 7, 9]) {
+  // All nine, one at a time. A loop over [1,3,7,9] would have tested the
+  // mechanism just as well, but the digits are nine separate bindings in
+  // join.js and the coverage auditor is right to want each one named.
+  for (const key of ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9']) {
+    const n = Number(key.slice(5));
+    test(`${key} sets the win target to ${n}`, async ({ game }) => {
       await game.setWins(n);
       expect((await game.state()).winsNeeded).toBe(n);
-    }
-  });
+    });
+  }
 
   test('+ and - nudge the win target and stop at the ends', async ({ game }) => {
     await game.setWins(1);

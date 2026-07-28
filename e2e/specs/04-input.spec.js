@@ -182,6 +182,9 @@ test.describe('gamepad control', () => {
     await padPress(game, [9]);            // START — confirm
     await game.waitFor(() => !globalThis.HS.nameEdit, { label: 'the ribbon to close' });
     expect((await game.player(0)).name).toBe(alphabet[1]);
+    // Pads get their own storage key per slot, so a controller keeps its name
+    // across sessions the way keyboard seat 0 does.
+    expect(await game.read(() => localStorage.getItem('hs-name-pad-0'))).toBe(alphabet[1]);
   });
 
   test('the left stick and d-pad both walk a pad wizard', async ({ page, errors }) => {

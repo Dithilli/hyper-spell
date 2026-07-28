@@ -17,7 +17,11 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 
+// Two roots, and the difference matters when running against another checkout:
+// REPO is where this suite and its manifest live, SRC_ROOT is the game being
+// read. They are the same directory unless HS_E2E_GAME_DIR says otherwise.
 export const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+export const SRC_ROOT = process.env.HS_E2E_GAME_DIR || REPO;
 
 export function listFiles(dir, ext = '.js') {
   let out = [];
@@ -29,8 +33,8 @@ export function listFiles(dir, ext = '.js') {
   return out.sort();
 }
 
-const readSrc = () => listFiles(join(REPO, 'src')).map(f => ({
-  path: relative(REPO, f).split('\\').join('/'),
+const readSrc = () => listFiles(join(SRC_ROOT, 'src')).map(f => ({
+  path: relative(SRC_ROOT, f).split('\\').join('/'),
   text: readFileSync(f, 'utf8'),
 }));
 
@@ -136,8 +140,11 @@ export function liveSurface(page) {
         buildable: typeof m.build === 'function',
         updates: typeof m.update === 'function',
       })),
-      bosses: H.BOSSES.map(b => b.name ?? b.id ?? '?'),
-      secretBosses: H.SECRET_BOSSES.map(b => b.name ?? b.id ?? '?'),
+      // id as well as name: spawnBoss(now, { bossId }) is keyed by id, so a
+      // sweep that only knew the names could not summon what it wants to test.
+      bosses: H.BOSSES.map(b => ({ id: b.id, name: b.name, color: b.color ?? null })),
+      secretBosses: H.SECRET_BOSSES.map(b => ({ id: b.id, name: b.name, color: b.color ?? null })),
+      enemyTypes: Object.keys(H.ENEMY_TYPES ?? {}),
       constants: {
         MAX_HP: H.MAX_HP ?? null,
         WAVE_ENEMY_CAP: H.WAVE_ENEMY_CAP ?? null,

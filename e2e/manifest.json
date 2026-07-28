@@ -2293,14 +2293,44 @@
     }
   ],
   "bosses": [
-    "THE DRAGON",
-    "THE LICH",
-    "THE GOLEM",
-    "THE KRAKEN"
+    {
+      "id": "dragon",
+      "name": "THE DRAGON",
+      "color": "#e15d5d"
+    },
+    {
+      "id": "lich",
+      "name": "THE LICH",
+      "color": "#c084fc"
+    },
+    {
+      "id": "golem",
+      "name": "THE GOLEM",
+      "color": "#b08948"
+    },
+    {
+      "id": "kraken",
+      "name": "THE KRAKEN",
+      "color": "#3d6a8a"
+    }
   ],
   "secretBosses": [
-    "THE RIZARD",
-    "MANU"
+    {
+      "id": "rizard",
+      "name": "THE RIZARD",
+      "color": "#ffd166"
+    },
+    {
+      "id": "manu",
+      "name": "MANU",
+      "color": "#b39ddb"
+    }
+  ],
+  "enemyTypes": [
+    "swordsman",
+    "archer",
+    "bug",
+    "ogre"
   ],
   "constants": {
     "MAX_HP": 150,
