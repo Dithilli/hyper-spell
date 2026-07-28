@@ -13,7 +13,7 @@ import { createSim } from '../src/platform/node.js';
 import { reseed } from '../src/sim/rng.js';
 import { MAPS } from '../src/sim/maps/builders.js';
 import {
-  reachInfo, spawnEscapes, safeSpawnPoint, reachLanding, reachEscape, REACH_SHARE,
+  reachInfo, spawnEscapes, safeSpawnPoint, reachLanding, reachEscape, cellEscapes, REACH_SHARE,
 } from '../src/sim/maps/reach.js';
 import { game, startRound, currentMap } from '../src/sim/match.js';
 import { players, spawnPointFor } from '../src/sim/player/lifecycle.js';
@@ -122,15 +122,18 @@ test('a lone wizard never falls out of the world from its spawn', () => {
 // dynamics are lethal within two seconds: Phantom Floors withdraws the floor,
 // The Maw pulls everything down a hole, The Climb floods with lava.
 //
-// The numbers that matter, 110 maps x 2 seeds x 4 wizards:
+// The numbers that matter, 110 maps x 2 seeds x 4 wizards, deterministic:
 //   7  before this task (the old groundInColumn spawn)
-//  10  escape analysis with the nudge path blind to `busy`
-//   6  escape analysis, busy-aware
-// So the ceiling is set at the measured 6: this must not regress, and it is
-// already better than the behaviour it replaced.
+//  10  escape analysis, busy on neither path (upstream)
+//   8  escape analysis, busy-aware at 44px separation
+//   7  escape analysis, busy-aware at 70px separation (here)
+// The ceiling is the measured 7. It is level with what this replaced rather
+// than better, and that is the honest reading: the analysis packs wizards onto
+// the ledges it judges sound, and keeping them apart is what pays that back.
+// The lone-wizard test above is the one that isolates spawn quality (1 -> 0).
 test('four wizards landing together stay within the measured ceiling', () => {
   const list = fallsOutOfWorld(4, [11, 12]);
-  assert.ok(list.length <= 6, `${list.length} wizards fell (ceiling 6):\n${list.join('\n')}`);
+  assert.ok(list.length <= 7, `${list.length} wizards fell (ceiling 7):\n${list.join('\n')}`);
 });
 
 // safeSpawnPoint has three outcomes and they are NOT equivalent, which is the
@@ -186,9 +189,71 @@ test('the analysis is a pure function of the built map', () => {
   assert.equal(grade(), grade(), 'the same seed must grade the same spawns');
 });
 
+// spawnEscapes is what this file and server/verify-spawns.js grade the
+// guarantee with, so a spawnEscapes that cannot say "no" makes every other
+// assertion here vacuous. It used to: mutating it to `return true` left all
+// seven tests green and the sweep reporting a perfect score.
+//
+// Landing a wizard inside solid terrain is the unambiguous no — there is no
+// landing cell at all, so this holds for any threshold and any map.
+test('spawnEscapes can say no', () => {
+  reseed(4);
+  const { bridge } = createSim();
+  bridge.addPlayer({ name: 'probe' });
+  let rejected = 0, accepted = 0;
+  for (let i = 0; i < MAPS.length; i++) {
+    startRound(i);
+    const g = reachInfo(currentMap);
+    // walk the grid for a cell that IS solid: dropped there, a wizard is buried
+    for (let c = 0; c < g.solid.length; c++) {
+      if (!g.solid[c]) continue;
+      const x = (c % g.cols) * 16 + 8, y = ((c - (c % g.cols)) / g.cols) * 16 + 8;
+      if (spawnEscapes(currentMap, x, y)) accepted++; else rejected++;
+      break;
+    }
+  }
+  assert.equal(accepted, 0, `${accepted} maps called a point inside solid terrain escapable`);
+  assert.ok(rejected > 100, `only ${rejected} maps exercised the rejection path`);
+});
+
+// The lava guard is the difference between "the floor is at y=600" and "the
+// floor is lava and you die on it". Deleting it left every test green and the
+// sweep passing, on a branch where 78 of 110 maps have a lava line.
+test('a spawn over lava is not treated as a landing', () => {
+  reseed(6);
+  const { bridge } = createSim();
+  bridge.addPlayer({ name: 'probe' });
+  const lavaMaps = [];
+  for (let i = 0; i < MAPS.length; i++) {
+    startRound(i);
+    if (currentMap.data.lavaY == null) continue;
+    lavaMaps.push(MAPS[i].name);
+    const g = reachInfo(currentMap);
+    // any cell whose centre sits below the lava line must not be standable,
+    // whatever geometry is down there — you cannot stand on lava
+    // `pass`, not `stand`. deadFrom clears PASSABILITY below the lava line, and
+    // that is what stops reachLanding walking a falling wizard THROUGH the lava
+    // onto whatever floor is under it and calling that a landing. Asserting on
+    // `stand` proves nothing: below the lava line there is usually no solid
+    // geometry either way, so it holds with the guard deleted.
+    const lavaRow = Math.floor((currentMap.data.lavaY - 8) / 16);
+    let below = 0;
+    for (let cy = lavaRow + 1; cy < g.rows; cy++) {
+      for (let cx = 0; cx < g.cols; cx++) below += g.pass[cy * g.cols + cx];
+    }
+    assert.equal(below, 0, `${MAPS[i].name}: ${below} passable cells below lavaY=${currentMap.data.lavaY}`);
+  }
+  assert.ok(lavaMaps.length > 50, `only ${lavaMaps.length} maps had a lava line — the guard is barely exercised`);
+});
+
 // The threshold is the whole judgement: a pocket you can leave measures a real
 // fraction of the arena, a sealed one measures a sliver. If REACH_SHARE ever
 // stops discriminating, every spawn passes and the guarantee is vacuous.
+//
+// Counts only cells that HAVE a landing, because `land < 0` (buried, or a
+// straight fall into the void) is a rejection the threshold had no part in —
+// an earlier version of this test pooled the two and passed with REACH_SHARE
+// set to 0.
 test('the escape threshold actually rejects something', () => {
   reseed(7);
   const { bridge } = createSim();
@@ -203,8 +268,8 @@ test('the escape threshold actually rejects something', () => {
     for (let x = 60; x < 1220; x += 120) {
       for (let y = 80; y < 640; y += 120) {
         const land = reachLanding(g, x, y);
-        if (land < 0) { rejected++; continue; }
-        if (reachEscape(g, land) >= g.arenaN * REACH_SHARE) accepted++; else rejected++;
+        if (land < 0) continue; // not a threshold decision — skip, don't score
+        if (cellEscapes(g, land)) accepted++; else rejected++;
       }
     }
   }

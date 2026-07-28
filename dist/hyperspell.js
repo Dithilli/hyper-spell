@@ -10720,8 +10720,8 @@
     for (const p of players) {
       clearSpells(p);
       despawnPlayer(p);
-      spawnPlayer(p, spawnPointFor(p));
     }
+    for (const p of players) spawnPlayer(p, spawnPointFor(p));
     game.state = "PLAY";
     game.fightAt = simNow() + 1100;
     game.fightShown = false;
@@ -10969,6 +10969,9 @@
     const cx = i % g.cols;
     return !!g.footing[i] && cx > 0 && cx < g.cols - 1 && !!g.footing[i - 1] && !!g.footing[i + 1];
   }
+  function cellEscapes(g, i) {
+    return i >= 0 && reachEscape(g, i) >= g.arenaN * REACH_SHARE;
+  }
   function reachSpots(g) {
     if (g.spots) return g.spots;
     g.spots = [];
@@ -10998,7 +11001,7 @@
     const ranked = reachSpots(g).filter((s) => !busy.some((q) => Math.hypot(q.x - s.x, q.y - s.y) < 70)).sort((a, b) => cost(a) - cost(b));
     for (const needClear of [true, false]) {
       for (const s of ranked) {
-        if (reachEscape(g, s.i) < g.arenaN * REACH_SHARE) continue;
+        if (!cellEscapes(g, s.i)) continue;
         let lift = 0;
         while (lift < 8) {
           const above = s.i - g.gdir * g.cols * (lift + 1);
@@ -11012,10 +11015,10 @@
     }
     return null;
   }
-  var SPAWN_CLEAR = 44;
+  var SPAWN_CLEAR = 70;
   function safeSpawnPoint(m, x, y, busy = []) {
     const g = reachInfo(m);
-    const escapes = (i) => i >= 0 && reachEscape(g, i) >= g.arenaN * REACH_SHARE;
+    const escapes = (i) => cellEscapes(g, i);
     const cellX = (i) => i % g.cols * REACH_CELL + REACH_CELL / 2;
     const clearOfBusy = (px) => !busy.some((q) => Math.abs(q.x - px) < SPAWN_CLEAR);
     const sound = (i) => i >= 0 && reachLandable(g, i) && escapes(i) && dropColumnClear(m, cellX(i), y, (i - i % g.cols) / g.cols * REACH_CELL);

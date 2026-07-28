@@ -103,6 +103,17 @@ export function reachFrom(g, start) {
     step(i + gdir * cols, b);      // falling is free
     step(i - gdir * cols, b - 1);  // climbing costs
     const air = stand[i] ? b : b - 1;
+    // The two `wrap` arms never fire, and that is CORRECT rather than dead
+    // code. loadMap puts a 60px static wall at x = -30 and x = W + 30 on every
+    // map including the wrap ones, so columns 0 and 79 are solid on all 110 and
+    // no edge cell is ever passable. The game agrees: controller.js wraps a
+    // wizard only below x = -20, and the wall stops it at x = 15 — measured by
+    // holding left for ten seconds on DEEP SPACE · WRAPAROUND, where the wizard
+    // parks at x = 14.7 and never crosses. `def.wrap` reaches projectiles
+    // (tick.js wrapBody) and a wizard blasted clean through the wall, neither of
+    // which is walking. So the grid, which models walking, is right to treat the
+    // edges as walls; the arms stay because the flag is real and a map that
+    // dropped its side walls would need them.
     if (cx > 0) step(i - 1, air); else if (wrap) step(cy * cols + cols - 1, air);
     if (cx < cols - 1) step(i + 1, air); else if (wrap) step(cy * cols, air);
   }
@@ -170,11 +181,31 @@ export function reachLandable(g, i) {
   return !!g.footing[i] && cx > 0 && cx < g.cols - 1 && !!g.footing[i - 1] && !!g.footing[i + 1];
 }
 
+// Can a wizard that lands in this cell work with the map, or is it a pocket?
+// The one place the REACH_SHARE threshold is applied, so that safeSpawnPoint
+// and every check that grades it are asking the same question of the same code.
+export function cellEscapes(g, i) {
+  return i >= 0 && reachEscape(g, i) >= g.arenaN * REACH_SHARE;
+}
+
 // the question spawnPointFor asks: drop a wizard here and can it get out again?
+//
+// Both halves matter and they are different questions — cellEscapes is "not
+// walled in", reachLandable is "somewhere you can come down onto". A spot can
+// pass the first and fail the second (a destructible slab you can walk off but
+// should not be dropped onto), which is why safeSpawnPoint treats them
+// separately: it insists on escape and prefers, but does not require, a good
+// landing.
+//
+// This is what test/spawn-escape.test.js and server/verify-spawns.js grade
+// with. It used to have no caller under src/ at all, so mutating it to `return
+// true` left every test green and the sweep reporting a perfect score — the
+// guarantee was verified by a function nothing in the game ran. safeSpawnPoint
+// now goes through the same two predicates.
 export function spawnEscapes(m, x, y) {
   const g = reachInfo(m);
   const land = reachLanding(g, x, y);
-  return land >= 0 && reachLandable(g, land) && reachEscape(g, land) >= g.arenaN * REACH_SHARE;
+  return land >= 0 && reachLandable(g, land) && cellEscapes(g, land);
 }
 
 function reachSpots(g) {
@@ -219,7 +250,7 @@ function arenaSpawnNear(m, x, y, busy = []) {
   // giving up and leaving the wizard walled in
   for (const needClear of [true, false]) {
     for (const s of ranked) {
-      if (reachEscape(g, s.i) < g.arenaN * REACH_SHARE) continue;
+      if (!cellEscapes(g, s.i)) continue;
       // drop in from as high as the column above is clear, so it still reads as an arrival
       let lift = 0;
       while (lift < 8) {
@@ -240,22 +271,42 @@ function arenaSpawnNear(m, x, y, busy = []) {
 // when the drop only clips its edge; a relocation into the main arena when the
 // spot is a genuine trap — buried in terrain, a straight fall into the lava, or
 // a pocket walled off from everywhere else.
-// Two wizards dropped into the same column arrive together and shove each
-// other off the ledge, so a candidate cell has to be clear of the wizards
-// already placed. A wizard is 30px across; 44 leaves a body's width between
-// them, which is enough that they land rather than collide.
+// Two wizards dropped into the same column arrive together and shove each other
+// off the ledge, so a candidate cell has to be clear of the wizards already
+// placed. Upstream applied `busy` only in arenaSpawnNear — the relocation path,
+// under a tenth of spawns — so the two common paths placed wizards blind to
+// each other.
 //
-// Upstream applied `busy` only in arenaSpawnNear, so the NUDGE path could walk
-// two slots onto the same cell — and on a map with one good ledge it reliably
-// did. Measured over 110 maps x 2 seeds with four wizards: 10 fell out of the
-// world with the nudge path blind to busy, 0 with this check. (Upstream's own
-// sweep drops one probe at a time, which is exactly the case that cannot see
-// this.) spawnPointFor's comment already promised the behaviour.
-const SPAWN_CLEAR = 44;
+// 70 is not a new number: it is the separation arenaSpawnNear already keeps from
+// busy wizards, so all three paths now agree on what "clear" means. It also
+// measures best. Wizards that fell out of the world, 110 maps x 2 seeds x 4
+// wizards, deterministic across repeats:
+//
+//   before this task, the old groundInColumn spawn      7
+//   escape analysis, busy on neither path (upstream)   10
+//   escape analysis, busy on both, 44px separation      8
+//   escape analysis, busy on both, 70px separation      7
+//
+// Read that honestly: the escape analysis ON ITS OWN makes the four-wizard case
+// worse, because it packs wizards onto the ledges it has judged sound, and this
+// check is what pays that back. The case the task actually improves is the one
+// that isolates spawn quality from wizards colliding — a lone wizard, where it
+// goes 1 -> 0. The survivors here are on maps whose own dynamics are lethal
+// inside two seconds.
+//
+// These numbers only mean anything because startRound now clears the board
+// before it respawns anyone (src/sim/match.js). Before that half the `busy`
+// entries were last round's positions on the previous map, and an earlier
+// revision of this comment quoted a 6 that was partly that accident.
+//
+// x only, deliberately. Spawns are sky drops, so two wizards sharing an x share
+// a landing whatever their y; 19 of the 110 maps do author spawns at more than
+// one height, which makes this slightly over-strict there and never unsafe.
+const SPAWN_CLEAR = 70;
 
 export function safeSpawnPoint(m, x, y, busy = []) {
   const g = reachInfo(m);
-  const escapes = i => i >= 0 && reachEscape(g, i) >= g.arenaN * REACH_SHARE;
+  const escapes = i => cellEscapes(g, i);
   // grade at the cell CENTRE and hand back that same centre. Grading one point
   // and dropping the wizard at another up to half a cell away is how a spawn
   // the grid called clear still clips a tree trunk on the way down.

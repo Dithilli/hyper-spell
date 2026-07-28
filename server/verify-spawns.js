@@ -198,13 +198,18 @@ async function main() {
   //
   // physicsBad is a ratchet. The probe drops one body down a column of authored
   // geometry, and a handful of spawns on maps built out of moving or vanishing
-  // pieces land badly however they are graded — at the default six seeds it is
-  // 14 of 5,280 (0.27%), all on SKY ISLES · THE SPIRAL and THE VOID · EVENT
-  // HORIZON. Failing outright on those would make this sweep permanently red
-  // and therefore unread; passing them silently would let a real regression in.
-  // So the bar is the rate, set at roughly double the measured one, and the
-  // names are printed every run.
-  const PHYSICS_CEILING = 0.005;
+  // pieces land badly however they are graded — all on SKY ISLES · THE SPIRAL
+  // and THE VOID · EVENT HORIZON, whose names print every run. Failing outright
+  // on those would make this sweep permanently red and therefore unread;
+  // passing them silently would let a real regression in.
+  //
+  // The rate falls as the sweep deepens, because the shallow sweeps keep
+  // re-drawing the same unlucky map seeds: 0.45% at --seeds 1 and 2, 0.38% at
+  // 3, 0.32% at 5, 0.27% at the default 6. The ceiling has to clear the WORST
+  // of those, not the best — set at 0.9%, about double the 0.45% a one-seed run
+  // produces. An earlier 0.5% was double the default-run figure and left an
+  // 11% margin on `--seeds 1`, which is a ratchet that fails on the weather.
+  const PHYSICS_CEILING = 0.009;
   const physicsRate = physicsBad / slotsChecked;
   const modelFailed = finalBad > 0;
   const physicsFailed = physicsRate > PHYSICS_CEILING;

@@ -27,25 +27,47 @@ Each row names every file the feature lands in, so the ledger stands on its own
 Kept here because the numbers, not the assurances, are the load-bearing part.
 
 **Spawn safety (task 8).** Wizards that fall out of the world within two
-seconds of spawning, over 110 maps x 2 seeds:
+seconds of spawning, over 110 maps x 2 seeds, deterministic across repeats:
 
 | | lone wizard | four wizards |
 |---|---|---|
 | before the port (`groundInColumn`) | 1 | 7 |
-| escape analysis, nudge blind to `busy` | — | 10 |
-| escape analysis, busy-aware | **0** | **6** |
+| escape analysis, `busy` on neither path (upstream) | 0 | 10 |
+| escape analysis, `busy`-aware at 44px | 0 | 8 |
+| escape analysis, `busy`-aware at 70px | **0** | **7** |
 
-The middle row is why `safeSpawnPoint` now checks `busy` on the nudge path and
-not only when relocating: upstream applied it only in `arenaSpawnNear`, so two
-slots could be nudged onto the same cell and shove each other off. Upstream's
-own sweep drops one probe at a time, which is exactly the case that cannot see
-it.
+Read honestly: the escape analysis **on its own makes the four-wizard case
+worse**, because it packs wizards onto the ledges it has judged sound, and the
+`busy` check only pays that back to level. What the task actually improves is
+the case that isolates spawn quality from wizards colliding — a lone wizard,
+1 -> 0. Upstream applies `busy` only in `arenaSpawnNear` (under a tenth of
+spawns); it applies on all three paths here, at the 70px separation
+`arenaSpawnNear` already used.
+
+Those numbers only mean anything because `startRound` now clears the board
+before respawning anyone. In the previous despawn-and-respawn-in-one-loop, the
+wizards a new spawn kept clear of were the ones the loop had not reached yet —
+still alive at **last round's positions on the previous map**. Half the entries
+were stale, and a first cut of this table quoted a 6 that was partly that
+accident.
 
 `server/verify-spawns.js` at its default six seeds: 5,280 spawns, **0** that the
 model calls walled in, 14 (0.27%) rejected by the physics probe — all on
 `SKY ISLES · THE SPIRAL` and `THE VOID · EVENT HORIZON`, maps built from moving
-and vanishing pieces. That number is a ratchet at 0.5%, not a hard zero, so the
-sweep stays readable without going silent.
+and vanishing pieces. Ratcheted at 0.9% rather than zero, so the sweep stays
+readable without going silent; the rate rises to 0.45% on shallow sweeps, which
+keep re-drawing the same unlucky map seeds, so the ceiling clears the worst case
+and not the best.
+
+**`def.wrap` never reaches the flood fill, and that is correct.** `loadMap` puts
+a static wall at x = -30 and x = W + 30 on every map including the five wrap
+ones, so grid columns 0 and 79 are solid on all 110 and the wrap arms in
+`reachFrom` cannot fire. The game agrees: `controller.js` wraps a wizard only
+below x = -20 and the wall stops it at x = 15 — measured by holding left for ten
+seconds on `DEEP SPACE · WRAPAROUND`, where it parks at x = 14.7 and never
+crosses. `wrap` reaches projectiles and a wizard blasted through the wall,
+neither of which is walking, so a model of walking is right to treat the edges
+as walls.
 
 **Golden tape reseed, 12353 -> 12372.** Required: 12353 fell from five rounds to
 two, under the `rounds >= 3` floor, because nearly every round now opens from a
