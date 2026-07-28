@@ -33,6 +33,7 @@ import { mouse, kbControllers, syncMouseWorld } from '../platform/input-keyboard
 import {
   updateCamera, cameraPoints, beginWorld, endWorld, clearFrame,
 } from './camera.js';
+import { applyBloom } from './bloom.js';
 
 // ---------- drawing ----------
 export function drawBodyRounded(b, color) {
@@ -723,6 +724,10 @@ export function draw(now) {
   drawEnvVisualsLive(now);
   drawReticle(now);
   endWorld();
+
+  // The light pass goes here: after the world, before the vignette and HUD. The
+  // vignette should darken the glow, and HUD text must never bloom.
+  applyBloom(now);
 
   ctx.fillStyle = getVignette();
   ctx.fillRect(0, 0, W, H);

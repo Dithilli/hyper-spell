@@ -15807,6 +15807,79 @@
     });
   }
 
+  // src/render/bloom.js
+  var enabled = true;
+  var BLOOM = {
+    div: 4,
+    // buffer is 1/4 the device resolution per axis (1/16 the pixels)
+    strength: 0.55,
+    // final additive opacity
+    blurPx: 7,
+    // blur radius in BUFFER px, so ~28px at full res
+    // Each pass squares the colour, so N passes leaves c^(2^N). Three passes
+    // (c^8) is the point where lit-but-not-emissive surfaces — pale ice, snow
+    // crust — stop blooming and only spell cores, embers and lava survive.
+    passes: 3
+  };
+  var _bufA = null;
+  var _bufB = null;
+  var _bctxA = null;
+  var _bctxB = null;
+  var _bufW = 0;
+  var _bufH = 0;
+  function _ensureBloomBuffers() {
+    if (!canvas) return false;
+    const w = Math.max(1, Math.floor(canvas.width / BLOOM.div));
+    const h = Math.max(1, Math.floor(canvas.height / BLOOM.div));
+    if (_bufA && _bufW === w && _bufH === h) return true;
+    if (typeof document === "undefined" || !document.createElement) return false;
+    _bufA = document.createElement("canvas");
+    _bufB = document.createElement("canvas");
+    _bufA.width = _bufB.width = w;
+    _bufA.height = _bufB.height = h;
+    _bctxA = _bufA.getContext("2d");
+    _bctxB = _bufB.getContext("2d");
+    if (!_bctxA || !_bctxB) return false;
+    _bufW = w;
+    _bufH = h;
+    return true;
+  }
+  function _blurBuffer() {
+    if ("filter" in _bctxB) {
+      _bctxB.setTransform(1, 0, 0, 1, 0, 0);
+      _bctxB.clearRect(0, 0, _bufW, _bufH);
+      _bctxB.filter = `blur(${BLOOM.blurPx}px)`;
+      _bctxB.drawImage(_bufA, 0, 0);
+      _bctxB.filter = "none";
+    } else {
+      _bctxB.setTransform(1, 0, 0, 1, 0, 0);
+      _bctxB.clearRect(0, 0, _bufW, _bufH);
+      _bctxB.globalAlpha = 0.25;
+      const r = BLOOM.blurPx * 0.6;
+      for (const [dx, dy] of [[-r, 0], [r, 0], [0, -r], [0, r]]) _bctxB.drawImage(_bufA, dx, dy);
+      _bctxB.globalAlpha = 1;
+    }
+  }
+  function applyBloom(now) {
+    if (!enabled || !ctx || !_ensureBloomBuffers()) return;
+    _bctxA.setTransform(1, 0, 0, 1, 0, 0);
+    _bctxA.globalCompositeOperation = "copy";
+    _bctxA.drawImage(canvas, 0, 0, _bufW, _bufH);
+    _bctxA.globalCompositeOperation = "multiply";
+    for (let i = 0; i < BLOOM.passes; i++) _bctxA.drawImage(_bufA, 0, 0);
+    _bctxA.globalCompositeOperation = "source-over";
+    _blurBuffer();
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = BLOOM.strength;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(_bufB, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+  }
+
   // src/net/fx-names.js
   var WIRE_FX = /* @__PURE__ */ new Set([
     "spawnParticles",
@@ -17516,6 +17589,7 @@
     drawEnvVisualsLive(now);
     drawReticle(now);
     endWorld();
+    applyBloom(now);
     ctx.fillStyle = getVignette();
     ctx.fillRect(0, 0, W, H);
     if (flashAlpha > 0.01) {
@@ -18167,6 +18241,7 @@
       ctx.globalAlpha = 1;
     }
     endWorld();
+    applyBloom(now);
     ctx.fillStyle = getVignette();
     ctx.fillRect(0, 0, W, H);
     if (flashAlpha > 0.01) {

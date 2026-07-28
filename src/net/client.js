@@ -10,6 +10,7 @@ import { GAME_VERSION } from '../version.js';
 import { fxRange as rand, fxPick as pick } from '../render/fx.js';
 import { ctx, RENDER_SCALE } from '../render/canvas.js';
 import { updateCamera, beginWorld, endWorld, clearFrame } from '../render/camera.js';
+import { applyBloom } from '../render/bloom.js';
 import { rgba } from '../render/artkit.js';
 import { ensureAudio } from '../render/audio.js';
 // spawnParticles is here because applyBrokenDestructibles bursts the block it
@@ -546,6 +547,8 @@ export function netClientFrame(now) {
     ctx.globalAlpha = 1;
   }
   endWorld();
+
+  applyBloom(now); // same place as the couch path: after the world, before the HUD
 
   ctx.fillStyle = getVignette();
   ctx.fillRect(0, 0, W, H);
