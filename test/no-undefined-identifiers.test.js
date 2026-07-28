@@ -58,7 +58,7 @@ const GLOBALS = new Set([
   'Array', 'Boolean', 'Error', 'Function', 'JSON', 'Map', 'Math', 'Number',
   'Object', 'Promise', 'Set', 'String', 'Symbol', 'Date', 'RegExp', 'WeakMap',
   'WeakSet', 'parseInt', 'parseFloat', 'isNaN', 'isFinite', 'structuredClone',
-  'BigInt', 'Uint8Array', 'Float32Array', 'Int32Array', 'ArrayBuffer',
+  'BigInt', 'Uint8Array', 'Float32Array', 'Float64Array', 'Int16Array', 'Int32Array', 'ArrayBuffer',
   'TextEncoder', 'TextDecoder', 'Proxy', 'Reflect', 'globalThis',
   // platform
   'console', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval',

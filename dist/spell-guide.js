@@ -25,9 +25,9 @@
     mod
   ));
 
-  // ../hyper-spell/node_modules/matter-js/build/matter.js
+  // node_modules/matter-js/build/matter.js
   var require_matter = __commonJS({
-    "../hyper-spell/node_modules/matter-js/build/matter.js"(exports, module) {
+    "node_modules/matter-js/build/matter.js"(exports, module) {
       (function webpackUniversalModuleDefinition(root2, factory) {
         if (typeof exports === "object" && typeof module === "object")
           module.exports = factory();
@@ -4941,6 +4941,9 @@
     const found = Query.region(bodies, aabb);
     return opts.filter ? found.filter(opts.filter) : found;
   }
+  function pointInBody(body, point) {
+    return Vertices.contains(body.vertices, point);
+  }
   function queryRadius(center, r, opts = {}) {
     const bodies = allBodies(opts.container);
     const out = [];
@@ -5851,19 +5854,24 @@
 
   // src/sim/events.js
   var ENV_EVENT_CHANCE = 0.2;
+  var SPAWN_CLEAR = 55;
+  var inSpawnColumn = (m, x) => (m.def.spawns || []).some((s) => Math.abs(s.x - x) < SPAWN_CLEAR);
   function platformSpots(m, n, rng) {
     const rr = rng ? (a, b) => a + rng() * (b - a) : rand;
     const solid = (x) => (b) => b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 && b.bounds.min.x > -60 && b.bounds.max.x < W + 60 && x > b.bounds.min.x + 8 && x < b.bounds.max.x - 8;
     const spots = [];
-    for (let tries = 0; tries < n * 10 && spots.length < n; tries++) {
-      const x = rr(90, W - 90);
-      const col = queryRegion(column(x), { container: m.composite, filter: solid(x) });
-      if (!col.length) continue;
-      const tops = col.map((b) => b.bounds.min.y).filter((y2) => y2 > 150 && y2 < H - 60);
-      if (!tops.length) continue;
-      const y = Math.min(...tops);
-      if (spots.some((s) => Math.abs(s.x - x) < 70 && Math.abs(s.y - y) < 60)) continue;
-      spots.push({ x, y });
+    for (let pass = 0; pass < 2 && spots.length < n; pass++) {
+      for (let tries = 0; tries < n * 10 && spots.length < n; tries++) {
+        const x = rr(90, W - 90);
+        if (pass === 0 && inSpawnColumn(m, x)) continue;
+        const col = queryRegion(column(x), { container: m.composite, filter: solid(x) });
+        if (!col.length) continue;
+        const tops = col.map((b) => b.bounds.min.y).filter((y2) => y2 > 150 && y2 < H - 60);
+        if (!tops.length) continue;
+        const y = Math.min(...tops);
+        if (spots.some((s) => Math.abs(s.x - x) < 70 && Math.abs(s.y - y) < 60)) continue;
+        spots.push({ x, y });
+      }
     }
     return spots;
   }
@@ -6206,6 +6214,7 @@
     let prev = null;
     for (let i = 0; i < n; i++) {
       const plank = createBox(x0 + step * (i + 0.5), y, Math.abs(step) - 4, 10, { density: 2e-3, friction: 0.5, label: "plank" });
+      plank.rope = true;
       addBody2(m, plank, "#8a6f4d");
       const link = prev ? createJoint({ bodyA: prev, bodyB: plank, pointA: { x: step / 2, y: 0 }, pointB: { x: -step / 2, y: 0 }, stiffness: 0.9, length: 4 }) : createJoint({ bodyB: plank, pointA: { x: x0, y }, pointB: { x: -step / 2, y: 0 }, stiffness: 0.9, length: 4 });
       link.label = "breakable";
@@ -8822,9 +8831,20 @@
   function tomePool() {
     return Object.keys(SPELLS).filter((id) => !SPELLS[id].hybrid);
   }
+  function dealStartingSpells(who = players) {
+    const pool = tomePool();
+    const dealt = new Set(players.map((p) => p.slots[0]).filter(Boolean));
+    for (const p of who) {
+      let id = weightedSpellPick(pool);
+      for (let tries = 0; tries < 12 && dealt.has(id); tries++) id = weightedSpellPick(pool);
+      if (!id) continue;
+      dealt.add(id);
+      addSpell(p, id);
+    }
+  }
   function scheduleTomes(now) {
-    nextTomeAt = now + rand(1200, 2500);
-    firstDrop = true;
+    nextTomeAt = now + rand(2500, 4e3);
+    firstDrop = false;
   }
   function tomeDropSpot() {
     const g = gravityY();
@@ -8886,7 +8906,8 @@
       tomeLust: false,
       fleeHp: 0,
       bully: false,
-      chaos: false
+      chaos: false,
+      nerve: 0.03
     },
     // wants your face: picks on the weakest wizard, presses in, fires fast, rarely blocks
     berserker: {
@@ -8900,7 +8921,8 @@
       tomeLust: false,
       fleeHp: 0,
       bully: true,
-      chaos: false
+      chaos: false,
+      nerve: 0.055
     },
     // fights at arm's length: kites to a standoff range, parries well, runs when hurt
     skirmisher: {
@@ -8914,7 +8936,8 @@
       tomeLust: false,
       fleeHp: 55,
       bully: false,
-      chaos: false
+      chaos: false,
+      nerve: 0.02
     },
     // plays the long game: a tome that completes a fusion outranks any fight
     alchemist: {
@@ -8928,7 +8951,8 @@
       tomeLust: true,
       fleeHp: 45,
       bully: false,
-      chaos: false
+      chaos: false,
+      nerve: 0.015
     },
     // nobody knows what it wants, including itself — wild aim, wandering feet
     trickster: {
@@ -8942,11 +8966,40 @@
       tomeLust: false,
       fleeHp: 0,
       bully: false,
-      chaos: true
+      chaos: true,
+      nerve: 0.075
     }
   };
   var PERSONA_ORDER = ["berserker", "skirmisher", "alchemist", "trickster", "balanced"];
   var nextPersona = 0;
+  var NAV_SKIP = /* @__PURE__ */ new Set(["lava", "spikes", "projectile", "gib", "player", "boss", "enemy", "tome", "hat"]);
+  var _navBodies = null;
+  var _navBodiesAt = -1e9;
+  var _navMap = null;
+  function navCandidates() {
+    const now = simNow();
+    if (!_navBodies || _navMap !== currentMap || now - _navBodiesAt > 200) {
+      _navBodies = allBodies().filter((b) => !b.isSensor && !NAV_SKIP.has(b.label));
+      _navBodiesAt = now;
+      _navMap = currentMap;
+    }
+    return _navBodies;
+  }
+  onWorldReset(() => {
+    _navBodies = null;
+    _navBodiesAt = -1e9;
+    _navMap = null;
+  });
+  function navGroundY(x, fromY) {
+    let best = null;
+    for (const b of navCandidates()) {
+      if (b.collisionFilter.mask === 0) continue;
+      if (x < b.bounds.min.x + 4 || x > b.bounds.max.x - 4) continue;
+      if (b.bounds.min.y < fromY - 8) continue;
+      if (best == null || b.bounds.min.y < best) best = b.bounds.min.y;
+    }
+    return best;
+  }
   var BotController = class {
     constructor(persona) {
       this.persona = persona && BOT_PERSONAS[persona] ? persona : PERSONA_ORDER[nextPersona++ % PERSONA_ORDER.length];
@@ -8963,23 +9016,51 @@
       return { move: 0, jump: false, cast: false, cast2: false, block: false, jumpPressed: false, castPressed: false, cast2Pressed: false, blockPressed: false, startPressed: false, aimPoint: null, aimVec: null, aimAngle: null };
     }
     // is stepping one pace in `dir` a walk into lava or off into a deep pit?
-    // lookahead scales with current speed — a sprinting bot needs to brake sooner
+    // The lookahead has to cover everything the bot will traverse before its next
+    // think (up to 280ms), so it scales with speed — and it samples ACROSS that
+    // span rather than only at the far end, because a narrow gap between here and
+    // there is still a hole to fall into.
     fallDanger(me, dir, vx = 0) {
-      const aheadX = Math.max(20, Math.min(W - 20, me.x + dir * (42 + Math.abs(vx) * 10)));
-      const gAhead = groundYAt(aheadX);
+      const look = Math.max(46, 42 + Math.abs(vx) * 14);
       const lava = currentMap.data.lavaY;
-      if (lava != null && gAhead > lava - 24) return true;
-      if (gAhead >= H - 31) return true;
-      return gAhead - me.y > 300;
+      for (const frac of [0.7, 1]) {
+        const aheadX = Math.max(20, Math.min(W - 20, me.x + dir * look * frac));
+        const g = navGroundY(aheadX, me.y);
+        if (g == null) return true;
+        if (lava != null && g > lava - 24) return true;
+        if (g - me.y > 300) return true;
+      }
+      return false;
+    }
+    // How far this wizard can actually throw itself right now: a ground jump plus
+    // the air jump it still has, carried by whatever speed it already has. Bots
+    // used to assume one fixed 135px hop and refuse gaps they could clear.
+    //
+    // DIVERGES FROM UPSTREAM, deliberately and measurably. Upstream computes
+    // `|vx| * 36`, optionally * 1.5 for the air jump — a model in which a standing
+    // jump covers no ground at all. That is not true here: controller.js blends
+    // in-air velocity toward +/-6 at perSecond(0.08) every tick, so a wizard that
+    // leaves the ground at rest still crosses real distance. Upstream's formula
+    // predicts 0px against a measured 176px.
+    //
+    // These two lines are measured in this engine, jumping at takeoff speed v and
+    // holding air control: one jump reaches 176 + 9.2v, two reach 320 + 9v. An
+    // earlier cut of this port used (274 + 150) scaled by speed, which
+    // over-estimated at pace — 12 of 629 committed gap leaps went for a gap wider
+    // than the wizard could cross, which is the exact failure the upstream commit
+    // set out to remove, reintroduced in a different speed band.
+    jumpReach(p, vx = 0) {
+      const v = Math.abs(vx);
+      return p.airJumps > 0 ? 320 + 9 * v : 176 + 9.2 * v;
     }
     // nearest direction with real footing within reach (used mid-air over death)
     safeGroundDir(me, lavaY) {
-      for (let d = 60; d <= 380; d += 64) {
+      for (let d = 60; d <= 380; d += 48) {
         for (const dir of [-1, 1]) {
           const x = me.x + dir * d;
           if (x < 30 || x > W - 30) continue;
-          const g = groundYAt(x);
-          if (g < H - 31 && (lavaY == null || g < lavaY - 24) && g - me.y < 300) return dir;
+          const g = navGroundY(x, me.y);
+          if (g != null && (lavaY == null || g < lavaY - 24) && g - me.y < 300) return dir;
         }
       }
       return 0;
@@ -8988,8 +9069,8 @@
       const me = p.body.position;
       const lavaY = currentMap.data.lavaY;
       if (now - (p.lastGround || 0) >= 220) {
-        const gBelow = groundYAt(me.x);
-        if (lavaY != null && gBelow > lavaY - 24 || gBelow >= H - 31) {
+        const gBelow = navGroundY(me.x, me.y);
+        if (gBelow == null || lavaY != null && gBelow > lavaY - 24) {
           const dir = this.safeGroundDir(me, lavaY) || (me.x > W / 2 ? -1 : 1);
           this.plan = { move: dir, jump: p.body.velocity.y > 2 && p.airJumps > 0, cast: false, cast2: false, aim: null, block: false };
           this.nextThink = now + 70;
@@ -9055,15 +9136,29 @@
           if (best) goal = best.position;
         }
       }
-      const fleeing = m.fleeHp && p.hp < m.fleeHp && goal === tpos && tpos;
+      const stale = game.lastDamageAt != null && now - game.lastDamageAt > 7e3;
+      const FLEE_NEAR = 420;
+      const REENGAGE_MS = 2800;
+      let fleeing = false;
+      if (!stale && m.fleeHp && tpos && goal === tpos && p.hp < m.fleeHp) {
+        const dThreat = Math.hypot(tpos.x - me.x, tpos.y - me.y);
+        if (now < (this.fleeUntil || 0)) fleeing = true;
+        else if (now < (this.reengageUntil || 0)) fleeing = false;
+        else if (dThreat < FLEE_NEAR) {
+          this.fleeUntil = now + rand(900, 1700);
+          this.reengageUntil = this.fleeUntil + REENGAGE_MS;
+          fleeing = true;
+        }
+      }
+      const standoff = stale ? 0 : m.standoff;
       let move = 0;
       if (goal) {
         const dx = goal.x - me.x;
         const d = goal === tpos ? Math.hypot(tpos.x - me.x, tpos.y - me.y) : 1e9;
         if (fleeing) move = -Math.sign(dx || 1);
-        else if (goal === tpos && m.standoff && d < m.standoff - 60) move = -Math.sign(dx || 1);
-        else if (Math.abs(dx) > 46 && !(goal === tpos && m.standoff && d < m.standoff + 60)) move = Math.sign(dx);
-        else if (goal === tpos && simRandom() < m.keepDist) move = -Math.sign(dx || 1);
+        else if (goal === tpos && standoff && d < standoff - 60) move = -Math.sign(dx || 1);
+        else if (Math.abs(dx) > 46 && !(goal === tpos && standoff && d < standoff + 60)) move = Math.sign(dx);
+        else if (goal === tpos && !stale && simRandom() < m.keepDist) move = -Math.sign(dx || 1);
       } else if (simRandom() < 0.12) {
         move = pick([-1, 0, 1]);
       }
@@ -9072,15 +9167,49 @@
       if (me.x > W - 80) move = -1;
       const grounded2 = now - (p.lastGround || 0) < 220;
       let jump = false;
-      if (currentMap.data.lavaY != null && me.y > currentMap.data.lavaY - 60) jump = true;
-      if (move && this.fallDanger(me, move, p.body.velocity.x)) {
-        const landX = Math.max(24, Math.min(W - 24, me.x + move * 135));
-        const gLand = groundYAt(landX);
-        const lava = currentMap.data.lavaY;
-        const safeLanding = (lava == null || gLand < lava - 24) && gLand - me.y < 240 && gLand - me.y > -140;
-        if (safeLanding && grounded2) jump = true;
-        else move = 0;
+      if (!grounded2 && now < (this.gapJumpUntil || 0) && p.airJumps > 0 && p.body.velocity.y > 1) {
+        const dir = Math.sign(p.body.velocity.x) || p.facing || 1;
+        const ahead = navGroundY(me.x + dir * 40, me.y);
+        if (ahead == null || ahead - me.y > 130) jump = true;
       }
+      if (currentMap.data.lavaY != null && me.y > currentMap.data.lavaY - 60) jump = true;
+      const vx = p.body.velocity.x;
+      const lava = currentMap.data.lavaY;
+      let vetoed = false;
+      const blundering = now < (this.blunderUntil || 0);
+      if (move && !blundering && this.fallDanger(me, move, vx)) {
+        const reach = this.jumpReach(p, vx) * 0.85;
+        let landDir = 0;
+        for (const dist of [110, 135, 165, 195, 240, 300, 360]) {
+          if (dist > reach) break;
+          const landX = Math.max(24, Math.min(W - 24, me.x + move * dist));
+          const gLand = navGroundY(landX, me.y);
+          if (gLand == null) continue;
+          if (lava != null && gLand > lava - 24) continue;
+          if (gLand - me.y < 240 && gLand - me.y > -140) {
+            landDir = move;
+            break;
+          }
+        }
+        const nerveOdds = (m.nerve ?? 0.03) * (fleeing ? 2.5 : 1);
+        if (landDir && grounded2) {
+          jump = true;
+          this.gapJumpUntil = now + 1100;
+        } else if (Math.abs(vx) > 1.6 && simRandom() < nerveOdds) {
+          this.blunderUntil = now + 520;
+        } else {
+          move = 0;
+          vetoed = true;
+        }
+      }
+      if (Math.abs(vx) > 1.2 && !blundering) {
+        const slideDir = Math.sign(vx);
+        if (this.fallDanger(me, slideDir, vx) && (move === 0 || move === slideDir)) {
+          move = -slideDir;
+          vetoed = true;
+        }
+      }
+      if (vetoed) this.nextThink = now + 70;
       if (goal && goal.y < me.y - 70 && grounded2 && simRandom() < 0.4) jump = true;
       if (move && Math.abs(p.body.velocity.x) < 0.5 && grounded2 && simRandom() < 0.3) jump = true;
       if (m.chaos && grounded2 && simRandom() < 0.15) jump = true;
@@ -9434,8 +9563,10 @@
     for (const p of players) {
       clearSpells(p);
       despawnPlayer(p);
-      spawnPlayer(p, spawnPointFor(p));
     }
+    for (const p of players) spawnPlayer(p, spawnPointFor(p));
+    dealStartingSpells();
+    game.lastDamageAt = simNow();
     game.state = "PLAY";
     game.fightAt = simNow() + 1100;
     game.fightShown = false;
@@ -9523,22 +9654,205 @@
     bannerHyper = false;
   });
 
-  // src/sim/player/lifecycle.js
-  function groundInColumn(x) {
-    return queryRegion(column(x), {
-      container: currentMap.composite,
-      filter: (b) => b.isStatic && !b.isSensor && b.label !== "lava" && b.collisionFilter.mask !== 0 && x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6 && b.bounds.min.y > 100
-    }).length > 0;
+  // src/sim/maps/reach.js
+  var REACH_CELL = 16;
+  var REACH_PAD = 15;
+  var REACH_CLIMB = 21;
+  var REACH_SHARE = 0.35;
+  function buildReach(m) {
+    const cols = Math.ceil(W / REACH_CELL), rows = Math.ceil(H / REACH_CELL);
+    const n = cols * rows;
+    const solid = new Uint8Array(n), firm = new Uint8Array(n);
+    for (const b of allBodies(m.composite)) {
+      if (!b.isStatic && b.label !== "plank" || b.isSensor || b.collisionFilter.mask === 0 || b.label === "lava") continue;
+      const solidOnly = !!b.rope || b.label === "destructible";
+      const x0 = Math.max(0, Math.floor((b.bounds.min.x - REACH_PAD) / REACH_CELL));
+      const x1 = Math.min(cols - 1, Math.floor((b.bounds.max.x + REACH_PAD) / REACH_CELL));
+      const y0 = Math.max(0, Math.floor((b.bounds.min.y - REACH_PAD) / REACH_CELL));
+      const y1 = Math.min(rows - 1, Math.floor((b.bounds.max.y + REACH_PAD) / REACH_CELL));
+      for (let cy = y0; cy <= y1; cy++) {
+        for (let cx = x0; cx <= x1; cx++) {
+          const i = cy * cols + cx;
+          if (solid[i] && (solidOnly || firm[i])) continue;
+          const x = cx * REACH_CELL + REACH_CELL / 2, y = cy * REACH_CELL + REACH_CELL / 2;
+          if (pointInBody(b, { x, y }) || pointInBody(b, { x: x - REACH_PAD, y }) || pointInBody(b, { x: x + REACH_PAD, y }) || pointInBody(b, { x, y: y - REACH_PAD }) || pointInBody(b, { x, y: y + REACH_PAD })) {
+            solid[i] = 1;
+            if (!solidOnly) firm[i] = 1;
+          }
+        }
+      }
+    }
+    const gdir = (m.def.gravity ?? 2) < 0 ? -1 : 1;
+    const deadFrom = gdir > 0 ? (m.data.lavaY ?? H + 40) - 8 : null;
+    const pass = new Uint8Array(n), stand = new Uint8Array(n), footing = new Uint8Array(n);
+    for (let cy = 0; cy < rows; cy++) {
+      for (let cx = 0; cx < cols; cx++) {
+        const i = cy * cols + cx;
+        if (solid[i]) continue;
+        if (deadFrom != null && (cy + 1) * REACH_CELL > deadFrom) continue;
+        const head = i - gdir * cols;
+        if (head < 0 || head >= n || solid[head]) continue;
+        pass[i] = 1;
+        const foot = i + gdir * cols;
+        if (foot < 0 || foot >= n) continue;
+        if (solid[foot]) stand[i] = 1;
+        if (firm[foot]) footing[i] = 1;
+      }
+    }
+    return { cols, rows, solid, pass, stand, footing, gdir, wrap: !!m.def.wrap, escape: /* @__PURE__ */ new Map() };
   }
+  function reachFrom(g, start) {
+    const { cols, pass, stand, gdir, wrap } = g;
+    const best = new Int16Array(pass.length).fill(-1);
+    best[start] = REACH_CLIMB;
+    const stack = [start];
+    while (stack.length) {
+      const i = stack.pop();
+      const b = best[i];
+      const cx = i % cols, cy = (i - cx) / cols;
+      const step = (ni, nb) => {
+        if (nb < 0 || ni < 0 || ni >= pass.length || !pass[ni]) return;
+        const v = stand[ni] ? REACH_CLIMB : nb;
+        if (v <= best[ni]) return;
+        best[ni] = v;
+        stack.push(ni);
+      };
+      step(i + gdir * cols, b);
+      step(i - gdir * cols, b - 1);
+      const air = stand[i] ? b : b - 1;
+      if (cx > 0) step(i - 1, air);
+      else if (wrap) step(cy * cols + cols - 1, air);
+      if (cx < cols - 1) step(i + 1, air);
+      else if (wrap) step(cy * cols, air);
+    }
+    return best;
+  }
+  function reachCount(g, best) {
+    let n = 0;
+    for (let i = 0; i < best.length; i++) if (best[i] >= 0 && g.stand[i]) n++;
+    return n;
+  }
+  function reachLanding(g, x, y) {
+    const { cols, rows, pass, stand, gdir } = g;
+    const cx = Math.max(0, Math.min(cols - 1, Math.floor(x / REACH_CELL)));
+    const cy = Math.max(0, Math.min(rows - 1, Math.floor(y / REACH_CELL)));
+    let i = cy * cols + cx;
+    if (!pass[i]) return -1;
+    for (let t = 0; t < rows; t++) {
+      if (stand[i]) return i;
+      const next2 = i + gdir * cols;
+      if (next2 < 0 || next2 >= pass.length || !pass[next2]) return -1;
+      i = next2;
+    }
+    return -1;
+  }
+  function reachEscape(g, land) {
+    let k = land;
+    while (k % g.cols > 0 && g.stand[k - 1]) k--;
+    let n = g.escape.get(k);
+    if (n == null) {
+      n = reachCount(g, reachFrom(g, k));
+      g.escape.set(k, n);
+    }
+    return n;
+  }
+  function reachInfo(m) {
+    if (m.data.reach) return m.data.reach;
+    const g = buildReach(m);
+    const seeds = m.def.spawns.map((s) => reachLanding(g, s.x, s.y));
+    for (let cx = 2; cx < g.cols; cx += 5) {
+      for (let cy = 0; cy < g.rows; cy++) {
+        const i = cy * g.cols + cx;
+        if (g.stand[i]) {
+          seeds.push(i);
+          break;
+        }
+      }
+    }
+    g.arenaN = 1;
+    for (const i of seeds) if (i >= 0) g.arenaN = Math.max(g.arenaN, reachEscape(g, i));
+    m.data.reach = g;
+    return g;
+  }
+  function reachLandable(g, i) {
+    const cx = i % g.cols;
+    return !!g.footing[i] && cx > 0 && cx < g.cols - 1 && !!g.footing[i - 1] && !!g.footing[i + 1];
+  }
+  function cellEscapes(g, i) {
+    return i >= 0 && reachEscape(g, i) >= g.arenaN * REACH_SHARE;
+  }
+  function reachSpots(g) {
+    if (g.spots) return g.spots;
+    g.spots = [];
+    for (let i = 0; i < g.stand.length; i++) {
+      const cx = i % g.cols;
+      if (cx < 3 || cx > g.cols - 4) continue;
+      if (!reachLandable(g, i)) continue;
+      g.spots.push({ i, x: cx * REACH_CELL + REACH_CELL / 2, y: (i - cx) / g.cols * REACH_CELL + REACH_CELL / 2 });
+    }
+    return g.spots;
+  }
+  var DROP_LABELS = /* @__PURE__ */ new Set(["crate", "barrel", "ball"]);
+  function dropColumnClear(m, x, y0, y1) {
+    y1 += y1 >= y0 ? REACH_PAD : -REACH_PAD;
+    const lo = Math.min(y0, y1), hi = Math.max(y0, y1);
+    for (const b of allBodies(m.composite)) {
+      if (b.isStatic || b.isSensor || !DROP_LABELS.has(b.label)) continue;
+      if (b.bounds.max.x < x - 18 || b.bounds.min.x > x + 18) continue;
+      if (b.bounds.max.y < lo || b.bounds.min.y > hi) continue;
+      return false;
+    }
+    return true;
+  }
+  function arenaSpawnNear(m, x, y, busy = []) {
+    const g = reachInfo(m);
+    const cost = (s) => Math.abs(s.x - x) + Math.abs(s.y - y) * 0.35;
+    const ranked = reachSpots(g).filter((s) => !busy.some((q) => Math.hypot(q.x - s.x, q.y - s.y) < 70)).sort((a, b) => cost(a) - cost(b));
+    for (const needClear of [true, false]) {
+      for (const s of ranked) {
+        if (!cellEscapes(g, s.i)) continue;
+        let lift = 0;
+        while (lift < 8) {
+          const above = s.i - g.gdir * g.cols * (lift + 1);
+          if (above < 0 || above >= g.pass.length || !g.pass[above]) break;
+          lift++;
+        }
+        const y0 = s.y - g.gdir * lift * REACH_CELL;
+        if (needClear && !dropColumnClear(m, s.x, y0, s.y)) continue;
+        return { x: s.x, y: y0 };
+      }
+    }
+    return null;
+  }
+  var SPAWN_CLEAR2 = 70;
+  function safeSpawnPoint(m, x, y, busy = []) {
+    const g = reachInfo(m);
+    const escapes = (i) => cellEscapes(g, i);
+    const cellX = (i) => i % g.cols * REACH_CELL + REACH_CELL / 2;
+    const clearOfBusy = (px) => !busy.some((q) => Math.abs(q.x - px) < SPAWN_CLEAR2);
+    const sound = (i) => i >= 0 && reachLandable(g, i) && escapes(i) && dropColumnClear(m, cellX(i), y, (i - i % g.cols) / g.cols * REACH_CELL);
+    const land = reachLanding(g, x, y);
+    if (escapes(land)) {
+      if (sound(land) && clearOfBusy(cellX(land))) return { x: cellX(land), y };
+      for (let d = 1; d <= 11; d++) {
+        for (const side of [-1, 1]) {
+          const nx = x + side * d * REACH_CELL;
+          if (nx < 40 || nx > W - 40) continue;
+          const ni = reachLanding(g, nx, y);
+          if (sound(ni) && clearOfBusy(cellX(ni))) return { x: cellX(ni), y };
+        }
+      }
+    }
+    return arenaSpawnNear(m, x, y, busy) || { x, y };
+  }
+
+  // src/sim/player/lifecycle.js
   function spawnPointFor(p) {
     const spawns = currentMap.def.spawns;
     const base2 = spawns[p.slot % spawns.length];
     const jitter = p.slot >= spawns.length ? (p.slot - spawns.length + 1) * 26 * (p.slot % 2 ? 1 : -1) : 0;
-    if (!groundInColumn(base2.x + jitter)) {
-      const spot = platformSpots(currentMap, 3).find((s) => groundInColumn(s.x));
-      if (spot) return { x: spot.x, y: Math.max(80, spot.y - 150) };
-    }
-    return { x: Math.max(40, Math.min(W - 40, base2.x + jitter)), y: base2.y };
+    const busy = players.filter((q) => q !== p && q.alive && q.body).map((q) => ({ x: q.body.position.x, y: q.body.position.y }));
+    return safeSpawnPoint(currentMap, Math.max(40, Math.min(W - 40, base2.x + jitter)), base2.y, busy);
   }
   var players = [];
   var gibs = /* @__PURE__ */ new Set();
@@ -9577,6 +9891,21 @@
     if (!p.alive) return;
     p.hp = Math.min(MAX_HP, p.hp + amt);
     spawnText(p.body.position.x, p.body.position.y - 34, `+${Math.round(amt)}`, "#7bd88f");
+  }
+  function addSpell(p, id) {
+    const now = simNow();
+    const locked = (s) => p.slots[s] != null && p.slotCharges[s] > 0;
+    let i = p.slots[0] == null ? 0 : p.slots[1] == null ? 1 : p.slotFilledAt[0] <= p.slotFilledAt[1] ? 0 : 1;
+    if (locked(i)) i = 1 - i;
+    if (locked(i)) {
+      spawnText(p.body.position.x, p.body.position.y - 48, "HANDS FULL!", "#ff4df0");
+      return -1;
+    }
+    p.slots[i] = id;
+    p.casts[i] = 0;
+    p.slotCharges[i] = null;
+    p.slotFilledAt[i] = now;
+    return i;
   }
   function disarmPlayer(q) {
     q.slots[0] = q.slots[1] = null;
@@ -9677,6 +10006,7 @@
       return;
     }
     if (src && src.slot !== void 0) p.lastHitBy = { player: src, at: now };
+    game.lastDamageAt = now;
     let n = Math.round(amt);
     if (n <= 0) return;
     if (now < (p.frozenUntil || 0) && n >= 8) {
@@ -9847,6 +10177,91 @@
       }
     }
   };
+
+  // src/sim/spells/cast-kind.js
+  var CAST_KINDS = {
+    // ordered most-specific first; the first rule that matches wins
+    drop: { label: "Falls from above", hint: "lands on the spot you aim at" },
+    ray: { label: "Instant ray", hint: "fires in a straight line, right now" },
+    nova: { label: "Bursts from you", hint: "radiates outward \u2014 aim does not matter" },
+    place: { label: "Places something", hint: "leaves a thing at the spot" },
+    self: { label: "Self", hint: "changes you, not them" },
+    bolt: { label: "Thrown bolt", hint: "travels and arcs \u2014 lead your target" }
+  };
+  var CAST_OVERRIDES = {
+    chain: "ray",
+    // draws bolt visuals rather than a ray, but it is hitscan
+    boomerang: "bolt",
+    // comes back to you; on the way out it is still a thrown bolt
+    gust: "nova",
+    // a cone off your own hands, not an aimed projectile
+    shove: "nova",
+    // a short shunt at contact range; nothing leaves your hands
+    // --- this branch ---
+    teslacoil: "place",
+    // boltVisual zaps are the payload; the static coil you leave behind is the spell
+    beehive: "place",
+    // shoot() sends the bees, but what you cast is a hive at a spot
+    midas: "ray",
+    // nearestEnemy(p, 320) + freeze: instant, at range, no travel time.
+    // A `nearestEnemy` RULE is not available — Homing Wisp calls it
+    // every tick in its update and is the most ordinary bolt there is.
+    soulharvest: "nova",
+    // drains every enemy within 420px of you; the tethers are cosmetic
+    voodoo: "nova",
+    // same shape at 440px
+    boobytrap: "place"
+    // arms a charge at the nearest enemy's feet — placed, not thrown
+  };
+  var CAST_RULES = [
+    // a body constructed above the top of the screen, or far above its target, is
+    // being dropped — this is what separates Anvil and Rain of Frogs (drop) from
+    // Black Cat and Rubber Duck (place), all four of which are summons
+    // Two guards here are load-bearing, both learned the hard way:
+    //   [^A-Za-z]y:  — a bare /y:\s*-\d/ also matches the `vy: -6` in every
+    //                  ordinary shoot() call, which called half the game rain
+    //   -\d{2,}      — spawn heights are -30 and up; single digits are impulses
+    // (setVelocity is stripped from the source before this runs, for the same reason)
+    // the body-constructor alternation is spelled out in full rather than as
+    // `create(?:Box|…)` because test/no-undefined-identifiers.test.js reads the
+    // shape `name(` as a call and does not strip regex literals — the short form
+    // makes this file look like it calls an undeclared create()
+    ["drop", /dropProjectile|skyBolt|(?:createBox|createCircle|createPolygon)\s*\([^,]*,\s*-\d|[^A-Za-z]y:\s*-\d{2,}|position\.y\s*-\s*(?:2[0-9]{2}|[3-9][0-9]{2})/],
+    ["ray", /zapRay|raycastHit|boltVisual/],
+    ["bolt", /boomBolt|statusBolt|shoot\s*\(/],
+    // makeZone is this branch's verb for "a patch of ground that does something".
+    // Only an EXPLICITLY positioned one is a placement — `makeZone({ x: pos.x`,
+    // where pos came from frontPos (Blizzard, Flame Wall). A zone opened with
+    // shorthand `{ x, y,` is centred on whatever the caster already is, and that
+    // is a nova; see the clause below. (Napalm also opens a shorthand zone, at
+    // its fireball's impact point, but the bolt rule above claims it first — it
+    // is a thrown bolt that happens to leave a fire behind.)
+    ["place", /summonCritter|summon\s*\(|makeZone\s*\(\s*\{\s*x:/],
+    // allBodies() is the whole-world shape: if a spell moves every body there is,
+    // there is nothing to aim at. Likewise a zone centred on you (Repulsor Field).
+    ["nova", /enemiesOf\s*\(\s*p\s*\)|explode\s*\(\s*p\.body\.position|allBodies\s*\(|makeZone\s*\(\s*\{\s*x,/],
+    // pushGravity changes the world you both stand in; healPlayer(p) changes you
+    ["self", /p\.\w+Until\s*=|pushGravity\s*\(|healPlayer\s*\(\s*p\b/]
+  ];
+  function classifyCast(id, def, rules = CAST_RULES) {
+    if (CAST_OVERRIDES[id]) return CAST_OVERRIDES[id];
+    if (def.beam) return "ray";
+    if (def.selfMove) return "self";
+    const src = (typeof def.cast === "function" ? String(def.cast) : "").replace(/(?:set|add)Velocity\s*\([^)]*\)/g, "");
+    for (const [kind, re] of rules) if (re.test(src)) return kind;
+    return "bolt";
+  }
+  function castKind(id) {
+    const def = id && SPELLS[id];
+    if (!def) return null;
+    if (!def._cast) def._cast = classifyCast(id, def);
+    return def._cast;
+  }
+  function classifyAllCasts() {
+    const out = {};
+    for (const id of Object.keys(SPELLS)) out[id] = castKind(id);
+    return out;
+  }
 
   // src/sim/maps/book.js
   var DEF_SPAWNS = [
@@ -10846,6 +11261,7 @@
 
   // src/sim/content.js
   Object.assign(SPELLS, STARTERS, BOOK_SPELLS, HYBRID_SPELLS);
+  classifyAllCasts();
 
   // src/platform/spell-guide.js
   Object.assign(globalThis, {
@@ -10864,7 +11280,10 @@
     F_EARTH,
     F_VOID,
     F_LIFE,
-    F_TRICK
+    F_TRICK,
+    CAST_KINDS,
+    castKind,
+    classifyAllCasts
   });
 })();
 /*! Bundled license information:

@@ -29,9 +29,9 @@
     mod
   ));
 
-  // ../hyper-spell/node_modules/matter-js/build/matter.js
+  // node_modules/matter-js/build/matter.js
   var require_matter = __commonJS({
-    "../hyper-spell/node_modules/matter-js/build/matter.js"(exports, module) {
+    "node_modules/matter-js/build/matter.js"(exports, module) {
       (function webpackUniversalModuleDefinition(root2, factory) {
         if (typeof exports === "object" && typeof module === "object")
           module.exports = factory();
@@ -4995,6 +4995,9 @@
     const found = Query.region(bodies, aabb);
     return opts.filter ? found.filter(opts.filter) : found;
   }
+  function pointInBody(body, point) {
+    return Vertices.contains(body.vertices, point);
+  }
   function queryRadius(center, r, opts = {}) {
     const bodies = allBodies(opts.container);
     const out = [];
@@ -5307,7 +5310,6 @@
     despawnPlayer: () => despawnPlayer,
     disarmPlayer: () => disarmPlayer,
     gibs: () => gibs,
-    groundInColumn: () => groundInColumn,
     healPlayer: () => healPlayer,
     players: () => players,
     setPlayerScale: () => setPlayerScale,
@@ -5478,12 +5480,14 @@
   __export(bot_exports, {
     BOT_PERSONAS: () => BOT_PERSONAS,
     BotController: () => BotController,
-    addBot: () => addBot
+    addBot: () => addBot,
+    navGroundY: () => navGroundY
   });
 
   // src/sim/pickups.js
   var pickups_exports = {};
   __export(pickups_exports, {
+    dealStartingSpells: () => dealStartingSpells,
     grabCatalyst: () => grabCatalyst,
     hats: () => hats,
     pickupHat: () => pickupHat,
@@ -6655,19 +6659,24 @@
     updateEnvEvent: () => updateEnvEvent
   });
   var ENV_EVENT_CHANCE = 0.2;
+  var SPAWN_CLEAR = 55;
+  var inSpawnColumn = (m, x) => (m.def.spawns || []).some((s) => Math.abs(s.x - x) < SPAWN_CLEAR);
   function platformSpots(m, n, rng) {
     const rr = rng ? (a, b) => a + rng() * (b - a) : rand;
     const solid = (x) => (b) => b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 && b.bounds.min.x > -60 && b.bounds.max.x < W + 60 && x > b.bounds.min.x + 8 && x < b.bounds.max.x - 8;
     const spots = [];
-    for (let tries = 0; tries < n * 10 && spots.length < n; tries++) {
-      const x = rr(90, W - 90);
-      const col = queryRegion(column(x), { container: m.composite, filter: solid(x) });
-      if (!col.length) continue;
-      const tops = col.map((b) => b.bounds.min.y).filter((y2) => y2 > 150 && y2 < H - 60);
-      if (!tops.length) continue;
-      const y = Math.min(...tops);
-      if (spots.some((s) => Math.abs(s.x - x) < 70 && Math.abs(s.y - y) < 60)) continue;
-      spots.push({ x, y });
+    for (let pass = 0; pass < 2 && spots.length < n; pass++) {
+      for (let tries = 0; tries < n * 10 && spots.length < n; tries++) {
+        const x = rr(90, W - 90);
+        if (pass === 0 && inSpawnColumn(m, x)) continue;
+        const col = queryRegion(column(x), { container: m.composite, filter: solid(x) });
+        if (!col.length) continue;
+        const tops = col.map((b) => b.bounds.min.y).filter((y2) => y2 > 150 && y2 < H - 60);
+        if (!tops.length) continue;
+        const y = Math.min(...tops);
+        if (spots.some((s) => Math.abs(s.x - x) < 70 && Math.abs(s.y - y) < 60)) continue;
+        spots.push({ x, y });
+      }
     }
     return spots;
   }
@@ -7032,6 +7041,7 @@
     let prev = null;
     for (let i = 0; i < n; i++) {
       const plank = createBox(x0 + step * (i + 0.5), y, Math.abs(step) - 4, 10, { density: 2e-3, friction: 0.5, label: "plank" });
+      plank.rope = true;
       addBody2(m, plank, "#8a6f4d");
       const link = prev ? createJoint({ bodyA: prev, bodyB: plank, pointA: { x: step / 2, y: 0 }, pointB: { x: -step / 2, y: 0 }, stiffness: 0.9, length: 4 }) : createJoint({ bodyB: plank, pointA: { x: x0, y }, pointB: { x: -step / 2, y: 0 }, stiffness: 0.9, length: 4 });
       link.label = "breakable";
@@ -9851,9 +9861,20 @@
   function tomePool() {
     return Object.keys(SPELLS).filter((id) => !SPELLS[id].hybrid);
   }
+  function dealStartingSpells(who = players) {
+    const pool = tomePool();
+    const dealt = new Set(players.map((p) => p.slots[0]).filter(Boolean));
+    for (const p of who) {
+      let id = weightedSpellPick(pool);
+      for (let tries = 0; tries < 12 && dealt.has(id); tries++) id = weightedSpellPick(pool);
+      if (!id) continue;
+      dealt.add(id);
+      addSpell(p, id);
+    }
+  }
   function scheduleTomes(now) {
-    nextTomeAt = now + rand(1200, 2500);
-    firstDrop = true;
+    nextTomeAt = now + rand(2500, 4e3);
+    firstDrop = false;
   }
   function updateTomes(now) {
     const tomeCap = Math.max(3, Math.ceil(players.length / 2));
@@ -10026,7 +10047,8 @@
       tomeLust: false,
       fleeHp: 0,
       bully: false,
-      chaos: false
+      chaos: false,
+      nerve: 0.03
     },
     // wants your face: picks on the weakest wizard, presses in, fires fast, rarely blocks
     berserker: {
@@ -10040,7 +10062,8 @@
       tomeLust: false,
       fleeHp: 0,
       bully: true,
-      chaos: false
+      chaos: false,
+      nerve: 0.055
     },
     // fights at arm's length: kites to a standoff range, parries well, runs when hurt
     skirmisher: {
@@ -10054,7 +10077,8 @@
       tomeLust: false,
       fleeHp: 55,
       bully: false,
-      chaos: false
+      chaos: false,
+      nerve: 0.02
     },
     // plays the long game: a tome that completes a fusion outranks any fight
     alchemist: {
@@ -10068,7 +10092,8 @@
       tomeLust: true,
       fleeHp: 45,
       bully: false,
-      chaos: false
+      chaos: false,
+      nerve: 0.015
     },
     // nobody knows what it wants, including itself — wild aim, wandering feet
     trickster: {
@@ -10082,11 +10107,40 @@
       tomeLust: false,
       fleeHp: 0,
       bully: false,
-      chaos: true
+      chaos: true,
+      nerve: 0.075
     }
   };
   var PERSONA_ORDER = ["berserker", "skirmisher", "alchemist", "trickster", "balanced"];
   var nextPersona = 0;
+  var NAV_SKIP = /* @__PURE__ */ new Set(["lava", "spikes", "projectile", "gib", "player", "boss", "enemy", "tome", "hat"]);
+  var _navBodies = null;
+  var _navBodiesAt = -1e9;
+  var _navMap = null;
+  function navCandidates() {
+    const now = simNow();
+    if (!_navBodies || _navMap !== currentMap || now - _navBodiesAt > 200) {
+      _navBodies = allBodies().filter((b) => !b.isSensor && !NAV_SKIP.has(b.label));
+      _navBodiesAt = now;
+      _navMap = currentMap;
+    }
+    return _navBodies;
+  }
+  onWorldReset(() => {
+    _navBodies = null;
+    _navBodiesAt = -1e9;
+    _navMap = null;
+  });
+  function navGroundY(x, fromY) {
+    let best = null;
+    for (const b of navCandidates()) {
+      if (b.collisionFilter.mask === 0) continue;
+      if (x < b.bounds.min.x + 4 || x > b.bounds.max.x - 4) continue;
+      if (b.bounds.min.y < fromY - 8) continue;
+      if (best == null || b.bounds.min.y < best) best = b.bounds.min.y;
+    }
+    return best;
+  }
   var BotController = class {
     constructor(persona) {
       this.persona = persona && BOT_PERSONAS[persona] ? persona : PERSONA_ORDER[nextPersona++ % PERSONA_ORDER.length];
@@ -10103,23 +10157,51 @@
       return { move: 0, jump: false, cast: false, cast2: false, block: false, jumpPressed: false, castPressed: false, cast2Pressed: false, blockPressed: false, startPressed: false, aimPoint: null, aimVec: null, aimAngle: null };
     }
     // is stepping one pace in `dir` a walk into lava or off into a deep pit?
-    // lookahead scales with current speed — a sprinting bot needs to brake sooner
+    // The lookahead has to cover everything the bot will traverse before its next
+    // think (up to 280ms), so it scales with speed — and it samples ACROSS that
+    // span rather than only at the far end, because a narrow gap between here and
+    // there is still a hole to fall into.
     fallDanger(me, dir, vx = 0) {
-      const aheadX = Math.max(20, Math.min(W - 20, me.x + dir * (42 + Math.abs(vx) * 10)));
-      const gAhead = groundYAt(aheadX);
+      const look = Math.max(46, 42 + Math.abs(vx) * 14);
       const lava2 = currentMap.data.lavaY;
-      if (lava2 != null && gAhead > lava2 - 24) return true;
-      if (gAhead >= H - 31) return true;
-      return gAhead - me.y > 300;
+      for (const frac of [0.7, 1]) {
+        const aheadX = Math.max(20, Math.min(W - 20, me.x + dir * look * frac));
+        const g = navGroundY(aheadX, me.y);
+        if (g == null) return true;
+        if (lava2 != null && g > lava2 - 24) return true;
+        if (g - me.y > 300) return true;
+      }
+      return false;
+    }
+    // How far this wizard can actually throw itself right now: a ground jump plus
+    // the air jump it still has, carried by whatever speed it already has. Bots
+    // used to assume one fixed 135px hop and refuse gaps they could clear.
+    //
+    // DIVERGES FROM UPSTREAM, deliberately and measurably. Upstream computes
+    // `|vx| * 36`, optionally * 1.5 for the air jump — a model in which a standing
+    // jump covers no ground at all. That is not true here: controller.js blends
+    // in-air velocity toward +/-6 at perSecond(0.08) every tick, so a wizard that
+    // leaves the ground at rest still crosses real distance. Upstream's formula
+    // predicts 0px against a measured 176px.
+    //
+    // These two lines are measured in this engine, jumping at takeoff speed v and
+    // holding air control: one jump reaches 176 + 9.2v, two reach 320 + 9v. An
+    // earlier cut of this port used (274 + 150) scaled by speed, which
+    // over-estimated at pace — 12 of 629 committed gap leaps went for a gap wider
+    // than the wizard could cross, which is the exact failure the upstream commit
+    // set out to remove, reintroduced in a different speed band.
+    jumpReach(p, vx = 0) {
+      const v = Math.abs(vx);
+      return p.airJumps > 0 ? 320 + 9 * v : 176 + 9.2 * v;
     }
     // nearest direction with real footing within reach (used mid-air over death)
     safeGroundDir(me, lavaY) {
-      for (let d = 60; d <= 380; d += 64) {
+      for (let d = 60; d <= 380; d += 48) {
         for (const dir of [-1, 1]) {
           const x = me.x + dir * d;
           if (x < 30 || x > W - 30) continue;
-          const g = groundYAt(x);
-          if (g < H - 31 && (lavaY == null || g < lavaY - 24) && g - me.y < 300) return dir;
+          const g = navGroundY(x, me.y);
+          if (g != null && (lavaY == null || g < lavaY - 24) && g - me.y < 300) return dir;
         }
       }
       return 0;
@@ -10128,8 +10210,8 @@
       const me = p.body.position;
       const lavaY = currentMap.data.lavaY;
       if (now - (p.lastGround || 0) >= 220) {
-        const gBelow = groundYAt(me.x);
-        if (lavaY != null && gBelow > lavaY - 24 || gBelow >= H - 31) {
+        const gBelow = navGroundY(me.x, me.y);
+        if (gBelow == null || lavaY != null && gBelow > lavaY - 24) {
           const dir = this.safeGroundDir(me, lavaY) || (me.x > W / 2 ? -1 : 1);
           this.plan = { move: dir, jump: p.body.velocity.y > 2 && p.airJumps > 0, cast: false, cast2: false, aim: null, block: false };
           this.nextThink = now + 70;
@@ -10195,15 +10277,29 @@
           if (best) goal = best.position;
         }
       }
-      const fleeing = m.fleeHp && p.hp < m.fleeHp && goal === tpos && tpos;
+      const stale = game.lastDamageAt != null && now - game.lastDamageAt > 7e3;
+      const FLEE_NEAR = 420;
+      const REENGAGE_MS = 2800;
+      let fleeing = false;
+      if (!stale && m.fleeHp && tpos && goal === tpos && p.hp < m.fleeHp) {
+        const dThreat = Math.hypot(tpos.x - me.x, tpos.y - me.y);
+        if (now < (this.fleeUntil || 0)) fleeing = true;
+        else if (now < (this.reengageUntil || 0)) fleeing = false;
+        else if (dThreat < FLEE_NEAR) {
+          this.fleeUntil = now + rand(900, 1700);
+          this.reengageUntil = this.fleeUntil + REENGAGE_MS;
+          fleeing = true;
+        }
+      }
+      const standoff = stale ? 0 : m.standoff;
       let move = 0;
       if (goal) {
         const dx = goal.x - me.x;
         const d = goal === tpos ? Math.hypot(tpos.x - me.x, tpos.y - me.y) : 1e9;
         if (fleeing) move = -Math.sign(dx || 1);
-        else if (goal === tpos && m.standoff && d < m.standoff - 60) move = -Math.sign(dx || 1);
-        else if (Math.abs(dx) > 46 && !(goal === tpos && m.standoff && d < m.standoff + 60)) move = Math.sign(dx);
-        else if (goal === tpos && simRandom() < m.keepDist) move = -Math.sign(dx || 1);
+        else if (goal === tpos && standoff && d < standoff - 60) move = -Math.sign(dx || 1);
+        else if (Math.abs(dx) > 46 && !(goal === tpos && standoff && d < standoff + 60)) move = Math.sign(dx);
+        else if (goal === tpos && !stale && simRandom() < m.keepDist) move = -Math.sign(dx || 1);
       } else if (simRandom() < 0.12) {
         move = pick([-1, 0, 1]);
       }
@@ -10212,15 +10308,49 @@
       if (me.x > W - 80) move = -1;
       const grounded2 = now - (p.lastGround || 0) < 220;
       let jump = false;
-      if (currentMap.data.lavaY != null && me.y > currentMap.data.lavaY - 60) jump = true;
-      if (move && this.fallDanger(me, move, p.body.velocity.x)) {
-        const landX = Math.max(24, Math.min(W - 24, me.x + move * 135));
-        const gLand = groundYAt(landX);
-        const lava2 = currentMap.data.lavaY;
-        const safeLanding = (lava2 == null || gLand < lava2 - 24) && gLand - me.y < 240 && gLand - me.y > -140;
-        if (safeLanding && grounded2) jump = true;
-        else move = 0;
+      if (!grounded2 && now < (this.gapJumpUntil || 0) && p.airJumps > 0 && p.body.velocity.y > 1) {
+        const dir = Math.sign(p.body.velocity.x) || p.facing || 1;
+        const ahead = navGroundY(me.x + dir * 40, me.y);
+        if (ahead == null || ahead - me.y > 130) jump = true;
       }
+      if (currentMap.data.lavaY != null && me.y > currentMap.data.lavaY - 60) jump = true;
+      const vx = p.body.velocity.x;
+      const lava2 = currentMap.data.lavaY;
+      let vetoed = false;
+      const blundering = now < (this.blunderUntil || 0);
+      if (move && !blundering && this.fallDanger(me, move, vx)) {
+        const reach = this.jumpReach(p, vx) * 0.85;
+        let landDir = 0;
+        for (const dist of [110, 135, 165, 195, 240, 300, 360]) {
+          if (dist > reach) break;
+          const landX = Math.max(24, Math.min(W - 24, me.x + move * dist));
+          const gLand = navGroundY(landX, me.y);
+          if (gLand == null) continue;
+          if (lava2 != null && gLand > lava2 - 24) continue;
+          if (gLand - me.y < 240 && gLand - me.y > -140) {
+            landDir = move;
+            break;
+          }
+        }
+        const nerveOdds = (m.nerve ?? 0.03) * (fleeing ? 2.5 : 1);
+        if (landDir && grounded2) {
+          jump = true;
+          this.gapJumpUntil = now + 1100;
+        } else if (Math.abs(vx) > 1.6 && simRandom() < nerveOdds) {
+          this.blunderUntil = now + 520;
+        } else {
+          move = 0;
+          vetoed = true;
+        }
+      }
+      if (Math.abs(vx) > 1.2 && !blundering) {
+        const slideDir = Math.sign(vx);
+        if (this.fallDanger(me, slideDir, vx) && (move === 0 || move === slideDir)) {
+          move = -slideDir;
+          vetoed = true;
+        }
+      }
+      if (vetoed) this.nextThink = now + 70;
       if (goal && goal.y < me.y - 70 && grounded2 && simRandom() < 0.4) jump = true;
       if (move && Math.abs(p.body.velocity.x) < 0.5 && grounded2 && simRandom() < 0.3) jump = true;
       if (m.chaos && grounded2 && simRandom() < 0.15) jump = true;
@@ -10717,8 +10847,10 @@
     for (const p of players) {
       clearSpells(p);
       despawnPlayer(p);
-      spawnPlayer(p, spawnPointFor(p));
     }
+    for (const p of players) spawnPlayer(p, spawnPointFor(p));
+    dealStartingSpells();
+    game.lastDamageAt = simNow();
     game.state = "PLAY";
     game.fightAt = simNow() + 1100;
     game.fightShown = false;
@@ -10842,6 +10974,198 @@
     bannerHyper = false;
   });
 
+  // src/sim/maps/reach.js
+  var REACH_CELL = 16;
+  var REACH_PAD = 15;
+  var REACH_CLIMB = 21;
+  var REACH_SHARE = 0.35;
+  function buildReach(m) {
+    const cols = Math.ceil(W / REACH_CELL), rows = Math.ceil(H / REACH_CELL);
+    const n = cols * rows;
+    const solid = new Uint8Array(n), firm = new Uint8Array(n);
+    for (const b of allBodies(m.composite)) {
+      if (!b.isStatic && b.label !== "plank" || b.isSensor || b.collisionFilter.mask === 0 || b.label === "lava") continue;
+      const solidOnly = !!b.rope || b.label === "destructible";
+      const x0 = Math.max(0, Math.floor((b.bounds.min.x - REACH_PAD) / REACH_CELL));
+      const x1 = Math.min(cols - 1, Math.floor((b.bounds.max.x + REACH_PAD) / REACH_CELL));
+      const y0 = Math.max(0, Math.floor((b.bounds.min.y - REACH_PAD) / REACH_CELL));
+      const y1 = Math.min(rows - 1, Math.floor((b.bounds.max.y + REACH_PAD) / REACH_CELL));
+      for (let cy = y0; cy <= y1; cy++) {
+        for (let cx = x0; cx <= x1; cx++) {
+          const i = cy * cols + cx;
+          if (solid[i] && (solidOnly || firm[i])) continue;
+          const x = cx * REACH_CELL + REACH_CELL / 2, y = cy * REACH_CELL + REACH_CELL / 2;
+          if (pointInBody(b, { x, y }) || pointInBody(b, { x: x - REACH_PAD, y }) || pointInBody(b, { x: x + REACH_PAD, y }) || pointInBody(b, { x, y: y - REACH_PAD }) || pointInBody(b, { x, y: y + REACH_PAD })) {
+            solid[i] = 1;
+            if (!solidOnly) firm[i] = 1;
+          }
+        }
+      }
+    }
+    const gdir = (m.def.gravity ?? 2) < 0 ? -1 : 1;
+    const deadFrom = gdir > 0 ? (m.data.lavaY ?? H + 40) - 8 : null;
+    const pass = new Uint8Array(n), stand = new Uint8Array(n), footing = new Uint8Array(n);
+    for (let cy = 0; cy < rows; cy++) {
+      for (let cx = 0; cx < cols; cx++) {
+        const i = cy * cols + cx;
+        if (solid[i]) continue;
+        if (deadFrom != null && (cy + 1) * REACH_CELL > deadFrom) continue;
+        const head = i - gdir * cols;
+        if (head < 0 || head >= n || solid[head]) continue;
+        pass[i] = 1;
+        const foot = i + gdir * cols;
+        if (foot < 0 || foot >= n) continue;
+        if (solid[foot]) stand[i] = 1;
+        if (firm[foot]) footing[i] = 1;
+      }
+    }
+    return { cols, rows, solid, pass, stand, footing, gdir, wrap: !!m.def.wrap, escape: /* @__PURE__ */ new Map() };
+  }
+  function reachFrom(g, start) {
+    const { cols, pass, stand, gdir, wrap } = g;
+    const best = new Int16Array(pass.length).fill(-1);
+    best[start] = REACH_CLIMB;
+    const stack = [start];
+    while (stack.length) {
+      const i = stack.pop();
+      const b = best[i];
+      const cx = i % cols, cy = (i - cx) / cols;
+      const step = (ni, nb) => {
+        if (nb < 0 || ni < 0 || ni >= pass.length || !pass[ni]) return;
+        const v = stand[ni] ? REACH_CLIMB : nb;
+        if (v <= best[ni]) return;
+        best[ni] = v;
+        stack.push(ni);
+      };
+      step(i + gdir * cols, b);
+      step(i - gdir * cols, b - 1);
+      const air = stand[i] ? b : b - 1;
+      if (cx > 0) step(i - 1, air);
+      else if (wrap) step(cy * cols + cols - 1, air);
+      if (cx < cols - 1) step(i + 1, air);
+      else if (wrap) step(cy * cols, air);
+    }
+    return best;
+  }
+  function reachCount(g, best) {
+    let n = 0;
+    for (let i = 0; i < best.length; i++) if (best[i] >= 0 && g.stand[i]) n++;
+    return n;
+  }
+  function reachLanding(g, x, y) {
+    const { cols, rows, pass, stand, gdir } = g;
+    const cx = Math.max(0, Math.min(cols - 1, Math.floor(x / REACH_CELL)));
+    const cy = Math.max(0, Math.min(rows - 1, Math.floor(y / REACH_CELL)));
+    let i = cy * cols + cx;
+    if (!pass[i]) return -1;
+    for (let t = 0; t < rows; t++) {
+      if (stand[i]) return i;
+      const next2 = i + gdir * cols;
+      if (next2 < 0 || next2 >= pass.length || !pass[next2]) return -1;
+      i = next2;
+    }
+    return -1;
+  }
+  function reachEscape(g, land) {
+    let k = land;
+    while (k % g.cols > 0 && g.stand[k - 1]) k--;
+    let n = g.escape.get(k);
+    if (n == null) {
+      n = reachCount(g, reachFrom(g, k));
+      g.escape.set(k, n);
+    }
+    return n;
+  }
+  function reachInfo(m) {
+    if (m.data.reach) return m.data.reach;
+    const g = buildReach(m);
+    const seeds = m.def.spawns.map((s) => reachLanding(g, s.x, s.y));
+    for (let cx = 2; cx < g.cols; cx += 5) {
+      for (let cy = 0; cy < g.rows; cy++) {
+        const i = cy * g.cols + cx;
+        if (g.stand[i]) {
+          seeds.push(i);
+          break;
+        }
+      }
+    }
+    g.arenaN = 1;
+    for (const i of seeds) if (i >= 0) g.arenaN = Math.max(g.arenaN, reachEscape(g, i));
+    m.data.reach = g;
+    return g;
+  }
+  function reachLandable(g, i) {
+    const cx = i % g.cols;
+    return !!g.footing[i] && cx > 0 && cx < g.cols - 1 && !!g.footing[i - 1] && !!g.footing[i + 1];
+  }
+  function cellEscapes(g, i) {
+    return i >= 0 && reachEscape(g, i) >= g.arenaN * REACH_SHARE;
+  }
+  function reachSpots(g) {
+    if (g.spots) return g.spots;
+    g.spots = [];
+    for (let i = 0; i < g.stand.length; i++) {
+      const cx = i % g.cols;
+      if (cx < 3 || cx > g.cols - 4) continue;
+      if (!reachLandable(g, i)) continue;
+      g.spots.push({ i, x: cx * REACH_CELL + REACH_CELL / 2, y: (i - cx) / g.cols * REACH_CELL + REACH_CELL / 2 });
+    }
+    return g.spots;
+  }
+  var DROP_LABELS = /* @__PURE__ */ new Set(["crate", "barrel", "ball"]);
+  function dropColumnClear(m, x, y0, y1) {
+    y1 += y1 >= y0 ? REACH_PAD : -REACH_PAD;
+    const lo = Math.min(y0, y1), hi = Math.max(y0, y1);
+    for (const b of allBodies(m.composite)) {
+      if (b.isStatic || b.isSensor || !DROP_LABELS.has(b.label)) continue;
+      if (b.bounds.max.x < x - 18 || b.bounds.min.x > x + 18) continue;
+      if (b.bounds.max.y < lo || b.bounds.min.y > hi) continue;
+      return false;
+    }
+    return true;
+  }
+  function arenaSpawnNear(m, x, y, busy = []) {
+    const g = reachInfo(m);
+    const cost = (s) => Math.abs(s.x - x) + Math.abs(s.y - y) * 0.35;
+    const ranked = reachSpots(g).filter((s) => !busy.some((q) => Math.hypot(q.x - s.x, q.y - s.y) < 70)).sort((a, b) => cost(a) - cost(b));
+    for (const needClear of [true, false]) {
+      for (const s of ranked) {
+        if (!cellEscapes(g, s.i)) continue;
+        let lift = 0;
+        while (lift < 8) {
+          const above = s.i - g.gdir * g.cols * (lift + 1);
+          if (above < 0 || above >= g.pass.length || !g.pass[above]) break;
+          lift++;
+        }
+        const y0 = s.y - g.gdir * lift * REACH_CELL;
+        if (needClear && !dropColumnClear(m, s.x, y0, s.y)) continue;
+        return { x: s.x, y: y0 };
+      }
+    }
+    return null;
+  }
+  var SPAWN_CLEAR2 = 70;
+  function safeSpawnPoint(m, x, y, busy = []) {
+    const g = reachInfo(m);
+    const escapes = (i) => cellEscapes(g, i);
+    const cellX = (i) => i % g.cols * REACH_CELL + REACH_CELL / 2;
+    const clearOfBusy = (px) => !busy.some((q) => Math.abs(q.x - px) < SPAWN_CLEAR2);
+    const sound = (i) => i >= 0 && reachLandable(g, i) && escapes(i) && dropColumnClear(m, cellX(i), y, (i - i % g.cols) / g.cols * REACH_CELL);
+    const land = reachLanding(g, x, y);
+    if (escapes(land)) {
+      if (sound(land) && clearOfBusy(cellX(land))) return { x: cellX(land), y };
+      for (let d = 1; d <= 11; d++) {
+        for (const side of [-1, 1]) {
+          const nx = x + side * d * REACH_CELL;
+          if (nx < 40 || nx > W - 40) continue;
+          const ni = reachLanding(g, nx, y);
+          if (sound(ni) && clearOfBusy(cellX(ni))) return { x: cellX(ni), y };
+        }
+      }
+    }
+    return arenaSpawnNear(m, x, y, busy) || { x, y };
+  }
+
   // src/sim/player/lifecycle.js
   var MAX_PLAYERS = 8;
   var FALL_SAFE_DROP = 440;
@@ -10855,21 +11179,12 @@
     { name: "P7", color: "#e8e8f0", hat: "#a8a8c0" },
     { name: "P8", color: "#7f9cf5", hat: "#5a6fc2" }
   ];
-  function groundInColumn(x) {
-    return queryRegion(column(x), {
-      container: currentMap.composite,
-      filter: (b) => b.isStatic && !b.isSensor && b.label !== "lava" && b.collisionFilter.mask !== 0 && x > b.bounds.min.x + 6 && x < b.bounds.max.x - 6 && b.bounds.min.y > 100
-    }).length > 0;
-  }
   function spawnPointFor(p) {
     const spawns = currentMap.def.spawns;
     const base2 = spawns[p.slot % spawns.length];
     const jitter = p.slot >= spawns.length ? (p.slot - spawns.length + 1) * 26 * (p.slot % 2 ? 1 : -1) : 0;
-    if (!groundInColumn(base2.x + jitter)) {
-      const spot = platformSpots(currentMap, 3).find((s) => groundInColumn(s.x));
-      if (spot) return { x: spot.x, y: Math.max(80, spot.y - 150) };
-    }
-    return { x: Math.max(40, Math.min(W - 40, base2.x + jitter)), y: base2.y };
+    const busy = players.filter((q) => q !== p && q.alive && q.body).map((q) => ({ x: q.body.position.x, y: q.body.position.y }));
+    return safeSpawnPoint(currentMap, Math.max(40, Math.min(W - 40, base2.x + jitter)), base2.y, busy);
   }
   var players = [];
   var gibs = /* @__PURE__ */ new Set();
@@ -11092,6 +11407,7 @@
       return;
     }
     if (src && src.slot !== void 0) p.lastHitBy = { player: src, at: now };
+    game.lastDamageAt = now;
     let n = Math.round(amt);
     if (n <= 0) return;
     if (now < (p.frozenUntil || 0) && n >= 8) {
@@ -11262,6 +11578,82 @@
       }
     }
   };
+
+  // src/sim/spells/cast-kind.js
+  var CAST_OVERRIDES = {
+    chain: "ray",
+    // draws bolt visuals rather than a ray, but it is hitscan
+    boomerang: "bolt",
+    // comes back to you; on the way out it is still a thrown bolt
+    gust: "nova",
+    // a cone off your own hands, not an aimed projectile
+    shove: "nova",
+    // a short shunt at contact range; nothing leaves your hands
+    // --- this branch ---
+    teslacoil: "place",
+    // boltVisual zaps are the payload; the static coil you leave behind is the spell
+    beehive: "place",
+    // shoot() sends the bees, but what you cast is a hive at a spot
+    midas: "ray",
+    // nearestEnemy(p, 320) + freeze: instant, at range, no travel time.
+    // A `nearestEnemy` RULE is not available — Homing Wisp calls it
+    // every tick in its update and is the most ordinary bolt there is.
+    soulharvest: "nova",
+    // drains every enemy within 420px of you; the tethers are cosmetic
+    voodoo: "nova",
+    // same shape at 440px
+    boobytrap: "place"
+    // arms a charge at the nearest enemy's feet — placed, not thrown
+  };
+  var CAST_RULES = [
+    // a body constructed above the top of the screen, or far above its target, is
+    // being dropped — this is what separates Anvil and Rain of Frogs (drop) from
+    // Black Cat and Rubber Duck (place), all four of which are summons
+    // Two guards here are load-bearing, both learned the hard way:
+    //   [^A-Za-z]y:  — a bare /y:\s*-\d/ also matches the `vy: -6` in every
+    //                  ordinary shoot() call, which called half the game rain
+    //   -\d{2,}      — spawn heights are -30 and up; single digits are impulses
+    // (setVelocity is stripped from the source before this runs, for the same reason)
+    // the body-constructor alternation is spelled out in full rather than as
+    // `create(?:Box|…)` because test/no-undefined-identifiers.test.js reads the
+    // shape `name(` as a call and does not strip regex literals — the short form
+    // makes this file look like it calls an undeclared create()
+    ["drop", /dropProjectile|skyBolt|(?:createBox|createCircle|createPolygon)\s*\([^,]*,\s*-\d|[^A-Za-z]y:\s*-\d{2,}|position\.y\s*-\s*(?:2[0-9]{2}|[3-9][0-9]{2})/],
+    ["ray", /zapRay|raycastHit|boltVisual/],
+    ["bolt", /boomBolt|statusBolt|shoot\s*\(/],
+    // makeZone is this branch's verb for "a patch of ground that does something".
+    // Only an EXPLICITLY positioned one is a placement — `makeZone({ x: pos.x`,
+    // where pos came from frontPos (Blizzard, Flame Wall). A zone opened with
+    // shorthand `{ x, y,` is centred on whatever the caster already is, and that
+    // is a nova; see the clause below. (Napalm also opens a shorthand zone, at
+    // its fireball's impact point, but the bolt rule above claims it first — it
+    // is a thrown bolt that happens to leave a fire behind.)
+    ["place", /summonCritter|summon\s*\(|makeZone\s*\(\s*\{\s*x:/],
+    // allBodies() is the whole-world shape: if a spell moves every body there is,
+    // there is nothing to aim at. Likewise a zone centred on you (Repulsor Field).
+    ["nova", /enemiesOf\s*\(\s*p\s*\)|explode\s*\(\s*p\.body\.position|allBodies\s*\(|makeZone\s*\(\s*\{\s*x,/],
+    // pushGravity changes the world you both stand in; healPlayer(p) changes you
+    ["self", /p\.\w+Until\s*=|pushGravity\s*\(|healPlayer\s*\(\s*p\b/]
+  ];
+  function classifyCast(id, def, rules = CAST_RULES) {
+    if (CAST_OVERRIDES[id]) return CAST_OVERRIDES[id];
+    if (def.beam) return "ray";
+    if (def.selfMove) return "self";
+    const src = (typeof def.cast === "function" ? String(def.cast) : "").replace(/(?:set|add)Velocity\s*\([^)]*\)/g, "");
+    for (const [kind, re] of rules) if (re.test(src)) return kind;
+    return "bolt";
+  }
+  function castKind(id) {
+    const def = id && SPELLS[id];
+    if (!def) return null;
+    if (!def._cast) def._cast = classifyCast(id, def);
+    return def._cast;
+  }
+  function classifyAllCasts() {
+    const out = {};
+    for (const id of Object.keys(SPELLS)) out[id] = castKind(id);
+    return out;
+  }
 
   // src/sim/maps/book.js
   var DEF_SPAWNS = [
@@ -12261,6 +12653,7 @@
 
   // src/sim/content.js
   Object.assign(SPELLS, STARTERS, BOOK_SPELLS, HYBRID_SPELLS);
+  classifyAllCasts();
 
   // src/render/artkit.js
   var artkit_exports = {};
@@ -14307,17 +14700,38 @@
   // src/render/canvas.js
   var canvas_exports = {};
   __export(canvas_exports, {
+    RENDER_SCALE: () => RENDER_SCALE,
     canvas: () => canvas,
     ctx: () => ctx,
     drawBody: () => drawBody,
+    fitCanvasToDisplay: () => fitCanvasToDisplay,
     initCanvas: () => initCanvas
   });
   var canvas = null;
   var ctx = null;
+  var RENDER_SCALE = 1;
+  var DESIGN_W = 1280;
+  var DESIGN_H = 720;
+  var MAX_SUPERSAMPLE = 2;
   function initCanvas(el) {
     canvas = el;
-    ctx = el.getContext("2d");
+    ctx = el.getContext("2d", { alpha: false });
+    fitCanvasToDisplay();
+    if (typeof addEventListener === "function") addEventListener("resize", fitCanvasToDisplay);
     return ctx;
+  }
+  function fitCanvasToDisplay() {
+    if (!canvas || !canvas.style || typeof canvas.getBoundingClientRect !== "function") return;
+    const dpr = globalThis.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const cssW = rect.width || DESIGN_W;
+    const scale2 = Math.min(cssW * dpr / DESIGN_W, MAX_SUPERSAMPLE);
+    const bw = Math.max(1, Math.round(DESIGN_W * scale2));
+    RENDER_SCALE = bw / DESIGN_W;
+    if (canvas.width === bw) return;
+    canvas.width = bw;
+    canvas.height = Math.max(1, Math.round(DESIGN_H * scale2));
+    ctx.textAlign = "center";
   }
   function drawBody(body) {
     ctx.beginPath();
@@ -14352,7 +14766,8 @@
     attachKeyboard: () => attachKeyboard,
     kbControllers: () => kbControllers,
     keys: () => keys,
-    mouse: () => mouse
+    mouse: () => mouse,
+    syncMouseWorld: () => syncMouseWorld
   });
 
   // src/render/audio.js
@@ -14613,13 +15028,555 @@
   }
   var voiceKeys = () => Object.keys(VOICES);
 
+  // src/render/camera.js
+  var camera_exports = {};
+  __export(camera_exports, {
+    beginWorld: () => beginWorld,
+    cameraEnabled: () => cameraEnabled,
+    cameraParallax: () => cameraParallax,
+    cameraPoints: () => cameraPoints,
+    cameraTarget: () => cameraTarget,
+    cameraViewRect: () => cameraViewRect,
+    cameraZoom: () => cameraZoom,
+    clearFrame: () => clearFrame,
+    endWorld: () => endWorld,
+    resetCamera: () => resetCamera,
+    screenToWorld: () => screenToWorld,
+    setCameraEnabled: () => setCameraEnabled,
+    updateCamera: () => updateCamera
+  });
+
+  // src/render/fx.js
+  var fx_exports2 = {};
+  __export(fx_exports2, {
+    PARTICLE_CAP: () => PARTICLE_CAP,
+    TEXT_CAP: () => TEXT_CAP,
+    addShake: () => addShake2,
+    applyEmitted: () => applyEmitted,
+    clearParticles: () => clearParticles2,
+    doFlash: () => doFlash2,
+    drawParticles: () => drawParticles,
+    flashAlpha: () => flashAlpha,
+    flashColor: () => flashColor,
+    fxPick: () => fxPick,
+    fxRandom: () => fxRandom,
+    fxRange: () => fxRange2,
+    handledEmitNames: () => handledEmitNames,
+    particleCount: () => particleCount,
+    particles: () => particles,
+    pumpEmitted: () => pumpEmitted,
+    pushParticle: () => pushParticle,
+    setFlashAlpha: () => setFlashAlpha,
+    setShake: () => setShake,
+    shake: () => shake,
+    spawnBurst: () => spawnBurst2,
+    spawnParticles: () => spawnParticles2,
+    spawnRing: () => spawnRing2,
+    spawnText: () => spawnText2,
+    trimParticles: () => trimParticles,
+    unhandledEmitted: () => unhandledEmitted,
+    updateParticles: () => updateParticles
+  });
+
+  // src/render/effects.js
+  var effects_exports = {};
+  __export(effects_exports, {
+    boltVisual: () => boltVisual2,
+    clearFxEffects: () => clearFxEffects,
+    drawFxEffects: () => drawFxEffects,
+    drawVfx: () => drawVfx,
+    fxEffects: () => fxEffects
+  });
+  var fxEffects = [];
+  var fxRange = (a, b) => a + Math.random() * (b - a);
+  function prune(now) {
+    for (let i = fxEffects.length - 1; i >= 0; i--) if (now > fxEffects[i].until) fxEffects.splice(i, 1);
+  }
+  function boltVisual2(x0, y0, x1, y1, color = "#fff89e", width = 3, life = 130) {
+    const now = simNow();
+    prune(now);
+    const pts = [{ x: x0, y: y0 }];
+    const segs = 9;
+    for (let i = 1; i <= segs; i++) {
+      pts.push({
+        x: x0 + (x1 - x0) * i / segs + (i < segs ? fxRange(-14, 14) : 0),
+        y: y0 + (y1 - y0) * i / segs + (i < segs ? fxRange(-14, 14) : 0)
+      });
+    }
+    fxEffects.push({ until: now + life, pts, color, width });
+  }
+  function clearFxEffects() {
+    fxEffects.length = 0;
+  }
+  function drawFxEffects(now, ctx2) {
+    prune(now);
+    for (const e of fxEffects) {
+      ctx2.strokeStyle = e.color;
+      ctx2.lineWidth = e.width;
+      ctx2.beginPath();
+      ctx2.moveTo(e.pts[0].x, e.pts[0].y);
+      for (const q of e.pts.slice(1)) ctx2.lineTo(q.x, q.y);
+      ctx2.stroke();
+    }
+  }
+  function drawVfx(e, now, ctx2) {
+    const v = e.vfx;
+    if (!v) return;
+    switch (v.k) {
+      case "sing": {
+        ctx2.fillStyle = "#0a0510";
+        ctx2.beginPath();
+        ctx2.arc(v.x, v.y, 26, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.strokeStyle = "#a55eea";
+        ctx2.lineWidth = 3;
+        ctx2.globalAlpha = 0.5 + 0.3 * Math.sin(now * 0.02);
+        ctx2.beginPath();
+        ctx2.arc(v.x, v.y, 36 + 5 * Math.sin(now * 0.011), 0, Math.PI * 2);
+        ctx2.stroke();
+        ctx2.globalAlpha = 1;
+        break;
+      }
+      case "zone": {
+        ctx2.globalAlpha = 0.16 + 0.06 * Math.sin(now * 0.01);
+        ctx2.fillStyle = v.c;
+        ctx2.beginPath();
+        ctx2.arc(v.x, v.y, v.r, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.globalAlpha = 1;
+        break;
+      }
+      case "blizzard": {
+        ctx2.globalAlpha = 0.14;
+        ctx2.fillStyle = v.c;
+        ctx2.beginPath();
+        ctx2.arc(v.x, v.y, v.r, 0, Math.PI * 2);
+        ctx2.fill();
+        ctx2.globalAlpha = 1;
+        for (let i = 0; i < 3; i++) {
+          pushParticle({ kind: "square", x: v.x + fxRange(-220, 220), y: v.y + fxRange(-200, 100), vx: fxRange(-1, 1), vy: fxRange(1, 3), life: 24, maxLife: 24, color: "#fff", r: 2 });
+        }
+        break;
+      }
+      // The air tornado. Untinted, always: the only sim descriptor of this kind
+      // is spells/book.js's Tornado, and Firestorm's tinted funnel is `firetor`
+      // below. The tint lives on the WIRE's `tor` payload instead — a LAN client
+      // gets one descriptor for both funnels and draws them in
+      // src/render/draw-snapshot.js's drawFxLite, which does read `c`.
+      case "tor": {
+        ctx2.strokeStyle = "rgba(207,232,232,0.55)";
+        ctx2.lineWidth = 3;
+        for (let i = 0; i < 5; i++) {
+          const yy = H - 80 - i * 90;
+          const w = 26 + i * 22;
+          ctx2.beginPath();
+          ctx2.ellipse(e.x + Math.sin(now * 0.01 + i) * 8, yy, w, 12, 0, 0, Math.PI * 2);
+          ctx2.stroke();
+        }
+        break;
+      }
+      // Firestorm's funnel: narrower rings, a per-ring heat gradient, faster sway
+      case "firetor": {
+        ctx2.lineWidth = 3;
+        for (let i = 0; i < 5; i++) {
+          const yy = H - 80 - i * 90, w = 24 + i * 20;
+          ctx2.strokeStyle = `rgba(255, ${100 + i * 26}, 60, 0.6)`;
+          ctx2.beginPath();
+          ctx2.ellipse(e.x + Math.sin(now * 0.013 + i) * 9, yy, w, 12, 0, 0, Math.PI * 2);
+          ctx2.stroke();
+        }
+        break;
+      }
+      // an armed charge blinking between two colours: the sticky bomb (stuck to a
+      // body, so it reads the body's position) and the booby trap (a fixed spot)
+      case "blink": {
+        const x = v.body ? v.body.position.x : v.x;
+        const y = v.body ? v.body.position.y : v.y;
+        ctx2.fillStyle = Math.sin(now * v.rate) > 0 ? v.a : v.b;
+        ctx2.beginPath();
+        ctx2.arc(x, y, v.r, 0, Math.PI * 2);
+        ctx2.fill();
+        break;
+      }
+      // the telegraph ring the smite falls into
+      case "pulsering": {
+        ctx2.strokeStyle = v.c;
+        ctx2.lineWidth = v.lw;
+        ctx2.globalAlpha = 0.35 + 0.4 * Math.abs(Math.sin(now * 0.02));
+        ctx2.beginPath();
+        ctx2.arc(v.x, v.y, v.r, 0, Math.PI * 2);
+        ctx2.stroke();
+        ctx2.globalAlpha = 1;
+        break;
+      }
+      // a ghost's haunt sigil — the one effect that needs an artkit primitive
+      case "rune": {
+        ctx2.globalAlpha = 0.75;
+        runeRing(ctx2, v.x, v.y, v.r, v.c, now, { count: 6, lw: 1.2, alpha: 0.8, spin: 3e-3 });
+        ctx2.globalAlpha = 1;
+        break;
+      }
+      default:
+        break;
+    }
+  }
+  onWorldReset(clearFxEffects);
+
+  // src/render/fx.js
+  var particles = [];
+  var shake = 0;
+  var flashColor = "#fff";
+  var flashAlpha = 0;
+  function setShake(v) {
+    shake = v;
+  }
+  function setFlashAlpha(v) {
+    flashAlpha = v;
+  }
+  var fxRandom = () => Math.random();
+  var fxRange2 = (a, b) => a + Math.random() * (b - a);
+  var fxPick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  function addShake2(v) {
+    shake = Math.min(shake + v, 26);
+  }
+  function doFlash2(color, alpha = 0.4) {
+    flashColor = color;
+    flashAlpha = Math.max(flashAlpha, alpha);
+  }
+  var PARTICLE_CAP = 300;
+  var CORE_FRAC = 0.28;
+  var TAIL_FRAC = 0.62;
+  function _tier(core, life) {
+    const ml = core ? life * 0.5 : life * 1.2;
+    return {
+      life: ml + fxRandom() * 20,
+      maxLife: ml,
+      dim: core ? 1 : 0.42,
+      r: core ? 3.4 + fxRandom() * 2.2 : 1.3 + fxRandom() * 1.4
+    };
+  }
+  function spawnParticles2(x, y, color, count, speed, life = 40) {
+    const n = Math.max(1, Math.round(count * TAIL_FRAC));
+    const cores = Math.max(1, Math.round(n * CORE_FRAC));
+    for (let i = 0; i < n; i++) {
+      const core = i < cores;
+      const a = fxRandom() * Math.PI * 2, v = fxRandom() * speed * (core ? 1.15 : 0.8);
+      particles.push({ kind: "square", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, color, ..._tier(core, life) });
+    }
+  }
+  function spawnRing2(x, y, color) {
+    particles.push({ kind: "ring", x, y, r: 12, life: 16, maxLife: 16, color });
+  }
+  function spawnBurst2(x, y, color, count = 12, o = {}) {
+    const kind = o.kind || "square", speed = o.speed ?? 5, spread = o.spread ?? Math.PI * 2;
+    const dir = o.dir ?? 0, up = o.up ?? 0, life = o.life ?? 40, g = o.g ?? 0.25, r = o.r ?? 3;
+    const generic = kind === "square" || kind === "spark";
+    const n = generic ? Math.max(1, Math.round(count * TAIL_FRAC)) : count;
+    const cores = generic ? Math.max(1, Math.round(n * CORE_FRAC)) : n;
+    for (let i = 0; i < n; i++) {
+      const core = i < cores;
+      const a = dir + (fxRandom() - 0.5) * spread;
+      const v = speed * (0.4 + fxRandom() * 0.9) * (generic && !core ? 0.8 : 1);
+      const t = _tier(core, life);
+      particles.push({
+        kind,
+        x,
+        y,
+        vx: Math.cos(a) * v,
+        vy: Math.sin(a) * v - up,
+        color,
+        g,
+        life: generic ? t.life : life + fxRandom() * 15,
+        maxLife: generic ? t.maxLife : life,
+        dim: generic ? t.dim : 1,
+        r: generic ? r * (core ? 1.15 : 0.45) * (0.7 + fxRandom() * 0.6) : r * (0.6 + fxRandom() * 0.8)
+      });
+    }
+  }
+  var TEXT_CAP = 6;
+  function spawnText2(x, y, str, color) {
+    let live = 0;
+    for (let i = particles.length - 1; i >= 0; i--) {
+      if (particles[i].kind !== "text") continue;
+      if (++live >= TEXT_CAP) particles.splice(i, 1);
+    }
+    particles.push({ kind: "text", str, x, y, vx: 0, vy: -1.2, life: 50, maxLife: 50, color, r: 16 });
+  }
+  function trimParticles() {
+    let over = particles.length - PARTICLE_CAP;
+    if (over <= 0) return;
+    for (let i = 0; i < particles.length && over > 0; i++) {
+      const pt = particles[i];
+      if (pt.kind === "text" || pt.kind === "ring" || (pt.dim ?? 1) >= 1) continue;
+      particles.splice(i, 1);
+      i--;
+      over--;
+    }
+    while (over > 0) {
+      const i = particles.findIndex((pt) => pt.kind !== "text" && pt.kind !== "ring");
+      if (i < 0) return;
+      particles.splice(i, 1);
+      over--;
+    }
+  }
+  var particleCount = () => particles.length;
+  function pushParticle(spec) {
+    particles.push({ ...spec });
+  }
+  function clearParticles2() {
+    particles.length = 0;
+  }
+  function updateParticles(ts) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const pt = particles[i];
+      pt.life -= ts;
+      if (pt.life <= 0) {
+        particles.splice(i, 1);
+        continue;
+      }
+      if (pt.kind === "ring") {
+        pt.r += 7 * ts;
+        continue;
+      }
+      if (pt.kind === "text") {
+        pt.y += pt.vy * ts;
+        continue;
+      }
+      pt.x += pt.vx * ts;
+      pt.y += pt.vy * ts;
+      if (pt.kind === "confetti") {
+        pt.vy += 0.06 * ts;
+        pt.x += Math.sin(pt.life * 0.25) * 0.8;
+      } else if (pt.kind === "leaf") {
+        pt.vy = Math.min(pt.vy + 0.02 * ts, 1.1);
+        pt.x += Math.sin(pt.life * 0.12) * 0.6;
+      } else if (pt.kind === "bird") {
+        pt.vx *= 1.008;
+        pt.vy += (pt.g ?? -0.02) * ts;
+      } else if (pt.kind === "glint") {
+      } else pt.vy += (pt.g ?? 0.25) * ts;
+    }
+    trimParticles();
+  }
+  function drawParticles() {
+    drawStoryParticles(ctx, particles);
+  }
+  var HANDLERS = {
+    __proto__: null,
+    spawnParticles: spawnParticles2,
+    spawnRing: spawnRing2,
+    spawnText: spawnText2,
+    spawnBurst: spawnBurst2,
+    doFlash: doFlash2,
+    addShake: addShake2,
+    boltVisual: boltVisual2,
+    particle: pushParticle,
+    clearParticles: clearParticles2,
+    slowMo: () => {
+    },
+    setBanner: () => {
+    },
+    addKillFeed: () => {
+    }
+  };
+  var unhandled = /* @__PURE__ */ new Set();
+  var unhandledEmitted = () => [...unhandled];
+  var handledEmitNames = () => ["sfx", ...Object.keys(HANDLERS)];
+  function applyEmitted(events) {
+    for (const e of events) {
+      if (e.f === "sfx") {
+        playSfx(e.a[0]);
+        continue;
+      }
+      const h = HANDLERS[e.f];
+      if (h) h(...e.a);
+      else unhandled.add(e.f);
+    }
+  }
+  function pumpEmitted() {
+    applyEmitted(drainEmitted());
+  }
+  onWorldReset(() => {
+    particles.length = 0;
+    shake = 0;
+    flashColor = "#fff";
+    flashAlpha = 0;
+  });
+
+  // src/render/name-tags.js
+  var name_tags_exports = {};
+  __export(name_tags_exports, {
+    claimTagSlot: () => claimTagSlot,
+    resetNameTagSlots: () => resetNameTagSlots
+  });
+  var _tagSlots = [];
+  function resetNameTagSlots() {
+    _tagSlots.length = 0;
+  }
+  function claimTagSlot(x, y, halfW) {
+    const STEP = 13, LIMIT = 5;
+    let ty = y;
+    for (let i = 0; i <= LIMIT; i++) {
+      const clash = _tagSlots.some((s) => Math.abs(s.y - ty) < STEP - 1 && Math.abs(s.x - x) < s.halfW + halfW + 4);
+      if (!clash) break;
+      ty -= STEP;
+    }
+    _tagSlots.push({ x, y: ty, halfW });
+    return ty;
+  }
+
+  // src/render/camera.js
+  var CAM_HOME = { x: W / 2, y: H / 2, zoom: 1, tx: W / 2, ty: H / 2, tzoom: 1, shakeX: 0, shakeY: 0, rot: 0 };
+  var CAM2 = { ...CAM_HOME };
+  var CAM_TUNE = {
+    min: 1,
+    // never zoom out past the arena — there's nothing out there
+    max: 2.15,
+    // past this, knockback outruns the camera and reads as teleporting
+    padX: 170,
+    // breathing room around the action box, world px
+    padY: 105,
+    headroom: 60,
+    // extra above the box: spells arc, and you need to see them coming
+    lerpIn: 0.035,
+    // easing toward a tighter shot — slow, so it feels like a push-in
+    lerpOut: 0.1,
+    // easing wider — faster, because being off-screen is unfair
+    panLerp: 0.06,
+    maxTrauma: 26,
+    // matches the old addShake ceiling
+    shakePx: 22,
+    // peak translation at full trauma
+    shakeRot: 0.012
+    // peak rotation (rad) at full trauma
+  };
+  var camEnabled = true;
+  function setCameraEnabled(on) {
+    camEnabled = !!on;
+  }
+  function cameraEnabled() {
+    return camEnabled;
+  }
+  function cameraZoom() {
+    return CAM2.zoom;
+  }
+  function resetCamera() {
+    Object.assign(CAM2, CAM_HOME);
+  }
+  onWorldReset(resetCamera);
+  function cameraPoints() {
+    const pts = [];
+    for (const p of players) {
+      if (!p.alive || !p.body) continue;
+      pts.push({ x: p.body.position.x, y: p.body.position.y, r: 26 * (p.sizeScale || 1) });
+    }
+    if (game.boss?.body) {
+      const b = game.boss.body;
+      const r = b.circleRadius || Math.max(b.bounds.max.x - b.bounds.min.x, b.bounds.max.y - b.bounds.min.y) / 2;
+      pts.push({ x: b.position.x, y: b.position.y, r: r + 24 });
+    }
+    return pts;
+  }
+  function cameraTarget(pts) {
+    if (!pts || !pts.length) {
+      CAM2.tzoom = 1;
+      CAM2.tx = W / 2;
+      CAM2.ty = H / 2;
+      return;
+    }
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of pts) {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+      const r = p.r || 0;
+      if (p.x - r < minX) minX = p.x - r;
+      if (p.x + r > maxX) maxX = p.x + r;
+      if (p.y - r < minY) minY = p.y - r;
+      if (p.y + r > maxY) maxY = p.y + r;
+    }
+    if (!Number.isFinite(minX)) {
+      CAM2.tzoom = 1;
+      return;
+    }
+    const needW = maxX - minX + CAM_TUNE.padX * 2;
+    const needH = maxY - minY + CAM_TUNE.padY * 2 + CAM_TUNE.headroom;
+    const zoom = Math.max(CAM_TUNE.min, Math.min(CAM_TUNE.max, Math.min(W / needW, H / needH)));
+    CAM2.tzoom = zoom;
+    CAM2.tx = (minX + maxX) / 2;
+    CAM2.ty = (minY + maxY) / 2 - CAM_TUNE.headroom * 0.35;
+    clampCenterToWorld();
+  }
+  function clampCenterToWorld(zoom = CAM2.tzoom) {
+    const halfW = W / (2 * zoom), halfH = H / (2 * zoom);
+    CAM2.tx = Math.max(halfW, Math.min(W - halfW, CAM2.tx));
+    CAM2.ty = Math.max(halfH, Math.min(H - halfH, CAM2.ty));
+  }
+  var _nz = (t, seed) => Math.sin(t * 0.043 + seed) * 0.62 + Math.sin(t * 0.0971 + seed * 2.7) * 0.38;
+  function updateCameraShake(now) {
+    const trauma = Math.max(0, Math.min(1, shake / CAM_TUNE.maxTrauma));
+    const t2 = trauma * trauma;
+    CAM2.shakeX = _nz(now, 1.7) * CAM_TUNE.shakePx * t2;
+    CAM2.shakeY = _nz(now, 8.3) * CAM_TUNE.shakePx * t2;
+    CAM2.rot = _nz(now, 4.1) * CAM_TUNE.shakeRot * t2;
+    setShake(shake * 0.88);
+  }
+  function updateCamera(now, pts) {
+    if (!camEnabled) {
+      CAM2.x = W / 2;
+      CAM2.y = H / 2;
+      CAM2.zoom = 1;
+      updateCameraShake(now);
+      return;
+    }
+    cameraTarget(pts || cameraPoints());
+    const zl = CAM2.tzoom < CAM2.zoom ? CAM_TUNE.lerpOut : CAM_TUNE.lerpIn;
+    CAM2.zoom += (CAM2.tzoom - CAM2.zoom) * zl;
+    CAM2.x += (CAM2.tx - CAM2.x) * CAM_TUNE.panLerp;
+    CAM2.y += (CAM2.ty - CAM2.y) * CAM_TUNE.panLerp;
+    const halfW = W / (2 * CAM2.zoom), halfH = H / (2 * CAM2.zoom);
+    CAM2.x = Math.max(halfW, Math.min(W - halfW, CAM2.x));
+    CAM2.y = Math.max(halfH, Math.min(H - halfH, CAM2.y));
+    updateCameraShake(now);
+  }
+  function beginWorld() {
+    resetNameTagSlots();
+    const s = RENDER_SCALE * CAM2.zoom;
+    ctx.setTransform(s, 0, 0, s, RENDER_SCALE * (W / 2), RENDER_SCALE * (H / 2));
+    if (CAM2.rot) ctx.rotate(CAM2.rot);
+    ctx.translate(-CAM2.x + CAM2.shakeX / CAM2.zoom, -CAM2.y + CAM2.shakeY / CAM2.zoom);
+  }
+  function endWorld() {
+    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+  }
+  function clearFrame(color) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = color || "#16121c";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    endWorld();
+  }
+  function cameraViewRect() {
+    const halfW = W / (2 * CAM2.zoom), halfH = H / (2 * CAM2.zoom);
+    return { x0: CAM2.x - halfW, y0: CAM2.y - halfH, x1: CAM2.x + halfW, y1: CAM2.y + halfH };
+  }
+  function screenToWorld(sx, sy) {
+    const r = cameraViewRect();
+    return { x: r.x0 + sx / W * (r.x1 - r.x0), y: r.y0 + sy / H * (r.y1 - r.y0) };
+  }
+  function cameraParallax() {
+    return { dx: CAM2.x - W / 2, dy: CAM2.y - H / 2, zoom: CAM2.zoom };
+  }
+
   // src/platform/input-keyboard.js
   var keys = {};
   var KEYMAPS = [
     { left: "KeyA", right: "KeyD", jump: "KeyW", cast: "KeyE", cast2: "KeyQ", block: "KeyS", label: "E", label2: "Q" },
     { left: "ArrowLeft", right: "ArrowRight", jump: "ArrowUp", cast: "Enter", cast2: "ShiftRight", block: "ArrowDown", label: "ENTER", label2: "R-SHIFT" }
   ];
-  var mouse = { x: W / 2, y: H / 2, down: false, rdown: false, mdown: false, present: false };
+  var mouse = { x: W / 2, y: H / 2, sx: W / 2, sy: H / 2, down: false, rdown: false, mdown: false, present: false };
+  function syncMouseWorld() {
+    const w = screenToWorld(mouse.sx, mouse.sy);
+    mouse.x = w.x;
+    mouse.y = w.y;
+  }
   var KeyboardController = class {
     constructor(map, useMouse = false) {
       this.map = map;
@@ -14658,6 +15615,7 @@
     addEventListener("keydown", (e) => {
       ensureAudio();
       keys[e.code] = true;
+      if (e.code === "F9") setCameraEnabled(!cameraEnabled());
       if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter", "Space"].includes(e.code)) e.preventDefault();
     });
     addEventListener("keyup", (e) => keys[e.code] = false);
@@ -14667,8 +15625,9 @@
     if (canvas3 && typeof canvas3.addEventListener === "function") {
       canvas3.addEventListener("mousemove", (e) => {
         const r = canvas3.getBoundingClientRect();
-        mouse.x = (e.clientX - r.left) * (W / r.width);
-        mouse.y = (e.clientY - r.top) * (H / r.height);
+        mouse.sx = (e.clientX - r.left) * (W / r.width);
+        mouse.sy = (e.clientY - r.top) * (H / r.height);
+        syncMouseWorld();
         mouse.present = true;
       });
       canvas3.addEventListener("mousedown", (e) => {
@@ -14935,301 +15894,394 @@
     });
   }
 
-  // src/render/fx.js
-  var fx_exports2 = {};
-  __export(fx_exports2, {
-    addShake: () => addShake2,
-    applyEmitted: () => applyEmitted,
-    clearParticles: () => clearParticles2,
-    doFlash: () => doFlash2,
-    drawParticles: () => drawParticles,
-    flashAlpha: () => flashAlpha,
-    flashColor: () => flashColor,
-    fxPick: () => fxPick,
-    fxRandom: () => fxRandom,
-    fxRange: () => fxRange2,
-    handledEmitNames: () => handledEmitNames,
-    particles: () => particles,
-    pumpEmitted: () => pumpEmitted,
-    pushParticle: () => pushParticle,
-    setFlashAlpha: () => setFlashAlpha,
-    setShake: () => setShake,
-    shake: () => shake,
-    spawnBurst: () => spawnBurst2,
-    spawnParticles: () => spawnParticles2,
-    spawnRing: () => spawnRing2,
-    spawnText: () => spawnText2,
-    unhandledEmitted: () => unhandledEmitted,
-    updateParticles: () => updateParticles
+  // src/render/bloom.js
+  var bloom_exports = {};
+  __export(bloom_exports, {
+    applyBloom: () => applyBloom,
+    bloomEnabled: () => bloomEnabled,
+    setBloomEnabled: () => setBloomEnabled
   });
-
-  // src/render/effects.js
-  var effects_exports = {};
-  __export(effects_exports, {
-    boltVisual: () => boltVisual2,
-    clearFxEffects: () => clearFxEffects,
-    drawFxEffects: () => drawFxEffects,
-    drawVfx: () => drawVfx,
-    fxEffects: () => fxEffects
-  });
-  var fxEffects = [];
-  var fxRange = (a, b) => a + Math.random() * (b - a);
-  function prune(now) {
-    for (let i = fxEffects.length - 1; i >= 0; i--) if (now > fxEffects[i].until) fxEffects.splice(i, 1);
-  }
-  function boltVisual2(x0, y0, x1, y1, color = "#fff89e", width = 3, life = 130) {
-    const now = simNow();
-    prune(now);
-    const pts = [{ x: x0, y: y0 }];
-    const segs = 9;
-    for (let i = 1; i <= segs; i++) {
-      pts.push({
-        x: x0 + (x1 - x0) * i / segs + (i < segs ? fxRange(-14, 14) : 0),
-        y: y0 + (y1 - y0) * i / segs + (i < segs ? fxRange(-14, 14) : 0)
-      });
-    }
-    fxEffects.push({ until: now + life, pts, color, width });
-  }
-  function clearFxEffects() {
-    fxEffects.length = 0;
-  }
-  function drawFxEffects(now, ctx2) {
-    prune(now);
-    for (const e of fxEffects) {
-      ctx2.strokeStyle = e.color;
-      ctx2.lineWidth = e.width;
-      ctx2.beginPath();
-      ctx2.moveTo(e.pts[0].x, e.pts[0].y);
-      for (const q of e.pts.slice(1)) ctx2.lineTo(q.x, q.y);
-      ctx2.stroke();
-    }
-  }
-  function drawVfx(e, now, ctx2) {
-    const v = e.vfx;
-    if (!v) return;
-    switch (v.k) {
-      case "sing": {
-        ctx2.fillStyle = "#0a0510";
-        ctx2.beginPath();
-        ctx2.arc(v.x, v.y, 26, 0, Math.PI * 2);
-        ctx2.fill();
-        ctx2.strokeStyle = "#a55eea";
-        ctx2.lineWidth = 3;
-        ctx2.globalAlpha = 0.5 + 0.3 * Math.sin(now * 0.02);
-        ctx2.beginPath();
-        ctx2.arc(v.x, v.y, 36 + 5 * Math.sin(now * 0.011), 0, Math.PI * 2);
-        ctx2.stroke();
-        ctx2.globalAlpha = 1;
-        break;
-      }
-      case "zone": {
-        ctx2.globalAlpha = 0.16 + 0.06 * Math.sin(now * 0.01);
-        ctx2.fillStyle = v.c;
-        ctx2.beginPath();
-        ctx2.arc(v.x, v.y, v.r, 0, Math.PI * 2);
-        ctx2.fill();
-        ctx2.globalAlpha = 1;
-        break;
-      }
-      case "blizzard": {
-        ctx2.globalAlpha = 0.14;
-        ctx2.fillStyle = v.c;
-        ctx2.beginPath();
-        ctx2.arc(v.x, v.y, v.r, 0, Math.PI * 2);
-        ctx2.fill();
-        ctx2.globalAlpha = 1;
-        for (let i = 0; i < 3; i++) {
-          pushParticle({ kind: "square", x: v.x + fxRange(-220, 220), y: v.y + fxRange(-200, 100), vx: fxRange(-1, 1), vy: fxRange(1, 3), life: 24, maxLife: 24, color: "#fff", r: 2 });
-        }
-        break;
-      }
-      // The air tornado. Untinted, always: the only sim descriptor of this kind
-      // is spells/book.js's Tornado, and Firestorm's tinted funnel is `firetor`
-      // below. The tint lives on the WIRE's `tor` payload instead — a LAN client
-      // gets one descriptor for both funnels and draws them in
-      // src/render/draw-snapshot.js's drawFxLite, which does read `c`.
-      case "tor": {
-        ctx2.strokeStyle = "rgba(207,232,232,0.55)";
-        ctx2.lineWidth = 3;
-        for (let i = 0; i < 5; i++) {
-          const yy = H - 80 - i * 90;
-          const w = 26 + i * 22;
-          ctx2.beginPath();
-          ctx2.ellipse(e.x + Math.sin(now * 0.01 + i) * 8, yy, w, 12, 0, 0, Math.PI * 2);
-          ctx2.stroke();
-        }
-        break;
-      }
-      // Firestorm's funnel: narrower rings, a per-ring heat gradient, faster sway
-      case "firetor": {
-        ctx2.lineWidth = 3;
-        for (let i = 0; i < 5; i++) {
-          const yy = H - 80 - i * 90, w = 24 + i * 20;
-          ctx2.strokeStyle = `rgba(255, ${100 + i * 26}, 60, 0.6)`;
-          ctx2.beginPath();
-          ctx2.ellipse(e.x + Math.sin(now * 0.013 + i) * 9, yy, w, 12, 0, 0, Math.PI * 2);
-          ctx2.stroke();
-        }
-        break;
-      }
-      // an armed charge blinking between two colours: the sticky bomb (stuck to a
-      // body, so it reads the body's position) and the booby trap (a fixed spot)
-      case "blink": {
-        const x = v.body ? v.body.position.x : v.x;
-        const y = v.body ? v.body.position.y : v.y;
-        ctx2.fillStyle = Math.sin(now * v.rate) > 0 ? v.a : v.b;
-        ctx2.beginPath();
-        ctx2.arc(x, y, v.r, 0, Math.PI * 2);
-        ctx2.fill();
-        break;
-      }
-      // the telegraph ring the smite falls into
-      case "pulsering": {
-        ctx2.strokeStyle = v.c;
-        ctx2.lineWidth = v.lw;
-        ctx2.globalAlpha = 0.35 + 0.4 * Math.abs(Math.sin(now * 0.02));
-        ctx2.beginPath();
-        ctx2.arc(v.x, v.y, v.r, 0, Math.PI * 2);
-        ctx2.stroke();
-        ctx2.globalAlpha = 1;
-        break;
-      }
-      // a ghost's haunt sigil — the one effect that needs an artkit primitive
-      case "rune": {
-        ctx2.globalAlpha = 0.75;
-        runeRing(ctx2, v.x, v.y, v.r, v.c, now, { count: 6, lw: 1.2, alpha: 0.8, spin: 3e-3 });
-        ctx2.globalAlpha = 1;
-        break;
-      }
-      default:
-        break;
-    }
-  }
-  onWorldReset(clearFxEffects);
-
-  // src/render/fx.js
-  var particles = [];
-  var shake = 0;
-  var flashColor = "#fff";
-  var flashAlpha = 0;
-  function setShake(v) {
-    shake = v;
-  }
-  function setFlashAlpha(v) {
-    flashAlpha = v;
-  }
-  var fxRandom = () => Math.random();
-  var fxRange2 = (a, b) => a + Math.random() * (b - a);
-  var fxPick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-  function addShake2(v) {
-    shake = Math.min(shake + v, 26);
-  }
-  function doFlash2(color, alpha = 0.4) {
-    flashColor = color;
-    flashAlpha = Math.max(flashAlpha, alpha);
-  }
-  function spawnParticles2(x, y, color, count, speed, life = 40) {
-    for (let i = 0; i < count; i++) {
-      const a = fxRandom() * Math.PI * 2, v = fxRandom() * speed;
-      particles.push({ kind: "square", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, life: life + fxRandom() * 20, maxLife: life, color, r: 2 + fxRandom() * 3 });
-    }
-  }
-  function spawnRing2(x, y, color) {
-    particles.push({ kind: "ring", x, y, r: 12, life: 16, maxLife: 16, color });
-  }
-  function spawnBurst2(x, y, color, count = 12, o = {}) {
-    const kind = o.kind || "square", speed = o.speed ?? 5, spread = o.spread ?? Math.PI * 2;
-    const dir = o.dir ?? 0, up = o.up ?? 0, life = o.life ?? 40, g = o.g ?? 0.25, r = o.r ?? 3;
-    for (let i = 0; i < count; i++) {
-      const a = dir + (fxRandom() - 0.5) * spread;
-      const v = speed * (0.4 + fxRandom() * 0.9);
-      particles.push({ kind, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - up, life: life + fxRandom() * 15, maxLife: life, color, r: r * (0.6 + fxRandom() * 0.8), g });
-    }
-  }
-  function spawnText2(x, y, str, color) {
-    particles.push({ kind: "text", str, x, y, vx: 0, vy: -1.2, life: 50, maxLife: 50, color, r: 16 });
-  }
-  function pushParticle(spec) {
-    particles.push({ ...spec });
-  }
-  function clearParticles2() {
-    particles.length = 0;
-  }
-  function updateParticles(ts) {
-    for (let i = particles.length - 1; i >= 0; i--) {
-      const pt = particles[i];
-      pt.life -= ts;
-      if (pt.life <= 0) {
-        particles.splice(i, 1);
-        continue;
-      }
-      if (pt.kind === "ring") {
-        pt.r += 7 * ts;
-        continue;
-      }
-      if (pt.kind === "text") {
-        pt.y += pt.vy * ts;
-        continue;
-      }
-      pt.x += pt.vx * ts;
-      pt.y += pt.vy * ts;
-      if (pt.kind === "confetti") {
-        pt.vy += 0.06 * ts;
-        pt.x += Math.sin(pt.life * 0.25) * 0.8;
-      } else if (pt.kind === "leaf") {
-        pt.vy = Math.min(pt.vy + 0.02 * ts, 1.1);
-        pt.x += Math.sin(pt.life * 0.12) * 0.6;
-      } else if (pt.kind === "bird") {
-        pt.vx *= 1.008;
-        pt.vy += (pt.g ?? -0.02) * ts;
-      } else if (pt.kind === "glint") {
-      } else pt.vy += (pt.g ?? 0.25) * ts;
-    }
-  }
-  function drawParticles() {
-    drawStoryParticles(ctx, particles);
-  }
-  var HANDLERS = {
-    __proto__: null,
-    spawnParticles: spawnParticles2,
-    spawnRing: spawnRing2,
-    spawnText: spawnText2,
-    spawnBurst: spawnBurst2,
-    doFlash: doFlash2,
-    addShake: addShake2,
-    boltVisual: boltVisual2,
-    particle: pushParticle,
-    clearParticles: clearParticles2,
-    slowMo: () => {
-    },
-    setBanner: () => {
-    },
-    addKillFeed: () => {
-    }
+  var enabled = true;
+  var BLOOM = {
+    div: 4,
+    // buffer is 1/4 the device resolution per axis (1/16 the pixels)
+    strength: 0.55,
+    // final additive opacity
+    blurPx: 7,
+    // blur radius in BUFFER px, so ~28px at full res
+    // Each pass squares the colour, so N passes leaves c^(2^N). Three passes
+    // (c^8) is the point where lit-but-not-emissive surfaces — pale ice, snow
+    // crust — stop blooming and only spell cores, embers and lava survive.
+    passes: 3
   };
-  var unhandled = /* @__PURE__ */ new Set();
-  var unhandledEmitted = () => [...unhandled];
-  var handledEmitNames = () => ["sfx", ...Object.keys(HANDLERS)];
-  function applyEmitted(events) {
-    for (const e of events) {
-      if (e.f === "sfx") {
-        playSfx(e.a[0]);
-        continue;
-      }
-      const h = HANDLERS[e.f];
-      if (h) h(...e.a);
-      else unhandled.add(e.f);
+  function setBloomEnabled(on) {
+    enabled = !!on;
+  }
+  function bloomEnabled() {
+    return enabled;
+  }
+  var _bufA = null;
+  var _bufB = null;
+  var _bctxA = null;
+  var _bctxB = null;
+  var _bufW = 0;
+  var _bufH = 0;
+  function _ensureBloomBuffers() {
+    if (!canvas) return false;
+    const w = Math.max(1, Math.floor(canvas.width / BLOOM.div));
+    const h = Math.max(1, Math.floor(canvas.height / BLOOM.div));
+    if (_bufA && _bufW === w && _bufH === h) return true;
+    if (typeof document === "undefined" || !document.createElement) return false;
+    _bufA = document.createElement("canvas");
+    _bufB = document.createElement("canvas");
+    _bufA.width = _bufB.width = w;
+    _bufA.height = _bufB.height = h;
+    _bctxA = _bufA.getContext("2d");
+    _bctxB = _bufB.getContext("2d");
+    if (!_bctxA || !_bctxB) return false;
+    _bufW = w;
+    _bufH = h;
+    return true;
+  }
+  function _blurBuffer() {
+    if ("filter" in _bctxB) {
+      _bctxB.setTransform(1, 0, 0, 1, 0, 0);
+      _bctxB.clearRect(0, 0, _bufW, _bufH);
+      _bctxB.filter = `blur(${BLOOM.blurPx}px)`;
+      _bctxB.drawImage(_bufA, 0, 0);
+      _bctxB.filter = "none";
+    } else {
+      _bctxB.setTransform(1, 0, 0, 1, 0, 0);
+      _bctxB.clearRect(0, 0, _bufW, _bufH);
+      _bctxB.globalAlpha = 0.25;
+      const r = BLOOM.blurPx * 0.6;
+      for (const [dx, dy] of [[-r, 0], [r, 0], [0, -r], [0, r]]) _bctxB.drawImage(_bufA, dx, dy);
+      _bctxB.globalAlpha = 1;
     }
   }
-  function pumpEmitted() {
-    applyEmitted(drainEmitted());
+  function applyBloom(now) {
+    if (!enabled || !ctx || !_ensureBloomBuffers()) return;
+    _bctxA.setTransform(1, 0, 0, 1, 0, 0);
+    _bctxA.globalCompositeOperation = "copy";
+    _bctxA.drawImage(canvas, 0, 0, _bufW, _bufH);
+    _bctxA.globalCompositeOperation = "multiply";
+    for (let i = 0; i < BLOOM.passes; i++) _bctxA.drawImage(_bufA, 0, 0);
+    _bctxA.globalCompositeOperation = "source-over";
+    _blurBuffer();
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = BLOOM.strength;
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(_bufB, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
   }
-  onWorldReset(() => {
-    particles.length = 0;
-    shake = 0;
-    flashColor = "#fff";
-    flashAlpha = 0;
+
+  // src/render/profiler.js
+  var profiler_exports = {};
+  __export(profiler_exports, {
+    drawPerfHud: () => drawPerfHud,
+    perfBegin: () => perfBegin,
+    perfCount: () => perfCount,
+    perfDump: () => perfDump,
+    perfEnd: () => perfEnd,
+    perfFrameEnd: () => perfFrameEnd,
+    perfFrameStart: () => perfFrameStart,
+    perfSetEnabled: () => perfSetEnabled
   });
+  var PERF_CAP = 240;
+  var PERF_MAX_SLOTS = 32;
+  var PERF_HITCH_MS = 22;
+  var PERF_KEEP_HITCHES = 6;
+  function _slots() {
+    const ids = /* @__PURE__ */ new Map(), names = [];
+    return {
+      names,
+      id(name) {
+        let i = ids.get(name);
+        if (i === void 0) {
+          if (names.length >= PERF_MAX_SLOTS) return -1;
+          i = names.length;
+          ids.set(name, i);
+          names.push(name);
+        }
+        return i;
+      }
+    };
+  }
+  var _phaseSlots = _slots();
+  var _countSlots = _slots();
+  function _mkFrame() {
+    return {
+      t: 0,
+      interval: 0,
+      work: 0,
+      outside: 0,
+      heap: 0,
+      ph: new Float64Array(PERF_MAX_SLOTS),
+      // top-level phases; these sum to ~work
+      sub: new Float64Array(PERF_MAX_SLOTS),
+      // nested phases; already inside a parent
+      cn: new Float64Array(PERF_MAX_SLOTS)
+      // counters (particle count, body count, …)
+    };
+  }
+  var PERF = {
+    on: false,
+    buf: null,
+    // allocated on first enable — the headless sim loads this file too
+    head: 0,
+    n: 0,
+    cur: null,
+    lastStart: 0,
+    lastEnd: 0,
+    hitches: [],
+    // worst few of the session, newest-worst first
+    hitchTimes: [],
+    // timestamps of every hitch, for the "in the last 5s" rate
+    heapDrops: 0
+    // times the JS heap shrank — i.e. a GC ran
+  };
+  globalThis.PERF = PERF;
+  var _stack = [];
+  var _nestedPhase = new Uint8Array(PERF_MAX_SLOTS);
+  function perfFrameStart() {
+    if (!PERF.on) return;
+    const t = performance.now();
+    const f = PERF.buf[PERF.head];
+    f.ph.fill(0);
+    f.sub.fill(0);
+    f.cn.fill(0);
+    f.t = t;
+    f.interval = PERF.lastStart ? t - PERF.lastStart : 0;
+    f.outside = PERF.lastEnd ? t - PERF.lastEnd : 0;
+    f.work = 0;
+    const mem = performance.memory;
+    f.heap = mem ? mem.usedJSHeapSize : 0;
+    PERF.cur = f;
+    PERF.lastStart = t;
+    _stack.length = 0;
+  }
+  function perfFrameEnd() {
+    if (!PERF.on || !PERF.cur) return;
+    const t = performance.now();
+    const f = PERF.cur;
+    f.work = t - f.t;
+    PERF.lastEnd = t;
+    const prev = PERF.buf[(PERF.head + PERF_CAP - 1) % PERF_CAP];
+    if (PERF.n > 0 && f.heap && prev.heap && f.heap < prev.heap - 65536) PERF.heapDrops++;
+    if (PERF.n > 5 && f.interval > PERF_HITCH_MS) _recordHitch(f);
+    PERF.head = (PERF.head + 1) % PERF_CAP;
+    if (PERF.n < PERF_CAP) PERF.n++;
+    PERF.cur = null;
+  }
+  function perfBegin(name) {
+    if (!PERF.on) return;
+    _stack.push(name, performance.now(), _stack.length > 0 ? 1 : 0);
+  }
+  function perfEnd() {
+    if (!PERF.on || !_stack.length) return;
+    const nested = _stack.pop(), t0 = _stack.pop(), name = _stack.pop();
+    const f = PERF.cur;
+    if (!f) return;
+    const id = _phaseSlots.id(name);
+    if (id < 0) return;
+    if (nested) _nestedPhase[id] = 1;
+    (nested ? f.sub : f.ph)[id] += performance.now() - t0;
+  }
+  function perfCount(name, value) {
+    if (!PERF.on || !PERF.cur) return;
+    const id = _countSlots.id(name);
+    if (id >= 0) PERF.cur.cn[id] = value;
+  }
+  function _recordHitch(f) {
+    PERF.hitchTimes.push(f.t);
+    if (PERF.hitchTimes.length > 600) PERF.hitchTimes.splice(0, 300);
+    const snap = {
+      t: f.t,
+      interval: f.interval,
+      work: f.work,
+      outside: f.outside,
+      ph: Array.from(f.ph),
+      sub: Array.from(f.sub),
+      cn: Array.from(f.cn)
+    };
+    PERF.hitches.push(snap);
+    PERF.hitches.sort((a, b) => b.interval - a.interval);
+    if (PERF.hitches.length > PERF_KEEP_HITCHES) PERF.hitches.length = PERF_KEEP_HITCHES;
+  }
+  var _scratch = new Float64Array(PERF_CAP);
+  function _pct(pick2, p) {
+    const n = PERF.n;
+    if (!n) return 0;
+    for (let i = 0; i < n; i++) _scratch[i] = pick2(PERF.buf[(PERF.head - n + i + PERF_CAP * 2) % PERF_CAP]);
+    const view = _scratch.subarray(0, n);
+    view.sort();
+    return view[Math.min(n - 1, Math.floor(n * p))];
+  }
+  var _byInterval = (f) => f.interval;
+  var _byWork = (f) => f.work;
+  var _byOutside = (f) => f.outside;
+  function _frameAt(back) {
+    return PERF.buf[(PERF.head - 1 - back + PERF_CAP * 2) % PERF_CAP];
+  }
+  function _phaseP95(id) {
+    return _pct((f) => f.ph[id] + f.sub[id], 0.95);
+  }
+  var PERF_PANEL_W = 268;
+  var _fmt = (v) => v < 10 ? v.toFixed(1) : Math.round(v).toString();
+  function drawPerfHud(now) {
+    if (!PERF.on || !PERF.n || !ctx) return;
+    perfBegin("perfhud");
+    const s = RENDER_SCALE;
+    ctx.save();
+    ctx.setTransform(s, 0, 0, s, 0, 0);
+    ctx.textAlign = "left";
+    ctx.font = "11px Menlo, monospace";
+    const x0 = W - PERF_PANEL_W - 8;
+    const y0 = 76;
+    const rows = _phaseSlots.names.length;
+    const panelH = 96 + 64 + 26 + rows * 13 + (PERF.hitches.length ? 46 : 0);
+    ctx.fillStyle = "rgba(10,6,16,0.82)";
+    ctx.fillRect(x0, y0, PERF_PANEL_W, panelH);
+    ctx.strokeStyle = "rgba(120,90,170,0.5)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x0 + 0.5, y0 + 0.5, PERF_PANEL_W - 1, panelH - 1);
+    let y = y0 + 16;
+    const line = (txt, col) => {
+      ctx.fillStyle = col || "#c8b8e8";
+      ctx.fillText(txt, x0 + 10, y);
+      y += 13;
+    };
+    const p50 = _pct(_byInterval, 0.5), p95 = _pct(_byInterval, 0.95), pmax = _pct(_byInterval, 0.999);
+    const fps = p50 > 0 ? Math.round(1e3 / p50) : 0;
+    ctx.font = "bold 11px Menlo, monospace";
+    line(`PERF  F7  \xB7  ${fps} fps`, fps >= 58 ? "#7bd88f" : fps >= 45 ? "#ffd166" : "#ff6b81");
+    ctx.font = "11px Menlo, monospace";
+    line(`frame  p50 ${_fmt(p50)}  p95 ${_fmt(p95)}  max ${_fmt(pmax)} ms`);
+    line(`work   p50 ${_fmt(_pct(_byWork, 0.5))}  p95 ${_fmt(_pct(_byWork, 0.95))} ms`, "#9ef0f0");
+    line(`out    p50 ${_fmt(_pct(_byOutside, 0.5))}  p95 ${_fmt(_pct(_byOutside, 0.95))} ms`, "#b98cff");
+    const cut = now - 5e3;
+    let recent = 0;
+    for (let i = PERF.hitchTimes.length - 1; i >= 0 && PERF.hitchTimes[i] >= cut; i--) recent++;
+    line(
+      `hitches >${PERF_HITCH_MS}ms: ${recent} in last 5s   GC: ${PERF.heapDrops}`,
+      recent > 4 ? "#ff6b81" : recent ? "#ffd166" : "#675a7d"
+    );
+    const gx = x0 + 10, gy = y + 2, gw = PERF_CAP, gh = 56, full = 33.3;
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillRect(gx, gy, gw, gh);
+    for (const ms of [16.7, 33.3]) {
+      const ly = gy + gh - ms / full * gh;
+      ctx.strokeStyle = ms < 20 ? "rgba(123,216,143,0.35)" : "rgba(255,209,102,0.3)";
+      ctx.beginPath();
+      ctx.moveTo(gx, ly + 0.5);
+      ctx.lineTo(gx + gw, ly + 0.5);
+      ctx.stroke();
+    }
+    for (let i = 0; i < PERF.n; i++) {
+      const f = _frameAt(PERF.n - 1 - i);
+      const cx = gx + gw - PERF.n + i;
+      const wpx = Math.min(gh, f.work / full * gh);
+      const opx = Math.min(gh - wpx, f.outside / full * gh);
+      ctx.fillStyle = "#4ad2d2";
+      ctx.fillRect(cx, gy + gh - wpx, 1, wpx);
+      ctx.fillStyle = f.outside > PERF_HITCH_MS ? "#ff6b81" : "#6b4b9e";
+      ctx.fillRect(cx, gy + gh - wpx - opx, 1, opx);
+    }
+    ctx.strokeStyle = "rgba(120,90,170,0.4)";
+    ctx.strokeRect(gx + 0.5, gy + 0.5, gw - 1, gh - 1);
+    y = gy + gh + 14;
+    line("phase           last    p95", "#675a7d");
+    const last2 = _frameAt(0);
+    for (let id = 0; id < _phaseSlots.names.length; id++) {
+      const name = _phaseSlots.names[id];
+      const cur = last2.ph[id] + last2.sub[id];
+      const hi = _phaseP95(id);
+      line(
+        `${(_nestedPhase[id] ? " \xB7" + name : name).padEnd(14)} ${_fmt(cur).padStart(5)}  ${_fmt(hi).padStart(5)}`,
+        hi > 8 ? "#ff6b81" : hi > 4 ? "#ffd166" : "#9c8ab8"
+      );
+    }
+    y += 3;
+    let cline = "";
+    for (let id = 0; id < _countSlots.names.length; id++) cline += `${_countSlots.names[id]} ${Math.round(last2.cn[id])}  `;
+    if (cline) line(cline.trim(), "#8fa6d8");
+    line(`buf ${canvas.width}x${canvas.height} @${(typeof RENDER_SCALE === "number" ? RENDER_SCALE : 1).toFixed(2)}  zoom ${(typeof CAM !== "undefined" ? CAM.zoom : 1).toFixed(2)}`, "#675a7d");
+    const worst = PERF.hitches[0];
+    if (worst) {
+      y += 3;
+      line(`worst ${_fmt(worst.interval)}ms  ${((now - worst.t) / 1e3).toFixed(0)}s ago`, "#ff6b81");
+      const parts = [];
+      for (let id = 0; id < _phaseSlots.names.length; id++) {
+        const v = (worst.ph[id] || 0) + (worst.sub[id] || 0);
+        if (v > 0.5) parts.push([_phaseSlots.names[id], v]);
+      }
+      parts.push(["outside", worst.outside]);
+      parts.sort((a, b) => b[1] - a[1]);
+      line("  " + parts.slice(0, 3).map(([n, v]) => `${n} ${_fmt(v)}`).join("  "), "#c8b8e8");
+    }
+    ctx.restore();
+    perfEnd();
+  }
+  function perfDump() {
+    const head = [
+      "t",
+      "interval",
+      "work",
+      "outside",
+      "heapKB",
+      ..._phaseSlots.names,
+      ..._countSlots.names.map((n) => `#${n}`)
+    ];
+    const rows = [head.join(",")];
+    for (let i = PERF.n - 1; i >= 0; i--) {
+      const f = _frameAt(i);
+      rows.push([
+        f.t.toFixed(1),
+        f.interval.toFixed(2),
+        f.work.toFixed(2),
+        f.outside.toFixed(2),
+        Math.round(f.heap / 1024),
+        ..._phaseSlots.names.map((_, id) => (f.ph[id] + f.sub[id]).toFixed(2)),
+        ..._countSlots.names.map((_, id) => Math.round(f.cn[id]))
+      ].join(","));
+    }
+    const csv = rows.join("\n");
+    console.log(csv);
+    console.log(`\u2014 ${PERF.n} frames, ${PERF.hitches.length} hitches kept, ${PERF.heapDrops} GC drops`);
+    navigator.clipboard?.writeText(csv).then(
+      () => console.log("(copied to clipboard)"),
+      () => {
+      }
+    );
+    return csv;
+  }
+  globalThis.perfDump = perfDump;
+  function perfSetEnabled(on) {
+    if (on && !PERF.buf) PERF.buf = Array.from({ length: PERF_CAP }, _mkFrame);
+    PERF.on = on && !!PERF.buf;
+    PERF.head = 0;
+    PERF.n = 0;
+    PERF.cur = null;
+    PERF.lastStart = 0;
+    PERF.lastEnd = 0;
+    PERF.hitches.length = 0;
+    PERF.hitchTimes.length = 0;
+    PERF.heapDrops = 0;
+    _stack.length = 0;
+  }
+  if (typeof addEventListener === "function") {
+    addEventListener("keydown", (e) => {
+      if (e.code !== "F7") return;
+      e.preventDefault();
+      if (e.shiftKey) perfDump();
+      else perfSetEnabled(!PERF.on);
+    });
+    if (typeof location !== "undefined" && /(\?|&)perf=1/.test(location.search)) perfSetEnabled(true);
+  }
 
   // src/net/fx-names.js
   var WIRE_FX = /* @__PURE__ */ new Set([
@@ -15272,6 +16324,7 @@
   // src/render/draw-snapshot.js
   var draw_snapshot_exports = {};
   __export(draw_snapshot_exports, {
+    cameraPointsFromSnapshot: () => cameraPointsFromSnapshot,
     drawFxLite: () => drawFxLite,
     drawGhostWizard: () => drawGhostWizard,
     drawSnapshotStatics: () => drawSnapshotStatics,
@@ -15557,15 +16610,17 @@
     drawWizardFigure: () => drawWizardFigure
   });
   function drawOffscreenPointers(list, now) {
-    const INSET = 22;
+    const v = cameraViewRect();
+    const z = cameraZoom();
+    const INSET = 22 / z, EDGE = 18 / z;
     for (const w of list) {
-      if (w.x > -18 && w.x < W + 18 && w.y > -18 && w.y < H + 18) continue;
-      const ax = Math.max(INSET, Math.min(W - INSET, w.x));
-      const ay = Math.max(INSET, Math.min(H - INSET, w.y));
+      if (w.x > v.x0 - EDGE && w.x < v.x1 + EDGE && w.y > v.y0 - EDGE && w.y < v.y1 + EDGE) continue;
+      const ax = Math.max(v.x0 + INSET, Math.min(v.x1 - INSET, w.x));
+      const ay = Math.max(v.y0 + INSET, Math.min(v.y1 - INSET, w.y));
       const speed = Math.hypot(w.vx || 0, w.vy || 0);
       const ang = speed > 0.8 ? Math.atan2(w.vy, w.vx) : Math.atan2(w.y - ay, w.x - ax);
       const dist = Math.hypot(w.x - ax, w.y - ay);
-      const s = Math.max(9, 15 - dist * 0.012) * (1 + 0.12 * Math.sin(now * 0.012));
+      const s = Math.max(9, 15 - dist * 0.012) / z * (1 + 0.12 * Math.sin(now * 0.012));
       ctx.save();
       ctx.translate(ax, ay);
       ctx.rotate(ang);
@@ -15640,16 +16695,30 @@
     });
   }
   function drawNameTag(name, color, x, y) {
-    ctx.font = "bold 11px Georgia";
+    const z = cameraZoom();
+    ctx.save();
+    ctx.font = `bold ${11 / z}px Georgia`;
     ctx.textAlign = "center";
+    const halfW = ctx.measureText(name).width / 2;
+    const ty = claimTagSlot(x, y, halfW);
     ctx.globalAlpha = 0.9;
     ctx.strokeStyle = "rgba(10, 6, 16, 0.85)";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 / z;
     ctx.lineJoin = "round";
-    ctx.strokeText(name, x, y);
+    ctx.strokeText(name, x, ty);
     ctx.fillStyle = color;
-    ctx.fillText(name, x, y);
+    ctx.fillText(name, x, ty);
+    if (ty < y - 2) {
+      ctx.globalAlpha = 0.45;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1 / z;
+      ctx.beginPath();
+      ctx.moveTo(x, ty + 3 / z);
+      ctx.lineTo(x, y + 2 / z);
+      ctx.stroke();
+    }
     ctx.globalAlpha = 1;
+    ctx.restore();
   }
   function drawWizard(p, now) {
     const { x, y } = p.body.position;
@@ -16085,12 +17154,18 @@
   var replay_exports2 = {};
   __export(replay_exports2, {
     drawReplay: () => drawReplay,
-    drawReplayOverlay: () => drawReplayOverlay
+    drawReplayOverlay: () => drawReplayOverlay,
+    replayCameraPoints: () => replayCameraPoints
   });
+  function replayCameraPoints() {
+    const f = replayFrameAt();
+    if (!f) return null;
+    return f.snap.ps.filter((gp) => gp.al).map((gp) => ({ x: gp.x, y: gp.y, r: 26 }));
+  }
   function drawReplayOverlay(now) {
     ctx.fillStyle = "#000";
-    ctx.fillRect(-30, -30, W + 60, 84);
-    ctx.fillRect(-30, H - 54, W + 60, 84);
+    ctx.fillRect(0, 0, W, 54);
+    ctx.fillRect(0, H - 54, W, 54);
     ctx.fillStyle = "#ff5e57";
     ctx.beginPath();
     ctx.arc(30, 30, 6 + 1.5 * Math.sin(now * 0.01), 0, Math.PI * 2);
@@ -16104,9 +17179,6 @@
     const f = replayFrameAt();
     if (!f) return;
     drawSnapshotWorld(f.snap, f.prev, f.alpha, now);
-    ctx.fillStyle = getVignette();
-    ctx.fillRect(0, 0, W, H);
-    drawReplayOverlay(now);
     if (f.done) game.replay = null;
   }
 
@@ -16879,18 +17951,24 @@
   }
   function draw(now) {
     if (game.replay) {
-      setShake(shake * 0.88);
       setFlashAlpha(flashAlpha * 0.86);
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(-30, -30, W + 60, H + 60);
+      updateCamera(now, replayCameraPoints());
+      syncMouseWorld();
+      clearFrame(currentMap?.def?.bg);
+      beginWorld();
       drawReplay(now);
+      endWorld();
+      ctx.fillStyle = getVignette();
+      ctx.fillRect(0, 0, W, H);
+      drawReplayOverlay(now);
       drawHUD(now);
       return;
     }
-    const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
-    setShake(shake * 0.88);
-    ctx.setTransform(1, 0, 0, 1, sx, sy);
-    ctx.clearRect(-30, -30, W + 60, H + 60);
+    updateCamera(now, cameraPoints());
+    syncMouseWorld();
+    clearFrame(currentMap?.def?.bg);
+    perfBegin("world");
+    beginWorld();
     drawBackdrop(now);
     drawMapBodies(now);
     drawLava(now);
@@ -16914,12 +17992,18 @@
     drawGhostWisps(now);
     drawEnvVisualsLive(now);
     drawReticle(now);
+    endWorld();
+    perfEnd();
+    perfBegin("bloom");
+    applyBloom(now);
+    perfEnd();
+    perfBegin("hud");
     ctx.fillStyle = getVignette();
     ctx.fillRect(0, 0, W, H);
     if (flashAlpha > 0.01) {
       ctx.globalAlpha = flashAlpha;
       ctx.fillStyle = flashColor;
-      ctx.fillRect(-30, -30, W + 60, H + 60);
+      ctx.fillRect(0, 0, W, H);
       ctx.globalAlpha = 1;
     }
     setFlashAlpha(flashAlpha * 0.86);
@@ -16927,6 +18011,7 @@
     if (game.state === "LOBBY") drawLobby();
     if (game.state === "VICTORY") drawVictory(now);
     if (game.state === "RUN_OVER") drawRunOver(now);
+    perfEnd();
     globalThis.drawNetStats?.(now);
   }
   function drawRunOver(now) {
@@ -17117,12 +18202,32 @@
       else drawTerrainBody(b, now || performance.now());
     }
   }
-  function drawSnapshotWorld(snap, snapPrev2, alpha, now, includeLocalFx = false) {
+  function cameraPointsFromSnapshot(snap, snapPrev, alpha = 1) {
+    const pts = [];
+    const prevById = /* @__PURE__ */ new Map();
+    for (const gp of snapPrev?.ps || []) prevById.set(gp.s, gp);
+    for (const gp of snap?.ps || []) {
+      if (!gp.al) continue;
+      const p = prevById.get(gp.s);
+      pts.push({
+        x: p ? p.x + (gp.x - p.x) * alpha : gp.x,
+        y: p ? p.y + (gp.y - p.y) * alpha : gp.y,
+        r: 26 * (gp.sc || 1)
+      });
+    }
+    for (const e of snap?.bodies || []) {
+      if (e.l !== "boss") continue;
+      const r = e.r || Math.max(e.w || 0, e.h || 0) / 2 || 42;
+      pts.push({ x: e.x, y: e.y, r: r + 24 });
+    }
+    return pts;
+  }
+  function drawSnapshotWorld(snap, snapPrev, alpha, now, includeLocalFx = false) {
     currentMap.data.lavaY = snap.lv;
     const prevById = {};
-    if (snapPrev2) for (const e of snapPrev2.bodies) prevById[e.id] = e;
+    if (snapPrev) for (const e of snapPrev.bodies) prevById[e.id] = e;
     const prevPs = {};
-    if (snapPrev2) for (const q of snapPrev2.ps) prevPs[q.s] = q;
+    if (snapPrev) for (const q of snapPrev.ps) prevPs[q.s] = q;
     drawBackdrop(now);
     drawSnapshotStatics(now);
     drawLava(now);
@@ -17234,9 +18339,9 @@
   }
   globalThis.drawNetStats = function drawNetStats2(now) {
     if (!netStats.on) return;
-    const line = `NET \xB7 snap ${netStats.lastBytes}B \xB7 ${netStats.rate}/s \xB7 ${netStats.kbs}KB/s in \xB7 gap ${Math.round(snapGapMs)}ms \xB7 delay ${Math.round(netStats.delay)}ms`;
+    const line = `NET \xB7 snap ${netStats.lastBytes}B \xB7 ${netStats.rate}/s \xB7 ${netStats.kbs}KB/s in \xB7 tick ${Math.round(snapPeriodMs)}ms \xB7 jitter ${Math.round(snapJitterMs)}ms \xB7 lag ${Math.round(netStats.delay)}ms \xB7 held ${interpHeld}`;
     ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
     ctx.font = "12px Menlo, monospace";
     ctx.textAlign = "left";
     const w = ctx.measureText(line).width + 16;
@@ -17355,21 +18460,73 @@
       console.warn("Optional content could not be installed.", e);
     }
   }
-  var snapPrev = null;
   var snapCur = null;
-  var tPrev = 0;
-  var tCur = 0;
-  var snapGapMs = 40;
   var clientMap = null;
-  function pushSnapshot(snap) {
-    const tNow = performance.now();
-    if (tCur) snapGapMs += (Math.min(tNow - tCur, 200) - snapGapMs) * 0.12;
-    snapPrev = snapCur;
-    tPrev = tCur;
+  var snapBuf = [];
+  var SNAP_BUF_MAX = 16;
+  var playT = 0;
+  var playInit = false;
+  var playRate = 1;
+  var snapPeriodMs = 33.3;
+  var snapJitterMs = 0;
+  var lastNetNow = 0;
+  var interpHeld = 0;
+  function pushSnapshot(snap, arrivedAt) {
+    const at = arrivedAt ?? performance.now();
+    const sv = typeof snap.sv === "number" ? snap.sv : at;
+    const prev = snapBuf[snapBuf.length - 1];
+    const cut = prev && (snap.rn !== prev.s.rn || snap.mi !== prev.s.mi || sv < prev.sv);
+    if (cut) {
+      snapBuf.length = 0;
+      playInit = false;
+    }
+    if (prev && !cut) {
+      const svGap = sv - prev.sv;
+      if (svGap > 0 && svGap < 400) snapPeriodMs += (svGap - snapPeriodMs) * 0.1;
+      snapJitterMs += (Math.min(Math.abs(at - prev.at - svGap), 200) - snapJitterMs) * 0.1;
+    }
+    snapBuf.push({ s: snap, sv, at });
+    while (snapBuf.length > SNAP_BUF_MAX) snapBuf.shift();
     snapCur = snap;
-    tCur = tNow;
     if (!clientMap || clientMap.index !== snap.mi || snap.msd != null && clientMap.data.seed !== snap.msd) clientLoadMap(snap.mi, snap.msd);
     applyBrokenDestructibles(snap.bd);
+  }
+  function interpDelay() {
+    return Math.min(240, Math.max(45, snapPeriodMs * 1.5 + snapJitterMs * 2));
+  }
+  function advancePlayout(now) {
+    const dt = lastNetNow ? Math.min(now - lastNetNow, 100) : 16.7;
+    lastNetNow = now;
+    if (snapBuf.length < 2) return null;
+    const newest = snapBuf[snapBuf.length - 1];
+    const target = newest.sv - interpDelay();
+    if (!playInit) {
+      playT = target;
+      playInit = true;
+      playRate = 1;
+    } else {
+      playT += dt * playRate;
+      const err = target - playT;
+      if (Math.abs(err) > 400) {
+        playT = target;
+        playRate = 1;
+      } else playRate = 1 + Math.max(-0.1, Math.min(0.1, err * 25e-4));
+    }
+    const oldest = snapBuf[0];
+    if (playT < oldest.sv) playT = oldest.sv;
+    if (playT > newest.sv) {
+      playT = newest.sv;
+      interpHeld++;
+    }
+    for (let i = snapBuf.length - 1; i > 0; i--) {
+      const a2 = snapBuf[i - 1], b2 = snapBuf[i];
+      if (playT >= a2.sv && playT <= b2.sv) {
+        const span = Math.max(b2.sv - a2.sv, 1);
+        return { a: a2, b: b2, alpha: Math.max(0, Math.min(1, (playT - a2.sv) / span)) };
+      }
+    }
+    const a = snapBuf[snapBuf.length - 2], b = newest;
+    return { a, b, alpha: 1 };
   }
   function applyBrokenDestructibles(bd) {
     if (!bd || !clientMap) return;
@@ -17491,10 +18648,7 @@
     if (lastFxAt === null || now - lastFxAt > 250) lastFxAt = now;
     fxLoop.pump(now - lastFxAt);
     lastFxAt = now;
-    const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
-    setShake(shake * 0.88);
-    ctx.setTransform(1, 0, 0, 1, sx, sy);
-    ctx.clearRect(-30, -30, W + 60, H + 60);
+    endWorld();
     if (!snapCur || !clientMap) {
       ctx.fillStyle = "#16121c";
       ctx.fillRect(-30, -30, W + 60, H + 60);
@@ -17514,11 +18668,14 @@
       ctx.fillText("GAME UPDATED \u2014 REFRESH THE PAGE", W / 2, H / 2);
       return;
     }
-    const delay = Math.min(90, Math.max(36, snapGapMs * 1.25));
-    netStats.delay = delay;
-    const span = Math.max(tCur - tPrev, 1);
-    const alpha = Math.max(0, Math.min(1, (now - delay - tPrev) / span));
-    const ghosts = drawSnapshotWorld(snap, snapPrev, alpha, now, true);
+    const rp = advancePlayout(now);
+    netStats.delay = interpDelay();
+    const [wa, wb, walpha] = rp ? [rp.a.s, rp.b.s, rp.alpha] : [null, snap, 1];
+    updateCamera(now, cameraPointsFromSnapshot(wb, wa, walpha));
+    clearFrame(clientMap?.def?.bg);
+    perfBegin("world");
+    beginWorld();
+    const ghosts = drawSnapshotWorld(wb, wa, walpha, now, true);
     if (mouse.present) {
       const mine = ghosts.find((g) => g.slot === mySlot);
       ctx.strokeStyle = mine ? mine.color : "#9c8ab8";
@@ -17529,6 +18686,11 @@
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
+    endWorld();
+    perfEnd();
+    perfBegin("bloom");
+    applyBloom(now);
+    perfEnd();
     ctx.fillStyle = getVignette();
     ctx.fillRect(0, 0, W, H);
     if (flashAlpha > 0.01) {
@@ -18162,6 +19324,10 @@
     draw_boss_exports,
     draw_snapshot_exports,
     replay_exports2,
+    camera_exports,
+    bloom_exports,
+    profiler_exports,
+    name_tags_exports,
     audio_exports,
     input_keyboard_exports,
     input_gamepad_exports,
@@ -18195,16 +19361,25 @@
   loadMap(0);
   var loop = createTickLoop({
     step: () => {
+      perfBegin("sim");
       stepSim();
+      perfEnd();
+      perfBegin("fx");
       pumpEmitted();
       updateParticles(1);
+      perfEnd();
     }
   });
   var last = performance.now();
   function frame(now) {
+    perfFrameStart();
     if (netMode2() === "online") {
       last = now;
+      perfBegin("net");
       netClientFrame(now);
+      perfEnd();
+      drawPerfHud(now);
+      perfFrameEnd();
       requestAnimationFrame(frame);
       return;
     }
@@ -18212,7 +19387,11 @@
     scanLobbyPads();
     loop.pump(now - last);
     last = now;
+    perfBegin("draw");
     draw(simNow());
+    perfEnd();
+    drawPerfHud(now);
+    perfFrameEnd();
     requestAnimationFrame(frame);
   }
   if (harness) globalThis.frame = frame;

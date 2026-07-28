@@ -111,6 +111,12 @@ export function drawPlayerSpells(x, slots, cdf, megaCasts, charges) {
     ctx.fillStyle = def ? (tierColor(slots[i]) || '#9c8ab8') : '#4a415c';
     const n = charges?.[i];
     ctx.fillText(def ? def.name + (n != null ? ` ×${n}` : '') : '· · ·', x, y);
+    // NOTE: no archetype label here. A 9px line at y+15 does not fit: the slots
+    // are 22px apart, the cooldown bar occupies y+6..y+10, and 13px Georgia caps
+    // on the next slot's baseline (y+22) start above this line's descenders. It
+    // collided with both. Upstream never put the archetype in the HUD anyway —
+    // it draws a glyph on the tome, on pickup and at the cursor, which arrives
+    // with the artkit pass. src/sim/spells/cast-kind.js is the data.
     if (def) drawCooldownBar(x, y + 6, def, cdf[i], i === 0 ? megaCasts : 0);
   }
 }

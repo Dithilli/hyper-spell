@@ -72,6 +72,7 @@ export {
   queryPoint,
   queryRadius,
   queryCapsule,
+  pointInBody,
 
   // joints
   createJoint,

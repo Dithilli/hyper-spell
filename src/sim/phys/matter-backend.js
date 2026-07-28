@@ -322,6 +322,19 @@ export function queryPoint(pt, opts = {}) {
   return opts.filter ? found.filter(opts.filter) : found;
 }
 
+// Is this point inside this body's outline? A raw containment test with no
+// broadphase and no container walk — the caller already knows which body it
+// means. src/sim/maps/reach.js samples one body against thousands of grid
+// cells, and queryPoint walks every body in the world per call, so routing
+// that through it would be the wrong shape by orders of magnitude.
+//
+// Compound bodies: this tests `body.vertices`, which is the outline the escape
+// analysis was written against — for a body with parts that is part zero's
+// outline, not the union.
+export function pointInBody(body, point) {
+  return Vertices.contains(body.vertices, point);
+}
+
 export function queryRadius(center, r, opts = {}) {
   const bodies = allBodies(opts.container);
   const out = [];

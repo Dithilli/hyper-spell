@@ -50,6 +50,10 @@ import * as drawEnv from '../render/draw-env.js';
 import * as drawBoss from '../render/draw-boss.js';
 import * as drawSnapshot from '../render/draw-snapshot.js';
 import * as renderReplay from '../render/replay.js';
+import * as camera from '../render/camera.js';
+import * as bloom from '../render/bloom.js';
+import * as profiler from '../render/profiler.js';
+import * as nameTags from '../render/name-tags.js';
 import * as audio from '../render/audio.js';
 import * as keyboard from './input-keyboard.js';
 import * as gamepad from './input-gamepad.js';
@@ -65,7 +69,8 @@ const MODULES = [
   snapshot, replay, events, waves, pickups, storage, lifecycle, combat, status,
   controllerMod, ghost, spellCore, registry, tiers, fusion, builders, extras,
   boss, enemyAi, bot, artkit, canvas, drawWorld, hud, drawWizard, drawPickups,
-  drawEnv, drawBoss, drawSnapshot, renderReplay, audio, keyboard, gamepad, join,
+  drawEnv, drawBoss, drawSnapshot, renderReplay, camera, bloom, profiler, nameTags,
+  audio, keyboard, gamepad, join,
 ];
 
 export function installDebugGlobals() {

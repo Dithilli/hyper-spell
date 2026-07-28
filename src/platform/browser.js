@@ -18,6 +18,7 @@ import { draw } from '../render/draw-world.js';
 import { pumpEmitted, updateParticles } from '../render/fx.js';
 import { netClientFrame, netMode } from '../net/client.js';
 import { installDebugGlobals } from './debug-globals.js';
+import { perfFrameStart, perfFrameEnd, perfBegin, perfEnd, drawPerfHud } from '../render/profiler.js';
 
 const canvas = document.getElementById('game');
 initCanvas(canvas);
@@ -65,18 +66,24 @@ loadMap(0);
 // Before task 13 the sim called the renderer directly here and only the SERVER
 // had events, which is why couch and online were two code paths at all.
 const loop = createTickLoop({
-  step: () => { stepSim(); pumpEmitted(); updateParticles(1); },
+  step: () => {
+    perfBegin('sim'); stepSim(); perfEnd();
+    perfBegin('fx'); pumpEmitted(); updateParticles(1); perfEnd();
+  },
 });
 
 let last = performance.now();
 function frame(now) {
+  perfFrameStart();
   if (netMode() === 'online') {
     // the server owns the match now, so this frame simulated nothing. Keep
     // `last` current anyway: banking the online stretch would hand the local
     // accumulator minutes of "elapsed" time the moment we came back, and it
     // would spend it as a MAX_CATCHUP burst plus a bogus dropped-time report.
     last = now;
-    netClientFrame(now);
+    perfBegin('net'); netClientFrame(now); perfEnd();
+    drawPerfHud(now);
+    perfFrameEnd();
     requestAnimationFrame(frame);
     return;
   }
@@ -103,7 +110,9 @@ function frame(now) {
   // The ONLINE branch above is different and keeps wall time: it never runs
   // stepSim, it interpolates between wire snapshots stamped with its own real
   // clock, and it drives its cosmetic tick from src/net/client.js.
-  draw(simNow());
+  perfBegin('draw'); draw(simNow()); perfEnd();
+  drawPerfHud(now);
+  perfFrameEnd();
   requestAnimationFrame(frame);
 }
 if (harness) globalThis.frame = frame; // the dev harness pages step the loop by hand
