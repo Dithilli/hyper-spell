@@ -14,7 +14,16 @@ import { SPELLS } from './spells/registry.js';
 import { STARTERS } from './spells/starters.js';
 import { BOOK_SPELLS } from './spells/book.js';
 import { HYBRID_SPELLS } from './spells/fusion.js';
+import { classifyAllCasts } from './spells/cast-kind.js';
 import './spells/tiers.js';
 import './maps/book.js'; // defineMap pushes into MAPS as this evaluates
 
 Object.assign(SPELLS, STARTERS, BOOK_SPELLS, HYBRID_SPELLS);
+
+// Resolve every spell's cast archetype now the book is complete. Doing it here
+// rather than lazily on first use keeps it a load-time property of the content:
+// a lazy first call lands in whatever code happens to touch a spell first, and
+// when that was the draw path it meant the renderer writing `_cast` onto a
+// sim-owned SPELLS entry — the exact direction the render/sim boundary forbids,
+// and one the purity scanner's fixed identifier list would not have caught.
+classifyAllCasts();

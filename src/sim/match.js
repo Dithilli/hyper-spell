@@ -24,7 +24,7 @@ import {
   players, MAX_PLAYERS, createPlayer, spawnPlayer, despawnPlayer, spawnPointFor, clearSpells, gibs,
 } from './player/lifecycle.js';
 import { activeEffects, projectiles, summons } from './spells/core.js';
-import { tomes, hats, scheduleTomes } from './pickups.js';
+import { tomes, hats, scheduleTomes, dealStartingSpells } from './pickups.js';
 import { clearReplay, startReplay } from './replay.js';
 
 // mode: 'versus' (last-wizard-standing match) | 'wave' (co-op/solo PvE survival, js/enemies.js)
@@ -141,11 +141,22 @@ export function startRound(index) {
   let tries = 0;
   while (bossTime && MAPS[index].cozy && ++tries < 60) index = Math.floor(simRandom() * MAPS.length);
   loadMap(index);
-  for (const p of players) {
-    clearSpells(p);
-    despawnPlayer(p);
-    spawnPlayer(p, spawnPointFor(p));
-  }
+  // Two passes, not one. spawnPointFor keeps a new spawn clear of the wizards
+  // already standing there, and in a single despawn-then-spawn loop the wizards
+  // "already standing there" are the ones this loop has not reached yet — still
+  // alive, still at LAST round's positions, on the previous map. Measured over
+  // 12 round transitions with four seats, half of those entries were stale, so
+  // an authored spawn could be rejected because someone stood at that x in a
+  // different arena. Clearing the board first makes the list mean what it says.
+  for (const p of players) { clearSpells(p); despawnPlayer(p); }
+  for (const p of players) spawnPlayer(p, spawnPointFor(p));
+  dealStartingSpells(); // nobody opens a round empty-handed
+  // The bots' stalemate breaker asks how long it has been since anything took
+  // damage (ai/bot.js). Left carrying over from the previous round, a round that
+  // starts more than seven seconds after the last blow of the last one opens
+  // already stale — every bot abandoning its temperament before the fight has
+  // begun. The clock belongs to the round.
+  game.lastDamageAt = simNow();
   game.state = 'PLAY';
   game.fightAt = simNow() + 1100;
   game.fightShown = false;

@@ -125,7 +125,7 @@ an input to the value, so they are overrides.
   not "the old velocity plus something", it is "what the belt permits". They
   are marked `blended` in the form column because the arithmetic still reads the
   current velocity, so the facade call is `setVelocity`.
-- **`src/sim/player/combat.js:50`** (the hat gib) reads
+- **`src/sim/player/combat.js:51`** (the hat gib) reads
   `p.body.velocity.x` — the *caster's* velocity, not the hat's. The hat is a
   body created two lines earlier and has no motion of its own, so this is a
   spawn, not a push. "Reads a velocity" is not the test; "reads *its own*
@@ -274,8 +274,8 @@ change. Pair it with a unit test.
 | Site | Class | Form | Facade call | Rationale |
 |---|---|---|---|---|
 
-| `src/sim/player/combat.js:50` | **override** | absolute | `setVelocity` | Gib spawn. The hat is new and has no velocity of its own; it inherits half the caster's x. Reading another body's velocity is not reading your own. |
-| `src/sim/player/combat.js:72` | **override** | absolute | `setVelocity` | Gib spawn: a fresh body is thrown at a randomised velocity. |
+| `src/sim/player/combat.js:51` | **override** | absolute | `setVelocity` | Gib spawn. The hat is new and has no velocity of its own; it inherits half the caster's x. Reading another body's velocity is not reading your own. |
+| `src/sim/player/combat.js:73` | **override** | absolute | `setVelocity` | Gib spawn: a fresh body is thrown at a randomised velocity. |
 | `src/sim/spells/starters.js:26` | **push** | additive | `addVelocity` | Blast recoil on the caster: velocity minus a facing-scaled kick. |
 | `src/sim/spells/starters.js:44` | **push** | blended | `setVelocity` | Gust REDIRECTS an in-flight bolt: `spd = Math.hypot(b.velocity.x, b.velocity.y)` two lines up, then the same speed on a new heading. Reads its own velocity — a push, not a launch. Classified override on first pass; the read is off-line, which is exactly why the audit had to look past the write itself. |
 | `src/sim/spells/starters.js:47` | **push** | additive | `setVelocity` ¹ | Gust shoves whatever it catches. The mass-independent push, verbatim. |
@@ -289,7 +289,7 @@ change. Pair it with a unit test.
 | `src/sim/player/controller.js:127` | **controller** | blended | `setVelocity` → `setControlVelocity` (phase 3) | Movement blend: x eased toward the walk target, y untouched. Phase 3 gives this its own setControlVelocity so a character controller can own it. |
 | `src/sim/player/controller.js:134` | **controller** | axis | `setVelocity` → `setControlVelocity` (phase 3) | Jump: y set outright, x preserved. Same owner as the blend above. |
 | `src/sim/player/controller.js:139` | **controller** | axis | `setVelocity` → `setControlVelocity` (phase 3) | Air jump: y set outright, x preserved. |
-| `src/sim/player/lifecycle.js:116` | **override** | absolute | `setVelocity` | spawnPlayer — brief rule 5. A respawn must not inherit the corpse's momentum. |
+| `src/sim/player/lifecycle.js:113` | **override** | absolute | `setVelocity` | spawnPlayer — brief rule 5. A respawn must not inherit the corpse's momentum. |
 | `src/sim/collision.js:116` | **push** | blended | `setVelocity` | Reflect: the bolt's own velocity is negated and damped. Reads the current velocity, so it is a push, but the sign flip means it cannot be a delta. |
 | `src/sim/collision.js:155` | **push** | blended | `setVelocity` | Banana slip: x amplified 1.5x, y kicked up. The x scaling keeps it out of addVelocity. |
 | `src/sim/collision.js:170` | **push** | axis | `setVelocity` | Stomp — the victim is driven down at a fixed speed, x preserved. |
@@ -297,8 +297,8 @@ change. Pair it with a unit test.
 | `src/sim/collision.js:180` | **push** | axis | `setVelocity` | Trampoline fling: a fixed launch speed, horizontal motion preserved. |
 | `src/sim/collision.js:203` | **push** | axis | `setVelocity` | Spikes: a fixed pop upward, horizontal motion preserved. |
 | `src/sim/collision.js:209` | **push** | axis | `setVelocity` | Bosses shrug off lava with a fixed upward pop. |
-| `src/sim/events.js:133` | **push** | additive | `addVelocity` | Windstorm event: a per-second push on every loose body. |
-| `src/sim/events.js:157` | **override** | absolute | `setVelocity` | Critter spawn at the arena edge. |
+| `src/sim/events.js:148` | **push** | additive | `addVelocity` | Windstorm event: a per-second push on every loose body. |
+| `src/sim/events.js:172` | **override** | absolute | `setVelocity` | Critter spawn at the arena edge. |
 | `src/sim/ai/boss.js:54` | **override** | absolute | `setVelocity` | Boss projectile launch. |
 | `src/sim/ai/boss.js:76` | **override** | absolute | `setVelocity` | Boss slam shockwave throws the player at a stated velocity. |
 | `src/sim/ai/boss.js:94` | **push** | blended | `setVelocity` | Flier chase: 0.92 damping plus a steering term. Damping is a scale, not a delta. |
@@ -321,11 +321,11 @@ change. Pair it with a unit test.
 | `src/sim/ai/enemies.js:123` | **override** | absolute | `setVelocity` | Hop: the whole launch velocity is stated. |
 | `src/sim/ai/enemies.js:139` | **override** | absolute | `setVelocity` | Leap: the whole launch velocity is stated. |
 | `src/sim/maps/builders.js:76` | **override** | absolute | `setVelocity` | Destructible debris spawn. |
-| `src/sim/maps/builders.js:313` | **override** | absolute | `setVelocity` | Pendulum kick-off — the initial shove on a fresh ball. |
-| `src/sim/maps/builders.js:321` | **push** | additive | `addVelocity` | Pendulum keep-swinging: a per-second nudge toward centre. |
-| `src/sim/maps/builders.js:370` | **override** | absolute | `setVelocity` | Icicle drop: the whole velocity is stated at the moment it lets go. |
-| `src/sim/maps/builders.js:386` | **push** | additive | `addVelocity` | applyWind — a per-second push on every loose body. The environmental force, mass-independent by design. |
-| `src/sim/maps/builders.js:425` | **override** | absolute | `setVelocity` | Rolling boulder spawn at the arena edge. |
+| `src/sim/maps/builders.js:314` | **override** | absolute | `setVelocity` | Pendulum kick-off — the initial shove on a fresh ball. |
+| `src/sim/maps/builders.js:322` | **push** | additive | `addVelocity` | Pendulum keep-swinging: a per-second nudge toward centre. |
+| `src/sim/maps/builders.js:371` | **override** | absolute | `setVelocity` | Icicle drop: the whole velocity is stated at the moment it lets go. |
+| `src/sim/maps/builders.js:387` | **push** | additive | `addVelocity` | applyWind — a per-second push on every loose body. The environmental force, mass-independent by design. |
+| `src/sim/maps/builders.js:426` | **override** | absolute | `setVelocity` | Rolling boulder spawn at the arena edge. |
 | `src/sim/spells/book.js:84` | **push** | additive | `setVelocity` ¹ | boomBolt blast knockback. |
 | `src/sim/spells/book.js:143` | **push** | blended | `setVelocity` | Homing Wisp steering: 0.9 damping plus a seek term. |
 | `src/sim/spells/book.js:156` | **push** | blended | `setVelocity` | Boomerang Orb turnaround: x negated. Reads its own velocity, cannot be a delta. |

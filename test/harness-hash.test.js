@@ -12,7 +12,10 @@ import { createSim } from '../src/platform/node.js';
 // The complete set of fields the digest is allowed to skip. Written out here on
 // purpose: adding an exclusion to hash.js must break this test and force the
 // omission to be justified in review rather than absorbed silently.
-const ALLOWED_SNAPSHOT_OMISSIONS = ['t', 'v'];
+// Mirrors IGNORED_SNAPSHOT_KEYS in test/harness/hash.js. `sv` joins 't' and 'v'
+// because it is the server's wall clock at send time: hashing a performance.now()
+// reading would make every golden tape differ from itself on the next run.
+const ALLOWED_SNAPSHOT_OMISSIONS = ['t', 'v', 'sv'];
 const ALLOWED_BODY_OMISSIONS = ['id'];
 
 // A value no snapshot field ever legitimately holds, so substituting it always
@@ -32,7 +35,12 @@ const perturbed = (snap, mutate) => {
 // frame. The digest is key-driven so it always covered rp; this fixture could
 // not see it until a tape triggered a death, which the three-round tape does.
 const richSnapshot = () => ({
-  t: 'snap', v: '9.0.0',
+  // `sv` is the server's wall clock at send time, stamped by takeWireSnapshot for
+  // the client's playout buffer. It is on the digest's ignore-list — it reads
+  // performance.now(), so hashing it would make every tape irreproducible — but
+  // it IS a field of the live payload, so the fixture has to carry it or this
+  // guard reports it as unaccounted growth forever.
+  t: 'snap', v: '9.0.0', sv: 1712576105123,
   st: 'PLAY', mi: 3, rn: 1, wr: null, msd: 1712576105, lv: 640, wn: 3, rp: 1,
   md: 'wave', bw: 4, ev: 'quake', bd: [2, 7], aw: { mvp: 0 }, sr: { bolt: 3 },
   bs: { n: 'THE MAW', c: '#ff4d4d', hp: 400, mhp: 900 },

@@ -20,9 +20,29 @@ function tomePool() {
   return Object.keys(SPELLS).filter(id => !SPELLS[id].hybrid); // hybrids come only from fusion
 }
 
+// Nobody opens a round empty-handed. Dealt from the same rarity table tome
+// drops use, so the opening reads as a hand you were dealt rather than a
+// scramble, and nobody spends the first ten seconds running at an unarmed
+// opponent. Rolls on the seeded stream (weightedSpellPick), so every peer deals
+// the same hand.
+export function dealStartingSpells(who = players) {
+  const pool = tomePool();
+  const dealt = new Set(players.map(p => p.slots[0]).filter(Boolean));
+  for (const p of who) {
+    let id = weightedSpellPick(pool);
+    for (let tries = 0; tries < 12 && dealt.has(id); tries++) id = weightedSpellPick(pool);
+    if (!id) continue;
+    dealt.add(id);
+    addSpell(p, id);
+  }
+}
+
 export function scheduleTomes(now) {
-  nextTomeAt = now + rand(1200, 2500);
-  firstDrop = true;
+  // the opening volley used to be what armed everyone; dealStartingSpells does
+  // that now, so tomes start on their normal cadence and the first one on the
+  // field is a second spell worth fighting over
+  nextTomeAt = now + rand(2500, 4000);
+  firstDrop = false;
 }
 
 export function updateTomes(now) {

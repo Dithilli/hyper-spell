@@ -16,6 +16,15 @@ const IGNORED_SNAPSHOT_KEYS = new Set([
   // GAME_VERSION. It moves on deliberate releases, not on refactors, so hashing
   // it would invalidate every golden file on an unrelated version bump.
   'v',
+  // The server's wall clock at send time, stamped by takeWireSnapshot for the
+  // client's playout buffer (src/net/client.js). It is the one field in the
+  // payload deliberately NOT a function of sim state: it reads performance.now(),
+  // so hashing it would make every tape non-reproducible by construction and the
+  // goldens would differ on every run. Transport metadata in the same sense as
+  // `t` — it describes the delivery, not the world. The guard in
+  // test/harness-hash.test.js caught it the moment it appeared, which is the
+  // ignore-list working rather than being worked around.
+  'sv',
 ]);
 
 // Per-body keys excluded from the digest.

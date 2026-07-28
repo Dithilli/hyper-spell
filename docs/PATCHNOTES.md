@@ -1,3 +1,36 @@
+# v10 — the lighting update, ported
+
+Upstream's v10 range landed in `src/`. The `js/` monolith it was written against
+no longer exists here, so every feature is a re-implementation rather than a
+merge; `docs/PORT-LOG.md` is the ledger, with the measurements each rests on.
+
+- **A fit-to-action camera.** The arena is one screen, so it frames rather than
+  scrolls: it finds the box the fight occupies and pushes in. At zoom 1 the view
+  is identical to the old fixed framing, so world coordinates, the sim and the
+  wire format are untouched. **F9** toggles it. Couch, online and killcam share
+  one world transform now.
+- **Real pixels.** The backing store is sized to device pixels (capped at 2x)
+  instead of a fixed 1280x720 the browser upscaled.
+- **One light pass.** An additive bloom over the finished frame replaces the
+  scattered per-draw `ctx.shadowBlur`, which re-rasterised per draw and did not
+  compose — overlapping glows read as stacked stickers.
+- **A particle budget.** Bursts split into a few bright cores over a thin tail of
+  dim motes, under a 300-particle ceiling that culls motes first. Floating labels
+  cap at 6, newest wins.
+- **Spells say how they cast.** Every spell carries an archetype — drop, ray,
+  nova, place, self, bolt — inferred from its own cast source.
+- **A frame profiler.** **F7**. Per-phase timings, and the OUTSIDE number: the
+  gap between frames, where GC and the compositor live.
+- **Bots read ledges, retreat and double-jump.** They navigate on a floor-only
+  ground query, brake instead of coasting over a lip, blunder occasionally on
+  purpose, and break a stalemate when nothing has taken damage for a while.
+- **Spawn safety.** No wizard opens a round somewhere it cannot get out of. An
+  escape analysis nudges or relocates a drop as little as it can.
+  `node server/verify-spawns.js` sweeps the whole map book.
+- **Snapshot playout.** Online interpolation runs on the server clock through a
+  buffer, with the playout clock corrected by rate rather than by jumping.
+- **Opening loadouts.** Every wizard starts the round armed.
+
 # HYPERSPELL — Patch Notes
 
 ## v9 · July 23, 2026 — "The Big Move" (server-authoritative)

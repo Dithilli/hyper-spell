@@ -84,7 +84,13 @@ test('applying a spawn really produces particles', () => {
   particles.length = 0;
   emit('spawnParticles', 100, 100, '#fff', 7, 4);
   applyEmitted(drainEmitted());
-  assert.equal(particles.length, 7, 'the whole chain emit -> drain -> apply did not draw');
+  // NOT an exact count. The emitted event says WHAT happened; how many marks
+  // that becomes is a render-side decision now (the particle budget in
+  // src/render/fx.js thins generic bursts and splits them into cores and
+  // motes). Pinning the number here would make the budget unturnable and would
+  // assert a wire contract that does not exist — the sim never says "seven".
+  assert.ok(particles.length > 0, 'the whole chain emit -> drain -> apply did not draw');
+  assert.ok(particles.length <= 7, `a thinned burst should not grow: ${particles.length}`);
   particles.length = 0;
 });
 

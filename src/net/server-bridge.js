@@ -102,15 +102,33 @@ function flushFx() {
 // No `now`: both serializers read simNow() now. Handing them the host's real
 // clock (server/sim-host.js used to) would compare sim-time deadlines against
 // wall time, so every status flag would read false and every cooldown ready.
+// `sv` is the server's own clock at the moment a snapshot left, and it is what
+// the client's playout buffer interpolates on (src/net/client.js). It is stamped
+// HERE rather than inside serializeSnapshot because that lives in src/sim, which
+// is banned from the wall clock — and rightly so: the sim must hold no opinion
+// about real time. This is the net edge, where real time is the whole subject.
+//
+// Additive and optional on the wire. A client that predates the field falls back
+// to arrival time and behaves exactly as it did before, so no protocol version
+// moves for it.
+function stampWire(snap) {
+  return { t: 'snap', ...snap, sv: performance.now() };
+}
+
 function takeWireSnapshot() {
   if (game.replay) {
     const f = replayFrameAt();
     // in the browser, drawReplay clears the finished tape; headless nobody
     // draws, so the serializer owns that cleanup or the killcam never ends
-    if (f && !f.done) return { t: 'snap', ...f.snap, st: 'ROUND_END', rp: 1 };
+    //
+    // RESTAMPED with the live clock, deliberately. A killcam frame carries the
+    // timestamp it was RECORDED at, seconds in the past. Forwarding that would
+    // throw the client's playout clock backwards on the first replay frame, and
+    // the buffer would be cut and refilled for every frame of the killcam.
+    if (f && !f.done) return stampWire({ ...f.snap, st: 'ROUND_END', rp: 1 });
     game.replay = null;
   }
-  return { t: 'snap', ...serializeSnapshot() };
+  return stampWire(serializeSnapshot());
 }
 
 // ---- command surface (driven by server/room.js) ----

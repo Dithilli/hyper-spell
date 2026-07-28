@@ -8,7 +8,10 @@ import { GAME_VERSION } from '../version.js';
 // cosmetic randomness (the local starfield, the victory confetti). A client
 // runs no simulation, so these must not touch src/sim/rng.js's round stream.
 import { fxRange as rand, fxPick as pick } from '../render/fx.js';
-import { ctx } from '../render/canvas.js';
+import { ctx, RENDER_SCALE } from '../render/canvas.js';
+import { updateCamera, beginWorld, endWorld, clearFrame } from '../render/camera.js';
+import { applyBloom } from '../render/bloom.js';
+import { perfBegin, perfEnd, perfCount } from '../render/profiler.js';
 import { rgba } from '../render/artkit.js';
 import { ensureAudio } from '../render/audio.js';
 // spawnParticles is here because applyBrokenDestructibles bursts the block it
@@ -38,7 +41,7 @@ import { envEventById } from '../sim/events.js';
 import { MAX_PLAYERS } from '../sim/player/lifecycle.js';
 import { activeEffects } from '../sim/spells/core.js';
 import { keys, mouse } from '../platform/input-keyboard.js';
-import { drawSnapshotWorld, ghostPlayer } from '../render/draw-snapshot.js';
+import { drawSnapshotWorld, ghostPlayer, cameraPointsFromSnapshot } from '../render/draw-snapshot.js';
 import { drawWizardFigure } from '../render/draw-wizard.js';
 import { drawAwards, drawKillFeed, drawLobbyPanel, drawPlayerSpells, drawSpellReport } from '../render/hud.js';
 import { drawBossBar } from '../render/draw-boss.js';
@@ -98,9 +101,14 @@ function statTick(bytes, now) {
 }
 globalThis.drawNetStats = function drawNetStats(now) {
   if (!netStats.on) return;
-  const line = `NET · snap ${netStats.lastBytes}B · ${netStats.rate}/s · ${netStats.kbs}KB/s in · gap ${Math.round(snapGapMs)}ms · delay ${Math.round(netStats.delay)}ms`;
+  // jitter and held are the numbers that explain stutter-without-frame-cost:
+  // jitter is how unevenly packets land, held is how many frames the playout
+  // clock ran past the buffer and had to freeze on the newest snapshot.
+  const line = `NET · snap ${netStats.lastBytes}B · ${netStats.rate}/s · ${netStats.kbs}KB/s in`
+    + ` · tick ${Math.round(snapPeriodMs)}ms · jitter ${Math.round(snapJitterMs)}ms`
+    + ` · lag ${Math.round(netStats.delay)}ms · held ${interpHeld}`;
   ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
   ctx.font = '12px Menlo, monospace';
   ctx.textAlign = 'left';
   const w = ctx.measureText(line).width + 16;
@@ -215,17 +223,110 @@ function installPack(src) {
 }
 
 // ================= CLIENT =================
-let snapPrev = null, snapCur = null, tPrev = 0, tCur = 0;
-let snapGapMs = 40; // smoothed inter-snapshot gap → drives the interp delay
-let clientMap = null; // {def, composite, data}
+// ---- snapshot buffer + playout clock ----
+// Entity interpolation, done on the SERVER clock. The old version interpolated
+// between the ARRIVAL times of the last two packets, which had two fatal
+// properties: network jitter went straight into rendered motion, and the render
+// target (1.25 gaps back) sat outside the one gap of buffer about a quarter of
+// the time, pinning alpha to 0. On a zero-jitter LAN a wizard walking a constant
+// 6px/frame rendered 3, then 9, then 3. None of it costs a millisecond of frame
+// time, which is exactly why it read as a mystery rather than a bug.
+//
+// Now: buffer several snapshots, keep a clock in SERVER time that renders
+// slightly in the past, and correct that clock by nudging its RATE rather than
+// jumping it — a 5% speed difference is invisible, a jump is a stutter.
+let snapCur = null;                 // newest snapshot: HUD, state, input aim
+let clientMap = null;               // {def, composite, data}
+const snapBuf = [];                 // [{ s, sv, at }] oldest → newest
+const SNAP_BUF_MAX = 16;
+let playT = 0, playInit = false, playRate = 1;
+let snapPeriodMs = 33.3;            // smoothed SERVER-side spacing between snapshots
+let snapJitterMs = 0;               // smoothed |arrival spacing − server spacing|
+let lastNetNow = 0;
+let interpHeld = 0;                 // frames the clock ran past the buffer (starved)
 
-function pushSnapshot(snap) {
-  const tNow = performance.now();
-  if (tCur) snapGapMs += (Math.min(tNow - tCur, 200) - snapGapMs) * 0.12;
-  snapPrev = snapCur; tPrev = tCur;
-  snapCur = snap; tCur = tNow;
+// Test seam and reconnect reset. The buffer is module state, so a second match
+// in the same page — or a second case in the same test file — would otherwise
+// interpolate across the seam between them.
+export function resetPlayout() {
+  snapBuf.length = 0;
+  snapCur = null;
+  playT = 0; playInit = false; playRate = 1;
+  snapPeriodMs = 33.3; snapJitterMs = 0; lastNetNow = 0; interpHeld = 0;
+}
+
+export function playoutStats() {
+  return { buffered: snapBuf.length, delay: interpDelay(), jitter: snapJitterMs, period: snapPeriodMs, held: interpHeld };
+}
+
+export function pushSnapshot(snap, arrivedAt) {
+  const at = arrivedAt ?? performance.now();
+  // fall back to arrival time if the server predates the `sv` field — both are
+  // monotonic ms, so the clock just locks onto a different base
+  const sv = typeof snap.sv === 'number' ? snap.sv : at;
+  const prev = snapBuf[snapBuf.length - 1];
+
+  // A round reset or map change teleports every body. Interpolating across that
+  // smears the whole roster over the arena, so cut the tape instead. `sv` going
+  // backwards is the same situation from a different cause — a server restart,
+  // or a killcam frame that slipped through unrestamped.
+  const cut = prev && (snap.rn !== prev.s.rn || snap.mi !== prev.s.mi || sv < prev.sv);
+  if (cut) { snapBuf.length = 0; playInit = false; }
+
+  if (prev && !cut) {
+    const svGap = sv - prev.sv;
+    if (svGap > 0 && svGap < 400) snapPeriodMs += (svGap - snapPeriodMs) * 0.1;
+    snapJitterMs += (Math.min(Math.abs((at - prev.at) - svGap), 200) - snapJitterMs) * 0.1;
+  }
+
+  snapBuf.push({ s: snap, sv, at });
+  while (snapBuf.length > SNAP_BUF_MAX) snapBuf.shift();
+  snapCur = snap;
   if (!clientMap || clientMap.index !== snap.mi || (snap.msd != null && clientMap.data.seed !== snap.msd)) clientLoadMap(snap.mi, snap.msd);
   applyBrokenDestructibles(snap.bd);
+}
+
+// How far behind the newest snapshot we render. One full period is the minimum
+// that keeps a bracketing pair available; the jitter term buys back the margin a
+// lumpy connection eats.
+function interpDelay() {
+  return Math.min(240, Math.max(45, snapPeriodMs * 1.5 + snapJitterMs * 2));
+}
+
+// Advance the playout clock and return the two snapshots bracketing it, or null
+// until there are two to work with.
+export function advancePlayout(now) {
+  const dt = lastNetNow ? Math.min(now - lastNetNow, 100) : 16.7;
+  lastNetNow = now;
+  if (snapBuf.length < 2) return null;
+
+  const newest = snapBuf[snapBuf.length - 1];
+  const target = newest.sv - interpDelay();
+  if (!playInit) { playT = target; playInit = true; playRate = 1; }
+  else {
+    playT += dt * playRate;
+    const err = target - playT;
+    // A big error means something actually broke (tab backgrounded, long stall).
+    // Anything smaller gets absorbed by running the clock up to 10% fast or
+    // slow, which nobody can see.
+    if (Math.abs(err) > 400) { playT = target; playRate = 1; }
+    else playRate = 1 + Math.max(-0.1, Math.min(0.1, err * 0.0025));
+  }
+
+  // clamp into the buffer we actually hold
+  const oldest = snapBuf[0];
+  if (playT < oldest.sv) playT = oldest.sv;
+  if (playT > newest.sv) { playT = newest.sv; interpHeld++; }
+
+  for (let i = snapBuf.length - 1; i > 0; i--) {
+    const a = snapBuf[i - 1], b = snapBuf[i];
+    if (playT >= a.sv && playT <= b.sv) {
+      const span = Math.max(b.sv - a.sv, 1);
+      return { a, b, alpha: Math.max(0, Math.min(1, (playT - a.sv) / span)) };
+    }
+  }
+  const a = snapBuf[snapBuf.length - 2], b = newest;
+  return { a, b, alpha: 1 };
 }
 
 // mirror the server's blown-apart cover by removing the matching local blocks
@@ -392,10 +493,12 @@ export function netClientFrame(now) {
   fxLoop.pump(now - lastFxAt);
   lastFxAt = now;
 
-  const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
-  setShake(shake * 0.88);
-  ctx.setTransform(1, 0, 0, 1, sx, sy);
-  ctx.clearRect(-30, -30, W + 60, H + 60);
+  // The online path now shares the couch path's world transform. It used to set
+  // its own — a fixed 1:1 framing plus a jittered shake translate — which meant
+  // an online player never got the camera at all, and the shake was the old
+  // white-noise kind. beginWorld() also clears the nametag slots, so the leak
+  // that needed an explicit reset here is gone with it.
+  endWorld(); // screen space for the pre-flight messages below
 
   if (!snapCur || !clientMap) {
     ctx.fillStyle = '#16121c';
@@ -417,14 +520,24 @@ export function netClientFrame(now) {
     ctx.fillText('GAME UPDATED — REFRESH THE PAGE', W / 2, H / 2);
     return;
   }
-  // interpolate just behind the snapshot stream — the delay tracks the real
-  // arrival gap (~42ms at 30Hz) instead of a fixed 60ms, and stretches
-  // gracefully if the connection degrades
-  const delay = Math.min(90, Math.max(36, snapGapMs * 1.25));
-  netStats.delay = delay;
-  const span = Math.max(tCur - tPrev, 1);
-  const alpha = Math.max(0, Math.min(1, (now - delay - tPrev) / span));
-  const ghosts = drawSnapshotWorld(snap, snapPrev, alpha, now, true);
+  // Where in SERVER time we are rendering, and the pair straddling it. `snap`
+  // (the newest) still drives the HUD, the state and the input aim; the world is
+  // drawn from the bracketing pair, one interp delay in the past.
+  const rp = advancePlayout(now);
+  netStats.delay = interpDelay();
+  // only one snapshot so far — draw it dead-on rather than nothing
+  const [wa, wb, walpha] = rp ? [rp.a.s, rp.b.s, rp.alpha] : [null, snap, 1];
+
+  // The camera is fed the INTERPOLATED ghosts, not the live players — a client
+  // has no players array with bodies in it — and the boss, which rides the wire
+  // as a summon rather than a player. Without that the online camera did not
+  // know a boss existed: with one wizard left it pushed in on them and shoved
+  // the boss off screen.
+  updateCamera(now, cameraPointsFromSnapshot(wb, wa, walpha));
+  clearFrame(clientMap?.def?.bg);
+  perfBegin('world');
+  beginWorld();
+  const ghosts = drawSnapshotWorld(wb, wa, walpha, now, true);
 
   // reticle
   if (mouse.present) {
@@ -435,6 +548,10 @@ export function netClientFrame(now) {
     ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 9, 0, Math.PI * 2); ctx.stroke();
     ctx.globalAlpha = 1;
   }
+  endWorld();
+  perfEnd();
+
+  perfBegin('bloom'); applyBloom(now); perfEnd(); // same place as the couch path
 
   ctx.fillStyle = getVignette();
   ctx.fillRect(0, 0, W, H);
