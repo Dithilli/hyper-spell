@@ -36,10 +36,17 @@ export function fitCanvasToDisplay() {
   const cssW = rect.width || DESIGN_W;
   const scale = Math.min((cssW * dpr) / DESIGN_W, MAX_SUPERSAMPLE);
   const bw = Math.max(1, Math.round(DESIGN_W * scale));
+  // Kept in sync unconditionally, BEFORE the early return. The guard below is
+  // about not clobbering ctx state when the backing store is already the right
+  // size — which is not the same question as whether RENDER_SCALE is already
+  // right. Deriving it only on the resize path means a canvas that arrives at
+  // the correct width some other way (the element's own width attribute, a
+  // re-init) leaves the transform scaling by 1 into a buffer that is not 1:1,
+  // and the whole game draws into a corner of it.
+  RENDER_SCALE = bw / DESIGN_W;
   if (canvas.width === bw) return; // nothing changed — don't clobber ctx state
   canvas.width = bw;
   canvas.height = Math.max(1, Math.round(DESIGN_H * scale));
-  RENDER_SCALE = canvas.width / DESIGN_W;
   // canvas.width resets every ctx property; the per-frame draw path re-sets what
   // it needs, but text alignment is assumed by a lot of HUD code
   ctx.textAlign = 'center';

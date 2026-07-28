@@ -14334,10 +14334,10 @@
     const cssW = rect.width || DESIGN_W;
     const scale2 = Math.min(cssW * dpr / DESIGN_W, MAX_SUPERSAMPLE);
     const bw = Math.max(1, Math.round(DESIGN_W * scale2));
+    RENDER_SCALE = bw / DESIGN_W;
     if (canvas.width === bw) return;
     canvas.width = bw;
     canvas.height = Math.max(1, Math.round(DESIGN_H * scale2));
-    RENDER_SCALE = canvas.width / DESIGN_W;
     ctx.textAlign = "center";
   }
   function drawBody(body) {
@@ -14983,6 +14983,10 @@
   function cameraZoom() {
     return CAM.zoom;
   }
+  function resetCamera() {
+    Object.assign(CAM, CAM_HOME);
+  }
+  onWorldReset(resetCamera);
   function cameraPoints() {
     const pts = [];
     for (const p of players) {
@@ -17727,6 +17731,7 @@
     const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
     setShake(shake * 0.88);
     ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, sx * RENDER_SCALE, sy * RENDER_SCALE);
+    resetNameTagSlots();
     ctx.clearRect(-30, -30, W + 60, H + 60);
     if (!snapCur || !clientMap) {
       ctx.fillStyle = "#16121c";

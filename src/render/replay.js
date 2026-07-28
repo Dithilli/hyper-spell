@@ -4,7 +4,6 @@ import { W, H } from '../sim/world.js';
 import { game } from '../sim/match.js';
 import { replayFrameAt } from '../sim/replay.js';
 import { drawSnapshotWorld } from './draw-snapshot.js';
-import { getVignette } from './draw-world.js';
 
 
 // the killcam's camera targets: the wizards as recorded in the tape, since the

@@ -15,7 +15,7 @@
 // only structural change is that the globals it read — W/H, players, game,
 // shake, ctx — are imports here, and the two `typeof x === 'function'` escape
 // hatches are gone: this layer knows what exists.
-import { W, H } from '../sim/world.js';
+import { W, H, onWorldReset } from '../sim/world.js';
 import { canvas, ctx, RENDER_SCALE } from './canvas.js';
 import { shake, setShake } from './fx.js';
 import { players } from '../sim/player/lifecycle.js';
@@ -46,10 +46,13 @@ export function setCameraEnabled(on) { camEnabled = !!on; }
 export function cameraEnabled() { return camEnabled; }
 export function cameraZoom() { return CAM.zoom; }
 
-// Back to the opening framing. Round start calls this so a new round does not
-// inherit the last one's push-in, and the tests call it so each assertion starts
-// from a known camera rather than whatever the previous test left behind.
+// Back to the opening framing, so a new round does not open on the last one's
+// push-in. This hangs off the world reset for the same reason src/render/fx.js
+// clears the particle field there: a reset throws the picture away, and the
+// camera is part of the picture. Wiring it to startRound() instead is not
+// available — that is sim, and sim cannot reach render.
 export function resetCamera() { Object.assign(CAM, CAM_HOME); }
+onWorldReset(resetCamera);
 
 // ---------- targeting ----------
 // Points of interest: everyone still standing, plus the boss if one is up.

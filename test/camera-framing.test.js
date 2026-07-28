@@ -6,9 +6,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  updateCamera, cameraViewRect, screenToWorld, setCameraEnabled, resetCamera, cameraZoom,
+  updateCamera, cameraViewRect, screenToWorld, setCameraEnabled, resetCamera, cameraZoom, beginWorld,
 } from '../src/render/camera.js';
 import { W, H } from '../src/sim/world.js';
+// NOTE: a namespace import, deliberately. RENDER_SCALE is reassigned by
+// initCanvas(), and destructuring it — `const { RENDER_SCALE } = await
+// import(...)` — copies the value at that instant and never sees the update,
+// which silently made this file assert against a stale 1.
+import * as canvasMod from '../src/render/canvas.js';
 
 // let the easing settle: lerpIn is 0.035, so ~600 frames is comfortably converged
 const settle = (pts) => { for (let i = 0; i < 600; i++) updateCamera(i * 16, pts); };
@@ -78,15 +83,94 @@ test('zoom never goes below 1 — the arena is one screen', () => {
   assert.ok(cameraZoom() >= 1 - 1e-9, `zoomed out past the arena: ${cameraZoom()}`);
 });
 
-test('screenToWorld inverts the world transform', () => {
+// NOTE: screenToWorld is defined in terms of cameraViewRect, so asserting the
+// two agree is an algebraic identity that holds for ANY camera state — it
+// passes against a mirrored, 3x-scaled beginWorld(). The test that has teeth is
+// the one below, which drives the real ctx transform.
+test('screenToWorld is consistent with the view rect', () => {
   resetCamera();
   settle([{ x: 640, y: 400, r: 26 }, { x: 700, y: 430, r: 26 }]);
   const r = cameraViewRect();
   const mid = screenToWorld(W / 2, H / 2);
   assert.ok(Math.abs(mid.x - (r.x0 + r.x1) / 2) < 0.5, 'screen centre maps to view centre');
   assert.ok(Math.abs(mid.y - (r.y0 + r.y1) / 2) < 0.5, 'screen centre maps to view centre');
-  const corner = screenToWorld(0, 0);
-  assert.ok(Math.abs(corner.x - r.x0) < 1e-6 && Math.abs(corner.y - r.y0) < 1e-6, 'the origin maps to the rect origin');
+});
+
+// beginWorld() is the transform every world-space draw call goes through, and
+// nothing else in this suite exercises it: a sign flip draws the game mirrored,
+// a bad scale draws it at the wrong size, and both leave every other assertion
+// here green. So drive it against a recording context and check that a world
+// point lands where screenToWorld says it should.
+//
+// The composed transform is [a c e; b d f]: world (x,y) -> screen
+// (a*x + c*y + e, b*x + d*y + f), in DEVICE px, hence the RENDER_SCALE divide.
+function recordingCanvas(scale = 1) {
+  const m = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 };
+  const ctx = {
+    textAlign: 'center',
+    setTransform(a, b, c, d, e, f) { Object.assign(m, { a, b, c, d, e, f }); },
+    translate(x, y) { m.e += m.a * x + m.c * y; m.f += m.b * x + m.d * y; },
+    rotate(t) {
+      const s = Math.sin(t), co = Math.cos(t);
+      const { a, b, c, d } = m;
+      m.a = a * co + c * s; m.b = b * co + d * s;
+      m.c = c * co - a * s; m.d = d * co - b * s;
+    },
+  };
+  return {
+    matrix: m,
+    el: {
+      width: W * scale, height: H * scale, style: {},
+      getContext: () => ctx,
+      getBoundingClientRect: () => ({ width: W * scale, height: H * scale }),
+    },
+  };
+}
+
+test('beginWorld puts world points where screenToWorld says they are', () => {
+  const rec = recordingCanvas(1);
+  canvasMod.initCanvas(rec.el);
+
+  resetCamera();
+  settle([{ x: 500, y: 480, r: 26 }, { x: 780, y: 520, r: 26 }]); // a real pushed-in shot
+  beginWorld();
+  const m = rec.matrix;
+
+  // no shake in play, so the transform must be a pure scale+translate: no
+  // rotation, no mirroring
+  assert.ok(Math.abs(m.b) < 1e-9 && Math.abs(m.c) < 1e-9, `unexpected rotation/skew: b=${m.b} c=${m.c}`);
+  assert.ok(m.a > 0 && m.d > 0, `the world is mirrored: a=${m.a} d=${m.d}`);
+  assert.ok(Math.abs(m.a - m.d) < 1e-9, 'the world transform must be uniform');
+
+  const project = (wx, wy) => ({
+    x: (m.a * wx + m.c * wy + m.e) / canvasMod.RENDER_SCALE,
+    y: (m.b * wx + m.d * wy + m.f) / canvasMod.RENDER_SCALE,
+  });
+  for (const [sx, sy] of [[0, 0], [W / 2, H / 2], [W, H], [W * 0.25, H * 0.75]]) {
+    const world = screenToWorld(sx, sy);
+    const back = project(world.x, world.y);
+    assert.ok(
+      Math.abs(back.x - sx) < 1e-6 && Math.abs(back.y - sy) < 1e-6,
+      `screen (${sx},${sy}) -> world (${world.x.toFixed(2)},${world.y.toFixed(2)}) -> screen (${back.x.toFixed(2)},${back.y.toFixed(2)})`,
+    );
+  }
+});
+
+test('the world transform carries the device-pixel scale', () => {
+  const rec = recordingCanvas(2); // a 2x display
+  canvasMod.initCanvas(rec.el);
+  assert.equal(canvasMod.RENDER_SCALE, 2, 'a 2x backing store must set RENDER_SCALE to 2');
+
+  resetCamera();
+  setCameraEnabled(false); // identity framing: the maths is checkable by hand
+  updateCamera(0, []);
+  beginWorld();
+  const m = rec.matrix;
+  assert.ok(Math.abs(m.a - 2) < 1e-9, `at zoom 1 on a 2x display the scale must be 2, got ${m.a}`);
+  // world (0,0) must land at device (0,0) when the whole arena is in frame
+  assert.ok(Math.abs(m.e) < 1e-6 && Math.abs(m.f) < 1e-6, `world origin is off: e=${m.e} f=${m.f}`);
+  setCameraEnabled(true);
+  canvasMod.initCanvas(recordingCanvas(1).el); // leave RENDER_SCALE back at 1 for other tests
 });
 
 test('a point list with no finite entries falls back to the full arena', () => {
