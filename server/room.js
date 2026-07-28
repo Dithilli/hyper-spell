@@ -206,32 +206,40 @@ class Room {
     if (snap.rn !== this.lastRound || (snap.st === 'LOBBY' && this.shellSinceRound.size)) {
       this.lastRound = snap.rn;
       for (const [slot, sinceRound] of this.shellSinceRound) {
-        // RESERVE_MS is a promise the README makes to a player who dropped:
-        // refresh within two minutes and your seat and your round wins are
-        // still there. Releasing at the next round boundary broke it quietly,
-        // because a round is often thirty seconds.
-        if (this.reservedFor(slot)) continue;
         if (snap.st === 'LOBBY' || snap.rn > sinceRound) {
+          // The BODY goes: an idle shell is a punching bag that has to be
+          // killed before the round can end, and keeping one for the whole
+          // reserve window stalls the match — server/verify-e2e.js catches
+          // exactly that ("match reaches VICTORY").
+          //
+          // The SEAT does not go with it. RESERVE_MS is a promise the README
+          // makes to a player who dropped: refresh within two minutes and your
+          // round wins are still there. So the wins move into the reservation
+          // on the way out, and a rejoin inside the window takes a fresh seat
+          // carrying them.
+          this.stashWins(slot);
           this.bridge.removePlayer(slot);
           this.shellSinceRound.delete(slot);
-          for (const [key, r] of this.reserved) if (r.slot === slot) this.reserved.delete(key);
         }
       }
+      this.pruneReservations();
     }
     this.broadcast(snap, true);
   }
 
-  // is this slot still inside somebody's reserve window? Prunes as it walks —
-  // an expired reservation is the only thing standing between a shell and the
-  // sweep above, so it must not outlive its own deadline in the map either.
-  reservedFor(slot) {
-    const now = performance.now();
-    let held = false;
-    for (const [key, r] of this.reserved) {
-      if (r.expiresAt <= now) { this.reserved.delete(key); continue; }
-      if (r.slot === slot) held = true;
+  // a shell about to be removed hands its round wins to whoever comes back for
+  // them; without this the reservation would return an empty seat
+  stashWins(slot) {
+    for (const r of this.reserved.values()) {
+      if (r.slot === slot) r.wins = this.bridge.playerWins(slot);
     }
-    return held;
+  }
+
+  // reservations are the one map that grows with strangers, so it is swept on
+  // the same beat the shells are
+  pruneReservations() {
+    const now = performance.now();
+    for (const [key, r] of this.reserved) if (r.expiresAt <= now) this.reserved.delete(key);
   }
 
   addConn(ws) {
@@ -341,13 +349,28 @@ class Room {
     const r = key && this.reserved.get(key);
     if (r && performance.now() < r.expiresAt) {
       this.reserved.delete(key);
-      this.shellSinceRound.delete(r.slot);
-      this.bridge.setOffline(r.slot, false);
-      conn.slot = r.slot;
-      conn.name = name;
-      this.send(conn, { t: 'you', slot: r.slot });
-      this.send(conn, this.bridge.worldInfo());
-      return;
+      // back before the round ended: the body is still standing there, so walk
+      // straight back into it
+      if (this.shellSinceRound.has(r.slot)) {
+        this.shellSinceRound.delete(r.slot);
+        this.bridge.setOffline(r.slot, false);
+        conn.slot = r.slot;
+        conn.name = name;
+        this.send(conn, { t: 'you', slot: r.slot });
+        this.send(conn, this.bridge.worldInfo());
+        return;
+      }
+      // back after it: the body left at the boundary, so take a new seat and
+      // bring the round wins that were held for this name
+      const reclaimed = this.bridge.addPlayer({ name, color: msg.color, hat: msg.hat });
+      if (reclaimed != null) {
+        this.bridge.setPlayerWins(reclaimed, r.wins || 0);
+        conn.slot = reclaimed;
+        conn.name = name;
+        this.send(conn, { t: 'you', slot: reclaimed });
+        this.send(conn, this.bridge.worldInfo());
+        return;
+      }
     }
 
     const slot = this.bridge.addPlayer({ name, color: msg.color, hat: msg.hat });

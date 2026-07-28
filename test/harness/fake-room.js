@@ -27,6 +27,9 @@ export function fakeBridge(overrides = {}) {
       return bridge._nextSlot >= 8 ? null : bridge._nextSlot++;
     },
     removePlayer: record('removePlayer'),
+    _wins: new Map(),
+    playerWins: (slot) => bridge._wins.get(slot) || 0,
+    setPlayerWins: (slot, n) => { calls.push({ name: 'setPlayerWins', args: [slot, n] }); bridge._wins.set(slot, n); },
     setInput: record('setInput'),
     renamePlayer: record('renamePlayer'),
     setOffline: record('setOffline'),

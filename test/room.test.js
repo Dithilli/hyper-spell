@@ -101,23 +101,40 @@ test('a command still lands after a burst of input', () => {
   assert.equal(kit.bridge.of('start').length, 1, 'input spent the command budget');
 });
 
-test('a seat is held for the full reserve window, across a round boundary', () => {
+test('a player who drops and returns inside the round walks back into their body', () => {
   const kit = makeRoom();
   const ws = seated(kit, 'GANDALF');
   kit.bridge._state = 'PLAY';
-  ws.close();                     // dropped mid-match
-  kit.bridge._round = 1;          // …and a round ends while they are away
-  kit.snapshot({ st: 'PLAY', rn: 1 });
-  assert.equal(kit.bridge.of('removePlayer').length, 0, 'the seat was released early');
+  ws.close();
+  assert.equal(kit.bridge.last('setOffline').args[1], true, 'the shell was not parked');
 
   const back = kit.connect({ name: 'GANDALF' });
   back.emit({ t: 'join', name: 'gandalf', code: kit.room.session.code }); // same name, any case
   assert.equal(back.last('you').slot, 0, 'the seat did not come back');
+  assert.equal(kit.bridge.of('removePlayer').length, 0, 'the body was thrown away');
 });
 
-test('an expired reservation is swept at the next round boundary', () => {
+test('the body leaves at the round boundary, and the round wins wait for two minutes', () => {
   const kit = makeRoom();
   const ws = seated(kit, 'GANDALF');
+  kit.bridge._wins.set(0, 3); // three rounds won before they dropped
+  kit.bridge._state = 'PLAY';
+  ws.close();
+  kit.bridge._round = 1;
+  kit.snapshot({ st: 'PLAY', rn: 1 });
+  // an idle shell is a punching bag the round cannot end without killing
+  assert.equal(kit.bridge.of('removePlayer').length, 1, 'an idle shell was left in the arena');
+
+  const back = kit.connect({ name: 'GANDALF' });
+  back.emit({ t: 'join', name: 'GANDALF', code: kit.room.session.code });
+  assert.equal(typeof back.last('you').slot, 'number', 'the returning player got no seat');
+  assert.equal(kit.bridge.last('setPlayerWins').args[1], 3, 'the round wins were not returned');
+});
+
+test('an expired reservation is swept, and its wins are not handed to a stranger', () => {
+  const kit = makeRoom();
+  const ws = seated(kit, 'GANDALF');
+  kit.bridge._wins.set(0, 3);
   kit.bridge._state = 'PLAY';
   ws.close();
   for (const r of kit.room.reserved.values()) r.expiresAt = -1; // two minutes later
@@ -125,6 +142,10 @@ test('an expired reservation is swept at the next round boundary', () => {
   kit.snapshot({ st: 'PLAY', rn: 1 });
   assert.equal(kit.bridge.of('removePlayer').length, 1, 'the shell outlived its reservation');
   assert.equal(kit.room.reserved.size, 0, 'the expired reservation was not pruned');
+
+  const late = kit.connect({ name: 'GANDALF' });
+  late.emit({ t: 'join', name: 'GANDALF', code: kit.room.session.code });
+  assert.equal(kit.bridge.of('setPlayerWins').length, 0, 'wins survived their own deadline');
 });
 
 test('a name is cleaned before it becomes a reservation key or a banner', () => {

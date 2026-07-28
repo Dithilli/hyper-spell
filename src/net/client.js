@@ -58,10 +58,13 @@ let packChunks = null;            // chunk reassembly buffer
 let packInstalled = false;        // run-once guard
 let hooks = { status() {}, welcome() {}, session() {}, sessionState() {}, denied() {} };
 
-// the session this tab is in, once the server confirms the code. The lobby
-// panel draws it so anyone in the room can read it out to a latecomer.
+// The session this tab is in, once the SERVER confirms it — always the
+// canonical six characters, never the shape someone typed. The lobby panel
+// draws it so anyone in the room can read it out to a latecomer.
 let sessionCodeValue = null;
-export const sessionCode = () => sessionCodeValue;
+// what this tab last tried, canonical or not: the retry below resends it and
+// the server normalizes, but it must not reach the lobby panel as a code
+let pendingCode = null;
 let prevCast = false;   // cast edge, for the throttled join retry below
 let nextJoinAt = 0;
 
@@ -164,7 +167,7 @@ export function hostSession() { emit({ t: 'host' }); }
 // Enter a session that is already running. The server normalizes the code, so
 // whatever shape the player typed goes as typed.
 export function joinSession(code) {
-  sessionCodeValue = code;
+  pendingCode = code;
   emit({ t: 'join', name: myName(), code });
 }
 
@@ -341,9 +344,10 @@ function sendInput(now) {
   // retry a denied join on a fresh cast EDGE, at most once a second. This ran
   // on every rendered frame, so a full match answered 144 denials a second to
   // a player who was simply holding fire.
-  if (!joined && sessionCodeValue && cast && !prevCast && now > nextJoinAt) {
+  const retryCode = sessionCodeValue || pendingCode;
+  if (!joined && retryCode && cast && !prevCast && now > nextJoinAt) {
     nextJoinAt = now + 1000;
-    emit({ t: 'join', name: myName(), code: sessionCodeValue });
+    emit({ t: 'join', name: myName(), code: retryCode });
   }
   prevCast = cast;
   if (joined) emit({ t: 'input', m: move, j: jump ? 1 : 0, c: cast ? 1 : 0, c2: cast2 ? 1 : 0, b: block ? 1 : 0, a: aim });

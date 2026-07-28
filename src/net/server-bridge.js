@@ -250,6 +250,18 @@ export function installServerBridge(opts = {}) {
     // banner, so it needs the same cleaning the sim gives a player's name —
     // from the sim's own definition, not a second copy that can drift.
     cleanName: (s) => cleanName(s),
+    // A dropped player's round wins outlive their body. The room removes the
+    // shell at the round boundary — an idle one is a punching bag the round
+    // cannot end without killing — and hands the wins to whoever comes back
+    // for that name inside RESERVE_MS.
+    playerWins: (slot) => {
+      const p = players.find((q) => q.slot === slot);
+      return p ? (p.roundWins || 0) : 0;
+    },
+    setPlayerWins: (slot, n) => {
+      const p = players.find((q) => q.slot === slot);
+      if (p) p.roundWins = Math.max(0, Math.min(99, Math.floor(Number(n)) || 0));
+    },
     // content-pack diagnostics: payload staged (pre-seeded, not yet claimed by
     // an unlock) and the live spell count (jumps when a pack installs)
     packStaged: () => typeof globalThis.__hsPackData !== 'undefined',
