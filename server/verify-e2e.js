@@ -53,6 +53,15 @@ function client(port, opts = {}) {
   return c;
 }
 
+// The first client of a phase starts the session; every join after it carries
+// the code. verifyClient gates the socket, the code gates the match.
+async function hostSession(c) {
+  c.send({ t: 'host' });
+  const s = await until(() => c.find('session'));
+  if (!s) throw new Error('no session was minted');
+  return s.code;
+}
+
 async function until(fn, timeoutMs = 8000, step = 50) {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
@@ -100,8 +109,27 @@ async function phaseOpen() {
     // ---- welcome / version handshake ----
     const A = client(PORT); await A.open;
     const welcomeA = await until(() => A.find('welcome'));
-    ok(welcomeA && welcomeA.v === 9 && welcomeA.proto === 2 && welcomeA.st === 'LOBBY',
-      `welcome carries {v:9, proto:2, st:LOBBY}`);
+    ok(welcomeA && welcomeA.v === 9 && welcomeA.proto === 3 && welcomeA.st === 'LOBBY' && welcomeA.session === false,
+      `welcome carries {v:9, proto:3, st:LOBBY, session:false}`);
+
+    // ---- the session gate ----
+    A.send({ t: 'hello', v: 9, name: 'GANDALF' });
+    const CODE = await hostSession(A);
+    ok(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/.test(CODE), `a session code was minted (${CODE})`);
+
+    const SECOND = client(PORT); await SECOND.open;
+    SECOND.send({ t: 'hello', v: 9, name: 'SECOND' });
+    SECOND.send({ t: 'host' });
+    const refused = await until(() => SECOND.find('sessionDenied'));
+    ok(refused && refused.reason === 'exists', 'a second host is refused while one is live');
+    ok(SECOND.snaps === 0, 'a connection with no code is never streamed the match');
+    SECOND.send({ t: 'join', name: 'SECOND' });
+    const noCode = await until(() => SECOND.find('joinDenied'));
+    ok(noCode && noCode.reason === 'code', 'a join with no code → joinDenied {reason:code}');
+    SECOND.send({ t: 'join', name: 'SECOND', code: 'ZZZ999' });
+    await sleep(300);
+    ok(SECOND.msgs.filter(m => m.t === 'joinDenied').length === 1, 'a repeated denial is not echoed back at frame rate');
+    SECOND.ws.close();
 
     // old v8 client: badVersion but NOT closed — still gets snaps (refresh-screen path)
     const OLD = client(PORT); await OLD.open;
@@ -110,29 +138,29 @@ async function phaseOpen() {
     ok(bad && bad.server === 9, 'v8 hello → badVersion {server:9}');
     await until(() => OLD.snaps > 0);
     ok(!OLD.closedByServer && OLD.snaps > 0 && OLD.lastSnap.v === 9, 'stale client still receives v9 snaps (its refresh screen works)');
-    OLD.send({ t: 'join', name: 'SNEAKY8' });
+    OLD.send({ t: 'join', name: 'SNEAKY8', code: CODE });
     await sleep(400);
     ok(!OLD.find('you'), 'stale client cannot join');
     OLD.ws.close();
 
     // ---- join + roster ----
-    A.send({ t: 'hello', v: 9, name: 'GANDALF' });
-    A.send({ t: 'join', name: 'GANDALF', color: '#4ecdc4' });
+    A.send({ t: 'join', name: 'GANDALF', color: '#4ecdc4', code: `${CODE.slice(0, 3).toLowerCase()}-${CODE.slice(3).toLowerCase()}` });
     const youA = await until(() => A.find('you'));
     ok(youA && youA.slot === 0, `join → you {slot:0}`);
     const world = await until(() => A.find('world'));
     ok(world && world.world && world.world.tickMs === 16.7 && world.spells && Object.keys(world.spells).length > 90,
       `world message: tickMs + ${world ? Object.keys(world.spells).length : 0} spells`);
 
-    const SPEC = client(PORT); await SPEC.open; // spectator: hello, never joins
+    const SPEC = client(PORT); await SPEC.open; // spectator: the code, no seat
     SPEC.send({ t: 'hello', v: 9 });
+    SPEC.send({ t: 'watch', code: CODE });
     await until(() => SPEC.snaps > 0);
     ok(SPEC.lastSnap && SPEC.lastSnap.ps.some(p => p.n === 'GANDALF'), 'spectator sees GANDALF in the roster');
 
     // name sanitation
     const B = client(PORT); await B.open;
     B.send({ t: 'hello', v: 9 });
-    B.send({ t: 'join', name: '💀💀VERYLONGNAMEINDEED💀!!' });
+    B.send({ t: 'join', name: '💀💀VERYLONGNAMEINDEED💀!!', code: CODE });
     const youB = await until(() => B.find('you'));
     ok(youB && youB.slot === 1, 'second join → slot 1');
     await until(() => ps(A, 1));
@@ -180,7 +208,7 @@ async function phaseOpen() {
     await until(() => A.lastSnap && A.lastSnap.ps.length === 8);
     const FULLC = client(PORT); await FULLC.open;
     FULLC.send({ t: 'hello', v: 9 });
-    FULLC.send({ t: 'join', name: 'NINTH' });
+    FULLC.send({ t: 'join', name: 'NINTH', code: CODE });
     const denied = await until(() => FULLC.find('joinDenied'));
     ok(denied && denied.reason === 'full', 'ninth join → joinDenied {reason:full}');
     FULLC.ws.close();
@@ -215,7 +243,7 @@ async function phaseOpen() {
     // ---- mid-match join: seated but despawned until next round ----
     const C = client(PORT); await C.open;
     C.send({ t: 'hello', v: 9 });
-    C.send({ t: 'join', name: 'LATECOMER' });
+    C.send({ t: 'join', name: 'LATECOMER', code: CODE });
     const youC = await until(() => C.find('you'));
     ok(youC != null, `mid-match join accepted (slot ${youC && youC.slot})`);
     await until(() => ps(A, youC.slot));
@@ -226,7 +254,7 @@ async function phaseOpen() {
     ok(await until(() => ps(A, youC.slot) && ps(A, youC.slot).off === 1), 'mid-match disconnect → shell stays with off:1');
     const C2 = client(PORT); await C2.open;
     C2.send({ t: 'hello', v: 9 });
-    C2.send({ t: 'join', name: 'latecomer' }); // case-insensitive name match
+    C2.send({ t: 'join', name: 'latecomer', code: CODE }); // case-insensitive name match
     const youC2 = await until(() => C2.find('you'));
     ok(youC2 && youC2.slot === youC.slot, 'reconnect by name → same slot back');
     ok(await until(() => ps(A, youC.slot) && !ps(A, youC.slot).off), 'off flag cleared on reconnect');
@@ -234,7 +262,7 @@ async function phaseOpen() {
     // a second mid-match joiner who leaves for good — removed at the round boundary
     const D = client(PORT); await D.open;
     D.send({ t: 'hello', v: 9 });
-    D.send({ t: 'join', name: 'GHOSTED' });
+    D.send({ t: 'join', name: 'GHOSTED', code: CODE });
     const youD = await until(() => D.find('you'));
     await until(() => ps(A, youD.slot));
     D.ws.close();
@@ -314,8 +342,10 @@ async function phaseGated() {
     const yesResult = await Promise.race([wsYes.open.then(() => 'open'), sleep(3000).then(() => 'timeout')]);
     ok(yesResult === 'open', 'WS upgrade with cookie accepted');
     if (yesResult === 'open') {
-      wsYes.send({ t: 'hello', v: 9 });
-      wsYes.send({ t: 'join', name: 'KEYED' });
+      wsYes.send({ t: 'hello', v: 9, name: 'KEYED' });
+      // the key gates the socket; the code gates the match. Both, in order.
+      const KEYED_CODE = await hostSession(wsYes);
+      wsYes.send({ t: 'join', name: 'KEYED', code: KEYED_CODE });
       ok(await until(() => wsYes.find('you')), 'gated server: full join flow works');
       wsYes.ws.close();
     }

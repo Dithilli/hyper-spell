@@ -257,3 +257,27 @@ test('the host is told about their session once, not again when they take a seat
   assert.equal(a.all('session').length, 1, 'the join reply repeated the session');
   assert.equal(typeof a.last('you').slot, 'number', 'the host did not get a seat');
 });
+
+test('a spectator can watch with the code and without taking a seat', () => {
+  const kit = makeRoom();
+  const a = kit.connect();
+  a.emit({ t: 'host' });
+  const { code } = a.last('session');
+
+  const watcher = kit.connect({ name: 'WATCHER' });
+  watcher.emit({ t: 'watch', code });
+  kit.snapshot();
+  assert.ok(watcher.all('snap').length > 0, 'a watcher with the code sees nothing');
+  assert.equal(watcher.last('you'), undefined, 'watching took a seat');
+  assert.equal(kit.bridge.of('addPlayer').length, 0);
+});
+
+test('watching still needs the code', () => {
+  const kit = makeRoom();
+  kit.connect().emit({ t: 'host' });
+  const watcher = kit.connect({ name: 'WATCHER' });
+  watcher.emit({ t: 'watch', code: 'NOPE24' });
+  kit.snapshot();
+  assert.equal(watcher.all('snap').length, 0);
+  assert.equal(watcher.last('joinDenied').reason, 'code');
+});

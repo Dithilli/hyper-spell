@@ -18,7 +18,7 @@ URL="http://$IP:$PORT"
 
 INVITE="🧙 HYPERSPELL time! Join the fight: $URL
 (type it WITH the http:// — Chrome gets weird otherwise)
-Type your wizard name and click PLAY ONLINE — you're in."
+Type your wizard name, click PLAY ONLINE, then enter the session code I'm about to paste."
 printf '%s' "$INVITE" | pbcopy
 
 osascript -e 'display notification "Invite copied — paste it in Slack" with title "HyperSpell server is up" sound name "Glass"' 2>/dev/null
@@ -28,10 +28,12 @@ clear
 echo ""
 echo "  🧙 HYPERSPELL is live"
 echo ""
-echo "  You:          http://localhost:$PORT   (opening now — click PLAY ONLINE)"
+echo "  You:          http://localhost:$PORT   (opening now — PLAY ONLINE, then START A SESSION)"
 echo "  Players:      $URL"
 echo ""
 echo "  ✉️  The invite is on your clipboard — just paste it in Slack."
+echo "  🔑 Then START A SESSION and hit COPY THE INVITE LINK: that link carries"
+echo "     the code, so anyone who clicks it is one name away from playing."
 echo "  📜 Server log: /tmp/hyperspell-server.log"
 echo ""
 echo "  You can close this window — the server keeps running."

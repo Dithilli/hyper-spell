@@ -168,6 +168,28 @@ class Room {
     this.announceSession(false);
   }
 
+  // The code, checked. Presenting it is what lets a connection see the match at
+  // all; whether it also gets a seat is the caller's business. Told once per
+  // connection: the host is already in the session it minted, and a second
+  // `session` to that socket reads as "somebody let you in" — which is the
+  // menu's cue to close, over the code screen it is in the middle of showing.
+  authorize(conn, code, denyReason) {
+    if (!this.session) { this.denyJoin(conn, 'nosession'); return false; }
+    if (normalizeCode(code) !== this.session.code) { this.denyJoin(conn, denyReason); return false; }
+    const wasIn = conn.authed;
+    conn.authed = true;
+    if (!wasIn) this.send(conn, { t: 'session', code: this.session.code });
+    return true;
+  }
+
+  // watch without playing: the code, no seat. The browser client always joins,
+  // so this is for the spectators the README promises and for headless tooling
+  // that wants the snapshot stream without occupying one of the eight slots.
+  watchSession(conn, msg) {
+    if (!conn.hello) return;
+    this.authorize(conn, msg.code, 'code');
+  }
+
   denyJoin(conn, reason) {
     const now = performance.now();
     // the client retries a denied join whenever cast is held; answering every
@@ -259,6 +281,7 @@ class Room {
     if (conn.badVersion) return;
 
     if (msg.t === 'host') { this.hostSession(conn); return; }
+    if (msg.t === 'watch') { this.watchSession(conn, msg); return; }
     if (msg.t === 'join') { this.join(conn, msg); return; }
     if (conn.slot == null) return; // everything below needs a seat
 
@@ -301,19 +324,10 @@ class Room {
 
   join(conn, msg) {
     if (!conn.hello || conn.slot != null) return;
-    if (!this.session) { this.denyJoin(conn, 'nosession'); return; }
-    if (normalizeCode(msg.code) !== this.session.code) { this.denyJoin(conn, 'code'); return; }
-    // the code is what grants access, and a seat is a separate question: a
-    // correct code into a full match still admits you as a spectator, which is
-    // what any connection at all used to get for free.
-    //
-    // Told once per connection. The host is already in the session it just
-    // minted, and a second `session` to that socket reads as "somebody let you
-    // in" — which is the menu's cue to close, over the code screen it is in the
-    // middle of showing them.
-    const wasIn = conn.authed;
-    conn.authed = true;
-    if (!wasIn) this.send(conn, { t: 'session', code: this.session.code });
+    // the code grants access; a seat is the separate question below. A correct
+    // code into a full match still leaves you watching, which is what any
+    // connection at all used to get for free.
+    if (!this.authorize(conn, msg.code, 'code')) return;
     // One cleaned string for the seat, the reservation key and the reset
     // banner. The sim cleans the PLAYER's name inside addPlayer; this one is
     // the room's own copy, and it used to be whatever bytes arrived — which

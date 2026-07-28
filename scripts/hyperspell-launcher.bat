@@ -25,7 +25,7 @@ set URL=http://%IP%:8787
 (
   echo 🧙 HYPERSPELL time! Join the fight: %URL%
   echo ^(type it WITH the http:// — Chrome gets weird otherwise^)
-  echo Type your wizard name and click PLAY ONLINE — you're in.
+  echo Type your wizard name, click PLAY ONLINE, then enter the session code I'm about to paste.
 ) | clip
 
 start http://localhost:8787
@@ -33,10 +33,12 @@ start http://localhost:8787
 echo.
 echo   HYPERSPELL is live
 echo.
-echo   You:          http://localhost:8787   (opening now — click PLAY ONLINE)
+echo   You:          http://localhost:8787   (opening now — PLAY ONLINE, then START A SESSION)
 echo   Players:      %URL%
 echo.
 echo   The invite is on your clipboard — just paste it in Slack.
+echo   Then START A SESSION and hit COPY THE INVITE LINK: that link carries the
+echo   code, so anyone who clicks it is one name away from playing.
 echo   Server log:   %TEMP%\hyperspell-server.log
 echo.
 echo   You can close this window — the server keeps running.
