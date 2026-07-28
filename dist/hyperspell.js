@@ -5487,6 +5487,7 @@
   // src/sim/pickups.js
   var pickups_exports = {};
   __export(pickups_exports, {
+    dealStartingSpells: () => dealStartingSpells,
     grabCatalyst: () => grabCatalyst,
     hats: () => hats,
     pickupHat: () => pickupHat,
@@ -6658,19 +6659,24 @@
     updateEnvEvent: () => updateEnvEvent
   });
   var ENV_EVENT_CHANCE = 0.2;
+  var SPAWN_CLEAR = 55;
+  var inSpawnColumn = (m, x) => (m.def.spawns || []).some((s) => Math.abs(s.x - x) < SPAWN_CLEAR);
   function platformSpots(m, n, rng) {
     const rr = rng ? (a, b) => a + rng() * (b - a) : rand;
     const solid = (x) => (b) => b.isStatic && !b.isSensor && b.collisionFilter.mask !== 0 && b.bounds.min.x > -60 && b.bounds.max.x < W + 60 && x > b.bounds.min.x + 8 && x < b.bounds.max.x - 8;
     const spots = [];
-    for (let tries = 0; tries < n * 10 && spots.length < n; tries++) {
-      const x = rr(90, W - 90);
-      const col = queryRegion(column(x), { container: m.composite, filter: solid(x) });
-      if (!col.length) continue;
-      const tops = col.map((b) => b.bounds.min.y).filter((y2) => y2 > 150 && y2 < H - 60);
-      if (!tops.length) continue;
-      const y = Math.min(...tops);
-      if (spots.some((s) => Math.abs(s.x - x) < 70 && Math.abs(s.y - y) < 60)) continue;
-      spots.push({ x, y });
+    for (let pass = 0; pass < 2 && spots.length < n; pass++) {
+      for (let tries = 0; tries < n * 10 && spots.length < n; tries++) {
+        const x = rr(90, W - 90);
+        if (pass === 0 && inSpawnColumn(m, x)) continue;
+        const col = queryRegion(column(x), { container: m.composite, filter: solid(x) });
+        if (!col.length) continue;
+        const tops = col.map((b) => b.bounds.min.y).filter((y2) => y2 > 150 && y2 < H - 60);
+        if (!tops.length) continue;
+        const y = Math.min(...tops);
+        if (spots.some((s) => Math.abs(s.x - x) < 70 && Math.abs(s.y - y) < 60)) continue;
+        spots.push({ x, y });
+      }
     }
     return spots;
   }
@@ -9855,9 +9861,20 @@
   function tomePool() {
     return Object.keys(SPELLS).filter((id) => !SPELLS[id].hybrid);
   }
+  function dealStartingSpells(who = players) {
+    const pool = tomePool();
+    const dealt = new Set(players.map((p) => p.slots[0]).filter(Boolean));
+    for (const p of who) {
+      let id = weightedSpellPick(pool);
+      for (let tries = 0; tries < 12 && dealt.has(id); tries++) id = weightedSpellPick(pool);
+      if (!id) continue;
+      dealt.add(id);
+      addSpell(p, id);
+    }
+  }
   function scheduleTomes(now) {
-    nextTomeAt = now + rand(1200, 2500);
-    firstDrop = true;
+    nextTomeAt = now + rand(2500, 4e3);
+    firstDrop = false;
   }
   function updateTomes(now) {
     const tomeCap = Math.max(3, Math.ceil(players.length / 2));
@@ -10832,6 +10849,7 @@
       despawnPlayer(p);
     }
     for (const p of players) spawnPlayer(p, spawnPointFor(p));
+    dealStartingSpells();
     game.lastDamageAt = simNow();
     game.state = "PLAY";
     game.fightAt = simNow() + 1100;
@@ -11126,12 +11144,12 @@
     }
     return null;
   }
-  var SPAWN_CLEAR = 70;
+  var SPAWN_CLEAR2 = 70;
   function safeSpawnPoint(m, x, y, busy = []) {
     const g = reachInfo(m);
     const escapes = (i) => cellEscapes(g, i);
     const cellX = (i) => i % g.cols * REACH_CELL + REACH_CELL / 2;
-    const clearOfBusy = (px) => !busy.some((q) => Math.abs(q.x - px) < SPAWN_CLEAR);
+    const clearOfBusy = (px) => !busy.some((q) => Math.abs(q.x - px) < SPAWN_CLEAR2);
     const sound = (i) => i >= 0 && reachLandable(g, i) && escapes(i) && dropColumnClear(m, cellX(i), y, (i - i % g.cols) / g.cols * REACH_CELL);
     const land = reachLanding(g, x, y);
     if (escapes(land)) {

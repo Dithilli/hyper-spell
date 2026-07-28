@@ -19,7 +19,7 @@ Each row names every file the feature lands in, so the ledger stands on its own
 | 7 | 832ef00 | bots: double jump | `src/sim/ai/bot.js` | **done** |
 | 8 | 3c2b225 b798196 898d796 | spawn safety / escape analysis | `src/sim/maps/reach.js` (new), `src/sim/player/lifecycle.js`, `src/sim/maps/builders.js`, `src/sim/phys/{facade,matter-backend}.js`, `server/verify-spawns.js` | **done** |
 | 9 | c11b4b2 3c2b225 | snapshot playout + server-clock interpolation | `src/net/client.js`, `src/net/server-bridge.js` | **done** |
-| 10 | c1ee936 3c2b225 | opening loadouts | `src/sim/pickups.js`, `src/sim/events.js`, `src/sim/match.js` | pending |
+| 10 | c1ee936 3c2b225 | opening loadouts + spawn-column clearance | `src/sim/pickups.js`, `src/sim/events.js`, `src/sim/match.js` | **done** |
 | 11 | 4302ace | camera frames the boss, online too | `src/render/camera.js`, `src/render/draw-snapshot.js` | pending |
 
 ## Measurements this port rests on

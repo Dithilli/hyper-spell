@@ -84,10 +84,24 @@ import { runTape } from '../test/harness/tape.js';
 // unchanged. Fewer rounds here is the fix working, not the sim going quiet —
 // and 12353 in particular drew badly, as 12348 did before it.
 //
+// AND AGAIN, 12372 -> 12392, for opening loadouts. Every wizard now starts the
+// round armed, so fights begin at once instead of after a scramble for the
+// first tome; 12372 fell to a 1-round run. Round counts, seeds 12372..12392:
+//
+//   before  6 1 1 1 4 2 1 2 4 1 2 1 1 3 1 1 3 3 1 1 .
+//   after   1 3 4 1 1 4 3 2 1 3 1 3 3 3 2 2 3 2 2 1 5
+//
+// 12392 is the lowest seed from 12372 up that crosses five.
+//
+// The lethality scan over seeds 1..400 moved in the OPPOSITE direction to the
+// spawn-safety change, and should have: mean rounds 2.083 -> 2.553, range 1..6
+// both. Rounds resolve faster because nobody spends the opening ten seconds
+// running at an unarmed opponent. That is the feature, measured.
+//
 // The short tape keeps 12345 so its golden moves for behaviour alone.
 const TAPES = [
   { name: 'one-round', ticks: 600, seed: 12345 },
-  { name: 'three-rounds', ticks: 4200, seed: 12372 },
+  { name: 'three-rounds', ticks: 4200, seed: 12392 },
 ];
 
 for (const { name, ticks, seed } of TAPES) {

@@ -297,8 +297,8 @@ change. Pair it with a unit test.
 | `src/sim/collision.js:180` | **push** | axis | `setVelocity` | Trampoline fling: a fixed launch speed, horizontal motion preserved. |
 | `src/sim/collision.js:203` | **push** | axis | `setVelocity` | Spikes: a fixed pop upward, horizontal motion preserved. |
 | `src/sim/collision.js:209` | **push** | axis | `setVelocity` | Bosses shrug off lava with a fixed upward pop. |
-| `src/sim/events.js:133` | **push** | additive | `addVelocity` | Windstorm event: a per-second push on every loose body. |
-| `src/sim/events.js:157` | **override** | absolute | `setVelocity` | Critter spawn at the arena edge. |
+| `src/sim/events.js:148` | **push** | additive | `addVelocity` | Windstorm event: a per-second push on every loose body. |
+| `src/sim/events.js:172` | **override** | absolute | `setVelocity` | Critter spawn at the arena edge. |
 | `src/sim/ai/boss.js:54` | **override** | absolute | `setVelocity` | Boss projectile launch. |
 | `src/sim/ai/boss.js:76` | **override** | absolute | `setVelocity` | Boss slam shockwave throws the player at a stated velocity. |
 | `src/sim/ai/boss.js:94` | **push** | blended | `setVelocity` | Flier chase: 0.92 damping plus a steering term. Damping is a scale, not a delta. |

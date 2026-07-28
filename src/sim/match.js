@@ -24,7 +24,7 @@ import {
   players, MAX_PLAYERS, createPlayer, spawnPlayer, despawnPlayer, spawnPointFor, clearSpells, gibs,
 } from './player/lifecycle.js';
 import { activeEffects, projectiles, summons } from './spells/core.js';
-import { tomes, hats, scheduleTomes } from './pickups.js';
+import { tomes, hats, scheduleTomes, dealStartingSpells } from './pickups.js';
 import { clearReplay, startReplay } from './replay.js';
 
 // mode: 'versus' (last-wizard-standing match) | 'wave' (co-op/solo PvE survival, js/enemies.js)
@@ -150,6 +150,7 @@ export function startRound(index) {
   // different arena. Clearing the board first makes the list mean what it says.
   for (const p of players) { clearSpells(p); despawnPlayer(p); }
   for (const p of players) spawnPlayer(p, spawnPointFor(p));
+  dealStartingSpells(); // nobody opens a round empty-handed
   // The bots' stalemate breaker asks how long it has been since anything took
   // damage (ai/bot.js). Left carrying over from the previous round, a round that
   // starts more than seven seconds after the last blow of the last one opens
