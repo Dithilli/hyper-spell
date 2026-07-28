@@ -379,6 +379,27 @@ export class GamePage {
   }
 
   /**
+   * Every body in the current arena, nested composites included.
+   *
+   * smoke-test.html called Matter's Composite.allBodies, which the classic build
+   * had as a global. The bundle has no such global and the debug surface does
+   * not publish the physics facade, so the walk is done here — it is four lines
+   * and it keeps the suite off Matter's API entirely.
+   */
+  async mapBodies() {
+    return this.read(() => {
+      const walk = c => [...(c.bodies || []), ...(c.composites || []).flatMap(walk)];
+      return walk(globalThis.HS.currentMap.composite).map(b => ({
+        label: b.label, isStatic: b.isStatic, isSensor: b.isSensor,
+        mask: b.collisionFilter?.mask,
+        min: { x: b.bounds.min.x, y: b.bounds.min.y },
+        max: { x: b.bounds.max.x, y: b.bounds.max.y },
+        x: b.position.x, y: b.position.y,
+      }));
+    });
+  }
+
+  /**
    * Rebuild the round on a given map through the game's own startRound — the
    * same call the round-end scheduler makes.
    *
