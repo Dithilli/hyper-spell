@@ -17700,12 +17700,12 @@
       else drawTerrainBody(b, now || performance.now());
     }
   }
-  function drawSnapshotWorld(snap, snapPrev2, alpha, now, includeLocalFx = false) {
+  function drawSnapshotWorld(snap, snapPrev, alpha, now, includeLocalFx = false) {
     currentMap.data.lavaY = snap.lv;
     const prevById = {};
-    if (snapPrev2) for (const e of snapPrev2.bodies) prevById[e.id] = e;
+    if (snapPrev) for (const e of snapPrev.bodies) prevById[e.id] = e;
     const prevPs = {};
-    if (snapPrev2) for (const q of snapPrev2.ps) prevPs[q.s] = q;
+    if (snapPrev) for (const q of snapPrev.ps) prevPs[q.s] = q;
     drawBackdrop(now);
     drawSnapshotStatics(now);
     drawLava(now);
@@ -17810,7 +17810,7 @@
   }
   globalThis.drawNetStats = function drawNetStats2(now) {
     if (!netStats.on) return;
-    const line = `NET \xB7 snap ${netStats.lastBytes}B \xB7 ${netStats.rate}/s \xB7 ${netStats.kbs}KB/s in \xB7 gap ${Math.round(snapGapMs)}ms \xB7 delay ${Math.round(netStats.delay)}ms`;
+    const line = `NET \xB7 snap ${netStats.lastBytes}B \xB7 ${netStats.rate}/s \xB7 ${netStats.kbs}KB/s in \xB7 tick ${Math.round(snapPeriodMs)}ms \xB7 jitter ${Math.round(snapJitterMs)}ms \xB7 lag ${Math.round(netStats.delay)}ms \xB7 held ${interpHeld}`;
     ctx.save();
     ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
     ctx.font = "12px Menlo, monospace";
@@ -17909,21 +17909,73 @@
       console.warn("Optional content could not be installed.", e);
     }
   }
-  var snapPrev = null;
   var snapCur = null;
-  var tPrev = 0;
-  var tCur = 0;
-  var snapGapMs = 40;
   var clientMap = null;
-  function pushSnapshot(snap) {
-    const tNow = performance.now();
-    if (tCur) snapGapMs += (Math.min(tNow - tCur, 200) - snapGapMs) * 0.12;
-    snapPrev = snapCur;
-    tPrev = tCur;
+  var snapBuf = [];
+  var SNAP_BUF_MAX = 16;
+  var playT = 0;
+  var playInit = false;
+  var playRate = 1;
+  var snapPeriodMs = 33.3;
+  var snapJitterMs = 0;
+  var lastNetNow = 0;
+  var interpHeld = 0;
+  function pushSnapshot(snap, arrivedAt) {
+    const at = arrivedAt ?? performance.now();
+    const sv = typeof snap.sv === "number" ? snap.sv : at;
+    const prev = snapBuf[snapBuf.length - 1];
+    const cut = prev && (snap.rn !== prev.s.rn || snap.mi !== prev.s.mi || sv < prev.sv);
+    if (cut) {
+      snapBuf.length = 0;
+      playInit = false;
+    }
+    if (prev && !cut) {
+      const svGap = sv - prev.sv;
+      if (svGap > 0 && svGap < 400) snapPeriodMs += (svGap - snapPeriodMs) * 0.1;
+      snapJitterMs += (Math.min(Math.abs(at - prev.at - svGap), 200) - snapJitterMs) * 0.1;
+    }
+    snapBuf.push({ s: snap, sv, at });
+    while (snapBuf.length > SNAP_BUF_MAX) snapBuf.shift();
     snapCur = snap;
-    tCur = tNow;
     if (!clientMap || clientMap.index !== snap.mi || snap.msd != null && clientMap.data.seed !== snap.msd) clientLoadMap(snap.mi, snap.msd);
     applyBrokenDestructibles(snap.bd);
+  }
+  function interpDelay() {
+    return Math.min(240, Math.max(45, snapPeriodMs * 1.5 + snapJitterMs * 2));
+  }
+  function advancePlayout(now) {
+    const dt = lastNetNow ? Math.min(now - lastNetNow, 100) : 16.7;
+    lastNetNow = now;
+    if (snapBuf.length < 2) return null;
+    const newest = snapBuf[snapBuf.length - 1];
+    const target = newest.sv - interpDelay();
+    if (!playInit) {
+      playT = target;
+      playInit = true;
+      playRate = 1;
+    } else {
+      playT += dt * playRate;
+      const err = target - playT;
+      if (Math.abs(err) > 400) {
+        playT = target;
+        playRate = 1;
+      } else playRate = 1 + Math.max(-0.1, Math.min(0.1, err * 25e-4));
+    }
+    const oldest = snapBuf[0];
+    if (playT < oldest.sv) playT = oldest.sv;
+    if (playT > newest.sv) {
+      playT = newest.sv;
+      interpHeld++;
+    }
+    for (let i = snapBuf.length - 1; i > 0; i--) {
+      const a2 = snapBuf[i - 1], b2 = snapBuf[i];
+      if (playT >= a2.sv && playT <= b2.sv) {
+        const span = Math.max(b2.sv - a2.sv, 1);
+        return { a: a2, b: b2, alpha: Math.max(0, Math.min(1, (playT - a2.sv) / span)) };
+      }
+    }
+    const a = snapBuf[snapBuf.length - 2], b = newest;
+    return { a, b, alpha: 1 };
   }
   function applyBrokenDestructibles(bd) {
     if (!bd || !clientMap) return;
@@ -18062,11 +18114,9 @@
       ctx.fillText("GAME UPDATED \u2014 REFRESH THE PAGE", W / 2, H / 2);
       return;
     }
-    const delay = Math.min(90, Math.max(36, snapGapMs * 1.25));
-    netStats.delay = delay;
-    const span = Math.max(tCur - tPrev, 1);
-    const alpha = Math.max(0, Math.min(1, (now - delay - tPrev) / span));
-    const ghosts = drawSnapshotWorld(snap, snapPrev, alpha, now, true);
+    const rp = advancePlayout(now);
+    netStats.delay = interpDelay();
+    const ghosts = rp ? drawSnapshotWorld(rp.b.s, rp.a.s, rp.alpha, now, true) : drawSnapshotWorld(snap, null, 1, now, true);
     if (mouse.present) {
       const mine = ghosts.find((g) => g.slot === mySlot);
       ctx.strokeStyle = mine ? mine.color : "#9c8ab8";
