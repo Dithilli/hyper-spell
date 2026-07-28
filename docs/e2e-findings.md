@@ -143,3 +143,92 @@ Against `d000632`, which contains the fix, all 13 tests pass.
 The lesson worth keeping: this is a *client-side* fault, so `server/verify-e2e.js`
 could not have caught it. Its WebSocket clients speak the protocol perfectly and
 would have reported a healthy server the whole time.
+
+---
+
+## 4. `statusBolt` spells stopped landing — a bolt that dealt 20 damage now deals none
+
+**Spec:** `e2e/specs/06-spells.spec.js` — the batch containing `permafrost`;
+`lightning` shows the same shape
+**Severity:** a spell does nothing. Which batch reports it moves between runs,
+which is why it reads as flake at first glance.
+
+### What happens
+
+`expect(inert, 'these spells cast without changing anything in the world')`
+names `permafrost` (and sometimes `lightning`). Both are `statusBolt` spells.
+
+### It is not the probe being blind — the same cast used to land
+
+Two wizards huddled on arena 0, the caster facing the target, `permafrost`
+granted to slot 0 and cast. The bolt is created (`projectiles` 0 → 1) and is
+gone one tick later in both trees. What differs is what it did on the way:
+
+| tree | wizards | hp after one tick |
+|---|---|---|
+| `d000632` (before the cosmetics refactor) | 140 and 195 | `150,130` — **20 damage landed** |
+| after the refactor | 140 and 195, forced to match | `150,150` — nothing |
+
+The second row forces the target to the first row's exact position, so spacing
+is not the variable. Same spell, same places, different outcome.
+
+### What is ruled out
+
+- **The spell itself.** Called directly — `HS.SPELLS.permafrost.cast(players[0])`
+  — it creates its projectile on both trees, and throws nothing.
+- **Facing.** The caster's `facing` is `+1` with the target to its right.
+- **The launcher.** `aimDir` and `shoot` (`src/sim/spells/core.js`) are
+  deterministic: no RNG, no clock. Identical positions must give an identical
+  launch.
+- **Distance.** Forced equal, above.
+
+So the divergence is downstream of the launch — in what the projectile collides
+with, or in how its `onHit` is dispatched. `statusBolt.onHit` only damages and
+applies its status when `other.label === 'player'`; against anything else its
+sole effect is `spawnParticles`, which is why a bolt that stops hitting players
+leaves no trace at all.
+
+### Why it looks like flake
+
+When such a bolt leaves no sim-visible trace, the only thing standing between
+the spell and an `inert` report is noise in the fingerprint — I watched
+`lightning` "pass" on a `vel` field flipping `"0.00"` to `"-0.00"`. Whether that
+artifact appears depends on where the wizard happened to settle, so the failing
+batch moves between runs while the underlying bug does not.
+
+### A second, independent effect worth knowing about
+
+Cosmetics are now queued events (`src/sim/emit.js`) that only a rendered frame
+drains, and the harness advances with `stepSim()` under a frozen clock. Measured
+during the probe above: `emittedCount()` climbs to 15 while `particles` stays
+at 26. So even the particle burst a floor-hit produces is invisible to
+`fingerprint()`. This does not cause finding #4 — the damage is missing, not
+just the sparks — but it removes the evidence that would otherwise have made a
+missed bolt obvious, and it is worth fixing in its own right by counting the
+queue in `fingerprint()`.
+
+### Reproduction
+
+Grant `permafrost` to slot 0 in a huddled arena 0, cast, and read `players[1].hp`
+one tick later. Compare against the same steps under
+`HS_E2E_GAME_DIR=<a d000632 checkout>`.
+
+---
+
+## 5. The eight-seat test is load-sensitive on every tree
+
+**Spec:** `e2e/specs/12-online.spec.js` — *the room fills up*
+**Symptom:** `pressed KeyB 20 times waiting for wizard 2 of 8`
+**Severity:** false red; it says nothing about the game.
+
+The test fills the room by pressing `B` in a browser tab twenty times and
+waiting for the roster to grow. The server side is fine — a raw WebSocket
+sending `{t:'bot', op:'add'}` seats a bot every time — so what fails is key
+delivery to the tab, which `pressUntilWire` already documents as unreliable
+when a tab is not frontmost.
+
+It fails the same way against a pre-refactor checkout
+(`HS_E2E_GAME_DIR=<d000632>`), so it is not a regression from any branch in
+this stack. Filling the seats through the wire instead of through the keyboard
+would make it deterministic, at the cost of not testing the key path — which
+`03-lobby` already covers.
