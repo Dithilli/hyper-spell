@@ -5161,7 +5161,7 @@
     doFlash: () => doFlash,
     spawnBurst: () => spawnBurst,
     spawnParticle: () => spawnParticle,
-    spawnParticles: () => spawnParticles2,
+    spawnParticles: () => spawnParticles,
     spawnRing: () => spawnRing,
     spawnText: () => spawnText
   });
@@ -5188,7 +5188,7 @@
   });
 
   // src/sim/fx.js
-  function spawnParticles2(...a) {
+  function spawnParticles(...a) {
     emit("spawnParticles", ...a);
   }
   function spawnRing(...a) {
@@ -5715,7 +5715,7 @@
     const frozen = now < p.frozenUntil;
     if (p.wasFrozen && !frozen) {
       setFrictionAir(p.body, BASE_FRICTION_AIR);
-      spawnParticles2(p.body.position.x, p.body.position.y, "#9be7ff", 10, 4);
+      spawnParticles(p.body.position.x, p.body.position.y, "#9be7ff", 10, 4);
       p.wetUntil = now + 4500;
     }
     p.wasFrozen = frozen;
@@ -6064,9 +6064,9 @@
         setVelocity(b, { x: b.velocity.x * 0.9, y: b.velocity.y * 0.9 + Math.sin(now * 3e-3) * 0.25 });
         if (now > (bs.nextBlink || (bs.nextBlink = now + 3e3))) {
           bs.nextBlink = now + bcd(bs, 3200, 4400);
-          spawnParticles2(b.position.x, b.position.y, "#c084fc", 16, 5);
+          spawnParticles(b.position.x, b.position.y, "#c084fc", 16, 5);
           setPosition(b, { x: rand(140, W - 140), y: rand(100, 340) });
-          spawnParticles2(b.position.x, b.position.y, "#c084fc", 16, 5);
+          spawnParticles(b.position.x, b.position.y, "#c084fc", 16, 5);
           sfx.freeze();
         }
         if (now > (bs.nextBolt || (bs.nextBolt = now + 2200))) {
@@ -6143,7 +6143,7 @@
           if (t) bs.pending.push({ x: t.body.position.x, at: now + 650 });
         }
         for (const w of bs.pending) {
-          if (simRandom() < 0.5) spawnParticles2(w.x + rand(-12, 12), H - 30, "#3d6a8a", 1, 2, 14);
+          if (simRandom() < 0.5) spawnParticles(w.x + rand(-12, 12), H - 30, "#3d6a8a", 1, 2, 14);
           if (now > w.at) {
             const tb = createBox(w.x, H + 120, 26, 240, { isStatic: true, label: "tentacle" });
             summon(tb, { life: 3e3, color: "#3d6a8a" });
@@ -6299,7 +6299,7 @@
             const t = bossAliveTarget(b.position);
             if (t) for (const off of [-0.18, 0.08]) bossBolt(b.position, t, { speed: 10, r: 8, color: "#ff7043", spread: off, boom: [70, 9, 12] });
             for (const p of players) if (p.alive && Math.hypot(p.body.position.x - b.position.x, p.body.position.y - b.position.y) < 220) p.burnUntil = now + 1600;
-            if (simRandom() < 0.3) spawnParticles2(b.position.x, b.position.y, pick(["#6cbf5b", "#e15d5d", "#ffd166"]), 10, 5);
+            if (simRandom() < 0.3) spawnParticles(b.position.x, b.position.y, pick(["#6cbf5b", "#e15d5d", "#ffd166"]), 10, 5);
             sfx.cast();
           }
         }
@@ -6347,7 +6347,7 @@
     if (src && src.spellId) telBossDmg(src.spellId, dmg);
     bs.hp -= dmg;
     bs.hurtAt = simNow();
-    if (at) spawnParticles2(at.x, at.y, bs.def.color, 8, 4);
+    if (at) spawnParticles(at.x, at.y, bs.def.color, 8, 4);
     if (bs.hp <= 0) slayBoss();
   }
   function slayBoss() {
@@ -6357,7 +6357,7 @@
     for (const tn of bs.tentacles || []) removeSummon(tn.b);
     game.boss = null;
     explode(pos.x, pos.y, 220, 26, 0, "boss");
-    spawnParticles2(pos.x, pos.y, bs.def.color, 40, 10, 70);
+    spawnParticles(pos.x, pos.y, bs.def.color, 40, 10, 70);
     spawnRing(pos.x, pos.y, "#ffd166");
     if (game.mode === "wave") {
       setBanner(bs.secret ? `${bs.def.name} RAGE-QUITS` : `${bs.def.name} IS SLAIN!`, "#ffd166", 1600);
@@ -6452,7 +6452,7 @@
       damagePlayer(t, e.dmg);
       const away = Math.sign(q.x - b.position.x) || 1;
       setVelocity(t.body, { x: away * 6, y: -5 });
-      spawnParticles2(q.x, q.y, e.color, 6, 4);
+      spawnParticles(q.x, q.y, e.color, 6, 4);
     }
   }
   function enemyChase(b, now, { speed = 1.1, jump = true } = {}) {
@@ -6569,14 +6569,14 @@
     if (!e || e.hp <= 0) return;
     e.hp -= dmg;
     e.hurtAt = simNow();
-    if (at) spawnParticles2(at.x, at.y, e.color, 6, 4);
+    if (at) spawnParticles(at.x, at.y, e.color, 6, 4);
     if (e.hp <= 0) killEnemy(e, src);
   }
   function killEnemy(e, src) {
     const b = e.body;
     if (!enemies.has(b)) return;
     enemies.delete(b);
-    spawnParticles2(b.position.x, b.position.y, e.color, 18, 8, 40);
+    spawnParticles(b.position.x, b.position.y, e.color, 18, 8, 40);
     spawnRing(b.position.x, b.position.y, e.color);
     removeSummon(b);
     sfx.death?.();
@@ -6676,7 +6676,7 @@
     if (!vines || !vines.includes(v)) return;
     vines.splice(vines.indexOf(v), 1);
     removeFrom(currentMap.composite, v);
-    spawnParticles2(v.position.x, v.position.y, "#7bd88f", 12, 4);
+    spawnParticles(v.position.x, v.position.y, "#7bd88f", 12, 4);
     sfx.squeak();
   }
   var ENV_EVENTS = [
@@ -6873,14 +6873,14 @@
       spawnBurst(b.position.x, b.position.y - 10, "#2c2438", 3, { kind: "bird", dir: -Math.PI / 2, spread: 1.8, speed: 2.5, up: 3, g: -0.02, life: 85, r: 3 });
     }
     b.hp -= dmg;
-    spawnParticles2(b.position.x + rand(-b.w / 2, b.w / 2), b.position.y + rand(-b.h / 2, b.h / 2), b.dcolor, 3, 3, 20);
+    spawnParticles(b.position.x + rand(-b.w / 2, b.w / 2), b.position.y + rand(-b.h / 2, b.h / 2), b.dcolor, 3, 3, 20);
     if (b.hp <= 0) breakDestructible(b);
   }
   function breakDestructible(b) {
     const { x, y } = b.position;
     removeFrom(currentMap.composite, b);
     (currentMap.data.broken ||= []).push([Math.round(x), Math.round(y)]);
-    spawnParticles2(x, y, b.dcolor, 16, 6, 40);
+    spawnParticles(x, y, b.dcolor, 16, 6, 40);
     for (let i = 0; i < (b.debrisN || 4); i++) {
       const g = createBox(x + rand(-b.w / 3, b.w / 3), y + rand(-b.h / 3, b.h / 3), rand(6, 13), rand(6, 13), { density: 1e-3, frictionAir: 0.02, label: "gib" });
       g.color = b.dcolor;
@@ -6897,7 +6897,7 @@
         if (!q.alive) continue;
         if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 100) applyFreeze(q, Math.max(q.frozenUntil || 0, now + 450));
       }
-      spawnParticles2(x, y, "#eaffff", 12, 5, 30);
+      spawnParticles(x, y, "#eaffff", 12, 5, 30);
       sfx.freeze?.();
     }
     addShake(3);
@@ -7228,16 +7228,16 @@
       if (now < (p.burnUntil || 0) && now > (p.nextBurnTick || 0)) {
         p.nextBurnTick = now + 450;
         damagePlayer(p, 3);
-        spawnParticles2(body.position.x, body.position.y - 10, "#ff8c5a", 3, 3, 20);
+        spawnParticles(body.position.x, body.position.y - 10, "#ff8c5a", 3, 3, 20);
       }
       const lift = now < (p.floatyUntil || 0) ? 1.5 : now < (p.featherUntil || 0) ? 0.72 : 0;
       if (lift) {
         applyForce(body, body.position, { x: 0, y: -gravityY() * worldGravityScale() * body.mass * lift });
-        if (lift < 1 && simRandom() < 0.06) spawnParticles2(body.position.x + rand(-10, 10), body.position.y - 18, "#fffde7", 1, 1.2, 22);
+        if (lift < 1 && simRandom() < 0.06) spawnParticles(body.position.x + rand(-10, 10), body.position.y - 18, "#fffde7", 1, 1.2, 22);
       }
       tickStatuses(p, now);
       if (currentMap.def.icy || currentMap.data.eventIcy) p.wetUntil = Math.max(p.wetUntil || 0, now + 600);
-      if (now < (p.wetUntil || 0) && simRandom() < 0.04) spawnParticles2(body.position.x, body.position.y + 8, "#9ec9ff", 1, 1.5, 16);
+      if (now < (p.wetUntil || 0) && simRandom() < 0.04) spawnParticles(body.position.x, body.position.y + 8, "#9ec9ff", 1, 1.5, 16);
       const c = p.input;
       const gdir = gravDirFor(p);
       if (now < (p.gravityLockUntil || 0)) {
@@ -7265,7 +7265,7 @@
               damagePlayer(p, dmg);
               addShake(4);
               sfx.thud();
-              spawnParticles2(body.position.x, body.position.y + 14 * gdir, "#9c8ab8", 8, 3, 25);
+              spawnParticles(body.position.x, body.position.y + 14 * gdir, "#9c8ab8", 8, 3, 25);
             }
           }
         }
@@ -7303,7 +7303,7 @@
           } else if (c.jumpPressed && !canJump && p.airJumps > 0) {
             p.airJumps--;
             setVelocity(body, { x: body.velocity.x, y: (now < (p.jumpBoostUntil || 0) ? -19 : -13) * gdir });
-            spawnParticles2(body.position.x, body.position.y + 12 * gdir, "#e8d5ff", 8, 3, 20);
+            spawnParticles(body.position.x, body.position.y + 12 * gdir, "#e8d5ff", 8, 3, 20);
             sfx.jump();
           }
         }
@@ -7392,7 +7392,7 @@
   function removeSummon(b) {
     if (!summons.has(b)) return;
     summons.delete(b);
-    spawnParticles2(b.position.x, b.position.y, b.render.fillStyle || "#e8d5ff", 6, 3, 20);
+    spawnParticles(b.position.x, b.position.y, b.render.fillStyle || "#e8d5ff", 6, 3, 20);
     removeBody(b);
   }
   function enemiesOf(p) {
@@ -7413,8 +7413,8 @@
     addShake(Math.min(14, power * 0.7));
     sfx.explosion();
     spawnRing(x, y, "#ffb347");
-    spawnParticles2(x, y, "#ffb347", 26, 9);
-    spawnParticles2(x, y, "#ff5e57", 18, 7);
+    spawnParticles(x, y, "#ffb347", 26, 9);
+    spawnParticles(x, y, "#ff5e57", 18, 7);
     if (power >= 18) doFlash("#ffb347", 0.12);
     for (const body of queryRadius({ x, y }, radius)) {
       const dx = body.position.x - x, dy = body.position.y - y;
@@ -7521,7 +7521,7 @@
             if (b.label === "player") {
               if (!(opts.selfSafe && b.player === owner)) damagePlayer(b.player, 999, owner);
             } else if (b.label !== "boss") {
-              spawnParticles2(b.position.x, b.position.y, "#a55eea", 6, 3);
+              spawnParticles(b.position.x, b.position.y, "#a55eea", 6, 3);
               projectiles.delete(b);
               gibs.delete(b);
               tomes.delete(b);
@@ -7616,7 +7616,7 @@
         p.slots[slot] = null;
         p.slotCharges[slot] = null;
         spawnText(p.body.position.x, p.body.position.y - 74, "FUSION SPENT", "#ff4df0");
-        spawnParticles2(p.body.position.x, p.body.position.y - 20, "#ff4df0", 14, 4);
+        spawnParticles(p.body.position.x, p.body.position.y - 20, "#ff4df0", 14, 4);
         sfx.freeze?.();
       } else {
         spawnText(p.body.position.x, p.body.position.y - 74, `${p.slotCharges[slot]} LEFT`, spell.color);
@@ -7675,7 +7675,7 @@
     const m = resolvePotency(p, o);
     const fb = shoot(p, { r: (o.r ?? 6) * m, speed: o.speed ?? 18, vy: o.vy ?? -5, color: o.color, gravityScale: o.g ?? 0.5 });
     fb.onHit = (self, other) => {
-      spawnParticles2(self.position.x, self.position.y, o.color, 10, 4);
+      spawnParticles(self.position.x, self.position.y, o.color, 10, 4);
       if (o.dmg && other && other.label === "player") damagePlayer(other.player, o.dmg * m, p);
       if (other && other.label === "player" && other.player.alive) apply2(other.player, m);
     };
@@ -7685,7 +7685,7 @@
     const m = resolvePotency(p);
     const { hit, pt, from, dir } = raycastHit(p, angOff);
     boltVisual(from.x, from.y, pt.x, pt.y, "#fff89e", width * m);
-    spawnParticles2(pt.x, pt.y, "#fff89e", 10, 5);
+    spawnParticles(pt.x, pt.y, "#fff89e", 10, 5);
     if (hit && !hit.isStatic) {
       setVelocity(hit, { x: hit.velocity.x + dir.x * imp * m, y: hit.velocity.y + dir.y * imp * m - imp * 0.2 * m });
       if (hit.label === "player") zapHit(hit.player, dmg * m, p);
@@ -7969,7 +7969,7 @@
       const x = t ? t.body.position.x : frontPos(p, 200).x;
       const gy = groundYAt(x);
       spawnText(x, gy - 44, "\u26A1", "#fff89e");
-      spawnParticles2(x, gy - 8, "#fff89e", 6, 2, 30);
+      spawnParticles(x, gy - 8, "#fff89e", 6, 2, 30);
       const t0 = simNow();
       activeEffects.push({
         until: t0 + 550,
@@ -8011,7 +8011,7 @@
           damageBoss(30 * m, b.position, p);
           continue;
         }
-        spawnParticles2(b.position.x, b.position.y, "#ff4df0", 8, 4);
+        spawnParticles(b.position.x, b.position.y, "#ff4df0", 8, 4);
         projectiles.delete(b);
         gibs.delete(b);
         tomes.delete(b);
@@ -8072,7 +8072,7 @@
       addVelocity(t.body, { x: p.facing * 26 * m, y: -6 });
       damagePlayer(t, 5 * m);
     }
-    spawnParticles2(frontPos(p, 40).x, p.body.position.y, "#f0e6d2", 8, 5);
+    spawnParticles(frontPos(p, 40).x, p.body.position.y, "#f0e6d2", 8, 5);
   } });
   regSpell("cyclone", {
     name: "Cyclone",
@@ -8415,7 +8415,7 @@
       for (let i = 0; i < 6; i++) {
         const fb = shoot(p, { r: 3, speed: rand(6, 10), vy: rand(-8, 0), color: "#ffe066", gravityScale: 0, expireMs: 3500 });
         fb.onHit = (self, other) => {
-          spawnParticles2(self.position.x, self.position.y, "#ffe066", 6, 3);
+          spawnParticles(self.position.x, self.position.y, "#ffe066", 6, 3);
           if (other && other.label === "player") {
             damagePlayer(other.player, 6);
             other.player.burnUntil = simNow() + 1200;
@@ -8437,13 +8437,13 @@
     cooldown: 1300,
     selfMove: true,
     cast(p) {
-      spawnParticles2(p.body.position.x, p.body.position.y, "#c3b1e1", 14, 5);
+      spawnParticles(p.body.position.x, p.body.position.y, "#c3b1e1", 14, 5);
       const dir = aimDir(p, 1, 0);
       const nx = Math.max(30, Math.min(W - 30, p.body.position.x + dir.x * 220));
       const ny = Math.max(40, Math.min(H - 60, p.body.position.y + dir.y * 160));
       setPosition(p.body, { x: nx, y: ny });
       p.invulnUntil = simNow() + 300;
-      spawnParticles2(nx, ny, "#c3b1e1", 14, 5);
+      spawnParticles(nx, ny, "#c3b1e1", 14, 5);
       sfx.pickup();
     }
   });
@@ -8474,8 +8474,8 @@
       const a = { ...p.body.position }, b = { ...t.body.position };
       setPosition(p.body, b);
       setPosition(t.body, a);
-      spawnParticles2(a.x, a.y, "#f5b7ff", 12, 5);
-      spawnParticles2(b.x, b.y, "#f5b7ff", 12, 5);
+      spawnParticles(a.x, a.y, "#f5b7ff", 12, 5);
+      spawnParticles(b.x, b.y, "#f5b7ff", 12, 5);
       spawnText(b.x, b.y - 44, "SWAP!", "#f5b7ff");
       sfx.pickup();
     }
@@ -8491,7 +8491,7 @@
     cooldown: 1800,
     selfMove: true,
     cast(p) {
-      spawnParticles2(p.body.position.x, p.body.position.y, "#9a9ab0", 30, 5, 60);
+      spawnParticles(p.body.position.x, p.body.position.y, "#9a9ab0", 30, 5, 60);
       const nx = Math.max(30, Math.min(W - 30, p.body.position.x - p.facing * 170));
       setPosition(p.body, { x: nx, y: p.body.position.y - 10 });
       p.invulnUntil = simNow() + 400;
@@ -8508,7 +8508,7 @@
   } });
   regSpell("secondwind", { name: "Second Wind", color: "#7bd88f", cooldown: 6e3, cast(p) {
     healPlayer(p, 35);
-    spawnParticles2(p.body.position.x, p.body.position.y, "#7bd88f", 16, 4);
+    spawnParticles(p.body.position.x, p.body.position.y, "#7bd88f", 16, 4);
   } });
   regSpell("aegis", { name: "Aegis", color: "#ffd700", cooldown: 6e3, cast(p) {
     p.invulnUntil = simNow() + 2500;
@@ -8750,7 +8750,7 @@
         const dx = t.body.position.x - b.position.x, dy = t.body.position.y - b.position.y;
         const d = Math.hypot(dx, dy) || 1;
         setVelocity(b, { x: dx / d * 18, y: dy / d * 18 - 3 });
-        if (simRandom() < 0.5) spawnParticles2(b.position.x, b.position.y, "#b39ddb", 3, 2, 16);
+        if (simRandom() < 0.5) spawnParticles(b.position.x, b.position.y, "#b39ddb", 3, 2, 16);
       }
     }
   });
@@ -8778,10 +8778,10 @@
       doFlash("#ff4df0", 0.3);
       for (const q of players) {
         if (!q.alive) continue;
-        spawnParticles2(q.body.position.x, q.body.position.y, "#ff4df0", 10, 4);
+        spawnParticles(q.body.position.x, q.body.position.y, "#ff4df0", 10, 4);
         setPosition(q.body, { x: rand(100, W - 100), y: rand(80, 300) });
         setVelocity(q.body, { x: 0, y: 0 });
-        spawnParticles2(q.body.position.x, q.body.position.y, "#ff4df0", 10, 4);
+        spawnParticles(q.body.position.x, q.body.position.y, "#ff4df0", 10, 4);
       }
     }
   });
@@ -8842,12 +8842,12 @@
       const now = simNow(), dur = 2e3 * m;
       applyFreeze(t, now + dur);
       t.heavyUntil = now + dur;
-      spawnParticles2(t.body.position.x, t.body.position.y, "#ffd700", 20, 5);
+      spawnParticles(t.body.position.x, t.body.position.y, "#ffd700", 20, 5);
       spawnText(t.body.position.x, t.body.position.y - 44, "GOLD!", "#ffd700");
       activeEffects.push({ until: now + dur, onEnd() {
         if (!t.alive) return;
         damagePlayer(t, 16 * m, p);
-        spawnParticles2(t.body.position.x, t.body.position.y, "#ffd700", 22, 7);
+        spawnParticles(t.body.position.x, t.body.position.y, "#ffd700", 22, 7);
         spawnText(t.body.position.x, t.body.position.y - 44, "SHATTER!", "#ffd700");
         sfx.freeze?.();
       } });
@@ -8958,7 +8958,7 @@
       const m = p.mega || 1;
       const fb = shoot(p, { r: 7 * m, speed: 19, vy: -5, color: "#c2185b", gravityScale: 0.5 });
       fb.onHit = (self, other) => {
-        spawnParticles2(self.position.x, self.position.y, "#c2185b", 10, 4);
+        spawnParticles(self.position.x, self.position.y, "#c2185b", 10, 4);
         if (other && other.label === "player") {
           damagePlayer(other.player, 25 * m);
           healPlayer(p, 25 * m);
@@ -8973,7 +8973,7 @@
     cast(p) {
       const fb = shoot(p, { r: 8, speed: 17, vy: -5, color: "#ff80ab", gravityScale: 0.5 });
       fb.onHit = (self, other) => {
-        spawnParticles2(self.position.x, self.position.y, "#ff80ab", 12, 4);
+        spawnParticles(self.position.x, self.position.y, "#ff80ab", 12, 4);
         if (other && other.label === "player" && other.player.alive && p.alive) {
           const q = other.player;
           const tmp = p.hp;
@@ -9151,7 +9151,7 @@
     setBanner("\u26A1 FUSION! " + def.name.toUpperCase(), def.color, 1800, true);
     spawnText(x, y - 62, `${def.name.toUpperCase()}! \xD7${charges}`, def.color);
     spawnRing(x, y, def.color);
-    spawnParticles2(x, y, def.color, 28, 8);
+    spawnParticles(x, y, def.color, 28, 8);
     doFlash(def.color, 0.35);
     addShake(9);
     slowMo(0.32, 700);
@@ -9320,7 +9320,7 @@
           addVelocity(q.body, { x: p.facing * 6, y: 0 });
         }
       }
-      spawnParticles2(x + p.facing * 200, y, "#d8f4ff", 22, 6);
+      spawnParticles(x + p.facing * 200, y, "#d8f4ff", 22, 6);
       sfx.freeze();
     }
   });
@@ -9452,7 +9452,7 @@
       fb.onHit = (self, other) => {
         explode(self.position.x, self.position.y, 90 * m, 10 * m, 26 * m, p, { selfSafe: true });
         if (other && other.label === "player") healPlayer(p, 16 * m);
-        spawnParticles2(self.position.x, self.position.y, "#c2185b", 12, 4);
+        spawnParticles(self.position.x, self.position.y, "#c2185b", 12, 4);
       };
     }
   });
@@ -9469,7 +9469,7 @@
         damagePlayer(q, 10 * m, p);
       }
       spawnRing(x, y, "#c8f7f7");
-      spawnParticles2(x, y, "#c8f7f7", 24, 7);
+      spawnParticles(x, y, "#c8f7f7", 24, 7);
       addShake(7);
       sfx.cast();
     }
@@ -9525,7 +9525,7 @@
       healPlayer(p, 45 * m);
       p.invulnUntil = simNow() + 2200 * m;
       spawnRing(p.body.position.x, p.body.position.y, "#7bd88f");
-      spawnParticles2(p.body.position.x, p.body.position.y, "#7bd88f", 22, 5);
+      spawnParticles(p.body.position.x, p.body.position.y, "#7bd88f", 22, 5);
       spawnText(p.body.position.x, p.body.position.y - 50, "SANCTUARY", "#7bd88f");
       sfx.pickup?.();
     }
@@ -9607,7 +9607,7 @@
         q.reversedUntil = simNow() + 1400 * m;
         addVelocity(q.body, { x: p.facing * 7, y: -2 });
       }
-      spawnParticles2(p.body.position.x + p.facing * 120, p.body.position.y, "#d8c48a", 20, 6);
+      spawnParticles(p.body.position.x + p.facing * 120, p.body.position.y, "#d8c48a", 20, 6);
       sfx.cast();
     }
   });
@@ -9623,7 +9623,7 @@
       p.featherUntil = simNow() + 2e3;
       for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 240) setVelocity(q.body, { x: (q.body.position.x - p.body.position.x) * 0.05 + Math.sign(q.body.position.x - p.body.position.x) * 8, y: -7 });
       spawnText(p.body.position.x, p.body.position.y - 50, "ZEPHYR", "#dfffff");
-      spawnParticles2(p.body.position.x, p.body.position.y, "#dfffff", 16, 5);
+      spawnParticles(p.body.position.x, p.body.position.y, "#dfffff", 16, 5);
       sfx.boing?.();
     }
   });
@@ -9680,7 +9680,7 @@
         }
       }
       if (reaped) healPlayer(p, 12 * reaped * m);
-      spawnParticles2(p.body.position.x, p.body.position.y, "#b39ddb", 20, 5);
+      spawnParticles(p.body.position.x, p.body.position.y, "#b39ddb", 20, 5);
       doFlash("#b39ddb", 0.2);
       sfx.blackhole?.();
     }
@@ -9788,7 +9788,7 @@
       const cx = t ? t.body.position.x : p.body.position.x + p.facing * 260;
       const gy = groundYAt(cx);
       spawnText(cx, gy - 40, "TICK...", "#d8b26a");
-      spawnParticles2(cx, gy - 12, "#d8b26a", 6, 2, 30);
+      spawnParticles(cx, gy - 12, "#d8b26a", 6, 2, 30);
       const t0 = simNow();
       activeEffects.push({
         until: t0 + 900,
@@ -9873,7 +9873,7 @@
     }
     for (const t of [...tomes, ...hats]) {
       if (now - t.bornAt > 2e4 || t.position.y > H + 80 || t.position.y < -120) {
-        spawnParticles2(t.position.x, t.position.y, "#e8d5ff", 6, 3);
+        spawnParticles(t.position.x, t.position.y, "#e8d5ff", 6, 3);
         tomes.delete(t);
         hats.delete(t);
         removeBody(t);
@@ -9949,12 +9949,12 @@
     const slot = addSpell(p, tome.spell);
     if (slot === -1) return;
     sfx.pickup();
-    spawnParticles2(tome.position.x, tome.position.y, SPELLS[tome.spell].color, 14, 5);
+    spawnParticles(tome.position.x, tome.position.y, SPELLS[tome.spell].color, 14, 5);
     spawnText(p.body.position.x, p.body.position.y - 48, SPELLS[tome.spell].name.toUpperCase() + "!", SPELLS[tome.spell].color);
     const tier = spellTier(tome.spell);
     if ((TIER_RANK[tier] || 0) >= 2) {
       spawnText(p.body.position.x, p.body.position.y - 66, tier === "legendary" ? "\u2605 LEGENDARY \u2605" : "RARE!", TIER_COLOR[tier]);
-      spawnParticles2(tome.position.x, tome.position.y, TIER_COLOR[tier], tier === "legendary" ? 22 : 12, 6);
+      spawnParticles(tome.position.x, tome.position.y, TIER_COLOR[tier], tier === "legendary" ? 22 : 12, 6);
       if (tier === "legendary") {
         setBanner("\u2605 LEGENDARY SPELL \u2605", TIER_COLOR[tier], 900);
         sfx.hyper?.();
@@ -9965,7 +9965,7 @@
   function grabCatalyst(p) {
     sfx.pickup();
     const { x, y } = p.body.position;
-    spawnParticles2(x, y, "#ff4df0", 18, 6);
+    spawnParticles(x, y, "#ff4df0", 18, 6);
     if (tryFuse(p)) return;
     const held = p.slots[0] || p.slots[1];
     if (held) {
@@ -9993,7 +9993,7 @@
     doFlash("#ffd700", 0.2);
     addShake(8);
     spawnRing(p.body.position.x, p.body.position.y, "#ffd700");
-    spawnParticles2(p.body.position.x, p.body.position.y, "#ffd700", 24, 7);
+    spawnParticles(p.body.position.x, p.body.position.y, "#ffd700", 24, 7);
     spawnText(p.body.position.x, p.body.position.y - 70, "MEGA WIZARD!", "#ffd700");
     setBanner(`${p.name} IS MEGA`, "#ffd700", 1400);
   }
@@ -10001,7 +10001,7 @@
     if ((p.sizeScale || 1) > 1) {
       scaleBody(p.body, 0.5, 0.5);
       p.sizeScale = 1;
-      spawnParticles2(p.body.position.x, p.body.position.y, "#ffd700", 12, 4);
+      spawnParticles(p.body.position.x, p.body.position.y, "#ffd700", 12, 4);
     }
   }
   onWorldReset(() => {
@@ -10948,7 +10948,7 @@
     if (Math.abs(ratio - 1) < 0.01) return;
     scaleBody(p.body, ratio, ratio);
     p.sizeScale = target;
-    spawnParticles2(p.body.position.x, p.body.position.y, "#e8d5ff", 6, 3);
+    spawnParticles(p.body.position.x, p.body.position.y, "#e8d5ff", 6, 3);
   }
   function spawnPlayer(p, pos) {
     if (!p.alive) addBody(p.body);
@@ -10966,7 +10966,7 @@
     setVelocity(p.body, { x: 0, y: 0 });
     setAngularVelocity(p.body, 0);
     setAngle(p.body, 0);
-    spawnParticles2(pos.x, pos.y, "#e8d5ff", 12, 5);
+    spawnParticles(pos.x, pos.y, "#e8d5ff", 12, 5);
   }
   function despawnPlayer(p) {
     if (!p.alive) return;
@@ -11098,7 +11098,7 @@
       n += Math.max(8, Math.round(n * 0.6));
       p.frozenUntil = 0;
       spawnText(p.body.position.x, p.body.position.y - 48, "SHATTER!", "#bfe8ff");
-      spawnParticles2(p.body.position.x, p.body.position.y, "#bfe8ff", 16, 6);
+      spawnParticles(p.body.position.x, p.body.position.y, "#bfe8ff", 16, 6);
       sfx.freeze?.();
     }
     if (src && src.spellId) telDmg(src.spellId, n);
@@ -11129,7 +11129,7 @@
     if (!p.alive) return;
     p.alive = false;
     const { x, y } = p.body.position;
-    spawnParticles2(x, y, p.color, 24, 8, 60);
+    spawnParticles(x, y, p.color, 24, 8, 60);
     addShake(10);
     sfx.death();
     doFlash(p.color, 0.12);
@@ -11205,7 +11205,7 @@
         slowMo(0.05, 70);
         addShake(6);
         boltVisual(from.x, from.y, pt.x, pt.y, "#fff89e", 3 * m);
-        spawnParticles2(pt.x, pt.y, "#fff89e", 12, 6);
+        spawnParticles(pt.x, pt.y, "#fff89e", 12, 6);
         if (hit && !hit.isStatic) {
           setVelocity(hit, { x: hit.velocity.x + dir.x * 28 * m, y: hit.velocity.y + dir.y * 28 * m - 8 * m });
           if (hit.label === "player") damagePlayer(hit.player, 50 * m);
@@ -11220,7 +11220,7 @@
         const m = p.mega || 1;
         const fb = shoot(p, { r: 6 * m, speed: 17, vy: -4, color: "#9be7ff", gravityScale: 0.5 });
         fb.onHit = (self, other) => {
-          spawnParticles2(self.position.x, self.position.y, "#9be7ff", 10, 4);
+          spawnParticles(self.position.x, self.position.y, "#9be7ff", 10, 4);
           if (other && other.label === "player" && other.player.alive) {
             damagePlayer(other.player, 15 * m);
             applyFreeze(other.player, simNow() + 1500 * m);
@@ -14956,7 +14956,7 @@
     setShake: () => setShake,
     shake: () => shake,
     spawnBurst: () => spawnBurst2,
-    spawnParticles: () => spawnParticles3,
+    spawnParticles: () => spawnParticles2,
     spawnRing: () => spawnRing2,
     spawnText: () => spawnText2,
     unhandledEmitted: () => unhandledEmitted,
@@ -15128,7 +15128,7 @@
     flashColor = color;
     flashAlpha = Math.max(flashAlpha, alpha);
   }
-  function spawnParticles3(x, y, color, count, speed, life = 40) {
+  function spawnParticles2(x, y, color, count, speed, life = 40) {
     for (let i = 0; i < count; i++) {
       const a = fxRandom() * Math.PI * 2, v = fxRandom() * speed;
       particles.push({ kind: "square", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, life: life + fxRandom() * 20, maxLife: life, color, r: 2 + fxRandom() * 3 });
@@ -15191,7 +15191,7 @@
   }
   var HANDLERS = {
     __proto__: null,
-    spawnParticles: spawnParticles3,
+    spawnParticles: spawnParticles2,
     spawnRing: spawnRing2,
     spawnText: spawnText2,
     spawnBurst: spawnBurst2,
@@ -17243,6 +17243,9 @@
     if (!ws || ws.readyState !== 1) return;
     ws.send(JSON.stringify(msg));
   }
+  function myName() {
+    return cleanName(localStorage.getItem("hs-name-0") || "") || "WIZARD";
+  }
   function connect(h) {
     hooks = h || hooks;
     hooks.status("connecting\u2026");
@@ -17355,7 +17358,7 @@
         }
       }
       if (best) {
-        spawnParticles(best.position.x, best.position.y, best.dcolor || "#6b4a2a", 14, 6, 40);
+        spawnParticles2(best.position.x, best.position.y, best.dcolor || "#6b4a2a", 14, 6, 40);
         removeFrom(clientMap.composite, best);
       }
     }
@@ -17720,7 +17723,7 @@
         if (now < (q.ghostChillUntil || 0)) continue;
         q.ghostChillUntil = now + 1600;
         q.vineSlowUntil = Math.max(q.vineSlowUntil || 0, now + 550);
-        spawnParticles2(q.body.position.x, q.body.position.y - 20, "#bfe8ff", 6, 2, 24);
+        spawnParticles(q.body.position.x, q.body.position.y - 20, "#bfe8ff", 6, 2, 24);
         sfx.freeze?.();
       }
     }
@@ -17747,7 +17750,7 @@
       if (Math.hypot(q.body.position.x - g.x, q.body.position.y - g.y) > 170) continue;
       q.vineSlowUntil = Math.max(q.vineSlowUntil || 0, now + 450);
       q.spookedUntil = now + 900;
-      spawnParticles2(q.body.position.x, q.body.position.y - 24, "#e8d5ff", 5, 2, 20);
+      spawnParticles(q.body.position.x, q.body.position.y - 24, "#e8d5ff", 5, 2, 20);
     }
   }
   function ghostGust(g) {
@@ -17793,7 +17796,7 @@
     if (b.label === "boss" && a.owner) damageBoss(22, a.position, a.owner);
     if (b.label === "enemy" && a.owner && a.owner !== "boss") damageEnemy(b.enemy, 22, a.position, a.owner);
     if (b.label === "decoy") {
-      spawnParticles2(b.position.x, b.position.y, "#e8d5ff", 16, 5);
+      spawnParticles(b.position.x, b.position.y, "#e8d5ff", 16, 5);
       removeSummon(b);
     }
     if (b.label === "destructible") damageDestructible(b, 12);
@@ -17801,7 +17804,7 @@
       setVelocity(a, { x: -a.velocity.x * 1.1, y: -Math.abs(a.velocity.y) * 0.5 - 2 });
       setFilter(a, { group: b.player.group });
       a.owner = b.player;
-      spawnParticles2(a.position.x, a.position.y, "#4ecdff", 8, 4);
+      spawnParticles(a.position.x, a.position.y, "#4ecdff", 8, 4);
     } else if (!a.noContactBoom) {
       if (!a.keepOnHit) projectiles.delete(a);
       a.onHit?.(a, b);
@@ -17843,14 +17846,14 @@
       setVelocity(big.body, { x: big.body.velocity.x, y: -9 });
       addShake(6);
       sfx.thud?.();
-      spawnParticles2(small.body.position.x, small.body.position.y - 10, "#a7e88f", 14, 6);
+      spawnParticles(small.body.position.x, small.body.position.y - 10, "#a7e88f", 14, 6);
       spawnText(small.body.position.x, small.body.position.y - 44, "STOMP!", "#a7e88f");
     }
   });
   rule("tramp", "player", function trampoline(a, b) {
     setVelocity(b, { x: b.velocity.x, y: -20 });
     b.player.airJumps = 1;
-    spawnParticles2(b.position.x, b.position.y + 14, "#ff8fc7", 10, 5);
+    spawnParticles(b.position.x, b.position.y + 14, "#ff8fc7", 10, 5);
     addShake(3);
     sfx.boing?.();
   });
@@ -17878,7 +17881,7 @@
     else if (a.label === "boss") {
       if (!a.isStatic) setVelocity(a, { x: a.velocity.x, y: -14 });
     } else if (!a.isStatic) {
-      spawnParticles2(a.position.x, a.position.y, currentMap.data.acid ? "#9be15d" : "#ff5e57", 8, 4);
+      spawnParticles(a.position.x, a.position.y, currentMap.data.acid ? "#9be15d" : "#ff5e57", 8, 4);
       projectiles.delete(a);
       tomes.delete(a);
       hats.delete(a);

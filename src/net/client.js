@@ -11,9 +11,16 @@ import { fxRange as rand, fxPick as pick } from '../render/fx.js';
 import { ctx } from '../render/canvas.js';
 import { rgba } from '../render/artkit.js';
 import { ensureAudio } from '../render/audio.js';
+// spawnParticles is here because applyBrokenDestructibles bursts the block it
+// removes. The name moved from sim/fx.js to render/fx.js in the
+// cosmetics-as-events refactor and was dropped from this list while its call
+// site stayed — the same loss the helper below documents, and the second
+// offender test/no-undefined-identifiers.test.js reported on this branch.
+// Keep prose OUT of the braces: the guard reads an import's brace body as
+// declared names, so a comment in there can name away its own bug.
 import {
 particles, shake, setShake, flashColor, flashAlpha, setFlashAlpha,
-updateParticles, applyEmitted, pumpEmitted,
+updateParticles, applyEmitted, pumpEmitted, spawnParticles,
 } from '../render/fx.js';
 import { WIRE_FX } from './fx-names.js';
 import { slowMo, updatePace } from '../sim/pace.js';
@@ -107,6 +114,20 @@ globalThis.drawNetStats = function drawNetStats(now) {
 function emit(msg) {
   if (!ws || ws.readyState !== 1) return;
   ws.send(JSON.stringify(msg));
+}
+
+// The name the opening menu stored for player 1 (src/platform/menu.js writes
+// this key). It rides `hello` and every join, and it is also the key the room
+// matches a reconnect against (server/room.js reserves a dropped seat by name),
+// so it has to be the same string every time this tab asks for a seat.
+//
+// This helper was lost in the ESM refactor: the three calls survived, the
+// definition did not, so ws.onopen threw before `hello` could be sent and the
+// server never marked the connection as having said hello — which is the one
+// thing it requires before it will seat anybody. Nobody could join an online
+// match. test/no-undefined-identifiers.test.js now fails on that class of loss.
+function myName() {
+  return cleanName(localStorage.getItem('hs-name-0') || '') || 'WIZARD';
 }
 export function connect(h) {
   hooks = h || hooks;
