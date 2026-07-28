@@ -25,9 +25,9 @@
     mod
   ));
 
-  // node_modules/matter-js/build/matter.js
+  // ../hyper-spell/node_modules/matter-js/build/matter.js
   var require_matter = __commonJS({
-    "node_modules/matter-js/build/matter.js"(exports, module) {
+    "../hyper-spell/node_modules/matter-js/build/matter.js"(exports, module) {
       (function webpackUniversalModuleDefinition(root2, factory) {
         if (typeof exports === "object" && typeof module === "object")
           module.exports = factory();
