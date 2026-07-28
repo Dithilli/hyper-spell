@@ -13,7 +13,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import '../src/sim/content.js';
 import { SPELLS } from '../src/sim/spells/registry.js';
-import { CAST_KINDS, castKind, classifyCast, classifyAllCasts } from '../src/sim/spells/cast-kind.js';
+import {
+  CAST_KINDS, CAST_RULES, castKind, classifyCast, classifyAllCasts,
+} from '../src/sim/spells/cast-kind.js';
 
 test('every spell classifies to a known kind', () => {
   const kinds = new Set(Object.keys(CAST_KINDS));
@@ -40,12 +42,22 @@ test('named spells classify to the archetype they actually play as', () => {
     landmine: 'place', blackcat: 'place', rubberduck: 'place', trampoline: 'place',
     // radiates off you; aim is irrelevant
     frostnova: 'nova', bigbang: 'nova',
+    repulsor: 'nova',    // a zone centred on YOU, not a spot you picked
+    earthquake: 'nova',  // moves every body in the world
     // changes you, not them
     blink: 'self', ghostwalk: 'self', featherfall: 'self',
+    secondwind: 'self',  // healPlayer(p, …) — nothing leaves your hands
+    moongrav: 'self',    // pushGravity — changes the world you both stand in
     // the ordinary thrown arc
     fireball: 'bolt', mortar: 'bolt', homing: 'bolt',
-    // the four hand-written overrides
+    napalm: 'bolt',      // leaves a fire behind, but you still throw it
+    updraft: 'bolt',     // shoves bodies UP; must never read as "falls from above"
+    // a zone put at a chosen spot
+    blizzard: 'place', flamewall: 'place',
+    // the hand-written overrides
     chain: 'ray', boomerang: 'bolt', gust: 'nova', shove: 'nova',
+    teslacoil: 'place', beehive: 'place', midas: 'ray',
+    soulharvest: 'nova', voodoo: 'nova', boobytrap: 'place',
   };
   const wrong = [];
   for (const [id, want] of Object.entries(expected)) {
@@ -56,28 +68,65 @@ test('named spells classify to the archetype they actually play as', () => {
   assert.deepEqual(wrong, [], `misclassified:\n${wrong.join('\n')}`);
 });
 
-// A dead rule does not throw — it just stops contributing. If any archetype
-// empties out, a regex stopped matching the codebase it is reading.
-test('every archetype is populated — no rule has gone dead', () => {
-  const all = classifyAllCasts();
-  const counts = {};
-  for (const k of Object.keys(CAST_KINDS)) counts[k] = 0;
-  for (const k of Object.values(all)) counts[k]++;
-  const empty = Object.entries(counts).filter(([, n]) => n === 0).map(([k]) => k);
-  assert.deepEqual(empty, [], `these rules matched nothing: ${empty.join(', ')}`);
-  // and no single archetype may swallow the book: the 'bolt' fallback claiming
-  // most of the game is exactly what a batch of dead rules looks like
-  const total = Object.keys(all).length;
-  for (const [k, n] of Object.entries(counts)) {
-    assert.ok(n < total * 0.6, `${k} claims ${n}/${total} spells — a rule above it has probably gone dead`);
+// THE test for a source-scanning classifier. Every rule must be DECISIVE:
+// disabling it has to change at least one spell's verdict. A rule nobody's
+// verdict depends on is indistinguishable from one whose helper was renamed out
+// from under it — both match nothing, neither throws, and the label just
+// quietly starts lying.
+//
+// This replaces an "every archetype is populated" check that could not do the
+// job: four of the six archetypes are held non-empty by things that bypass the
+// rules entirely (the beam/selfMove flags, the overrides, the bolt default), so
+// that assertion stayed green with the whole ray rule disabled.
+test('every rule is decisive — disabling it changes a verdict', () => {
+  const full = Object.fromEntries(Object.keys(SPELLS).map(id => [id, classifyCast(id, SPELLS[id])]));
+  const inert = [];
+  for (let i = 0; i < CAST_RULES.length; i++) {
+    const without = CAST_RULES.filter((_, j) => j !== i);
+    const changed = Object.keys(SPELLS)
+      .filter(id => classifyCast(id, SPELLS[id], without) !== full[id]);
+    if (!changed.length) inert.push(CAST_RULES[i][0]);
   }
+  assert.deepEqual(inert, [], `these rules decide nothing — dead, or made redundant by an earlier rule: ${inert.join(', ')}`);
 });
 
-test('classification is total and deterministic', () => {
-  const a = classifyAllCasts();
-  const b = classifyAllCasts();
-  assert.equal(Object.keys(a).length, Object.keys(SPELLS).length, 'every spell must get a verdict');
-  assert.deepEqual(a, b, 'classification must be deterministic');
+// Same argument one level down: a rule is a set of alternatives, and an
+// individual alternative can rot while its siblings keep the rule alive.
+test('every alternative within every rule matches something', () => {
+  const dead = [];
+  for (const [kind, re] of CAST_RULES) {
+    for (const alt of re.source.split('|')) {
+      // only split on top-level alternation; skip fragments left by splitting
+      // inside a group, which are not valid patterns on their own
+      let probe;
+      try { probe = new RegExp(alt); } catch { continue; }
+      const hits = Object.values(SPELLS).filter((def) => {
+        const src = (typeof def.cast === 'function' ? String(def.cast) : '')
+          .replace(/(?:set|add)Velocity\s*\([^)]*\)/g, '');
+        return probe.test(src);
+      });
+      if (!hits.length) dead.push(`${kind}: /${alt}/`);
+    }
+  }
+  assert.deepEqual(dead, [], `these clauses match no spell in the book:\n${dead.join('\n')}`);
+});
+
+test('classification covers every spell', () => {
+  const all = classifyAllCasts();
+  assert.deepEqual(
+    Object.keys(all).sort(), Object.keys(SPELLS).sort(),
+    'classifyAllCasts must return a verdict per registered spell',
+  );
+});
+
+// Determinism that can actually fail: classify from scratch, bypassing the
+// `_cast` cache that made the old version of this test compare a value with
+// itself.
+test('classification is deterministic from scratch', () => {
+  const fresh = () => Object.fromEntries(Object.keys(SPELLS).map(id => [id, classifyCast(id, SPELLS[id])]));
+  assert.deepEqual(fresh(), fresh(), 'the same book must classify the same way twice');
+  const cached = classifyAllCasts();
+  assert.deepEqual(cached, fresh(), 'the cached verdicts must agree with a fresh classification');
 });
 
 test('an explicit flag beats inference, and an unknown id is null', () => {

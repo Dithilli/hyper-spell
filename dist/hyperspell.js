@@ -11263,6 +11263,82 @@
     }
   };
 
+  // src/sim/spells/cast-kind.js
+  var CAST_OVERRIDES = {
+    chain: "ray",
+    // draws bolt visuals rather than a ray, but it is hitscan
+    boomerang: "bolt",
+    // comes back to you; on the way out it is still a thrown bolt
+    gust: "nova",
+    // a cone off your own hands, not an aimed projectile
+    shove: "nova",
+    // a short shunt at contact range; nothing leaves your hands
+    // --- this branch ---
+    teslacoil: "place",
+    // boltVisual zaps are the payload; the static coil you leave behind is the spell
+    beehive: "place",
+    // shoot() sends the bees, but what you cast is a hive at a spot
+    midas: "ray",
+    // nearestEnemy(p, 320) + freeze: instant, at range, no travel time.
+    // A `nearestEnemy` RULE is not available — Homing Wisp calls it
+    // every tick in its update and is the most ordinary bolt there is.
+    soulharvest: "nova",
+    // drains every enemy within 420px of you; the tethers are cosmetic
+    voodoo: "nova",
+    // same shape at 440px
+    boobytrap: "place"
+    // arms a charge at the nearest enemy's feet — placed, not thrown
+  };
+  var CAST_RULES = [
+    // a body constructed above the top of the screen, or far above its target, is
+    // being dropped — this is what separates Anvil and Rain of Frogs (drop) from
+    // Black Cat and Rubber Duck (place), all four of which are summons
+    // Two guards here are load-bearing, both learned the hard way:
+    //   [^A-Za-z]y:  — a bare /y:\s*-\d/ also matches the `vy: -6` in every
+    //                  ordinary shoot() call, which called half the game rain
+    //   -\d{2,}      — spawn heights are -30 and up; single digits are impulses
+    // (setVelocity is stripped from the source before this runs, for the same reason)
+    // the body-constructor alternation is spelled out in full rather than as
+    // `create(?:Box|…)` because test/no-undefined-identifiers.test.js reads the
+    // shape `name(` as a call and does not strip regex literals — the short form
+    // makes this file look like it calls an undeclared create()
+    ["drop", /dropProjectile|skyBolt|(?:createBox|createCircle|createPolygon)\s*\([^,]*,\s*-\d|[^A-Za-z]y:\s*-\d{2,}|position\.y\s*-\s*(?:2[0-9]{2}|[3-9][0-9]{2})/],
+    ["ray", /zapRay|raycastHit|boltVisual/],
+    ["bolt", /boomBolt|statusBolt|shoot\s*\(/],
+    // makeZone is this branch's verb for "a patch of ground that does something".
+    // Only an EXPLICITLY positioned one is a placement — `makeZone({ x: pos.x`,
+    // where pos came from frontPos (Blizzard, Flame Wall). A zone opened with
+    // shorthand `{ x, y,` is centred on whatever the caster already is, and that
+    // is a nova; see the clause below. (Napalm also opens a shorthand zone, at
+    // its fireball's impact point, but the bolt rule above claims it first — it
+    // is a thrown bolt that happens to leave a fire behind.)
+    ["place", /summonCritter|summon\s*\(|makeZone\s*\(\s*\{\s*x:/],
+    // allBodies() is the whole-world shape: if a spell moves every body there is,
+    // there is nothing to aim at. Likewise a zone centred on you (Repulsor Field).
+    ["nova", /enemiesOf\s*\(\s*p\s*\)|explode\s*\(\s*p\.body\.position|allBodies\s*\(|makeZone\s*\(\s*\{\s*x,/],
+    // pushGravity changes the world you both stand in; healPlayer(p) changes you
+    ["self", /p\.\w+Until\s*=|pushGravity\s*\(|healPlayer\s*\(\s*p\b/]
+  ];
+  function classifyCast(id, def, rules = CAST_RULES) {
+    if (CAST_OVERRIDES[id]) return CAST_OVERRIDES[id];
+    if (def.beam) return "ray";
+    if (def.selfMove) return "self";
+    const src = (typeof def.cast === "function" ? String(def.cast) : "").replace(/(?:set|add)Velocity\s*\([^)]*\)/g, "");
+    for (const [kind, re] of rules) if (re.test(src)) return kind;
+    return "bolt";
+  }
+  function castKind(id) {
+    const def = id && SPELLS[id];
+    if (!def) return null;
+    if (!def._cast) def._cast = classifyCast(id, def);
+    return def._cast;
+  }
+  function classifyAllCasts() {
+    const out = {};
+    for (const id of Object.keys(SPELLS)) out[id] = castKind(id);
+    return out;
+  }
+
   // src/sim/maps/book.js
   var DEF_SPAWNS = [
     { x: 140, y: 120 },
@@ -12261,6 +12337,7 @@
 
   // src/sim/content.js
   Object.assign(SPELLS, STARTERS, BOOK_SPELLS, HYBRID_SPELLS);
+  classifyAllCasts();
 
   // src/render/artkit.js
   var artkit_exports = {};
@@ -15981,63 +16058,6 @@
     drawSpellReport: () => drawSpellReport,
     setDrawLobby: () => setDrawLobby
   });
-
-  // src/sim/spells/cast-kind.js
-  var CAST_KINDS = {
-    // ordered most-specific first; the first rule that matches wins
-    drop: { label: "Falls from above", hint: "lands on the spot you aim at" },
-    ray: { label: "Instant ray", hint: "fires in a straight line, right now" },
-    nova: { label: "Bursts from you", hint: "radiates outward \u2014 aim does not matter" },
-    place: { label: "Places something", hint: "leaves a thing at the spot" },
-    self: { label: "Self", hint: "changes you, not them" },
-    bolt: { label: "Thrown bolt", hint: "travels and arcs \u2014 lead your target" }
-  };
-  var CAST_OVERRIDES = {
-    chain: "ray",
-    // draws bolt visuals rather than a ray, but it is hitscan
-    boomerang: "bolt",
-    // comes back to you; on the way out it is still a thrown bolt
-    gust: "nova",
-    // a cone off your own hands, not an aimed projectile
-    shove: "nova"
-    // a short shunt at contact range; nothing leaves your hands
-  };
-  var CAST_RULES = [
-    // a body constructed above the top of the screen, or far above its target, is
-    // being dropped — this is what separates Anvil and Rain of Frogs (drop) from
-    // Black Cat and Rubber Duck (place), all four of which are summons
-    // Two guards here are load-bearing, both learned the hard way:
-    //   [^A-Za-z]y:  — a bare /y:\s*-\d/ also matches the `vy: -6` in every
-    //                  ordinary shoot() call, which called half the game rain
-    //   -\d{2,}      — spawn heights are -30 and up; single digits are impulses
-    // (setVelocity is stripped from the source before this runs, for the same reason)
-    // the body-constructor alternation is spelled out in full rather than as
-    // `create(?:Box|…)` because test/no-undefined-identifiers.test.js reads the
-    // shape `name(` as a call and does not strip regex literals — the short form
-    // makes this file look like it calls an undeclared create()
-    ["drop", /dropProjectile|skyBolt|(?:createBox|createCircle|createPolygon)\s*\([^,]*,\s*-\d|[^A-Za-z]y:\s*-\d{2,}|position\.y\s*-\s*(?:2[0-9]{2}|[3-9][0-9]{2})/],
-    ["ray", /zapRay|raycastHit|boltVisual/],
-    ["bolt", /boomBolt|statusBolt|shoot\s*\(/],
-    ["place", /summonCritter|summon\s*\(/],
-    ["nova", /enemiesOf\s*\(\s*p\s*\)|explode\s*\(\s*p\.body\.position/],
-    ["self", /p\.\w+Until\s*=|p\.sizeScale\s*=/]
-  ];
-  function classifyCast(id, def) {
-    if (CAST_OVERRIDES[id]) return CAST_OVERRIDES[id];
-    if (def.beam) return "ray";
-    if (def.selfMove) return "self";
-    const src = (typeof def.cast === "function" ? String(def.cast) : "").replace(/setVelocity\s*\([^)]*\)/g, "");
-    for (const [kind, re] of CAST_RULES) if (re.test(src)) return kind;
-    return "bolt";
-  }
-  function castKind(id) {
-    const def = id && SPELLS[id];
-    if (!def) return null;
-    if (!def._cast) def._cast = classifyCast(id, def);
-    return def._cast;
-  }
-
-  // src/render/hud.js
   function drawKillFeed(now) {
     ctx.textAlign = "left";
     ctx.font = "bold 12px Georgia";
@@ -16132,15 +16152,7 @@
       ctx.fillStyle = def ? tierColor(slots[i]) || "#9c8ab8" : "#4a415c";
       const n = charges?.[i];
       ctx.fillText(def ? def.name + (n != null ? ` \xD7${n}` : "") : "\xB7 \xB7 \xB7", x, y);
-      if (def) {
-        drawCooldownBar(x, y + 6, def, cdf[i], i === 0 ? megaCasts : 0);
-        const kind = CAST_KINDS[castKind(slots[i])];
-        if (kind) {
-          ctx.font = "9px Georgia";
-          ctx.fillStyle = "#6d6086";
-          ctx.fillText(kind.label, x, y + 15);
-        }
-      }
+      if (def) drawCooldownBar(x, y + 6, def, cdf[i], i === 0 ? megaCasts : 0);
     }
   }
   function drawHUD(now) {
