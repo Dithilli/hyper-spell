@@ -1,6 +1,6 @@
 # HyperSpell Online — Multiplayer Planning Doc
 
-*Status: **Option A (server-authoritative) SHIPPED as v9, July 23 2026** — the sim runs headless in Node inside `server/serve.js` (see `server/sim-host.js` and `docs/PATCHNOTES.md`). The host-peer addendum below was the interim v6–v8 architecture and is now historical. Still open from the original ask: lobbies-with-auto-start beyond the single room, leaderboards, Hyperspell-account auth.*
+*Status: **Option A (server-authoritative) SHIPPED as v9, July 23 2026** — the sim runs headless in Node inside `server/serve.js` (see `server/sim-host.js` and `docs/PATCHNOTES.md`). The host-peer addendum below was the interim v6–v8 architecture and is now historical. Private lobbies with a shareable code shipped July 27 2026 (`server/session-code.js`; design in `docs/superpowers/specs/2026-07-27-session-codes-design.md`) — one session per server, and the code gates playing AND watching. Still open from the original ask: concurrent rooms (the sim is process-global, so that needs a worker thread per room), a lobby browser with auto-start, leaderboards, Hyperspell-account auth.*
 
 *Originally: planning only. Written July 1, 2026. Updated July 2: cheating is explicitly a non-concern (internal easter egg product) — see the addendum at the bottom, which revises the recommendation toward feel and simplicity and shortens the estimates.*
 
@@ -89,7 +89,7 @@ All clients simulate; only inputs cross the wire.
 - Lobby browser: list of open rooms with player count, map-theme vote, win target
 - Click to join → you're a wizard in a pre-game arena (our current LOBBY state, but online — people can run around and grab lobby tomes while waiting, which is already how the local lobby works)
 - Room auto-starts when full (4) or when ≥2 players are ready and a 30 s countdown expires
-- Private lobbies: 4-letter room code to share with friends
+- Private lobbies: 4-letter room code to share with friends *(shipped July 27 2026, as six characters — see the status line at the top)*
 - Later: quick-match button that just puts you in the emptiest open room
 
 **Leaderboards.** Postgres tables keyed on Hyperspell account id:

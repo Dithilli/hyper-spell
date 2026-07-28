@@ -1,0 +1,25 @@
+{
+  "name": "hyperspell",
+  "version": "9.0.0",
+  "private": true,
+  "type": "module",
+  "description": "HYPERSPELL — wizards, physics, violence",
+  "scripts": {
+    "build": "esbuild src/platform/browser.js --bundle --format=iife --outfile=dist/hyperspell.js --target=es2022",
+    "build:guide": "esbuild src/platform/spell-guide.js --bundle --format=iife --outfile=dist/spell-guide.js --target=es2022",
+    "test": "node --test 'test/**/*.test.js'",
+    "tape:record": "node scripts/record-tape.js",
+    "e2e": "playwright test && npm run e2e:audit",
+    "e2e:update": "node e2e/tools/generate-manifest.js",
+    "e2e:audit": "node e2e/tools/audit-coverage.js",
+    "e2e:triage": "playwright test --grep-invert @known-bug",
+    "e2e:ui": "playwright test --ui"
+  },
+  "dependencies": {
+    "matter-js": "0.19.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.0",
+    "esbuild": "^0.25.0"
+  }
+}

@@ -1,6 +1,6 @@
 // serve.js — the HyperSpell game server: serves the game over HTTP and RUNS THE
-// MATCH — the simulation lives here (headless, in a vm context; see sim-host.js),
-// every browser is a client that sends inputs and renders snapshots.
+// MATCH — the simulation lives here (headless; see sim-host.js), every browser
+// is a client that sends inputs and renders snapshots.
 //
 //   cd server && npm install && node serve.js
 //   everyone: open http://<server-ip>:8787 → PLAY ONLINE
@@ -136,17 +136,32 @@ const simHost = new SimHost({
   telemetrySink: rec => appendTelemetryRecord(rec),
 });
 const room = new Room(simHost);
-simHost.start();
 
 // internet NATs and sleeping laptops kill sockets without a FIN — ping every
 // 30s and reap anything that stayed silent. Browsers answer pings automatically.
-setInterval(() => {
+const pingTimer = setInterval(() => {
   for (const ws of wss.clients) {
     if (ws.silent) { ws.terminate(); continue; }
     ws.silent = true;
     ws.ping();
   }
 }, 30000);
+
+// a stopped server should leave nothing running behind it: the room's stats
+// interval, this ping interval and the sim's own loop are all long-lived timers
+let stopping = false;
+function shutdown() {
+  if (stopping) return;
+  stopping = true;
+  clearInterval(pingTimer);
+  room.destroy();
+  simHost.stop();
+  wss.close();
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 2000).unref(); // one stuck socket must not hold the box
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 wss.on('connection', (ws) => {
   if (wss.clients.size > MAX_CONNS) { ws.close(1013, 'server full'); return; }
@@ -157,15 +172,22 @@ wss.on('connection', (ws) => {
   ws.on('error', (err) => console.log(`socket error: ${err.code || err.message}`));
   ws.on('pong', () => { ws.silent = false; });
   ws.on('message', () => { ws.silent = false; });
-  room.addSession(ws);
+  room.addConn(ws);
 });
 
-server.listen(PORT, () => {
-  const nets = os.networkInterfaces();
-  const ips = Object.values(nets).flat().filter(n => n && n.family === 'IPv4' && !n.internal).map(n => n.address);
-  const q = GAME_KEY ? `/?key=${encodeURIComponent(GAME_KEY)}` : '';
-  console.log(`\n  HyperSpell server running${GAME_KEY ? ' (key-gated)' : ''} — the match runs here, everyone joins as a player:`);
-  console.log(`    this machine: http://localhost:${PORT}${q}`);
-  for (const ip of ips) console.log(`    players:      http://${ip}:${PORT}${q}`);
-  console.log('');
+// the sim is an ES module loaded through a dynamic import, so the port only
+// opens once it is running — a client must never reach a room with no bridge
+simHost.start().then(() => {
+  server.listen(PORT, () => {
+    const nets = os.networkInterfaces();
+    const ips = Object.values(nets).flat().filter(n => n && n.family === 'IPv4' && !n.internal).map(n => n.address);
+    const q = GAME_KEY ? `/?key=${encodeURIComponent(GAME_KEY)}` : '';
+    console.log(`\n  HyperSpell server running${GAME_KEY ? ' (key-gated)' : ''} — the match runs here, everyone joins as a player:`);
+    console.log(`    this machine: http://localhost:${PORT}${q}`);
+    for (const ip of ips) console.log(`    players:      http://${ip}:${PORT}${q}`);
+    console.log('');
+  });
+}).catch((err) => {
+  console.error('sim failed to start:', err);
+  process.exit(1);
 });

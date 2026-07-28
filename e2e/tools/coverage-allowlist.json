@@ -1,0 +1,21 @@
+{
+  "note": "Surfaces the auditor is told to ignore. Every entry needs a reason — an unexplained exclusion is how a blind spot becomes permanent.",
+  "keyCodes": {
+    "NumpadEnter": "an alias for Enter in the name editor; the same code path, already covered by 03-lobby",
+    "Escape": "covered by 03-lobby's name-edit tests, which name it in prose rather than as a code literal"
+  },
+  "gameStates": {},
+  "netMessages": {
+    "pack": "the optional content-pack unlock, which needs an encrypted pack this repo does not ship"
+  },
+  "storageKeys": {
+    "hs-name": "a prefix fragment the scanner picks out of a template literal, not a key the game ever uses whole"
+  },
+  "platformFiles": {
+    "src/platform/node.js": "the headless entry — it has no browser to test in; test/ covers it",
+    "src/platform/debug-globals.js": "the suite's own instrumentation surface; every spec that reads HS exercises it"
+  },
+  "renderFiles": {
+    "src/render/content-pack.js": "the optional content-pack probe, same reason as the `pack` message"
+  }
+}

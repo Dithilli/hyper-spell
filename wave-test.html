@@ -6,35 +6,9 @@
 </head>
 <body>
 <canvas id="game" width="1280" height="720"></canvas>
-<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
-<script src="js/core.js"></script>
-<script src="js/profiler.js"></script>
-<script src="js/camera.js"></script>
-<script src="js/bloom.js"></script>
-<script src="js/artkit.js"></script>
-<script src="js/audio.js"></script>
-<script src="js/fx.js"></script>
-<script src="js/awards.js"></script>
-<script src="js/telemetry.js"></script>
-<script src="js/input.js"></script>
-<script src="js/spells.js"></script>
-<script src="js/player.js"></script>
-<script src="js/pickups.js"></script>
-<script src="js/spellbook.js"></script>
-<script src="js/spelltiers.js"></script>
-<script src="js/spellcast.js"></script>
-<script src="js/hybrids.js"></script>
-<script src="js/maps.js"></script>
-<script src="js/mapbook.js"></script>
-<script src="js/events.js"></script>
-<script src="js/boss.js"></script>
-<script src="js/enemies.js"></script>
-<script src="js/bot.js"></script>
-<script src="js/snapshot.js"></script>
+<script>window.requestAnimationFrame = () => 0;</script> <!-- before the bundle: browser.js self-starts the loop -->
+<script src="dist/hyperspell.js?nomenu"></script>
 <!-- freeze the auto game loop so wave logic runs deterministically off a fake clock -->
-<script>window.requestAnimationFrame = () => 0;</script>
-<script src="js/game.js"></script>
-<script src="js/replay.js"></script>
 <script>
 // Wave-mode + boss-scaling verification. Drives the REAL wave manager, enemy
 // system, and boss scaler with a controllable clock (performance.now is mocked)
