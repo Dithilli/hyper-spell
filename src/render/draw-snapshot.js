@@ -169,6 +169,38 @@ export function drawSnapshotStatics(now) {
 // includeLocalFx also draws activeEffects + particles between the fxLite layer
 // and the wizards — the net client feeds those from fx events; the replay
 // player leaves them out. Returns the interpolated ghost players.
+// The camera's point list for the ONLINE path. A client renders interpolated
+// ghosts, not live players, so it cannot use camera.js's cameraPoints() — there
+// is no `players` array here with bodies in it.
+//
+// The boss is a summon on the wire, not a player, so walking snap.ps alone meant
+// the online camera never knew it existed: with one wizard left it would happily
+// push in on them and shove the boss clean off screen. Dead wizards are excluded
+// for the same reason the couch path excludes them — a corpse flying off the map
+// should not drag the shot away from the survivors deciding the round.
+export function cameraPointsFromSnapshot(snap, snapPrev, alpha = 1) {
+  const pts = [];
+  const prevById = new Map();
+  for (const gp of (snapPrev?.ps) || []) prevById.set(gp.s, gp);
+  for (const gp of snap?.ps || []) {
+    if (!gp.al) continue;
+    const p = prevById.get(gp.s);
+    pts.push({
+      x: p ? p.x + (gp.x - p.x) * alpha : gp.x,
+      y: p ? p.y + (gp.y - p.y) * alpha : gp.y,
+      r: 26 * (gp.sc || 1),
+    });
+  }
+  for (const e of snap?.bodies || []) {
+    if (e.l !== 'boss') continue;
+    // framed by EXTENT, not centre — half a dragon hanging off the edge is
+    // still the camera losing the boss
+    const r = e.r || Math.max(e.w || 0, e.h || 0) / 2 || 42;
+    pts.push({ x: e.x, y: e.y, r: r + 24 });
+  }
+  return pts;
+}
+
 export function drawSnapshotWorld(snap, snapPrev, alpha, now, includeLocalFx = false) {
   currentMap.data.lavaY = snap.lv;
   const prevById = {};

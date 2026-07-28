@@ -15848,6 +15848,7 @@
   // src/render/draw-snapshot.js
   var draw_snapshot_exports = {};
   __export(draw_snapshot_exports, {
+    cameraPointsFromSnapshot: () => cameraPointsFromSnapshot,
     drawFxLite: () => drawFxLite,
     drawGhostWizard: () => drawGhostWizard,
     drawSnapshotStatics: () => drawSnapshotStatics,
@@ -17718,6 +17719,26 @@
       else drawTerrainBody(b, now || performance.now());
     }
   }
+  function cameraPointsFromSnapshot(snap, snapPrev, alpha = 1) {
+    const pts = [];
+    const prevById = /* @__PURE__ */ new Map();
+    for (const gp of snapPrev?.ps || []) prevById.set(gp.s, gp);
+    for (const gp of snap?.ps || []) {
+      if (!gp.al) continue;
+      const p = prevById.get(gp.s);
+      pts.push({
+        x: p ? p.x + (gp.x - p.x) * alpha : gp.x,
+        y: p ? p.y + (gp.y - p.y) * alpha : gp.y,
+        r: 26 * (gp.sc || 1)
+      });
+    }
+    for (const e of snap?.bodies || []) {
+      if (e.l !== "boss") continue;
+      const r = e.r || Math.max(e.w || 0, e.h || 0) / 2 || 42;
+      pts.push({ x: e.x, y: e.y, r: r + 24 });
+    }
+    return pts;
+  }
   function drawSnapshotWorld(snap, snapPrev, alpha, now, includeLocalFx = false) {
     currentMap.data.lavaY = snap.lv;
     const prevById = {};
@@ -18108,11 +18129,7 @@
     if (lastFxAt === null || now - lastFxAt > 250) lastFxAt = now;
     fxLoop.pump(now - lastFxAt);
     lastFxAt = now;
-    const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
-    setShake(shake * 0.88);
-    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, sx * RENDER_SCALE, sy * RENDER_SCALE);
-    resetNameTagSlots();
-    ctx.clearRect(-30, -30, W + 60, H + 60);
+    endWorld();
     if (!snapCur || !clientMap) {
       ctx.fillStyle = "#16121c";
       ctx.fillRect(-30, -30, W + 60, H + 60);
@@ -18134,7 +18151,11 @@
     }
     const rp = advancePlayout(now);
     netStats.delay = interpDelay();
-    const ghosts = rp ? drawSnapshotWorld(rp.b.s, rp.a.s, rp.alpha, now, true) : drawSnapshotWorld(snap, null, 1, now, true);
+    const [wa, wb, walpha] = rp ? [rp.a.s, rp.b.s, rp.alpha] : [null, snap, 1];
+    updateCamera(now, cameraPointsFromSnapshot(wb, wa, walpha));
+    clearFrame(clientMap?.def?.bg);
+    beginWorld();
+    const ghosts = drawSnapshotWorld(wb, wa, walpha, now, true);
     if (mouse.present) {
       const mine = ghosts.find((g) => g.slot === mySlot);
       ctx.strokeStyle = mine ? mine.color : "#9c8ab8";
@@ -18145,6 +18166,7 @@
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
+    endWorld();
     ctx.fillStyle = getVignette();
     ctx.fillRect(0, 0, W, H);
     if (flashAlpha > 0.01) {

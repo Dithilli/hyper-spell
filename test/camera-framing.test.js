@@ -193,3 +193,43 @@ test('disabled, the camera is the identity framing', () => {
   );
   setCameraEnabled(true);
 });
+
+// ---- the online camera ----
+// A client renders interpolated ghosts, not live players, so it cannot use
+// cameraPoints(). These are the two properties that differ from the couch path.
+test('the boss is framed by its extent, not its centre', async () => {
+  const { cameraPointsFromSnapshot } = await import('../src/render/draw-snapshot.js');
+  const pts = cameraPointsFromSnapshot({
+    ps: [{ s: 0, x: 600, y: 500, al: 1 }],
+    bodies: [{ id: 9, l: 'boss', x: 900, y: 300, r: 140 }],
+  });
+  const boss = pts.find(p => p.r > 100);
+  assert.ok(boss, 'the boss must contribute a camera point — it rides the wire as a body, not a player');
+  assert.ok(boss.r >= 140, `boss framed by centre only: r=${boss.r}`);
+});
+
+test('a boss with no radius is framed from its box', async () => {
+  const { cameraPointsFromSnapshot } = await import('../src/render/draw-snapshot.js');
+  const pts = cameraPointsFromSnapshot({
+    ps: [], bodies: [{ id: 9, l: 'boss', x: 640, y: 300, w: 74, h: 92 }],
+  });
+  assert.equal(pts.length, 1);
+  assert.ok(pts[0].r >= 46, `a boxed boss lost its extent: r=${pts[0].r}`);
+});
+
+test('dead ghosts do not drag the online shot', async () => {
+  const { cameraPointsFromSnapshot } = await import('../src/render/draw-snapshot.js');
+  const pts = cameraPointsFromSnapshot({
+    ps: [{ s: 0, x: 600, y: 500, al: 1 }, { s: 1, x: -900, y: 1400, al: 0 }],
+    bodies: [],
+  });
+  assert.equal(pts.length, 1, 'a corpse flying off the map must not be a camera point');
+});
+
+test('online points are interpolated, not snapped to the newest snapshot', async () => {
+  const { cameraPointsFromSnapshot } = await import('../src/render/draw-snapshot.js');
+  const prev = { ps: [{ s: 0, x: 0, y: 100, al: 1 }], bodies: [] };
+  const cur = { ps: [{ s: 0, x: 100, y: 100, al: 1 }], bodies: [] };
+  const pts = cameraPointsFromSnapshot(cur, prev, 0.5);
+  assert.ok(Math.abs(pts[0].x - 50) < 1e-6, `camera point not interpolated: ${pts[0].x}`);
+});

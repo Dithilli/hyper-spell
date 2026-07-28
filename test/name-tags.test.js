@@ -64,11 +64,15 @@ test('without the reset the same wizard climbs — this is what the reset preven
 // and that is invisible to any unit test of this module. Every render entry
 // point that sets up its own frame transform must clear the slots.
 test('every frame entry point resets the slots', () => {
+  // beginWorld() is the reset, so a path that calls it is covered. The online
+  // path used to set its own transform and needed an explicit reset — that is
+  // what this guard was written for, and it caught the leak. It now shares the
+  // couch path's transform, so `beginWorld(` is the thing to look for; asserting
+  // on the explicit call alone would fail the fix.
   const paths = {
-    // the couch + killcam frame, via beginWorld()
-    'src/render/camera.js': /resetNameTagSlots\s*\(/,
-    // the online frame, which sets its own transform and never calls beginWorld
-    'src/net/client.js': /resetNameTagSlots\s*\(/,
+    'src/render/camera.js': /resetNameTagSlots\s*\(/,   // the reset itself lives in beginWorld
+    'src/render/draw-world.js': /beginWorld\s*\(|resetNameTagSlots\s*\(/,
+    'src/net/client.js': /beginWorld\s*\(|resetNameTagSlots\s*\(/,
   };
   const missing = [];
   for (const [file, re] of Object.entries(paths)) {

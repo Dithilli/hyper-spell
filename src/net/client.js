@@ -9,6 +9,7 @@ import { GAME_VERSION } from '../version.js';
 // runs no simulation, so these must not touch src/sim/rng.js's round stream.
 import { fxRange as rand, fxPick as pick } from '../render/fx.js';
 import { ctx, RENDER_SCALE } from '../render/canvas.js';
+import { updateCamera, beginWorld, endWorld, clearFrame } from '../render/camera.js';
 import { rgba } from '../render/artkit.js';
 import { ensureAudio } from '../render/audio.js';
 // spawnParticles is here because applyBrokenDestructibles bursts the block it
@@ -38,13 +39,12 @@ import { envEventById } from '../sim/events.js';
 import { MAX_PLAYERS } from '../sim/player/lifecycle.js';
 import { activeEffects } from '../sim/spells/core.js';
 import { keys, mouse } from '../platform/input-keyboard.js';
-import { drawSnapshotWorld, ghostPlayer } from '../render/draw-snapshot.js';
+import { drawSnapshotWorld, ghostPlayer, cameraPointsFromSnapshot } from '../render/draw-snapshot.js';
 import { drawWizardFigure } from '../render/draw-wizard.js';
 import { drawAwards, drawKillFeed, drawLobbyPanel, drawPlayerSpells, drawSpellReport } from '../render/hud.js';
 import { drawBossBar } from '../render/draw-boss.js';
 import { getVignette } from '../render/draw-world.js';
 import { drawReplayOverlay } from '../render/replay.js';
-import { resetNameTagSlots } from '../render/name-tags.js';
 
 let ws = null;
 let mySlot = null;
@@ -491,21 +491,12 @@ export function netClientFrame(now) {
   fxLoop.pump(now - lastFxAt);
   lastFxAt = now;
 
-  const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
-  setShake(shake * 0.88);
-  // RENDER_SCALE carries the device-pixel backing store (canvas.js). The online
-  // path still draws its own fixed framing — the camera reaches it in the boss
-  // framing task — but it has to agree with the couch path about how many
-  // device pixels a world unit is, or an online client on a HiDPI display
-  // renders the whole match into the top-left quarter of its canvas.
-  ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, sx * RENDER_SCALE, sy * RENDER_SCALE);
-  // Per-frame world-space layout state, cleared here for the same reason
-  // beginWorld() clears it on the couch path — this path draws nametags
-  // (drawSnapshotWorld -> drawNameTag) but sets its own transform, so without
-  // this every tag clashes with its own slots from previous frames and climbs
-  // to the 78px ceiling within about five frames, stem and all.
-  resetNameTagSlots();
-  ctx.clearRect(-30, -30, W + 60, H + 60);
+  // The online path now shares the couch path's world transform. It used to set
+  // its own — a fixed 1:1 framing plus a jittered shake translate — which meant
+  // an online player never got the camera at all, and the shake was the old
+  // white-noise kind. beginWorld() also clears the nametag slots, so the leak
+  // that needed an explicit reset here is gone with it.
+  endWorld(); // screen space for the pre-flight messages below
 
   if (!snapCur || !clientMap) {
     ctx.fillStyle = '#16121c';
@@ -533,9 +524,17 @@ export function netClientFrame(now) {
   const rp = advancePlayout(now);
   netStats.delay = interpDelay();
   // only one snapshot so far — draw it dead-on rather than nothing
-  const ghosts = rp
-    ? drawSnapshotWorld(rp.b.s, rp.a.s, rp.alpha, now, true)
-    : drawSnapshotWorld(snap, null, 1, now, true);
+  const [wa, wb, walpha] = rp ? [rp.a.s, rp.b.s, rp.alpha] : [null, snap, 1];
+
+  // The camera is fed the INTERPOLATED ghosts, not the live players — a client
+  // has no players array with bodies in it — and the boss, which rides the wire
+  // as a summon rather than a player. Without that the online camera did not
+  // know a boss existed: with one wizard left it pushed in on them and shoved
+  // the boss off screen.
+  updateCamera(now, cameraPointsFromSnapshot(wb, wa, walpha));
+  clearFrame(clientMap?.def?.bg);
+  beginWorld();
+  const ghosts = drawSnapshotWorld(wb, wa, walpha, now, true);
 
   // reticle
   if (mouse.present) {
@@ -546,6 +545,7 @@ export function netClientFrame(now) {
     ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 9, 0, Math.PI * 2); ctx.stroke();
     ctx.globalAlpha = 1;
   }
+  endWorld();
 
   ctx.fillStyle = getVignette();
   ctx.fillRect(0, 0, W, H);
