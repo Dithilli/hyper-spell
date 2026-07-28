@@ -15031,6 +15031,8 @@
   // src/render/fx.js
   var fx_exports2 = {};
   __export(fx_exports2, {
+    PARTICLE_CAP: () => PARTICLE_CAP,
+    TEXT_CAP: () => TEXT_CAP,
     addShake: () => addShake2,
     applyEmitted: () => applyEmitted,
     clearParticles: () => clearParticles2,
@@ -15042,6 +15044,7 @@
     fxRandom: () => fxRandom,
     fxRange: () => fxRange2,
     handledEmitNames: () => handledEmitNames,
+    particleCount: () => particleCount,
     particles: () => particles,
     pumpEmitted: () => pumpEmitted,
     pushParticle: () => pushParticle,
@@ -15052,6 +15055,7 @@
     spawnParticles: () => spawnParticles2,
     spawnRing: () => spawnRing2,
     spawnText: () => spawnText2,
+    trimParticles: () => trimParticles,
     unhandledEmitted: () => unhandledEmitted,
     updateParticles: () => updateParticles
   });
@@ -15221,10 +15225,25 @@
     flashColor = color;
     flashAlpha = Math.max(flashAlpha, alpha);
   }
+  var PARTICLE_CAP = 300;
+  var CORE_FRAC = 0.28;
+  var TAIL_FRAC = 0.62;
+  function _tier(core, life) {
+    const ml = core ? life * 0.5 : life * 1.2;
+    return {
+      life: ml + fxRandom() * 20,
+      maxLife: ml,
+      dim: core ? 1 : 0.42,
+      r: core ? 3.4 + fxRandom() * 2.2 : 1.3 + fxRandom() * 1.4
+    };
+  }
   function spawnParticles2(x, y, color, count, speed, life = 40) {
-    for (let i = 0; i < count; i++) {
-      const a = fxRandom() * Math.PI * 2, v = fxRandom() * speed;
-      particles.push({ kind: "square", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, life: life + fxRandom() * 20, maxLife: life, color, r: 2 + fxRandom() * 3 });
+    const n = Math.max(1, Math.round(count * TAIL_FRAC));
+    const cores = Math.max(1, Math.round(n * CORE_FRAC));
+    for (let i = 0; i < n; i++) {
+      const core = i < cores;
+      const a = fxRandom() * Math.PI * 2, v = fxRandom() * speed * (core ? 1.15 : 0.8);
+      particles.push({ kind: "square", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, color, ..._tier(core, life) });
     }
   }
   function spawnRing2(x, y, color) {
@@ -15233,15 +15252,56 @@
   function spawnBurst2(x, y, color, count = 12, o = {}) {
     const kind = o.kind || "square", speed = o.speed ?? 5, spread = o.spread ?? Math.PI * 2;
     const dir = o.dir ?? 0, up = o.up ?? 0, life = o.life ?? 40, g = o.g ?? 0.25, r = o.r ?? 3;
-    for (let i = 0; i < count; i++) {
+    const generic = kind === "square" || kind === "spark";
+    const n = generic ? Math.max(1, Math.round(count * TAIL_FRAC)) : count;
+    const cores = generic ? Math.max(1, Math.round(n * CORE_FRAC)) : n;
+    for (let i = 0; i < n; i++) {
+      const core = i < cores;
       const a = dir + (fxRandom() - 0.5) * spread;
-      const v = speed * (0.4 + fxRandom() * 0.9);
-      particles.push({ kind, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - up, life: life + fxRandom() * 15, maxLife: life, color, r: r * (0.6 + fxRandom() * 0.8), g });
+      const v = speed * (0.4 + fxRandom() * 0.9) * (generic && !core ? 0.8 : 1);
+      const t = _tier(core, life);
+      particles.push({
+        kind,
+        x,
+        y,
+        vx: Math.cos(a) * v,
+        vy: Math.sin(a) * v - up,
+        color,
+        g,
+        life: generic ? t.life : life + fxRandom() * 15,
+        maxLife: generic ? t.maxLife : life,
+        dim: generic ? t.dim : 1,
+        r: generic ? r * (core ? 1.15 : 0.45) * (0.7 + fxRandom() * 0.6) : r * (0.6 + fxRandom() * 0.8)
+      });
     }
   }
+  var TEXT_CAP = 6;
   function spawnText2(x, y, str, color) {
+    let live = 0;
+    for (let i = particles.length - 1; i >= 0; i--) {
+      if (particles[i].kind !== "text") continue;
+      if (++live >= TEXT_CAP) particles.splice(i, 1);
+    }
     particles.push({ kind: "text", str, x, y, vx: 0, vy: -1.2, life: 50, maxLife: 50, color, r: 16 });
   }
+  function trimParticles() {
+    let over = particles.length - PARTICLE_CAP;
+    if (over <= 0) return;
+    for (let i = 0; i < particles.length && over > 0; i++) {
+      const pt = particles[i];
+      if (pt.kind === "text" || pt.kind === "ring" || (pt.dim ?? 1) >= 1) continue;
+      particles.splice(i, 1);
+      i--;
+      over--;
+    }
+    while (over > 0) {
+      const i = particles.findIndex((pt) => pt.kind !== "text" && pt.kind !== "ring");
+      if (i < 0) return;
+      particles.splice(i, 1);
+      over--;
+    }
+  }
+  var particleCount = () => particles.length;
   function pushParticle(spec) {
     particles.push({ ...spec });
   }
@@ -15278,6 +15338,7 @@
       } else if (pt.kind === "glint") {
       } else pt.vy += (pt.g ?? 0.25) * ts;
     }
+    trimParticles();
   }
   function drawParticles() {
     drawStoryParticles(ctx, particles);
