@@ -14,6 +14,24 @@
 // them all, which is what lets a second createSim() in the same process start
 // from exactly the state the first one did (the vm sandbox used to get that for
 // free from a fresh global scope).
+//
+// TWO MODULES ARE DELIBERATELY OUTSIDE THAT, and saying so here is the point —
+// this paragraph used to claim the reset was total, which sent a reader looking
+// for a hook that does not exist:
+//
+//   * src/sim/time.js — the tick counter. Reset by hand in createSim()
+//     (src/platform/browser.js does not need it), because time.js is a leaf
+//     that imports nothing at all and is kept that way.
+//   * src/sim/rng.js — the round stream. NOT reset, and must not be: the stream
+//     is caller-owned, which is what lets test/harness/tape.js fix a run's seed
+//     by calling reseed() *before* createSim (loadMap(0) then draws the map seed
+//     off it, and that draw is part of what the golden tape hashes). A hook that
+//     rewound the stream to its initial seed would overwrite the caller's seed
+//     and make every seed produce the same run.
+//
+// So a bare createSim() with no reseed() in front of it inherits wherever the
+// previous sim left the stream. Callers that need a reproducible run seed it
+// themselves; test/phase1-gate.test.js's sweep is the worked example.
 import { createEngine, destroyEngine } from './phys/facade.js';
 import { clearModifiers, setBase } from './gravity.js';
 

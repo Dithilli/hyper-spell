@@ -154,8 +154,14 @@ export function stepSim() {
   // spinners + phantom platforms
   for (const b of allBodies(currentMap.composite)) {
     // FOLLOW-UP: this hand-rolls the conversion perSecond() now owns, against a
-    // rounded 16.7 rather than the exported LEGACY_FRAME_MS (1000/60 = 16.666…),
-    // so it runs 0.2% fast. Correcting it WOULD move the golden tape, which is
+    // rounded 16.7 rather than the exported LEGACY_FRAME_MS (1000/60 = 16.666…).
+    // The rounded divisor is the LARGER one, so the quotient is the smaller one:
+    // at dt = TICK_MS this multiplies the spin by 0.998004 where perSecond()
+    // would multiply it by exactly 1. The angle increment is too SMALL — the
+    // spinner runs 0.2% SLOW — about 0.7° short per full turn, so it falls
+    // steadily further behind. (The sign matters because the follow-up task
+    // will be scoped from this sentence: the correction must make spinners turn
+    // very slightly FASTER.) Correcting it WOULD move the golden tape, which is
     // why it is left alone here — it needs its own behaviour-contract task.
     if (b.spin) setAngle(b, b.angle + b.spin * (dt / 16.7));
     if (b.phantom) {

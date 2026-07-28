@@ -3,9 +3,21 @@
 // Two claims, and between them they are what "the simulation is a deterministic
 // core now" means:
 //
-//   1. a whole three-round match is reproducible from its seed alone
+//   1. a long two-wizard run is reproducible from its seed alone
 //   2. every spell in the book casts on every map in the book without leaving
 //      the world corrupt
+//
+// CLAIM 1 IS NARROWER THAN IT USED TO SAY. It was written as "a whole
+// three-round match", which was never true of the run below: it replays the
+// long tape's INPUTS but under its own seed (20260725) and only 2,400 of the
+// tape's 4,200 ticks, and at that seed the run stays inside round 1 — measured,
+// via runTapeWithRounds. What this asserts is therefore 2,400 ticks of ordinary
+// play replaying bit-for-bit, which is real but is not round-flow coverage.
+// Reproducibility ACROSS round boundaries is test/golden-tape.test.js's long
+// tape, which does cross them (five rounds, four boundaries) and is pinned to a
+// recorded golden. Making this one cross rounds too is a follow-up: it means
+// re-seeding or lengthening the gate run, which is a behaviour change to the
+// gate rather than a comment fix.
 //
 // The second is slow — 110 maps x 142 spells x 30 ticks is about 470,000 steps
 // — and that is the point. It is the only thing in the suite that has ever
@@ -16,10 +28,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runTape } from './harness/tape.js';
+import { reseed } from '../src/sim/rng.js';
 
 const tape = JSON.parse(readFileSync('test/tape/three-rounds.input.json', 'utf8'));
 
-test('GATE: a full three-round match is reproducible from its seed', () => {
+test('GATE: a long two-wizard run is reproducible from its seed', () => {
   const a = runTape({ tape, ticks: 2400, seed: 20260725 });
   const b = runTape({ tape, ticks: 2400, seed: 20260725 });
   assert.deepEqual(a, b);
@@ -34,6 +47,7 @@ test('GATE: every spell casts on every map without corrupting the world', { time
   const { MAPS } = await import('../src/sim/maps/builders.js');
   const { createSim } = await import('../src/platform/node.js');
   const { matchSpellTally } = await import('../src/sim/telemetry.js');
+  const { game } = await import('../src/sim/match.js');
   const ids = Object.keys(SPELLS);
   // telCast() fires inside castSpell, one line past the cooldown gate, so this
   // counts CASTS THAT HAPPENED. Everything else in this test — no NaN, no leak,
@@ -70,9 +84,36 @@ test('GATE: every spell casts on every map without corrupting the world', { time
   let castsLanded = 0;
   const leaks = [];
   const silent = [];
+  const mapSeeds = [];
+
+  // THIS SWEEP HAS TO BE REPLAYABLE, AND IT WAS NOT.
+  //
+  // createSim() does not reset src/sim/rng.js — the stream is caller-owned by
+  // design, which is the only way test/harness/tape.js can seed a run by calling
+  // reseed() *before* createSim (createSim's own loadMap(0) draws the map seed
+  // off it, and that draw is part of what the golden tape hashes). So 110 bare
+  // createSim() calls in a row inherit wherever the previous map's round left
+  // the stream: this loop was a DIFFERENT random walk on every run, and a NaN it
+  // caught on map 57 could not be reproduced — not by re-running the gate, and
+  // not in isolation.
+  //
+  // A reset hook in rng.js cannot fix that, and both shapes were measured:
+  // resetting the stream to its initial seed clobbers the harnesses that reseed
+  // by hand and moves BOTH goldens (`a different seed produces a different run`
+  // goes red, because every seed then produces the same run); rewinding to the
+  // last explicitly-set seed leaves the goldens alone but is a no-op here, since
+  // loadMap reseeds from the map seed it just drew and so advances that "last
+  // seed" once per iteration anyway. Seeding the iteration is the fix.
+  //
+  // The seed is derived from the map index alone, so map `mi` replays on its
+  // own — no need to march through the 57 maps in front of it. The replay
+  // assertion after the loop is what keeps that true.
+  const GATE_SEED = 0x9a71e;
 
   for (let mi = 0; mi < MAPS.length; mi++) {
+    reseed(GATE_SEED + mi);
     const { bridge, destroy } = createSim({});
+    mapSeeds.push(game.mapSeed);
     try {
       bridge.addPlayer({ name: 'A' });
       bridge.addPlayer({ name: 'B' });
@@ -112,4 +153,25 @@ test('GATE: every spell casts on every map without corrupting the world', { time
   // debugCastSpell being gutted to a no-op; this is what makes the sentence
   // "every spell casts on every map" true rather than merely claimed.
   assert.equal(castsLanded, castsMade, `${castsMade - castsLanded} of ${castsMade} attempted casts never reached castSpell`);
+
+  // …and the replayability claim above is itself checked, because an unchecked
+  // one is how this regressed in the first place. `game.mapSeed` is the first
+  // number createSim draws off the round stream, so it is exactly "where this
+  // iteration started". Re-running a sample of iterations from their seed ALONE
+  // must land on the same starting point the sweep did.
+  //
+  // This fails loudly if the reseed() at the top of the loop is ever removed:
+  // the sweep's seeds then depend on the 57 maps in front of them while the
+  // replay's do not, and the two disagree.
+  for (const mi of [0, Math.floor(MAPS.length / 2), MAPS.length - 1]) {
+    reseed(GATE_SEED + mi);
+    const { destroy } = createSim({});
+    const replayed = game.mapSeed;
+    destroy();
+    assert.equal(replayed, mapSeeds[mi],
+      `map ${mi} does not replay from its own seed — a failure found here could not be reproduced`);
+  }
+  // and the sweep has to have been a walk, not 110 copies of one map: identical
+  // starting points everywhere would satisfy the replay check above perfectly.
+  assert.equal(new Set(mapSeeds).size, MAPS.length, 'the per-map seeds collided — the sweep is not covering distinct streams');
 });

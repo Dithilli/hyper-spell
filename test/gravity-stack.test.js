@@ -238,9 +238,17 @@ test('createWorld returns the stack to base 2 with nothing on it', () => {
 //
 // server/ is walked as well as src/: the sim runs in the server process, and a
 // host-side write would clobber the stack exactly as an in-sim one would.
+//
+// …but OUR server/, not its dependencies. server/node_modules is 51 of the 125
+// files this used to scan, and one of them is matter-js — a physics library
+// that could perfectly reasonably ship a `setGravity(` line of its own and turn
+// a phase gate red for something no one in this repo wrote. A gate that cries
+// wolf on `npm install` gets deleted, so the walk stops at the boundary of code
+// we own.
 test('nothing but src/sim/gravity.js writes gravity', () => {
   const walk = (dir, out = []) => {
     for (const name of readdirSync(dir)) {
+      if (name === 'node_modules') continue;
       const p = join(dir, name);
       if (statSync(p).isDirectory()) walk(p, out);
       else if (p.endsWith('.js')) out.push(p);
@@ -249,7 +257,14 @@ test('nothing but src/sim/gravity.js writes gravity', () => {
   };
   const WRITER = /\bsetGravity(Y)?\s*\(/;
   const offenders = [];
-  for (const file of [...walk('src'), ...walk('server')]) {
+  const scanned = [...walk('src'), ...walk('server')];
+  // A skip is how a walk goes quiet. `continue` on a name is one typo away from
+  // `continue` on everything, and an empty scan satisfies deepEqual([], []) as
+  // happily as a clean tree does — so the walk states its own floor. Both
+  // trees, both entry points: `src` alone is ~60 files, `server` ~9.
+  assert.ok(scanned.length >= 60, `the walk went quiet: only ${scanned.length} files scanned`);
+  assert.ok(scanned.some((f) => f.startsWith('server')), 'the walk stopped reaching server/');
+  for (const file of scanned) {
     if (file === join('src', 'sim', 'gravity.js') || file.includes(join('sim', 'phys'))) continue;
     readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
       if (WRITER.test(line) && !line.trimStart().startsWith('//')) {
