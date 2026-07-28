@@ -5,10 +5,49 @@
 // and no browser could join an online match. Nothing caught it, because the
 // server e2e builds its own WebSocket frames and never loads the client.
 //
+// It has since caught a second one of the same shape: 0bb95b8 moved
+// spawnParticles to render/fx.js and dropped the name from src/net/client.js's
+// import list while applyBrokenDestructibles kept calling it, so every online
+// client threw the first time cover blew apart.
+//
 // Scope is deliberately flat — every declaration anywhere in a file counts as
 // visible everywhere in it. That admits a false negative (a name declared
 // inside one function and called from another) and admits no false positives,
 // which is the only trade that makes a guard test worth keeping.
+//
+// WHAT IT CANNOT SEE. It is regex over text, not a resolver, and every entry
+// below is a way a real missing name gets through. Read this before trusting a
+// green run; none of it is hypothetical.
+//
+//   - Import names are never resolved against the target module. `import
+//     { spwanParticles } from './fx.js'` declares the typo and passes here; the
+//     bundle is where it fails. This guard proves a name is *bound*, never that
+//     the export exists.
+//   - declaredNames runs on RAW source while only call sites are prose-stripped,
+//     so any comment or string can grant a name. A comment inside an import's
+//     braces is the sharp edge: it can name away the very bug it describes, so
+//     src/net/client.js keeps its spawnParticles note ABOVE the `import {`.
+//   - Template literals are stripped wholesale from call sites, so a call inside
+//     one — `${render(x)}` — is invisible. Stripping only ever hides a real
+//     call, never invents one, which is the direction this test must err in.
+//   - Object-literal and class method shorthand declares a name file-wide:
+//     `hooks = { status() {} }` makes a bare `status()` anywhere in that file
+//     look defined. Same for `catch (e)` bindings, which leak file-wide too.
+//   - Only the shape `name(` counts as a call. `foo?.(x)`, `foo (x)` with a
+//     space, a bare reference passed as a value (`onTick(missing)`), and any
+//     indirection (`const fn = missing; fn()`) are all out of scope.
+//   - The `const|let|var` rule still has the unanchored-window flaw that the
+//     import rule above no longer has: `for (const q of players) {` has no `=`
+//     on its line, so the capture runs forward to the next `=` and declares
+//     everything it passes. That swallows 702 lines across 37 files here,
+//     widest 38 lines in src/sim/tick.js. Anchoring it needs a companion rule
+//     for `for (const x of …)` bindings or it starts reporting them, so it is
+//     left as known debt rather than a rushed fix.
+//   - It walks src/ ONLY. server/ is never read, so nothing here says anything
+//     about the headless host.
+//   - It is static: no test loads dist/hyperspell.js. This approximates the
+//     exit criterion that actually found myName — a real browser against the
+//     real server — and does not replace it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -48,7 +87,16 @@ function walk(dir, out = []) {
 function declaredNames(src) {
   const names = new Set();
   const add = (s) => { for (const n of String(s).split(/[^\w$]+/)) if (n) names.add(n); };
-  for (const m of src.matchAll(/import\s+([\s\S]*?)\s+from\s*['"]/g)) add(m[1]);
+  // Anchored to line start and stopped at the statement's `;`. Unanchored, the
+  // word "import" anywhere — in a comment, or a side-effect `import './x.js';`
+  // with no `from` — opened a capture that ran forward to the NEXT `from '` and
+  // registered every word between as declared. Measured on this tree that was
+  // 381 spurious names across 6 files (src/sim/world.js 158, phys/facade.js 123
+  // from one comment saying "import each one directly", content.js 57). It made
+  // src/platform/browser.js lines 3-5 a dead zone: a planted call to a name
+  // defined nowhere went unreported there, in the browser entry point — the one
+  // file no test loads, and the origin of the class of bug this guard exists for.
+  for (const m of src.matchAll(/^\s*import\s+([^;]*?)\s+from\s*['"]/gm)) add(m[1]);
   for (const m of src.matchAll(/\b(?:function|class)\s*\*?\s*([\w$]+)/g)) names.add(m[1]);
   for (const m of src.matchAll(/\b(?:const|let|var)\s+([\s\S]*?)=/g)) add(m[1]);
   for (const m of src.matchAll(/\bcatch\s*\(([^)]*)\)/g)) add(m[1]);
