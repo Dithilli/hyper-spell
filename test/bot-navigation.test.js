@@ -1,11 +1,30 @@
 // bot-navigation.test.js — ledge safety, retreat, and the second jump.
 //
-// Upstream justified this work with measurements rather than assertions (falls
-// were two thirds of all bot deaths; two flee-capable bots never resolved a
-// round), so this file measures the same properties. The behavioural ones are
-// ratchets against numbers taken here, because bot quality is a distribution:
-// pinning an exact value would turn any legitimate tuning change into a fixture
-// edit, and pinning nothing at all lets the bots quietly get worse.
+// Upstream justified this work with measurements rather than assertions, so this
+// file measures the same properties. The behavioural ones are ratchets against
+// numbers taken HERE, because bot quality is a distribution: pinning an exact
+// value turns any legitimate tuning change into a fixture edit, and pinning
+// nothing lets the bots quietly get worse.
+//
+// UPSTREAM'S NUMBERS DO NOT DESCRIBE THIS BRANCH, and an earlier revision of
+// this file quoted them as if they did. Upstream reported falls at two thirds of
+// bot deaths before its fix, and movement rising 44.4% -> 62.6% after. Measured
+// here, 4 bots x 110 maps x 10s: falls were 31.6% of deaths before this port and
+// are 28.6% after, while the absolute count halved, 36 -> 18. The halving is the
+// real win. Movement went slightly DOWN, 56.5% -> 52.4% — the opposite of
+// upstream's direction. This branch's 110 maps are not upstream's.
+//
+// TWO BEHAVIOURS ARE DELIBERATELY UNPINNED, because every honest metric for them
+// moves the wrong way:
+//   * braking — deleting the counter-steer scores 16 falls against 18 with it.
+//     Within noise, and in the wrong direction, so a falls ratchet would pin
+//     noise. It stays because the mechanism is right (momentum carries you over
+//     a lip you already refused), not because this suite can demonstrate it.
+//   * the blunder commit window — deleting it scores 13 falls. Of course it
+//     does: its whole purpose is to spend a few falls buying the moment where a
+//     bot confidently sprints into the void. A safety metric always prefers its
+//     absence.
+// Saying so beats a test that appears to cover them and cannot fail.
 //
 // The determinism test is the one that must be absolute. Every roll a bot makes
 // is on the seeded stream now, including upstream's `nerve` blunder, so the same
@@ -23,6 +42,7 @@ import { game, startRound, currentMap } from '../src/sim/match.js';
 import { players } from '../src/sim/player/lifecycle.js';
 import { addBot, navGroundY, BOT_PERSONAS } from '../src/sim/ai/bot.js';
 import { stepSim } from '../src/sim/tick.js';
+import { simNow as simNowOf } from '../src/sim/time.js';
 import { H } from '../src/sim/world.js';
 
 // A round of bots on every map, watched tick by tick.
@@ -42,7 +62,10 @@ function botMatch({ seed, bots = 4, maps = MAPS.length, ticks = 600 }) {
         if (!p.body) continue;
         stat.samples++;
         if (Math.abs(p.body.velocity.x) > 0.6) stat.moving++;
-        if (p.alive && !p.grounded && p.airJumps < airBefore[k]) stat.airJumpsUsed++;
+        // NOT `!p.grounded` — `grounded` is a function in controller.js, so
+        // `p.grounded` is undefined on every player and the guard was inert.
+        // airJumps only ever decrements in the air-jump branch anyway.
+        if (p.alive && p.airJumps < airBefore[k]) stat.airJumpsUsed++;
         if (p.body.position.y > H + 60 && !seen.has(`f${k}`)) { stat.fell++; seen.add(`f${k}`); }
         if (!p.alive && !seen.has(`d${k}`)) { stat.deaths++; seen.add(`d${k}`); }
       }
@@ -120,16 +143,28 @@ test('every persona carries a nerve value in the tuned range', () => {
     'the trickster must be markedly more reckless than the alchemist');
 });
 
-// Ledge safety, measured the way upstream justified it. 4 bots x 110 maps x 10s.
+// Ledge safety, 4 bots x 110 maps x 10s.
+//
+// ABSOLUTE falls, not falls-as-a-share-of-deaths. The share cannot fail: every
+// change that makes bots fall more also kills them more, so the ratio barely
+// moves. Measured on this seed — as committed 19 falls (26.8% of deaths); with
+// ledge safety deleted entirely 54 falls (30.7%); with the pre-port groundYAt
+// bot 36 falls (31.6%). The share spans 4 points across all three while the
+// count triples, so a share-based ratchet passes on code with no ledge safety
+// in it at all. It did.
+//
+// Both halves have to hold at once, because "never falls" is trivially achieved
+// by never moving — that is a worse bot, not a better one, and it is a real
+// failure mode: upstream measured 58% stuck when a static-only ground query
+// froze them. Maximally paranoid bots score 5 falls here at 27.6% moving.
 test('bots rarely walk into the void, and are not frozen in place doing it', () => {
   const s = botMatch({ seed: 31, bots: 4, ticks: 600 });
-  const fellRate = s.fell / (s.deaths || 1);
   const movingRate = s.moving / s.samples;
-  // "never falls" is trivially achievable by never moving, and that is a worse
-  // bot, not a better one — upstream measured 58% stuck when a static-only
-  // ground query froze them. Both halves have to hold at once.
-  assert.ok(movingRate > 0.25, `bots are frozen: moving only ${(movingRate * 100).toFixed(1)}% of samples`);
-  assert.ok(fellRate < 0.6, `falls are ${(fellRate * 100).toFixed(0)}% of deaths — ledge safety has regressed`);
+  assert.ok(movingRate > 0.35, `bots are frozen: moving only ${(movingRate * 100).toFixed(1)}% of samples`);
+  // One threshold, covering every piece of the ledge machinery, so the 6-second
+  // sweep runs once. Deleting ledge safety scores 54; deleting only the braking
+  // counter-steer scores 27; the pre-port groundYAt bot scores 36.
+  assert.ok(s.fell <= 23, `${s.fell} wizards fell in 110 maps — ledge safety has regressed`);
 });
 
 // The second jump. Before this, bots spent an air jump only while already
@@ -173,6 +208,34 @@ test('two flee-capable bots still close on each other', () => {
   const farRate = farSamples / samples;
   assert.ok(farRate < 0.5,
     `out of range ${(farRate * 100).toFixed(0)}% of the time — two hurt bots are avoiding each other (unbounded fleeing scores ~65%)`);
+});
+
+// The stalemate breaker, driven directly. Left to a natural round it barely gets
+// to fire — the retreat measurement above resolves in ~9.8s and the quiet window
+// is 7s — so deleting `stale` changed that measurement not at all. Forcing the
+// clock is the only way to assert the behaviour rather than hope for it.
+test('a quiet round makes even a kiter close the distance', () => {
+  const gap = (quiet) => {
+    reseed(202);
+    createSim();
+    addBot('skirmisher'); // standoff 340: kites out to arm's length by temperament
+    addBot('skirmisher');
+    startRound(0);
+    let sum = 0, n = 0;
+    for (let t = 0; t < 900; t++) {
+      // hold the damage clock still, so the round is either perpetually fresh
+      // or perpetually stale, and the only difference is the breaker
+      game.lastDamageAt = quiet ? -1e6 : simNowOf();
+      stepSim();
+      const [a, b] = players;
+      if (!a?.body || !b?.body || !a.alive || !b.alive) break;
+      if (t > 300) { sum += Math.abs(a.body.position.x - b.body.position.x); n++; }
+    }
+    return n ? sum / n : Infinity;
+  };
+  const stale = gap(true), fresh = gap(false);
+  assert.ok(stale < fresh,
+    `a stale round should close the gap: stale ${Math.round(stale)}px vs fresh ${Math.round(fresh)}px`);
 });
 
 // The stalemate breaker reads game.lastDamageAt, and a round that inherits it

@@ -10099,17 +10099,20 @@
   var NAV_SKIP = /* @__PURE__ */ new Set(["lava", "spikes", "projectile", "gib", "player", "boss", "enemy", "tome", "hat"]);
   var _navBodies = null;
   var _navBodiesAt = -1e9;
+  var _navMap = null;
   function navCandidates() {
     const now = simNow();
-    if (!_navBodies || now - _navBodiesAt > 200) {
+    if (!_navBodies || _navMap !== currentMap || now - _navBodiesAt > 200) {
       _navBodies = allBodies().filter((b) => !b.isSensor && !NAV_SKIP.has(b.label));
       _navBodiesAt = now;
+      _navMap = currentMap;
     }
     return _navBodies;
   }
   onWorldReset(() => {
     _navBodies = null;
     _navBodiesAt = -1e9;
+    _navMap = null;
   });
   function navGroundY(x, fromY) {
     let best = null;
@@ -10156,9 +10159,23 @@
     // How far this wizard can actually throw itself right now: a ground jump plus
     // the air jump it still has, carried by whatever speed it already has. Bots
     // used to assume one fixed 135px hop and refuse gaps they could clear.
+    //
+    // DIVERGES FROM UPSTREAM, deliberately and measurably. Upstream computes
+    // `|vx| * 36`, optionally * 1.5 for the air jump — a model in which a standing
+    // jump covers no ground at all. That is not true here: controller.js blends
+    // in-air velocity toward +/-6 at perSecond(0.08) every tick, so a wizard that
+    // leaves the ground at rest still crosses real distance. Upstream's formula
+    // predicts 0px against a measured 176px.
+    //
+    // These two lines are measured in this engine, jumping at takeoff speed v and
+    // holding air control: one jump reaches 176 + 9.2v, two reach 320 + 9v. An
+    // earlier cut of this port used (274 + 150) scaled by speed, which
+    // over-estimated at pace — 12 of 629 committed gap leaps went for a gap wider
+    // than the wizard could cross, which is the exact failure the upstream commit
+    // set out to remove, reintroduced in a different speed band.
     jumpReach(p, vx = 0) {
-      const air = p.airJumps > 0 ? 1 : 0;
-      return (274 + air * 150) * Math.min(1.25, 0.8 + Math.abs(vx) * 0.12);
+      const v = Math.abs(vx);
+      return p.airJumps > 0 ? 320 + 9 * v : 176 + 9.2 * v;
     }
     // nearest direction with real footing within reach (used mid-air over death)
     safeGroundDir(me, lavaY) {

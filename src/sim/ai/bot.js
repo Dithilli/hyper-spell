@@ -71,7 +71,7 @@ let nextPersona = 0;
 // stand on, things that kill you, and other wizards — a bot should not path
 // across someone's head.
 const NAV_SKIP = new Set(['lava', 'spikes', 'projectile', 'gib', 'player', 'boss', 'enemy', 'tome', 'hat']);
-let _navBodies = null, _navBodiesAt = -1e9;
+let _navBodies = null, _navBodiesAt = -1e9, _navMap = null;
 
 // The cache TTL is measured on SIM time, not the performance.now() upstream
 // used. A wall clock here would make what the bots can see a function of how
@@ -80,19 +80,27 @@ let _navBodies = null, _navBodiesAt = -1e9;
 // banned from the wall clock for exactly this reason.
 function navCandidates() {
   const now = simNow();
-  if (!_navBodies || now - _navBodiesAt > 200) {
+  // The map identity is part of the cache key, NOT just the age. loadMap builds
+  // a whole new arena without touching the world object, so a round change is
+  // invisible to both the 200ms timer and the world-reset hook below — the
+  // bots would spend the first ~12 ticks of every round navigating by the
+  // PREVIOUS map's geometry, on a list where none of the bodies exist any more.
+  // Measured before this key was added: 34 of 34 cached bodies belonged to the
+  // old arena and none were still in the world.
+  if (!_navBodies || _navMap !== currentMap || now - _navBodiesAt > 200) {
     // only the LIST is cached; bounds are read live at query time, so moving
     // platforms and tumbling crates still report their real position
     _navBodies = allBodies().filter(b => !b.isSensor && !NAV_SKIP.has(b.label));
     _navBodiesAt = now;
+    _navMap = currentMap;
   }
   return _navBodies;
 }
 
-// A new world has none of the old world's bodies. Carrying the list across a
-// round would navigate the bots by the previous map's geometry for up to 200ms
-// of sim time, and keep every body of a destroyed world alive behind it.
-onWorldReset(() => { _navBodies = null; _navBodiesAt = -1e9; });
+// A rebuilt sim (the crash watchdog in server/sim-host.js) sends simNow() back
+// to 0, which would make a stale list look 200ms fresh forever. This hook is
+// what covers that case; the map key above is what covers a round change.
+onWorldReset(() => { _navBodies = null; _navBodiesAt = -1e9; _navMap = null; });
 
 export function navGroundY(x, fromY) {
   let best = null;
@@ -150,9 +158,23 @@ export class BotController {
   // How far this wizard can actually throw itself right now: a ground jump plus
   // the air jump it still has, carried by whatever speed it already has. Bots
   // used to assume one fixed 135px hop and refuse gaps they could clear.
+  //
+  // DIVERGES FROM UPSTREAM, deliberately and measurably. Upstream computes
+  // `|vx| * 36`, optionally * 1.5 for the air jump — a model in which a standing
+  // jump covers no ground at all. That is not true here: controller.js blends
+  // in-air velocity toward +/-6 at perSecond(0.08) every tick, so a wizard that
+  // leaves the ground at rest still crosses real distance. Upstream's formula
+  // predicts 0px against a measured 176px.
+  //
+  // These two lines are measured in this engine, jumping at takeoff speed v and
+  // holding air control: one jump reaches 176 + 9.2v, two reach 320 + 9v. An
+  // earlier cut of this port used (274 + 150) scaled by speed, which
+  // over-estimated at pace — 12 of 629 committed gap leaps went for a gap wider
+  // than the wizard could cross, which is the exact failure the upstream commit
+  // set out to remove, reintroduced in a different speed band.
   jumpReach(p, vx = 0) {
-    const air = p.airJumps > 0 ? 1 : 0;
-    return (274 + air * 150) * Math.min(1.25, 0.8 + Math.abs(vx) * 0.12);
+    const v = Math.abs(vx);
+    return p.airJumps > 0 ? 320 + 9 * v : 176 + 9.2 * v;
   }
 
   // nearest direction with real footing within reach (used mid-air over death)

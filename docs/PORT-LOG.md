@@ -69,6 +69,29 @@ crosses. `wrap` reaches projectiles and a wizard blasted through the wall,
 neither of which is walking, so a model of walking is right to treat the edges
 as walls.
 
+**Bot navigation (task 7).** 4 bots x 110 maps x 10s, seed 31:
+
+| | falls | share of deaths | moving |
+|---|---|---|---|
+| before the port (`groundYAt`) | 36 | 31.6% | 56.5% |
+| after | **18** | 28.6% | 52.4% |
+| ledge safety deleted | 33 | 23.4% | 65.3% |
+
+The absolute count halving is the win; the SHARE is nearly useless as a gate,
+since anything that makes bots fall more also kills them more — it spans four
+points across all three rows while the count doubles. Upstream's headline
+figures (falls two thirds of deaths; movement 44.4% -> 62.6%) are measurements
+of upstream's code on upstream's maps and do not describe this branch.
+
+`jumpReach` deliberately diverges from upstream. Upstream computes `|vx| * 36`,
+a model in which a standing jump covers no ground — untrue here, because
+`controller.js` blends in-air velocity toward +/-6 every tick, so a wizard that
+leaves the ground at rest still crosses 176px against upstream's predicted 0.
+Measured in this engine: one jump reaches `176 + 9.2v`, two reach `320 + 9v`. A
+first cut of the port used `(274 + 150)` scaled by speed and over-estimated at
+pace — 12 of 629 committed gap leaps went for a gap wider than the wizard could
+cross, which is the exact failure the upstream commit existed to remove.
+
 **Golden tape reseed, 12353 -> 12372.** Required: 12353 fell from five rounds to
 two, under the `rounds >= 3` floor, because nearly every round now opens from a
 different place. `scripts/record-tape.js` carries the seed scan. The separate
