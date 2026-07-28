@@ -9,7 +9,7 @@ import {
   setAngle, setAngularVelocity, setFilter, setPosition, setVelocity,
 } from './phys/facade.js';
 import { simRandom, rand } from './rng.js';
-import { particles, updateParticles } from './fx.js';
+import { spawnParticle } from './fx.js';
 import { updatePace } from './pace.js';
 import { TICK_MS, advanceTick, currentTick, simNow } from './time.js';
 import { drainScheduled } from './schedule.js';
@@ -41,7 +41,7 @@ export function postPhysics(now) {
   for (const fb of [...projectiles]) {
     fb.update?.(fb, now);
     if (simRandom() < 0.7) {
-      particles.push({ kind: 'square', x: fb.position.x, y: fb.position.y, vx: rand(-0.5, 0.5), vy: rand(-0.5, 0.5), life: 14, maxLife: 14, color: fb.color || '#ffb347', r: 2.5 });
+      spawnParticle({ kind: 'square', x: fb.position.x, y: fb.position.y, vx: rand(-0.5, 0.5), vy: rand(-0.5, 0.5), life: 14, maxLife: 14, color: fb.color || '#ffb347', r: 2.5 });
     }
     if (fb.expireAt && now > fb.expireAt) {
       projectiles.delete(fb);
@@ -175,10 +175,13 @@ export function stepSim() {
   }
   physStep(Math.max(dt, 0.5));
   postPhysics(now);
-  // one tick of particle life per tick. Particle `life` is counted in ticks, and
-  // the tick loop already runs fewer ticks per second during a hitstop — scaling
-  // by the pace here as well would slow the sparks twice over.
-  updateParticles(1);
+  // Particle life used to be stepped here, one tick per tick. It is not the
+  // sim's to step any more: the field lives in src/render/fx.js and whoever
+  // renders it ages it — the couch entry does it inside the same fixed-step
+  // callback that calls this function (src/platform/browser.js), and a LAN
+  // client does it on its own cosmetic tick loop (src/net/client.js). Life is
+  // still counted in ticks in both, which is what keeps a hitstop from slowing
+  // the sparks twice over.
   replayRecord(now);
   // Last: everything above observed `now`, and the state it just produced is
   // the state AT the next tick. Advancing here rather than at the top is what

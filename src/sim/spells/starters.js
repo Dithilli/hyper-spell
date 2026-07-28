@@ -6,7 +6,7 @@ import { W } from '../world.js';
 import { addVelocity, queryRadius, setVelocity } from '../phys/facade.js';
 import { simNow } from '../time.js';
 import { rand } from '../rng.js';
-import { particles, spawnParticles, addShake, doFlash } from '../fx.js';
+import { spawnParticle, spawnParticles, addShake, doFlash } from '../fx.js';
 import { slowMo } from '../pace.js';
 import { sfx } from '../sfx.js';
 import { damagePlayer } from '../player/combat.js';
@@ -48,7 +48,7 @@ export const STARTERS = {
       }
       setVelocity(p.body, { x: p.body.velocity.x - dir.x * 7, y: p.body.velocity.y - dir.y * 4 - 2 });
       for (let i = 0; i < 14; i++) {
-        particles.push({ kind: 'spark', x: x + dir.x * 20, y: y - 6 + dir.y * 20 + rand(-10, 10), vx: dir.x * rand(6, 14), vy: dir.y * rand(6, 14) + rand(-1, 1), life: 18, maxLife: 18, color: '#d7f5ef', r: 2 });
+        spawnParticle({ kind: 'spark', x: x + dir.x * 20, y: y - 6 + dir.y * 20 + rand(-10, 10), vx: dir.x * rand(6, 14), vy: dir.y * rand(6, 14) + rand(-1, 1), life: 18, maxLife: 18, color: '#d7f5ef', r: 2 });
       }
     },
   },

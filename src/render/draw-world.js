@@ -4,14 +4,18 @@
 import { ctx } from './canvas.js';
 import { W, H } from '../sim/world.js';
 import { allBodies, allJoints, gravityY, jointEnds } from '../sim/phys/facade.js';
-import { rand, pick } from '../sim/rng.js';
+// Cosmetic randomness, aliased to the names the ~200 scenery call sites below
+// already use. It is deliberately NOT src/sim/rng.js: this file runs at monitor
+// rate, and every number it used to take off the round's seeded stream made the
+// match a function of the viewer's refresh rate (defect D1).
+import { fxRange as rand, fxPick as pick } from './fx.js';
 import * as art from './artkit.js';
 import {
   drawStoryBackdrop, drawStoryCrate, drawStoryDestructible, drawStorySpikes, drawStoryTerrain, shade,
 } from './artkit.js';
 import {
   particles, shake, setShake, flashColor, flashAlpha, setFlashAlpha,
-} from '../sim/fx.js';
+} from './fx.js';
 import { game, currentMap } from '../sim/match.js';
 import { players, gibs } from '../sim/player/lifecycle.js';
 import { activeEffects, projectiles, summons } from '../sim/spells/core.js';
@@ -19,6 +23,7 @@ import { isLeafy } from '../sim/maps/builders.js';
 import { envHash, drawVineAt, drawEnvVisualsLive } from './draw-env.js';
 import { drawBossBody } from './draw-boss.js';
 import { drawParticles } from './fx.js';
+import { drawFxEffects, drawVfx } from './effects.js';
 import { drawTomes } from './draw-pickups.js';
 import {
   drawWizard, drawWizardFigure, drawGhostWisps, drawOffscreenPointers,
@@ -685,7 +690,10 @@ export function draw(now) {
   drawSummons(now);
   drawGibs();
   drawProjectiles(now);
-  for (const e of activeEffects) e.draw?.(now, ctx, art);
+  // sim-owned effects describe themselves (`vfx`); render-owned ones (bolts)
+  // live entirely in src/render/effects.js
+  for (const e of activeEffects) drawVfx(e, now, ctx);
+  drawFxEffects(now, ctx);
   drawParticles();
   for (const p of players) if (p.alive) drawWizard(p, now);
   drawOffscreenPointers(players.filter(p => p.alive).map(p => ({

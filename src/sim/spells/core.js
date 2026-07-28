@@ -1,18 +1,21 @@
 // spells/core.js — spell core: projectiles, explosions, summons, effects, casting.
 //
-// The effect objects pushed onto activeEffects still carry a draw() — those
-// closures now take the render surface as an argument instead of reaching for a
-// global ctx, which is what keeps sim/ free of a render/ import. Task 13 turns
-// them into emitted events and the drawing moves out entirely.
+// The effect objects pushed onto activeEffects no longer draw themselves. An
+// effect that HAS behaviour (pulls bodies, freezes wizards, explodes on expiry)
+// stays here, because that is simulation; what it carries for the screen is a
+// `vfx` descriptor — plain data naming a look, interpreted by
+// src/render/effects.js. An effect that has no behaviour at all (the lightning
+// bolt) is not sim state and left entirely.
 import { H, onWorldReset } from '../world.js';
 import {
   addBody, allJoints, createCircle, gravityY, queryRadius, queryRay, removeBody,
   removeFrom, setAngularVelocity, setVelocity,
 } from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
+import { emit } from '../emit.js';
 import { simRandom, rand } from '../rng.js';
 import {
-  particles, spawnParticles, spawnRing, spawnText, addShake, doFlash,
+  spawnParticle, spawnParticles, spawnRing, spawnText, addShake, doFlash,
 } from '../fx.js';
 import { slowMo } from '../pace.js';
 import { sfx } from '../sfx.js';
@@ -185,27 +188,12 @@ export function raycastHit(p, angOff = 0) {
   return { hit: hit?.body ?? null, pt: hit?.point ?? to, from, dir };
 }
 
-function baseBoltVisual(x0, y0, x1, y1, color = '#fff89e', width = 3, life = 130) {
-  const pts = [{ x: x0, y: y0 }];
-  const segs = 9;
-  for (let i = 1; i <= segs; i++) {
-    pts.push({
-      x: x0 + (x1 - x0) * i / segs + (i < segs ? rand(-14, 14) : 0),
-      y: y0 + (y1 - y0) * i / segs + (i < segs ? rand(-14, 14) : 0),
-    });
-  }
-  activeEffects.push({
-    until: simNow() + life,
-    draw(now, ctx) {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = width;
-      ctx.beginPath();
-      ctx.moveTo(pts[0].x, pts[0].y);
-      for (const q of pts.slice(1)) ctx.lineTo(q.x, q.y);
-      ctx.stroke();
-    },
-  });
-}
+// A lightning bolt is nine random kinks and a stroke: no body, no damage, no
+// lifetime the sim cares about. It used to be an entry on activeEffects — sim
+// state — whose zigzag was rolled off the ROUND stream, which meant the shape of
+// a spark was part of what made a match reproducible. It is an event now, and
+// src/render/effects.js owns both the shape and the list it lives on.
+export function boltVisual(...a) { emit('boltVisual', ...a); }
 
 // B12. The old form stepped y by 12 from the ceiling and returned the first
 // sample that landed inside something, which is wrong twice over: an 8px ledge
@@ -254,6 +242,7 @@ export function spawnSingularity(x, y, m = 1, owner = null, opts = {}) {
   activeEffects.push({
     until: simNow() + 2200 * m,
     net: { k: 'sing', x, y },
+    vfx: { k: 'sing', x, y }, // what the couch screen draws; `net` is the same look, over the wire
     update() {
       const R = 350 * (1 + (m - 1) * 0.5);
       for (const b of queryRadius({ x, y }, R, { filter: loose })) {
@@ -283,28 +272,23 @@ export function spawnSingularity(x, y, m = 1, owner = null, opts = {}) {
       }
       if (simRandom() < 0.6) {
         const a = rand(0, Math.PI * 2), dd = rand(60, 180);
-        particles.push({ kind: 'square', x: x + Math.cos(a) * dd, y: y + Math.sin(a) * dd, vx: -Math.cos(a) * 4, vy: -Math.sin(a) * 4, life: 16, maxLife: 16, color: '#a55eea', r: 2.5 });
+        spawnParticle({ kind: 'square', x: x + Math.cos(a) * dd, y: y + Math.sin(a) * dd, vx: -Math.cos(a) * 4, vy: -Math.sin(a) * 4, life: 16, maxLife: 16, color: '#a55eea', r: 2.5 });
       }
-    },
-    draw(now, ctx) {
-      ctx.fillStyle = '#0a0510';
-      ctx.beginPath(); ctx.arc(x, y, 26, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#a55eea';
-      ctx.lineWidth = 3;
-      ctx.globalAlpha = 0.5 + 0.3 * Math.sin(now * 0.02);
-      ctx.beginPath(); ctx.arc(x, y, 36 + 5 * Math.sin(now * 0.011), 0, Math.PI * 2); ctx.stroke();
-      ctx.globalAlpha = 1;
     },
     onEnd() { explode(x, y, 160, 18, 25, owner, opts); },
   });
 }
 
 // circular zone effect: calls tick(player) for alive players inside, every tick
-export function makeZone({ x, y, r, life, color, tick, tickBody, draw, onEnd }) {
+// `vfx` overrides the default translucent disc for a zone that looks like
+// something else (Blizzard's snowfall). It is a data descriptor, not a draw
+// callback: src/render/effects.js knows what each kind looks like.
+export function makeZone({ x, y, r, life, color, tick, tickBody, vfx, onEnd }) {
   activeEffects.push({
     until: simNow() + life,
     x, y, r,
     net: { k: 'zone', x, y, r, c: color },
+    vfx: vfx || { k: 'zone', x, y, r, c: color },
     update(now) {
       if (tick) {
         for (const q of players) {
@@ -319,13 +303,6 @@ export function makeZone({ x, y, r, life, color, tick, tickBody, draw, onEnd }) 
       if (tickBody) {
         for (const b of queryRadius({ x, y }, r, { filter: loose })) tickBody(b, now);
       }
-    },
-    draw(now, ctx) {
-      if (draw) { draw(now, ctx); return; }
-      ctx.globalAlpha = 0.16 + 0.06 * Math.sin(now * 0.01);
-      ctx.fillStyle = color;
-      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
     },
     onEnd,
   });
@@ -425,11 +402,6 @@ export function updateEffects(now) {
     }
   }
 }
-
-// the server bridge wraps boltVisual to broadcast it, exactly as it reassigned
-// the global before (server/sim-bridge.js:48)
-export let boltVisual = baseBoltVisual;
-export function setBoltVisual(fn) { boltVisual = fn; }
 
 onWorldReset(() => {
   projectiles.clear();

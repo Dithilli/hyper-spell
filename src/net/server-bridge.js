@@ -8,26 +8,23 @@ import { W, H } from '../sim/world.js';
 import { allBodies, gravityY, worldGravityScale } from '../sim/phys/facade.js';
 import { GAME_VERSION } from '../version.js';
 import { avatarVariant } from '../render/artkit.js';
-import {
-  particles,
-  addShake, setAddShake, doFlash, setDoFlash,
-  spawnParticles, setSpawnParticles, spawnRing, setSpawnRing,
-  spawnBurst, setSpawnBurst, spawnText, setSpawnText,
-} from '../sim/fx.js';
-import { slowMo, setSlowMo } from '../sim/pace.js';
+import { spawnText } from '../sim/fx.js';
+import { drainEmitted, emittedCount } from '../sim/emit.js';
+import { WIRE_FX } from './fx-names.js';
+import { slowMo } from '../sim/pace.js';
 import { simNow } from '../sim/time.js';
-import { sfx } from '../sim/sfx.js';
-import { addKillFeed, setAddKillFeed } from '../sim/awards.js';
 import { setPostTelemetry } from '../sim/telemetry.js';
 import { cleanName, readableColor } from '../sim/lobby.js';
 import {
-  game, setBanner, setSetBanner, minPlayers, joinPlayer, beginFromLobby,
-  resetMatch, setWins, toggleMode, startRound,
+  currentMap, game, setBanner, minPlayers, joinPlayer, beginFromLobby,
+  loadMap, resetMatch, setWins, toggleMode, startRound,
 } from '../sim/match.js';
 import { MAPS } from '../sim/maps/builders.js';
 import { activeModifiers, baseGravity, currentGravity } from '../sim/gravity.js';
-import { players, MAX_PLAYERS, FALL_SAFE_DROP, despawnPlayer, gibs } from '../sim/player/lifecycle.js';
-import { projectiles, summons, activeEffects, boltVisual, setBoltVisual, castSpell } from '../sim/spells/core.js';
+import {
+  players, MAX_PLAYERS, MAX_HP, FALL_SAFE_DROP, despawnPlayer, gibs, spawnPlayer, spawnPointFor,
+} from '../sim/player/lifecycle.js';
+import { projectiles, summons, activeEffects, castSpell } from '../sim/spells/core.js';
 import { SPELLS } from '../sim/spells/registry.js';
 import { BotController, addBot } from '../sim/ai/bot.js';
 import { stepSim } from '../sim/tick.js';
@@ -65,41 +62,40 @@ class ServerNetController {
 
 const serverControllers = new Map(); // slot -> ServerNetController
 
-// ---- fx broadcast (port of net.js wrapFx) ----
-// Every cosmetic call inside the sim also emits a wire event; the functions
-// themselves still run (they fill arrays nobody draws — harmless, and they keep
-// couch-parity behavior like slowMo's timeScale). Classic scripts reassigned
-// globals; modules hand the wrapper back through the owning module's setter, so
-// every live binding — including the ones inside the defining file — sees it.
-const WRAPPED = [
-  ['spawnParticles', () => spawnParticles, setSpawnParticles],
-  ['spawnRing', () => spawnRing, setSpawnRing],
-  ['spawnText', () => spawnText, setSpawnText],
-  ['doFlash', () => doFlash, setDoFlash],
-  ['addShake', () => addShake, setAddShake],
-  ['slowMo', () => slowMo, setSlowMo],
-  ['boltVisual', () => boltVisual, setBoltVisual],
-  ['setBanner', () => setBanner, setSetBanner],
-  ['addKillFeed', () => addKillFeed, setAddKillFeed],
-  ['spawnBurst', () => spawnBurst, setSpawnBurst],
-];
+// ---- fx broadcast ----
+//
+// What this replaces: `wrapServerFx`, which reassigned ten cosmetic functions
+// and every sfx key to broadcasting wrappers, and recorded an undo so a second
+// createSim() in one process could not wrap the wrappers. It was careful code
+// about a hazard that only existed because the sim called the renderer
+// directly and the server had to intercept those calls.
+//
+// There is nothing to intercept now. src/sim/emit.js is where a cosmetic goes,
+// so the bridge only has to drain it. That preserves both properties the
+// wrapper worked for:
+//
+//   ORDER — the queue is FIFO and drained whole, so the events a client
+//   receives are in the order the sim emitted them within the tick, which is
+//   what the wrappers gave by construction (each wrapper emitted as it was
+//   called). The drain runs at the END of stepSim, so a tick's cosmetics reach
+//   the wire ahead of the snapshot the room sends next.
+//
+//   RE-INSTALLABILITY — the undo existed so installing twice could not
+//   compound. Installing twice now does nothing to compound: no function is
+//   replaced, and install/uninstall each empty the queue so a rebuilt sim (the
+//   crash watchdog in server/sim-host.js) never inherits the dead one's
+//   backlog. test/emit-apply.test.js asserts both halves.
+//
+// Local-only names (a bespoke particle, the per-round particle clear) are
+// dropped here rather than at the receiver: they were never on the wire, the
+// old wrapper covered ten names and no more, and WIRE_FX is that list.
+let emitFx = () => {};
 
-let undoWrap = null;
-
-function wrapServerFx(emitFx) {
-  undoWrap?.(); // a second sim in the same process must not wrap the wrappers
-  const undo = [];
-  for (const [name, get, set] of WRAPPED) {
-    const orig = get();
-    set((...args) => { emitFx(name, args); return orig(...args); });
-    undo.push(() => set(orig));
+function flushFx() {
+  for (const e of drainEmitted()) {
+    if (e.f !== 'sfx' && !WIRE_FX.has(e.f)) continue;
+    emitFx(e.f, e.a);
   }
-  for (const key of Object.keys(sfx)) {
-    const orig = sfx[key];
-    sfx[key] = (...args) => { emitFx('sfx', [key]); return orig(...args); };
-    undo.push(() => { sfx[key] = orig; });
-  }
-  undoWrap = () => { for (const fn of undo) fn(); undoWrap = null; };
 }
 
 // ---- snapshot / killcam (port of net.js netHostTick, minus the emit) ----
@@ -217,9 +213,9 @@ function serverWorldInfo() {
 
 // opts: { onFx(name, args), telemetrySink(rec), onPackUnlocked(src) }
 export function installServerBridge(opts = {}) {
-  const emitFx = opts.onFx || (() => {});
+  emitFx = opts.onFx || (() => {});
   serverControllers.clear();
-  wrapServerFx(emitFx);
+  drainEmitted(); // start clean: createSim's loadMap(0) has already queued a few
   // telemetry: the sim runs in the server process, so records go straight to
   // the sink instead of fetch()ing our own HTTP endpoint
   setPostTelemetry(rec => { try { opts.telemetrySink?.(rec); } catch {} });
@@ -231,7 +227,9 @@ export function installServerBridge(opts = {}) {
 
   return {
     GAME_VERSION,
-    stepSim: () => stepSim(),
+    // The drain is the last thing in a tick, so the cosmetics a tick produced
+    // are on the wire before the snapshot the room sends after this returns.
+    stepSim: () => { stepSim(); flushFx(); },
     takeWireSnapshot,
     addPlayer: serverAddPlayer,
     removePlayer: serverRemovePlayer,
@@ -267,6 +265,31 @@ export function installServerBridge(opts = {}) {
       return !!p && simNow() < (p.frozenUntil || 0);
     },
     debugSetPace: (s) => slowMo(s, 1e9),
+    // Put the sim on `mapIndex`, make sure everyone is standing and whole, and
+    // fire `spellId` from `slot` with its cooldown cleared.
+    //
+    // The phase-1 gate calls this ~15,600 times, once per spell per map, so it
+    // deliberately does NOT go through startRound: that would count a round,
+    // and every tenth round is a boss round which may pick a DIFFERENT map,
+    // which would quietly move the gate off the map it claims to be testing.
+    // loadMap plus an explicit respawn keeps the arena the caller asked for.
+    //
+    // Health is restored before the cast rather than after, so a spell that
+    // corrupts hp during the ticks that follow is still caught — the gate reads
+    // hp from the snapshot once the ticks have run.
+    debugCastSpell: (slot, spellId, mapIndex) => {
+      if (mapIndex != null && (!currentMap || game.mapIndex !== mapIndex)) loadMap(mapIndex);
+      game.state = 'PLAY';
+      for (const q of players) {
+        if (!q.alive) spawnPlayer(q, spawnPointFor(q));
+        q.hp = MAX_HP;
+      }
+      const p = players.find((q) => q.slot === slot) ?? players[0];
+      if (!p) throw new Error(`no player in slot ${slot}`);
+      p.slots[0] = spellId;
+      p.casts[0] = -1e9; // past any cooldown
+      castSpell(p, simNow(), 0);
+    },
     // Start a round on the named map, cast `spellId` from slot 0, run
     // `ticksToRun` ticks, and report whether the spell's gravity modifier is
     // still on the stack. The three cycling maps rewrite gravity every tick;
@@ -300,9 +323,13 @@ export function installServerBridge(opts = {}) {
         && currentGravity() !== baseGravity();
     },
     // diagnostics for the smoke harness / leak audit
+    // `particles` is gone from here on purpose: the field lives in
+    // src/render/fx.js now and a headless host has none — reporting 0 would
+    // read like a leak check that passes. `emitted` is the equivalent headless
+    // measure: a queue that grows is a drain that stopped.
     audit: () => ({
       bodies: allBodies().length,
-      particles: particles.length,
+      emitted: emittedCount(),
       effects: activeEffects.length,
       projectiles: projectiles.size,
       summons: summons.size,
@@ -314,6 +341,7 @@ export function installServerBridge(opts = {}) {
 // Put the module back the way installServerBridge found it: unwrap the fx
 // emitters and drop the wire controllers, so nothing survives into the next sim.
 export function uninstallServerBridge() {
-  undoWrap?.();
+  emitFx = () => {};
+  drainEmitted(); // whatever the dying sim queued does not belong to the next one
   serverControllers.clear();
 }

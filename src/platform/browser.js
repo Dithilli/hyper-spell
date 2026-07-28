@@ -15,6 +15,7 @@ import { stepSim } from '../sim/tick.js';
 import { createTickLoop } from '../sim/tick-loop.js';
 import { simNow } from '../sim/time.js';
 import { draw } from '../render/draw-world.js';
+import { pumpEmitted, updateParticles } from '../render/fx.js';
 import { netClientFrame, netMode } from '../net/client.js';
 import { installDebugGlobals } from './debug-globals.js';
 
@@ -53,7 +54,19 @@ loadMap(0);
 // job is deciding HOW MANY steps the elapsed real time paid for. The tick is
 // deliberately not advanced here as well — that would run sim time at double
 // rate.
-const loop = createTickLoop({ step: () => stepSim() });
+// The cosmetic half of a tick rides the SAME fixed step as the sim half, and
+// deliberately not the rAF frame. The sim emits its particles, shake, flashes
+// and sounds during stepSim(); pumpEmitted turns them into a picture, and
+// updateParticles ages that picture by exactly one tick — which is what
+// `life` is counted in. Draining per frame instead would age particles at
+// monitor rate and make a 144Hz screen burn through them 2.4x as fast.
+//
+// This is the couch player running the event path a LAN client has always run.
+// Before task 13 the sim called the renderer directly here and only the SERVER
+// had events, which is why couch and online were two code paths at all.
+const loop = createTickLoop({
+  step: () => { stepSim(); pumpEmitted(); updateParticles(1); },
+});
 
 let last = performance.now();
 function frame(now) {

@@ -4,9 +4,10 @@ import { W, H, onWorldReset } from './world.js';
 import { addBody, addTo, createBox, createComposite, removeBody } from './phys/facade.js';
 import { clearModifiers, setBase } from './gravity.js';
 import { simNow } from './time.js';
+import { emit } from './emit.js';
 import { simRandom, rand, reseed } from './rng.js';
 import { pairCooldown } from './cooldown.js';
-import { particles, doFlash } from './fx.js';
+import { clearParticles, doFlash } from './fx.js';
 import { slowMo } from './pace.js';
 import { sfx } from './sfx.js';
 import { scheduleIn, cancelTag } from './schedule.js';
@@ -38,7 +39,16 @@ export function setCurrentMap(m) { currentMap = m; }
 export let banner = '', bannerColor = '#fff', bannerUntil = 0, bannerHyper = false;
 
 
-function baseSetBanner(text, color, ms = 1400, hyper = false) {
+// Dual path, like slowMo and for a related reason: the banner is state the
+// local HUD reads straight off this module (src/render/hud.js), so the sim has
+// to keep it, and it is also the narration a LAN client — which has no match.js
+// state of its own — can only learn about from an event. Emit first, then set,
+// matching the order the old server-side wrapper used. src/render/fx.js's
+// handler is a no-op for the same reason slowMo's is: locally it is already
+// done by the time anyone drains.
+export function setBanner(...a) {
+  emit('setBanner', ...a);
+  const [text, color, ms = 1400, hyper = false] = a;
   banner = text;
   bannerColor = color;
   bannerUntil = simNow() + ms;
@@ -64,7 +74,7 @@ export function loadMap(index) {
   // (a body, a gravity modifier) a hook to let go of it.
   for (const e of activeEffects) e.onAbandon?.();
   activeEffects.length = 0;
-  particles.length = 0;
+  clearParticles();
   // Every contact gate goes with the round. The bodies most of them are keyed
   // on have just been removed above, but the wizards' have not — a player
   // object outlives the round, and its stomp/spike gates used to outlive it too.
@@ -261,11 +271,6 @@ export function joinPlayer(controller, name) {
   sfx.pickup();
   setBanner(`${p.name} JOINED`, p.color, 900);
 }
-
-// the server bridge wraps setBanner so LAN clients replay it
-// (server/sim-bridge.js:48 reassigned the global)
-export let setBanner = baseSetBanner;
-export function setSetBanner(fn) { setBanner = fn; }
 
 const INITIAL_GAME = { state: 'LOBBY', winsNeeded: 5, winner: null, mapIndex: 0, baseGravity: 2, mode: 'versus', wave: 0, waveState: 'active' };
 

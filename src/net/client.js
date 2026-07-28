@@ -5,16 +5,17 @@
 import { W, H } from '../sim/world.js';
 import { allBodies, allJoints, createComposite, removeFrom } from '../sim/phys/facade.js';
 import { GAME_VERSION } from '../version.js';
-import { rand, pick } from '../sim/rng.js';
+// cosmetic randomness (the local starfield, the victory confetti). A client
+// runs no simulation, so these must not touch src/sim/rng.js's round stream.
+import { fxRange as rand, fxPick as pick } from '../render/fx.js';
 import { ctx } from '../render/canvas.js';
 import { rgba } from '../render/artkit.js';
 import { ensureAudio } from '../render/audio.js';
-import { sfx } from '../sim/sfx.js';
 import {
 particles, shake, setShake, flashColor, flashAlpha, setFlashAlpha,
-spawnParticles, spawnRing, spawnText, spawnBurst, addShake, doFlash,
-updateParticles,
-} from '../sim/fx.js';
+updateParticles, applyEmitted, pumpEmitted,
+} from '../render/fx.js';
+import { WIRE_FX } from './fx-names.js';
 import { slowMo, updatePace } from '../sim/pace.js';
 import { createTickLoop } from '../sim/tick-loop.js';
 import { advanceTick, simNow } from '../sim/time.js';
@@ -28,7 +29,7 @@ import { MAPS } from '../sim/maps/builders.js';
 import { buildMapExtras } from '../sim/maps/extras.js';
 import { envEventById } from '../sim/events.js';
 import { MAX_PLAYERS } from '../sim/player/lifecycle.js';
-import { activeEffects, boltVisual } from '../sim/spells/core.js';
+import { activeEffects } from '../sim/spells/core.js';
 import { keys, mouse } from '../platform/input-keyboard.js';
 import { drawSnapshotWorld, ghostPlayer } from '../render/draw-snapshot.js';
 import { drawWizardFigure } from '../render/draw-wizard.js';
@@ -243,29 +244,23 @@ function clientLoadMap(index, seed) {
   activeEffects.length = 0;
 }
 
-// fx events call local cosmetic functions by name — allowlisted, so a bug (or
-// a hostile server) can't reach into arbitrary globals. The classic build
-// looked the name up on globalThis; modules resolve it through this table,
-// whose null prototype keeps Object.prototype keys out of the allowlist.
-const FX_ALLOWED = new Set(['spawnParticles', 'spawnRing', 'spawnText', 'doFlash', 'addShake', 'slowMo', 'boltVisual', 'setBanner', 'addKillFeed', 'spawnBurst']);
-const FX_HANDLERS = {
-  __proto__: null,
-  spawnParticles: (...a) => spawnParticles(...a),
-  spawnRing: (...a) => spawnRing(...a),
-  spawnText: (...a) => spawnText(...a),
-  doFlash: (...a) => doFlash(...a),
-  addShake: (...a) => addShake(...a),
-  slowMo: (...a) => slowMo(...a),
-  boltVisual: (...a) => boltVisual(...a),
-  setBanner: (...a) => setBanner(...a),
-  addKillFeed: (...a) => addKillFeed(...a),
-  spawnBurst: (...a) => spawnBurst(...a),
-};
+// An fx event off the wire is the same object the host's sim emitted, so it
+// goes through the same applyEmitted the couch renderer uses. What is NOT the
+// same is the allowlist: a couch sim can only emit what its own code emits,
+// whereas this arrives from a server that may be buggy or hostile, so the name
+// is checked against the wire set (src/net/fx-names.js) before anything runs.
+//
+// Three names cannot go to applyEmitted, because on a host they are simulation
+// as well as spectacle and applyEmitted deliberately no-ops them (the host's
+// sim already did the work on the way past). A client has no sim, so here they
+// ARE the work: the banner text, the kill feed and the hitstop all have to be
+// applied to the shared sim modules the HUD and the tick loop read.
+const LOCAL_FX = { __proto__: null, setBanner, addKillFeed, slowMo };
 function applyFx(msg) {
-  if (msg.f === 'sfx') { sfx[msg.a[0]]?.(); return; }
-  if (!FX_ALLOWED.has(msg.f)) return;
-  const fn = FX_HANDLERS[msg.f];
-  if (typeof fn === 'function') fn(...msg.a);
+  if (msg.f !== 'sfx' && !WIRE_FX.has(msg.f)) return;
+  const local = LOCAL_FX[msg.f];
+  if (local) { local(...msg.a); return; }
+  applyEmitted([msg]);
 }
 
 // once per rendered frame (~60Hz) — halving it was cheap on paper, but on a
@@ -360,7 +355,11 @@ function drawOnlineLobby(snap, now) {
 // the same accumulator gives the client a sim clock at the host's own cadence
 // (paceScale() x real time), which is all these purely local durations need —
 // they are set and read on this machine, never compared against the server's.
-const fxLoop = createTickLoop({ step: () => { updatePace(); updateParticles(1); advanceTick(); } });
+// pumpEmitted drains what LOCAL_FX above put on the sim's queue. setBanner,
+// addKillFeed and slowMo all emit as well as apply (they are shared sim
+// modules and cannot know they are running on a client), and a queue nobody
+// drained would grow for the length of the session.
+const fxLoop = createTickLoop({ step: () => { updatePace(); pumpEmitted(); updateParticles(1); advanceTick(); } });
 let lastFxAt = null;
 
 export function netClientFrame(now) {

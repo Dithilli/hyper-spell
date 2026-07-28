@@ -22,6 +22,7 @@
 // test/module-boundaries.test.js carries a named exemption for this file.
 import { performance } from './env.js';
 import { onWorldReset } from './world.js';
+import { emit } from './emit.js';
 
 // master game pace: 1 = original, <1 = calmer & more readable so the spectacle
 // (combos, fusions, big spells) registers instead of flashing by. Tune to taste.
@@ -49,12 +50,26 @@ let slowUntil = 0;
 
 export const paceScale = () => scale;
 
-function baseSlowMo(s, ms) { scale = Math.max(MIN_PACE, s); slowUntil = performance.now() + ms; }
-
-// slowMo stays a reassignable binding: src/net/server-bridge.js wraps it so a
-// headless host broadcasts the hitstop to every client (see WRAPPED there).
-export let slowMo = baseSlowMo;
-export function setSlowMo(fn) { slowMo = fn; }
+// THE DUAL PATH, and the one cosmetic that keeps it.
+//
+// Every other cosmetic left the sim entirely in task 13: the sim emits, and
+// somebody else decides what it looks like. slowMo cannot, because a hitstop is
+// not only spectacle — it changes how fast the tick loop consumes real time, so
+// the sim itself has to apply it or a headless host would run at full speed
+// while every client crawled. So it does both, in this order: emit first, then
+// apply, exactly as the old server-side wrapper did (`emitFx(name, args);
+// return orig(...args)`), so the event a client receives is still ordered
+// against its neighbours the same way.
+//
+// Deleting either half is a live bug and test/emit-apply.test.js pins both: the
+// emit alone leaves a LAN host at full pace, the apply alone leaves every LAN
+// client at full pace. src/render/fx.js's handler for 'slowMo' is deliberately
+// a no-op — the couch sim already applied it here, on the way past.
+export function slowMo(s, ms) {
+  emit('slowMo', s, ms);
+  scale = Math.max(MIN_PACE, s);
+  slowUntil = performance.now() + ms;
+}
 
 export function updatePace() {
   if (performance.now() > slowUntil) scale += (BASE_PACE - scale) * 0.08; // ease back to the base pace, not full speed

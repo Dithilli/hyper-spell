@@ -1,5 +1,3 @@
-import { sfx } from '../sim/sfx.js';
-
 // audio.js — Web Audio synth SFX, no assets.
 // Layered voices (sub thump + noise body + crackle), a master compressor so
 // 8 wizards casting at once glues instead of clipping, a soft echo send for
@@ -241,11 +239,15 @@ const SFX_DEFS = {
   },
 };
 
-// public sfx table: every play passes the anti-clutter gate first.
-// The table itself lives in sim/sfx.js (the sim fires cues; only the browser can
-// make sound), so this loop replaces its no-op stubs with the real voices.
+// public voice table: every play passes the anti-clutter gate first.
+//
+// These used to be written back over the stub table in sim/sfx.js. They are
+// not any more: the sim's table emits cue events, and this is what a cue
+// SOUNDS like. src/render/fx.js's applyEmitted is the only caller, so the couch
+// player, a LAN client and the killcam all reach the voices by the same route.
+const VOICES = {};
 for (const [key, fn] of Object.entries(SFX_DEFS)) {
-  sfx[key] = () => {
+  VOICES[key] = () => {
     if (!audioCtx) return;
     const s = gateScale(key);
     if (!s) return;
@@ -253,3 +255,11 @@ for (const [key, fn] of Object.entries(SFX_DEFS)) {
     try { fn(); } finally { volScale = 1; }
   };
 }
+
+// Unknown cue keys are ignored rather than thrown on: this is fed straight from
+// the wire, where the name is whatever the server said.
+export function playSfx(key) { VOICES[key]?.(); }
+
+// the keys that actually make a sound — SFX_KEYS is the sim's list of cues it
+// can fire, and a cue with no voice yet is legal (it just plays nothing)
+export const voiceKeys = () => Object.keys(VOICES);

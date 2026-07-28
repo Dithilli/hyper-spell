@@ -25,9 +25,9 @@
     mod
   ));
 
-  // node_modules/matter-js/build/matter.js
+  // ../hyper-spell/node_modules/matter-js/build/matter.js
   var require_matter = __commonJS({
-    "node_modules/matter-js/build/matter.js"(exports, module) {
+    "../hyper-spell/node_modules/matter-js/build/matter.js"(exports, module) {
       (function webpackUniversalModuleDefinition(root2, factory) {
         if (typeof exports === "object" && typeof module === "object")
           module.exports = factory();
@@ -5049,51 +5049,40 @@
   var rand = simRange;
   var pick = simPick;
 
-  // src/sim/fx.js
-  var particles = [];
-  var shake = 0;
-  var flashColor = "#fff";
-  var flashAlpha = 0;
-  function baseAddShake(v) {
-    shake = Math.min(shake + v, 26);
+  // src/sim/emit.js
+  var queue = [];
+  function emit(name, ...args) {
+    queue.push({ f: name, a: args });
   }
-  function baseDoFlash(color, alpha = 0.4) {
-    flashColor = color;
-    flashAlpha = Math.max(flashAlpha, alpha);
-  }
-  function baseSpawnParticles(x, y, color, count, speed, life = 40) {
-    for (let i = 0; i < count; i++) {
-      const a = simRandom() * Math.PI * 2, v = simRandom() * speed;
-      particles.push({ kind: "square", x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, life: life + simRandom() * 20, maxLife: life, color, r: 2 + simRandom() * 3 });
-    }
-  }
-  function baseSpawnRing(x, y, color) {
-    particles.push({ kind: "ring", x, y, r: 12, life: 16, maxLife: 16, color });
-  }
-  function baseSpawnBurst(x, y, color, count = 12, o = {}) {
-    const kind = o.kind || "square", speed = o.speed ?? 5, spread = o.spread ?? Math.PI * 2;
-    const dir = o.dir ?? 0, up = o.up ?? 0, life = o.life ?? 40, g = o.g ?? 0.25, r = o.r ?? 3;
-    for (let i = 0; i < count; i++) {
-      const a = dir + (simRandom() - 0.5) * spread;
-      const v = speed * (0.4 + simRandom() * 0.9);
-      particles.push({ kind, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - up, life: life + simRandom() * 15, maxLife: life, color, r: r * (0.6 + simRandom() * 0.8), g });
-    }
-  }
-  function baseSpawnText(x, y, str, color) {
-    particles.push({ kind: "text", str, x, y, vx: 0, vy: -1.2, life: 50, maxLife: 50, color, r: 16 });
-  }
-  var addShake = baseAddShake;
-  var doFlash = baseDoFlash;
-  var spawnParticles = baseSpawnParticles;
-  var spawnRing = baseSpawnRing;
-  var spawnBurst = baseSpawnBurst;
-  var spawnText = baseSpawnText;
   onWorldReset(() => {
-    particles.length = 0;
-    shake = 0;
-    flashColor = "#fff";
-    flashAlpha = 0;
+    queue.length = 0;
   });
+
+  // src/sim/fx.js
+  function spawnParticles(...a) {
+    emit("spawnParticles", ...a);
+  }
+  function spawnRing(...a) {
+    emit("spawnRing", ...a);
+  }
+  function spawnText(...a) {
+    emit("spawnText", ...a);
+  }
+  function spawnBurst(...a) {
+    emit("spawnBurst", ...a);
+  }
+  function doFlash(...a) {
+    emit("doFlash", ...a);
+  }
+  function addShake(...a) {
+    emit("addShake", ...a);
+  }
+  function spawnParticle(spec) {
+    emit("particle", spec);
+  }
+  function clearParticles() {
+    emit("clearParticles");
+  }
 
   // src/sim/env.js
   var performance = globalThis.performance;
@@ -5103,11 +5092,11 @@
   var MIN_PACE = 0.05;
   var scale = BASE_PACE;
   var slowUntil = 0;
-  function baseSlowMo(s, ms) {
+  function slowMo(s, ms) {
+    emit("slowMo", s, ms);
     scale = Math.max(MIN_PACE, s);
     slowUntil = performance.now() + ms;
   }
-  var slowMo = baseSlowMo;
   onWorldReset(() => {
     scale = BASE_PACE;
     slowUntil = 0;
@@ -5136,8 +5125,7 @@
     "victory"
   ];
   var sfx = {};
-  for (const key of SFX_KEYS) sfx[key] = () => {
-  };
+  for (const key of SFX_KEYS) sfx[key] = () => emit("sfx", key);
 
   // src/sim/cooldown.js
   var pairs = /* @__PURE__ */ new Map();
@@ -6326,7 +6314,7 @@
         setType(ic.body, "dynamic");
         setVelocity(ic.body, { x: 0, y: 2 });
       } else if (simRandom() < 0.3) {
-        particles.push({ kind: "square", x: ix + rand(-8, 8), y: ic.body.position.y + 20, vx: 0, vy: 1, life: 20, maxLife: 20, color: "#bfe8ff", r: 2 });
+        spawnParticle({ kind: "square", x: ix + rand(-8, 8), y: ic.body.position.y + 20, vx: 0, vy: 1, life: 20, maxLife: 20, color: "#bfe8ff", r: 2 });
       }
     }
   }
@@ -6532,26 +6520,8 @@
     });
     return { hit: hit?.body ?? null, pt: hit?.point ?? to, from, dir };
   }
-  function baseBoltVisual(x0, y0, x1, y1, color = "#fff89e", width = 3, life = 130) {
-    const pts = [{ x: x0, y: y0 }];
-    const segs = 9;
-    for (let i = 1; i <= segs; i++) {
-      pts.push({
-        x: x0 + (x1 - x0) * i / segs + (i < segs ? rand(-14, 14) : 0),
-        y: y0 + (y1 - y0) * i / segs + (i < segs ? rand(-14, 14) : 0)
-      });
-    }
-    activeEffects.push({
-      until: simNow() + life,
-      draw(now, ctx) {
-        ctx.strokeStyle = color;
-        ctx.lineWidth = width;
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (const q of pts.slice(1)) ctx.lineTo(q.x, q.y);
-        ctx.stroke();
-      }
-    });
+  function boltVisual(...a) {
+    emit("boltVisual", ...a);
   }
   function groundYAt(x) {
     const hit = queryRay(
@@ -6596,6 +6566,8 @@
     activeEffects.push({
       until: simNow() + 2200 * m,
       net: { k: "sing", x, y },
+      vfx: { k: "sing", x, y },
+      // what the couch screen draws; `net` is the same look, over the wire
       update() {
         const R = 350 * (1 + (m - 1) * 0.5);
         for (const b of queryRadius({ x, y }, R, { filter: loose })) {
@@ -6630,34 +6602,22 @@
         }
         if (simRandom() < 0.6) {
           const a = rand(0, Math.PI * 2), dd = rand(60, 180);
-          particles.push({ kind: "square", x: x + Math.cos(a) * dd, y: y + Math.sin(a) * dd, vx: -Math.cos(a) * 4, vy: -Math.sin(a) * 4, life: 16, maxLife: 16, color: "#a55eea", r: 2.5 });
+          spawnParticle({ kind: "square", x: x + Math.cos(a) * dd, y: y + Math.sin(a) * dd, vx: -Math.cos(a) * 4, vy: -Math.sin(a) * 4, life: 16, maxLife: 16, color: "#a55eea", r: 2.5 });
         }
-      },
-      draw(now, ctx) {
-        ctx.fillStyle = "#0a0510";
-        ctx.beginPath();
-        ctx.arc(x, y, 26, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "#a55eea";
-        ctx.lineWidth = 3;
-        ctx.globalAlpha = 0.5 + 0.3 * Math.sin(now * 0.02);
-        ctx.beginPath();
-        ctx.arc(x, y, 36 + 5 * Math.sin(now * 0.011), 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
       },
       onEnd() {
         explode(x, y, 160, 18, 25, owner, opts);
       }
     });
   }
-  function makeZone({ x, y, r, life, color, tick: tick2, tickBody, draw, onEnd }) {
+  function makeZone({ x, y, r, life, color, tick: tick2, tickBody, vfx, onEnd }) {
     activeEffects.push({
       until: simNow() + life,
       x,
       y,
       r,
       net: { k: "zone", x, y, r, c: color },
+      vfx: vfx || { k: "zone", x, y, r, c: color },
       update(now) {
         if (tick2) {
           for (const q of players) {
@@ -6669,24 +6629,11 @@
           for (const b of queryRadius({ x, y }, r, { filter: loose })) tickBody(b, now);
         }
       },
-      draw(now, ctx) {
-        if (draw) {
-          draw(now, ctx);
-          return;
-        }
-        ctx.globalAlpha = 0.16 + 0.06 * Math.sin(now * 0.01);
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-      },
       onEnd
     });
   }
   var CAST_FLOOR = 480;
   var resolvePotency = (p, o = {}) => o.m ?? p?.mega ?? 1;
-  var boltVisual = baseBoltVisual;
   onWorldReset(() => {
     projectiles.clear();
     summons.clear();
@@ -6871,12 +6818,8 @@
         setType(fb, "static");
         activeEffects.push({
           until: simNow() + 900,
-          draw(now, ctx) {
-            ctx.fillStyle = Math.sin(now * 0.03) > 0 ? "#aef05a" : "#fff";
-            ctx.beginPath();
-            ctx.arc(fb.position.x, fb.position.y, 4, 0, Math.PI * 2);
-            ctx.fill();
-          },
+          vfx: { k: "blink", body: fb, r: 4, a: "#aef05a", b: "#fff", rate: 0.03 },
+          // the armed charge, blinking on the body it stuck to
           onEnd() {
             removeProjectile(fb);
             explode(fb.position.x, fb.position.y, 160 * m, 24 * m, 40 * m, p);
@@ -7026,15 +6969,7 @@
       const t0 = simNow();
       activeEffects.push({
         until: t0 + 550,
-        draw(now, ctx) {
-          ctx.strokeStyle = "#fff89e";
-          ctx.lineWidth = 2;
-          ctx.globalAlpha = 0.35 + 0.4 * Math.abs(Math.sin(now * 0.02));
-          ctx.beginPath();
-          ctx.arc(x, gy - 8, 26, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.globalAlpha = 1;
-        },
+        vfx: { k: "pulsering", x, y: gy - 8, r: 26, c: "#fff89e", lw: 2 },
         onEnd() {
           skyBolt(x, 45, p, m);
         }
@@ -7183,7 +7118,7 @@
       )) {
         addVelocity(b, { x: 0, y: -18 * m });
       }
-      for (let i = 0; i < 16; i++) particles.push({ kind: "spark", x: x + rand(-100, 100), y: rand(100, H - 60), vx: 0, vy: -rand(8, 14), life: 20, maxLife: 20, color: "#e0ffff", r: 2 });
+      for (let i = 0; i < 16; i++) spawnParticle({ kind: "spark", x: x + rand(-100, 100), y: rand(100, H - 60), vx: 0, vy: -rand(8, 14), life: 20, maxLife: 20, color: "#e0ffff", r: 2 });
     }
   });
   regSpell("slam", {
@@ -7270,17 +7205,9 @@
             setVelocity(b, { x: b.velocity.x - Math.sign(dx) * perSecond(0.9) + perSecond(rand(-0.5, 0.5)), y: b.velocity.y - perSecond(1.5) * m });
           }
         },
-        draw(now, ctx) {
-          ctx.strokeStyle = "rgba(207,232,232,0.55)";
-          ctx.lineWidth = 3;
-          for (let i = 0; i < 5; i++) {
-            const yy = H - 80 - i * 90;
-            const w = 26 + i * 22;
-            ctx.beginPath();
-            ctx.ellipse(e.x + Math.sin(now * 0.01 + i) * 8, yy, w, 12, 0, 0, Math.PI * 2);
-            ctx.stroke();
-          }
-        }
+        // the funnel tracks e.x, which update() moves every tick — that is why
+        // the renderer is handed the whole effect and not a frozen descriptor
+        vfx: { k: "tor" }
       };
       activeEffects.push(e);
     }
@@ -7320,15 +7247,7 @@
           freezeUntil(q, Math.max(q.frozenUntil, now + 200));
           if (simRandom() < 0.02) damagePlayer(q, 3);
         },
-        draw(now, ctx) {
-          ctx.globalAlpha = 0.14;
-          ctx.fillStyle = "#d8f4ff";
-          ctx.beginPath();
-          ctx.arc(pos.x, pos.y, 240 * m, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.globalAlpha = 1;
-          for (let i = 0; i < 3; i++) particles.push({ kind: "square", x: pos.x + rand(-220, 220), y: pos.y + rand(-200, 100), vx: rand(-1, 1), vy: rand(1, 3), life: 24, maxLife: 24, color: "#fff", r: 2 });
-        }
+        vfx: { k: "blizzard", x: pos.x, y: pos.y, r: 240 * m, c: "#d8f4ff" }
       });
       sfx.freeze();
     }
@@ -7464,7 +7383,7 @@
       const dir = aimDir(p, 25, 4);
       setVelocity(p.body, { x: dir.x * 25, y: dir.y * 25 - 2 });
       p.invulnUntil = simNow() + 600;
-      for (let i = 0; i < 20; i++) particles.push({ kind: "spark", x: p.body.position.x - dir.x * i * 4, y: p.body.position.y - dir.y * i * 4 + rand(-8, 8), vx: -dir.x * rand(2, 6), vy: rand(-2, 2), life: 22, maxLife: 22, color: "#ffb347", r: 2.5 });
+      for (let i = 0; i < 20; i++) spawnParticle({ kind: "spark", x: p.body.position.x - dir.x * i * 4, y: p.body.position.y - dir.y * i * 4 + rand(-8, 8), vx: -dir.x * rand(2, 6), vy: rand(-2, 2), life: 22, maxLife: 22, color: "#ffb347", r: 2.5 });
     }
   });
   regSpell("volcanospell", {
@@ -7891,7 +7810,7 @@
     cast(p) {
       const m = p.mega || 1;
       for (let i = 0; i < 24; i++) {
-        particles.push({ kind: "confetti", x: p.body.position.x + p.facing * 20, y: p.body.position.y - 8, vx: p.facing * rand(4, 14), vy: rand(-8, 2), life: 60, maxLife: 60, color: pick(["#4ecdc4", "#ff6b81", "#ffd166", "#a55eea", "#e8d5ff"]), r: 4 });
+        spawnParticle({ kind: "confetti", x: p.body.position.x + p.facing * 20, y: p.body.position.y - 8, vx: p.facing * rand(4, 14), vy: rand(-8, 2), life: 60, maxLife: 60, color: pick(["#4ecdc4", "#ff6b81", "#ffd166", "#a55eea", "#e8d5ff"]), r: 4 });
       }
       const t = nearestEnemy(p, 200 * m);
       if (t && Math.sign(t.body.position.x - p.body.position.x) === p.facing) {
@@ -8347,16 +8266,9 @@
             if (b.label === "player" && b.player.alive) b.player.burnUntil = Math.max(b.player.burnUntil || 0, now + 900 * m);
           }
         },
-        draw(now, ctx) {
-          ctx.lineWidth = 3;
-          for (let i = 0; i < 5; i++) {
-            const yy = H - 80 - i * 90, w = 24 + i * 20;
-            ctx.strokeStyle = `rgba(255, ${100 + i * 26}, 60, 0.6)`;
-            ctx.beginPath();
-            ctx.ellipse(e.x + Math.sin(now * 0.013 + i) * 9, yy, w, 12, 0, 0, Math.PI * 2);
-            ctx.stroke();
-          }
-        }
+        // narrower rings, a per-ring heat gradient and a faster sway than the air
+        // tornado's — tracks e.x, which update() moves every tick
+        vfx: { k: "firetor" }
       };
       activeEffects.push(e);
       spawnBurst(start.x, p.body.position.y, "#ff7043", 16, { dir: -Math.PI / 2, spread: 1.2, speed: 6, up: 3, g: -0.03, life: 40 });
@@ -8851,12 +8763,7 @@
       const t0 = simNow();
       activeEffects.push({
         until: t0 + 900,
-        draw(now, ctx) {
-          ctx.fillStyle = Math.sin(now * 0.025) > 0 ? "#d8b26a" : "#ff5e57";
-          ctx.beginPath();
-          ctx.arc(cx, gy - 10, 7, 0, Math.PI * 2);
-          ctx.fill();
-        },
+        vfx: { k: "blink", x: cx, y: gy - 10, r: 7, a: "#d8b26a", b: "#ff5e57", rate: 0.025 },
         onEnd() {
           explode(cx, gy - 10, 170, 22 * m, 28 * m, p, { selfSafe: true });
           const nw = simNow();
@@ -9463,7 +9370,9 @@
   var bannerColor = "#fff";
   var bannerUntil = 0;
   var bannerHyper = false;
-  function baseSetBanner(text, color, ms = 1400, hyper = false) {
+  function setBanner(...a) {
+    emit("setBanner", ...a);
+    const [text, color, ms = 1400, hyper = false] = a;
     banner = text;
     bannerColor = color;
     bannerUntil = simNow() + ms;
@@ -9482,7 +9391,7 @@
     summons.clear();
     for (const e of activeEffects) e.onAbandon?.();
     activeEffects.length = 0;
-    particles.length = 0;
+    clearParticles();
     pairCooldown.clear();
     if (currentMap) removeBody(currentMap.composite);
     const def = MAPS[index];
@@ -9603,7 +9512,6 @@
     sfx.victory();
     doFlash(p.color, 0.4);
   }
-  var setBanner = baseSetBanner;
   var INITIAL_GAME = { state: "LOBBY", winsNeeded: 5, winner: null, mapIndex: 0, baseGravity: 2, mode: "versus", wave: 0, waveState: "active" };
   onWorldReset(() => {
     for (const k of Object.keys(game)) if (k !== "onDeath") delete game[k];
@@ -9708,7 +9616,9 @@
     for (const k of Object.keys(matchStats)) delete matchStats[k];
     killFeedLines.length = 0;
   }
-  function baseAddKillFeed(aName, aColor, bName, bColor, self, aSlot, bSlot) {
+  function addKillFeed(...a) {
+    emit("addKillFeed", ...a);
+    const [aName, aColor, bName, bColor, self] = a;
     killFeedLines.push({ a: aName, ac: aColor, b: bName, bc: bColor, self, at: simNow() });
     if (killFeedLines.length > 5) killFeedLines.shift();
   }
@@ -9753,7 +9663,6 @@
     }
     return out.slice(0, 5);
   }
-  var addKillFeed = baseAddKillFeed;
   onWorldReset(() => {
     for (const k of Object.keys(matchStats)) delete matchStats[k];
     killFeedLines.length = 0;
@@ -9864,7 +9773,7 @@
         }
         setVelocity(p.body, { x: p.body.velocity.x - dir.x * 7, y: p.body.velocity.y - dir.y * 4 - 2 });
         for (let i = 0; i < 14; i++) {
-          particles.push({ kind: "spark", x: x + dir.x * 20, y: y - 6 + dir.y * 20 + rand(-10, 10), vx: dir.x * rand(6, 14), vy: dir.y * rand(6, 14) + rand(-1, 1), life: 18, maxLife: 18, color: "#d7f5ef", r: 2 });
+          spawnParticle({ kind: "spark", x: x + dir.x * 20, y: y - 6 + dir.y * 20 + rand(-10, 10), vx: dir.x * rand(6, 14), vy: dir.y * rand(6, 14) + rand(-1, 1), life: 18, maxLife: 18, color: "#d7f5ef", r: 2 });
         }
       }
     },
@@ -10177,7 +10086,7 @@
       addLava(m);
     }, u(m, now) {
       applyWind(Math.sin(now / 1800) * 0.25);
-      if (simRandom() < 0.3) particles.push({ kind: "square", x: rand(0, W), y: rand(0, H - 100), vx: Math.sin(now / 1800) * 6, vy: 1, life: 20, maxLife: 20, color: "#fff", r: 2 });
+      if (simRandom() < 0.3) spawnParticle({ kind: "square", x: rand(0, W), y: rand(0, H - 100), vx: Math.sin(now / 1800) * 6, vy: 1, life: 20, maxLife: 20, color: "#fff", r: 2 });
     } },
     { n: "Ice Towers", cozy: true, b(m) {
       for (const x of [180, 490, 790, 1100]) {
@@ -10238,7 +10147,7 @@
         if (b.isStatic || b.isSensor) continue;
         if (Math.abs(b.position.x - W / 2) < 110) addVelocity(b, { x: 0, y: -perSecond(0.9) });
       }
-      if (simRandom() < 0.4) particles.push({ kind: "spark", x: W / 2 + rand(-100, 100), y: rand(300, H), vx: 0, vy: -9, life: 18, maxLife: 18, color: "#e0ffff", r: 2 });
+      if (simRandom() < 0.4) spawnParticle({ kind: "spark", x: W / 2 + rand(-100, 100), y: rand(300, H), vx: 0, vy: -9, life: 18, maxLife: 18, color: "#e0ffff", r: 2 });
     }, s: [{ x: 200, y: 120 }, { x: W - 200, y: 120 }, { x: 340, y: 120 }, { x: W - 340, y: 120 }] },
     { n: "Cloud Bounce", cozy: true, b(m) {
       addStatic(m, 220, 580, 260, 30, { restitution: 1.2, color: "#4a5578" });
@@ -10654,7 +10563,7 @@
       addStatic(m, W - 300, 440, 220, 24, { friction: 0.02, color: "#2a3242" });
       addLava(m);
     }, u() {
-      for (let i = 0; i < 3; i++) particles.push({ kind: "spark", x: rand(0, W), y: rand(0, H - 120), vx: -1, vy: 11, life: 12, maxLife: 12, color: "#6a86b8", r: 1.5 });
+      for (let i = 0; i < 3; i++) spawnParticle({ kind: "spark", x: rand(0, W), y: rand(0, H - 120), vx: -1, vy: 11, life: 12, maxLife: 12, color: "#6a86b8", r: 1.5 });
     } },
     { n: "Eye of the Storm", b(m) {
       addStatic(m, W / 2, 580, 340, 36, { color: "#2a3242" });
@@ -10708,7 +10617,7 @@
       addLava(m);
     }, u(m, now) {
       updateCrateRain(m, now, 20, 3400);
-      for (let i = 0; i < 2; i++) particles.push({ kind: "spark", x: rand(0, W), y: rand(0, H - 120), vx: 0, vy: 12, life: 10, maxLife: 10, color: "#6a86b8", r: 1.5 });
+      for (let i = 0; i < 2; i++) spawnParticle({ kind: "spark", x: rand(0, W), y: rand(0, H - 120), vx: 0, vy: 12, life: 10, maxLife: 10, color: "#6a86b8", r: 1.5 });
     } },
     { n: "Cliffhanger", b(m) {
       addStatic(m, 320, 520, 640, 400, { color: "#2a3242" });
@@ -10796,7 +10705,7 @@
         const d = Math.hypot(dx, dy) || 1;
         if (d < 480) addVelocity(b, { x: dx / d * perSecond(0.3), y: dy / d * perSecond(0.3) });
       }
-      if (simRandom() < 0.4) particles.push({ kind: "square", x: W / 2 + rand(-160, 160), y: H - rand(10, 60), vx: 0, vy: 2, life: 18, maxLife: 18, color: "#a55eea", r: 2.5 });
+      if (simRandom() < 0.4) spawnParticle({ kind: "square", x: W / 2 + rand(-160, 160), y: H - rand(10, 60), vx: 0, vy: 2, life: 18, maxLife: 18, color: "#a55eea", r: 2.5 });
     }, s: [{ x: 200, y: 120 }, { x: W - 200, y: 120 }, { x: 340, y: 120 }, { x: W - 340, y: 120 }] },
     { n: "Glitch", wrap: true, b(m) {
       const xs = [[260, 560], [640, 470], [1020, 560], [W / 2, 300]];

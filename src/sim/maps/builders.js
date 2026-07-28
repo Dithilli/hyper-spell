@@ -8,7 +8,7 @@ import {
 } from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
 import { simRandom, rand, pick } from '../rng.js';
-import { particles, spawnParticles, spawnBurst, addShake } from '../fx.js';
+import { spawnParticle, spawnParticles, spawnBurst, addShake } from '../fx.js';
 import { sfx } from '../sfx.js';
 import { currentMap } from '../match.js';
 import { players, gibs } from '../player/lifecycle.js';
@@ -369,7 +369,7 @@ export function updateIcicles(m, now) {
       setType(ic.body, 'dynamic');
       setVelocity(ic.body, { x: 0, y: 2 });
     } else if (simRandom() < 0.3) {
-      particles.push({ kind: 'square', x: ix + rand(-8, 8), y: ic.body.position.y + 20, vx: 0, vy: 1, life: 20, maxLife: 20, color: '#bfe8ff', r: 2 });
+      spawnParticle({ kind: 'square', x: ix + rand(-8, 8), y: ic.body.position.y + 20, vx: 0, vy: 1, life: 20, maxLife: 20, color: '#bfe8ff', r: 2 });
     }
   }
 }

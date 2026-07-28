@@ -20,27 +20,38 @@ import { runTape } from '../test/harness/tape.js';
 // long tape resolves inside its 4,200 ticks is wildly seed-sensitive, because a
 // round ends when two wizards marching a fixed pattern happen to finish each
 // other off. Reseeding a fixture to keep a guard green is exactly the shape of a
-// bad edit, so here is the measurement rather than an assurance. Round counts
-// for seeds 12345..12360, before and after task 9:
+// bad edit, so here is the measurement rather than an assurance.
+//
+// TASK 9 moved it from 12345 to 12348. Round counts, seeds 12345..12360:
 //
 //   before  4 1 4 5 2 1 1 2 1 2 1 1 1 1 4 1
 //   after   1 1 2 5 1 1 1 3 1 2 2 1 1 2 3 1
 //
 // 12345 was a 4-round run; once task 9 stopped projectiles spawning inside walls
-// the same seed landed on a 1-round run, and test/golden-tape.test.js's
-// round-crossing guard (`rounds >= 3`) went red. 12348 is the lowest seed from
-// 12345 up that still crosses four rounds, leaving a round of margin.
+// the same seed landed on a 1-round run. 12348 was the lowest seed from 12345 up
+// that still crossed four rounds.
 //
-// That the sim did not get less lethal is a separate claim, and it was measured
-// separately, over seeds 1..40: mean rounds 2.200 before, 2.225 after, range
-// 1..5 in both. The distribution is unchanged; 12345 simply drew badly after the
-// reshuffle. Do not copy this reseed without repeating that scan — the scan is
-// the load-bearing part, not the new number.
+// TASK 13 moved it again, from 12348 to 12353, for a bigger version of the same
+// reshuffle: cosmetics stopped drawing from the round stream, so every gameplay
+// roll after the first spark shifted. 12348 became a 1-round run. Round counts,
+// seeds 12348..12363, before and after:
+//
+//   before  4 1 1 1 3 1 2 2 1 1 2 3 1 4 1 3
+//   after   1 2 3 1 1 5 2 4 2 1 1 3 3 3 3 1
+//
+// 12353 is the lowest seed from 12348 up that crosses five rounds — two rounds
+// of margin on the `rounds >= 3` guard.
+//
+// That the sim did not get less lethal is a separate claim, measured separately
+// over seeds 1..120: mean rounds 2.183 before, 2.117 after, range 1..5 before
+// and 1..6 after. The distribution is unchanged; 12348 simply drew badly after
+// the reshuffle. Do not copy this reseed without repeating that scan — the scan
+// is the load-bearing part, not the new number.
 //
 // The short tape keeps 12345 so its golden moves for behaviour alone.
 const TAPES = [
   { name: 'one-round', ticks: 600, seed: 12345 },
-  { name: 'three-rounds', ticks: 4200, seed: 12348 },
+  { name: 'three-rounds', ticks: 4200, seed: 12353 },
 ];
 
 for (const { name, ticks, seed } of TAPES) {

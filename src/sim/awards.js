@@ -3,6 +3,7 @@
 // out of the lobby). The kill feed and the awards panel are drawn in
 // src/render/hud.js; what is here is the ledger behind them.
 import { simNow } from './time.js';
+import { emit } from './emit.js';
 import { onWorldReset } from './world.js';
 import { players } from './player/lifecycle.js';
 import { telDeath, telKill } from './telemetry.js';
@@ -22,10 +23,16 @@ export function resetMatchStats() {
   killFeedLines.length = 0;
 }
 
-// fx-wrapped like setBanner, so LAN clients replay the feed automatically.
+// Dual path, like setBanner: the feed is a local ledger src/render/hud.js reads
+// straight off this module, AND it is narration a LAN client can only learn
+// about from an event. Emit first, then record, matching the order the old
+// server-side wrapper used.
+//
 // The trailing slots aren't rendered — they let headless clients (Alinea)
 // attribute kills exactly instead of guessing by proximity.
-function baseAddKillFeed(aName, aColor, bName, bColor, self, aSlot, bSlot) {
+export function addKillFeed(...a) {
+  emit('addKillFeed', ...a);
+  const [aName, aColor, bName, bColor, self] = a;
   killFeedLines.push({ a: aName, ac: aColor, b: bName, bc: bColor, self, at: simNow() });
   if (killFeedLines.length > 5) killFeedLines.shift();
 }
@@ -71,11 +78,6 @@ export function computeAwards() {
   }
   return out.slice(0, 5);
 }
-
-// the server bridge wraps addKillFeed so LAN clients replay the feed
-// (server/sim-bridge.js:48 reassigned the global)
-export let addKillFeed = baseAddKillFeed;
-export function setAddKillFeed(fn) { addKillFeed = fn; }
 
 onWorldReset(() => {
   for (const k of Object.keys(matchStats)) delete matchStats[k];

@@ -10,6 +10,9 @@ import * as world from '../sim/world.js';
 import * as time from '../sim/time.js';
 import * as rng from '../sim/rng.js';
 import * as fx from '../sim/fx.js';
+import * as renderFx from '../render/fx.js';
+import * as renderEffects from '../render/effects.js';
+import * as emitQueue from '../sim/emit.js';
 import * as pace from '../sim/pace.js';
 import * as sfxTable from '../sim/sfx.js';
 import * as lobby from '../sim/lobby.js';
@@ -58,7 +61,7 @@ const MODULES = [
   // has to advance the TICK. Mocking globalThis.performance.now no longer does
   // anything to sim state (wave-test.html and wave-play.html still do, and are
   // stale for it).
-  world, time, rng, fx, pace, sfxTable, lobby, awards, telemetry, match, tick,
+  world, time, rng, fx, emitQueue, renderFx, renderEffects, pace, sfxTable, lobby, awards, telemetry, match, tick,
   snapshot, replay, events, waves, pickups, storage, lifecycle, combat, status,
   controllerMod, ghost, spellCore, registry, tiers, fusion, builders, extras,
   boss, enemyAi, bot, artkit, canvas, drawWorld, hud, drawWizard, drawPickups,
