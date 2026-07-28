@@ -355,15 +355,15 @@
                   chain._chained = funcs;
                   return chain;
                 };
-                Common2.chainPathBefore = function(base, path, func) {
-                  return Common2.set(base, path, Common2.chain(
+                Common2.chainPathBefore = function(base2, path, func) {
+                  return Common2.set(base2, path, Common2.chain(
                     func,
-                    Common2.get(base, path)
+                    Common2.get(base2, path)
                   ));
                 };
-                Common2.chainPathAfter = function(base, path, func) {
-                  return Common2.set(base, path, Common2.chain(
-                    Common2.get(base, path),
+                Common2.chainPathAfter = function(base2, path, func) {
+                  return Common2.set(base2, path, Common2.chain(
+                    Common2.get(base2, path),
                     func
                   ));
                 };
@@ -5032,6 +5032,46 @@
     Events.on(engine, "collisionStart", (e) => handler(e.pairs));
   }
 
+  // src/sim/gravity.js
+  var base = 2;
+  var seq = 0;
+  var mods = [];
+  var KINDS = /* @__PURE__ */ new Set(["scale", "flip", "set"]);
+  function setBase(v) {
+    base = v;
+    apply();
+  }
+  var baseGravity = () => base;
+  function push(mod) {
+    if (!KINDS.has(mod?.kind)) throw new Error(`unknown gravity modifier kind: ${mod?.kind}`);
+    const id = ++seq;
+    mods.push({ ...mod, id });
+    apply();
+    return id;
+  }
+  function pop(id) {
+    const i = mods.findIndex((m) => m.id === id);
+    if (i < 0) return;
+    mods.splice(i, 1);
+    apply();
+  }
+  function clearModifiers() {
+    mods = [];
+    apply();
+  }
+  function currentGravity() {
+    let g = base;
+    for (const m of mods) {
+      if (m.kind === "scale") g *= m.value;
+      else if (m.kind === "flip") g = -g;
+      else g = m.value;
+    }
+    return g;
+  }
+  function apply() {
+    setGravityY(currentGravity());
+  }
+
   // src/sim/world.js
   var W = 1280;
   var H = 720;
@@ -5044,7 +5084,8 @@
   }
   function createWorld() {
     const engine2 = createEngine();
-    setGravityY(2);
+    clearModifiers();
+    setBase(2);
     for (const fn of resetHooks) fn();
     return engine2;
   }
@@ -5436,11 +5477,11 @@
   onWorldReset(() => pairs.clear());
 
   // src/sim/schedule.js
-  var seq = 0;
+  var seq2 = 0;
   var entries = [];
   var running = null;
   function scheduleAt(at, fn, tag = null) {
-    const id = ++seq;
+    const id = ++seq2;
     entries.push({ at, id, fn, tag });
     return id;
   }
@@ -6706,8 +6747,7 @@
       name: "MOONSHOT",
       color: "#e8d5ff",
       start() {
-        game.baseGravity *= 0.45;
-        setGravityY(gravityY() * 0.45);
+        push({ kind: "scale", value: 0.45 });
       }
     },
     {
@@ -7227,11 +7267,11 @@
       const frozen = now < p.frozenUntil;
       const slipped = now < (p.slipUntil || 0);
       const piggy = now < (p.pigUntil || 0);
-      const base = p.megaCasts > 0 || now < p.megaUntil ? 2 : 1;
+      const base2 = p.megaCasts > 0 || now < p.megaUntil ? 2 : 1;
       let mod = 1;
       if (now < (p.shrinkUntil || 0) || piggy) mod = 0.6;
       else if (now < (p.growUntil || 0)) mod = 1.85;
-      const desired = base * mod;
+      const desired = base2 * mod;
       if (Math.abs(desired - p.sizeScale) > 0.01) setPlayerScale(p, desired);
       if (now < (p.burnUntil || 0) && now > (p.nextBurnTick || 0)) {
         p.nextBurnTick = now + 450;
@@ -7722,13 +7762,13 @@
     }
     return fb;
   }
-  function statusBolt(p, o, apply) {
+  function statusBolt(p, o, apply2) {
     const m = p.mega || 1;
     const fb = shoot(p, { r: (o.r ?? 6) * m, speed: o.speed ?? 18, vy: o.vy ?? -5, color: o.color, gravityScale: o.g ?? 0.5 });
     fb.onHit = (self, other) => {
       spawnParticles(self.position.x, self.position.y, o.color, 10, 4);
       if (o.dmg && other && other.label === "player") damagePlayer(other.player, o.dmg * m, p);
-      if (other && other.label === "player" && other.player.alive) apply(other.player, m);
+      if (other && other.label === "player" && other.player.alive) apply2(other.player, m);
     };
     return fb;
   }
@@ -8774,11 +8814,11 @@
     cast(p) {
       p.gravityLockDir = gravityY() < 0 ? -1 : 1;
       p.gravityLockUntil = simNow() + 2500;
-      setGravityY(-game.baseGravity);
+      const id = push({ kind: "flip" });
       doFlash("#c084fc", 0.3);
       setBanner("GRAVITY!", "#c084fc", 1e3);
       activeEffects.push({ until: simNow() + 2500, onEnd() {
-        setGravityY(game.baseGravity);
+        pop(id);
       } });
     }
   });
@@ -8787,10 +8827,10 @@
     color: "#d8d8f0",
     cooldown: 6e3,
     cast() {
-      setGravityY(game.baseGravity * 0.3);
+      const id = push({ kind: "scale", value: 0.3 });
       setBanner("LOW GRAVITY", "#d8d8f0", 1e3);
       activeEffects.push({ until: simNow() + 4e3, onEnd() {
-        setGravityY(game.baseGravity);
+        pop(id);
       } });
     }
   });
@@ -9291,8 +9331,8 @@
     beam: true,
     cast(p) {
       for (const ao of [-0.28, -0.14, 0, 0.14, 0.28]) zapRay(p, 26, 14, 3, ao);
-      const d = aimDir(p, 1, 0), base = Math.atan2(d.y, d.x);
-      for (let i = 0; i < 18; i++) spawnBurst(p.body.position.x, p.body.position.y - 6, i % 2 ? "#fffacd" : "#ffffff", 2, { kind: "spark", dir: base + rand(-0.35, 0.35), spread: 0.1, speed: 11, r: 2 });
+      const d = aimDir(p, 1, 0), base2 = Math.atan2(d.y, d.x);
+      for (let i = 0; i < 18; i++) spawnBurst(p.body.position.x, p.body.position.y - 6, i % 2 ? "#fffacd" : "#ffffff", 2, { kind: "spark", dir: base2 + rand(-0.35, 0.35), spread: 0.1, speed: 11, r: 2 });
       sfx.lightning();
       doFlash("#ffffff", 0.4);
       addShake(9);
@@ -9305,9 +9345,9 @@
     cast(p) {
       const m = p.mega || 1;
       const fb = boomBolt(p, { selfSafe: true, color: "#d7f0ea", r: 12, vy: -5, speed: 15, radius: 180, power: 22, dmg: 36 });
-      const base = fb.onHit;
+      const base2 = fb.onHit;
       fb.onHit = (self, other) => {
-        base?.(self, other);
+        base2?.(self, other);
         if (other?.label === "player" && other.player.alive) {
           other.player.frozenUntil = simNow() + 700 * m;
           setFrictionAir(other.player.body, 1e-3);
@@ -9446,9 +9486,9 @@
     cast(p) {
       const m = p.mega || 1;
       const fb = boomBolt(p, { selfSafe: true, color: "#ff5e57", r: 14, vy: -12, speed: 12, g: 0.9, radius: 180, power: 26, dmg: 40 });
-      const base = fb.onHit;
+      const base2 = fb.onHit;
       fb.onHit = (self, other) => {
-        base?.(self, other);
+        base2?.(self, other);
         if (other?.label === "player" && other.player.alive) other.player.burnUntil = simNow() + 2200 * m;
         for (let i = 0; i < 4; i++) {
           const blob = dropProjectile(p, self.position.x + rand(-14, 14), self.position.y - 24, { r: 6, vx: rand(-9, 9), vy: rand(-10, -5), color: i % 2 ? "#ff8c5a" : "#ff5e57", density: 3e-3, expireMs: 2600 });
@@ -10806,7 +10846,8 @@
     currentMap = m;
     game.mapIndex = index;
     game.baseGravity = def.gravity ?? 2;
-    setGravityY(game.baseGravity);
+    clearModifiers();
+    setBase(game.baseGravity);
     game.envEvent = null;
     game.boss = null;
   }
@@ -10976,13 +11017,13 @@
   }
   function spawnPointFor(p) {
     const spawns = currentMap.def.spawns;
-    const base = spawns[p.slot % spawns.length];
+    const base2 = spawns[p.slot % spawns.length];
     const jitter = p.slot >= spawns.length ? (p.slot - spawns.length + 1) * 26 * (p.slot % 2 ? 1 : -1) : 0;
-    if (!groundInColumn(base.x + jitter)) {
+    if (!groundInColumn(base2.x + jitter)) {
       const spot = platformSpots(currentMap, 3).find((s) => groundInColumn(s.x));
       if (spot) return { x: spot.x, y: Math.max(80, spot.y - 150) };
     }
-    return { x: Math.max(40, Math.min(W - 40, base.x + jitter)), y: base.y };
+    return { x: Math.max(40, Math.min(W - 40, base2.x + jitter)), y: base2.y };
   }
   var players = [];
   var gibs = /* @__PURE__ */ new Set();
@@ -11956,8 +11997,8 @@
     }, u(m, now) {
       const flipped = Math.floor(now / 8e3) % 2 === 1;
       const want = flipped ? -game.baseGravity : game.baseGravity;
-      if (gravityY() !== want) {
-        setGravityY(want);
+      if (baseGravity() !== want) {
+        setBase(want);
         doFlash("#c084fc", 0.25);
         setBanner(flipped ? "GRAVITY UP!" : "GRAVITY DOWN!", "#c084fc", 900);
       }
@@ -12207,8 +12248,8 @@
     }, u(m, now) {
       const flipped = Math.floor(now / 6e3) % 2 === 1;
       const want = flipped ? -game.baseGravity : game.baseGravity;
-      if (gravityY() !== want) {
-        setGravityY(want);
+      if (baseGravity() !== want) {
+        setBase(want);
         doFlash("#ff4df0", 0.25);
         setBanner("BLINK", "#ff4df0", 700);
       }
@@ -12240,7 +12281,7 @@
       });
       addStatic(m, W / 2, 680, 400, 24, { color: "#1f1830" });
     }, u(m, now) {
-      setGravityY(game.baseGravity * (1 + Math.sin(now / 2600) * 0.5));
+      setBase(game.baseGravity * (1 + Math.sin(now / 2600) * 0.5));
     }, s: [{ x: W / 2 - 140, y: 120 }, { x: W / 2 + 140, y: 120 }, { x: W / 2 - 50, y: 120 }, { x: W / 2 + 50, y: 120 }] },
     { n: "Everything", b(m) {
       addStatic(m, 170, 520, 300, 36, { color: "#1f1830" });
@@ -13330,13 +13371,13 @@
     }
   }
   function drawStoryBackdrop(ctx2, o) {
-    const W2 = o.W, H2 = o.H, now = o.now || 0, base = o.bg || "#241d2e";
+    const W2 = o.W, H2 = o.H, now = o.now || 0, base2 = o.bg || "#241d2e";
     const icy = !!o.icy, lava2 = o.lavaY != null, space = !!o.stars, acid = !!o.acid;
-    const biome = icy ? { accent: "#bfe8ff", far: mix(base, "#0a1830", 0.5), near: "#233a54", rim: rgba("#eafaff", 0.5), sharp: 2, freq: 0.016 } : lava2 ? { accent: acid ? "#c5f97d" : "#ff8c5a", far: mix(base, "#160608", 0.5), near: "#2a1518", rim: rgba(acid ? "#c5f97d" : "#ff8c5a", 0.55), sharp: 1.4, freq: 0.011 } : space ? { accent: "#c8b8ff", far: mix(base, "#0a0818", 0.5), near: shade(base, -0.5), rim: rgba("#c8b8ff", 0.3), sharp: 1, freq: 0.01 } : { accent: "#b98cff", far: mix(base, "#0c0818", 0.4), near: shade(base, -0.45), rim: rgba("#b98cff", 0.28), sharp: 2.4, freq: 0.02 };
+    const biome = icy ? { accent: "#bfe8ff", far: mix(base2, "#0a1830", 0.5), near: "#233a54", rim: rgba("#eafaff", 0.5), sharp: 2, freq: 0.016 } : lava2 ? { accent: acid ? "#c5f97d" : "#ff8c5a", far: mix(base2, "#160608", 0.5), near: "#2a1518", rim: rgba(acid ? "#c5f97d" : "#ff8c5a", 0.55), sharp: 1.4, freq: 0.011 } : space ? { accent: "#c8b8ff", far: mix(base2, "#0a0818", 0.5), near: shade(base2, -0.5), rim: rgba("#c8b8ff", 0.3), sharp: 1, freq: 0.01 } : { accent: "#b98cff", far: mix(base2, "#0c0818", 0.4), near: shade(base2, -0.45), rim: rgba("#b98cff", 0.28), sharp: 2.4, freq: 0.02 };
     const vg = ctx2.createLinearGradient(0, -30, 0, H2 + 30);
-    vg.addColorStop(0, mix(shade(base, 0.14), biome.accent, 0.14));
-    vg.addColorStop(0.5, base);
-    vg.addColorStop(1, lava2 ? mix(shade(base, -0.2), biome.accent, 0.22) : shade(base, -0.32));
+    vg.addColorStop(0, mix(shade(base2, 0.14), biome.accent, 0.14));
+    vg.addColorStop(0.5, base2);
+    vg.addColorStop(1, lava2 ? mix(shade(base2, -0.2), biome.accent, 0.22) : shade(base2, -0.32));
     ctx2.fillStyle = vg;
     ctx2.fillRect(-30, -30, W2 + 60, H2 + 60);
     if (!lava2) {
@@ -13361,7 +13402,7 @@
         ctx2.stroke();
         ctx2.restore();
       } else {
-        ctx2.fillStyle = rgba(shade(base, -0.2), 0.5);
+        ctx2.fillStyle = rgba(shade(base2, -0.2), 0.5);
         ctx2.beginPath();
         ctx2.arc(cx + cr * 0.35, cy - cr * 0.1, cr, 0, Math.PI * 2);
         ctx2.fill();
@@ -13460,7 +13501,7 @@
     return x - Math.floor(x);
   }
   function drawStoryTerrain(ctx2, o) {
-    const v = o.vertices, b = o.bounds, now = o.now || 0, base = o.color || "#2a2336";
+    const v = o.vertices, b = o.bounds, now = o.now || 0, base2 = o.color || "#2a2336";
     const top = b.min.y, bot = b.max.y, left = b.min.x, right = b.max.x;
     const flip = !!o.flip, crustY = flip ? bot : top, dir = flip ? 1 : -1;
     const aligned = Math.abs(Math.sin(o.angle || 0)) < 0.15;
@@ -13472,15 +13513,15 @@
     };
     trace();
     const g = ctx2.createLinearGradient(0, top, 0, bot);
-    g.addColorStop(0, shade(base, flip ? -0.4 : 0.14));
-    g.addColorStop(0.5, base);
-    g.addColorStop(1, shade(base, flip ? 0.14 : -0.4));
+    g.addColorStop(0, shade(base2, flip ? -0.4 : 0.14));
+    g.addColorStop(0.5, base2);
+    g.addColorStop(1, shade(base2, flip ? 0.14 : -0.4));
     ctx2.fillStyle = g;
     ctx2.fill();
     ctx2.save();
     trace();
     ctx2.clip();
-    ctx2.strokeStyle = rgba(shade(base, -0.45), 0.5);
+    ctx2.strokeStyle = rgba(shade(base2, -0.45), 0.5);
     ctx2.lineWidth = 1;
     for (let i = 0; i < 5; i++) {
       const hx = left + (right - left) * _thash(i * 9.1 + left), hy = top + (bot - top) * _thash(i * 4.7 + top);
@@ -13489,7 +13530,7 @@
       ctx2.lineTo(hx + 4 + _thash(i) * 4, hy + 6 + _thash(i + 1) * 5);
       ctx2.stroke();
     }
-    ctx2.fillStyle = rgba(shade(base, 0.3), 0.28);
+    ctx2.fillStyle = rgba(shade(base2, 0.3), 0.28);
     for (let i = 0; i < 9; i++) {
       const hx = left + (right - left) * _thash(i * 13.3 + left + 5), hy = top + (bot - top) * _thash(i * 7.7 + bot);
       ctx2.beginPath();
@@ -13497,7 +13538,7 @@
       ctx2.fill();
     }
     if (aligned) {
-      const cc = _crustColors(o.crust, base);
+      const cc = _crustColors(o.crust, base2);
       const bandH = 6;
       const bg = ctx2.createLinearGradient(0, crustY, 0, crustY - dir * bandH);
       bg.addColorStop(0, rgba(cc.soil, 0));
@@ -13506,29 +13547,29 @@
       ctx2.fillRect(left, Math.min(crustY, crustY - dir * bandH), right - left, bandH);
     }
     ctx2.restore();
-    ctx2.strokeStyle = shade(base, -0.6);
+    ctx2.strokeStyle = shade(base2, -0.6);
     ctx2.lineWidth = 1.5;
     ctx2.lineJoin = "round";
     trace();
     ctx2.stroke();
     if (aligned) {
-      ctx2.strokeStyle = rgba(_crustColors(o.crust, base).rim, 0.55);
+      ctx2.strokeStyle = rgba(_crustColors(o.crust, base2).rim, 0.55);
       ctx2.lineWidth = 1.2;
       ctx2.beginPath();
       ctx2.moveTo(left + 1, crustY + dir * 0.5);
       ctx2.lineTo(right - 1, crustY + dir * 0.5);
       ctx2.stroke();
     }
-    if (aligned) _crustTufts(ctx2, o.crust, left, right, crustY, dir, now, base);
+    if (aligned) _crustTufts(ctx2, o.crust, left, right, crustY, dir, now, base2);
   }
-  function _crustColors(kind, base) {
+  function _crustColors(kind, base2) {
     if (kind === "snow") return { soil: "#dfefff", rim: "#ffffff", a: "#eaf6ff", b: "#bcd8f0" };
     if (kind === "char") return { soil: "#241014", rim: "#ff8c5a", a: "#3a1c18", b: "#ffab5e" };
     if (kind === "crystal") return { soil: "#2a1d44", rim: "#c8b8ff", a: "#8a6de0", b: "#d8c8ff" };
     return { soil: "#3a6a2e", rim: "#8fe6a2", a: "#4f8a3d", b: "#8fe6a2" };
   }
-  function _crustTufts(ctx2, kind, x0, x1, cy, dir, now, base) {
-    const cc = _crustColors(kind, base), step = 7, w = x1 - x0;
+  function _crustTufts(ctx2, kind, x0, x1, cy, dir, now, base2) {
+    const cc = _crustColors(kind, base2), step = 7, w = x1 - x0;
     let grassGrad = null;
     if (kind === "grass") {
       grassGrad = ctx2.createLinearGradient(x0, cy, x0, cy + dir * 8);
@@ -13570,7 +13611,7 @@
           ctx2.globalAlpha = 1;
         }
       } else if (kind === "char") {
-        ctx2.fillStyle = shade(base, -0.5);
+        ctx2.fillStyle = shade(base2, -0.5);
         ctx2.beginPath();
         ctx2.moveTo(x - 2.5, cy);
         ctx2.lineTo(x + sway * 0.4, cy + dir * (5 + s * 4));
@@ -13614,13 +13655,13 @@
     }
   }
   function drawStorySpikes(ctx2, o) {
-    const w = o.w || 100, h = o.h || 20, base = o.color || "#8a2f3d";
+    const w = o.w || 100, h = o.h || 20, base2 = o.color || "#8a2f3d";
     ctx2.save();
     ctx2.translate(o.x, o.y);
     ctx2.rotate(o.angle || 0);
     const teeth = Math.max(3, Math.round(w / 18));
     const tw = w / teeth;
-    ctx2.fillStyle = shade(base, -0.45);
+    ctx2.fillStyle = shade(base2, -0.45);
     ctx2.fillRect(-w / 2, h / 2 - 5, w, 6);
     for (let i = 0; i < teeth; i++) {
       const x0 = -w / 2 + i * tw, xm = x0 + tw / 2, x1 = x0 + tw;
@@ -13630,14 +13671,14 @@
       ctx2.lineTo(x1, h / 2);
       ctx2.closePath();
       const g = ctx2.createLinearGradient(x0, 0, x1, 0);
-      g.addColorStop(0, shade(base, -0.3));
-      g.addColorStop(0.45, mix(base, "#e8e8f0", 0.35));
+      g.addColorStop(0, shade(base2, -0.3));
+      g.addColorStop(0.45, mix(base2, "#e8e8f0", 0.35));
       g.addColorStop(0.5, "#f4f4ff");
-      g.addColorStop(0.55, mix(base, "#e8e8f0", 0.35));
-      g.addColorStop(1, shade(base, -0.4));
+      g.addColorStop(0.55, mix(base2, "#e8e8f0", 0.35));
+      g.addColorStop(1, shade(base2, -0.4));
       ctx2.fillStyle = g;
       ctx2.fill();
-      ctx2.strokeStyle = shade(base, -0.6);
+      ctx2.strokeStyle = shade(base2, -0.6);
       ctx2.lineWidth = 0.8;
       ctx2.stroke();
       ctx2.strokeStyle = "rgba(255,255,255,0.8)";
@@ -14331,9 +14372,9 @@
     const subtle = globalThis.crypto?.subtle;
     const payloadUrl = (() => {
       const here = typeof location !== "undefined" ? location.href : "http://localhost/";
-      const base = typeof document !== "undefined" && document.currentScript?.src ? new URL("extra-content.pack.js", document.currentScript.src) : new URL("js/extra-content.pack.js", here);
-      base.searchParams.set("v", pack.v);
-      return base.href;
+      const base2 = typeof document !== "undefined" && document.currentScript?.src ? new URL("extra-content.pack.js", document.currentScript.src) : new URL("js/extra-content.pack.js", here);
+      base2.searchParams.set("v", pack.v);
+      return base2.href;
     })();
     function takePayload() {
       const value = globalThis.__hsPackData;

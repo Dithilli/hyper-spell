@@ -7,14 +7,17 @@ import { W, H, column } from '../world.js';
 import {
   addVelocity, allBodies, createBox, createCircle, createPolygon, gravityY,
   queryCapsule, queryRadius, queryRegion, removeBody, setAngularVelocity,
-  setFrictionAir, setGravityY, setPosition, setType, setVelocity,
+  setFrictionAir, setPosition, setType, setVelocity,
 } from '../phys/facade.js';
+import { push as pushGravity, pop as popGravity } from '../gravity.js';
 import { perSecond, simNow } from '../time.js';
 import { simRandom, rand, pick } from '../rng.js';
 import { particles, spawnParticles, spawnRing, spawnText, addShake, doFlash } from '../fx.js';
 import { slowMo } from '../pace.js';
 import { sfx } from '../sfx.js';
-import { game, setBanner } from '../match.js';
+// `game` is no longer imported: gravflip and moongrav were the last readers of
+// game.baseGravity here, and they compose over the base now instead of naming it.
+import { setBanner } from '../match.js';
 import { players, gibs, healPlayer } from '../player/lifecycle.js';
 import { damagePlayer } from '../player/combat.js';
 import { grounded } from '../player/controller.js';
@@ -861,18 +864,22 @@ regSpell('gravflip', {
     // the world flips — except the caster, who keeps their footing
     p.gravityLockDir = gravityY() < 0 ? -1 : 1;
     p.gravityLockUntil = simNow() + 2500;
-    setGravityY(-game.baseGravity);
+    // A modifier, not a write: it flips whatever gravity currently is, so it
+    // composes with a live Moon Gravity instead of cancelling it, and a map
+    // cycling its base underneath cannot erase it.
+    const id = pushGravity({ kind: 'flip' });
     doFlash('#c084fc', 0.3);
     setBanner('GRAVITY!', '#c084fc', 1000);
-    activeEffects.push({ until: simNow() + 2500, onEnd() { setGravityY(game.baseGravity); } });
+    activeEffects.push({ until: simNow() + 2500, onEnd() { popGravity(id); } });
   },
 });
 regSpell('moongrav', {
   name: 'Moon Gravity', color: '#d8d8f0', cooldown: 6000,
   cast() {
-    setGravityY(game.baseGravity * 0.3);
+    // Two overlapping casts are two modifiers: each expires on its own timer.
+    const id = pushGravity({ kind: 'scale', value: 0.3 });
     setBanner('LOW GRAVITY', '#d8d8f0', 1000);
-    activeEffects.push({ until: simNow() + 4000, onEnd() { setGravityY(game.baseGravity); } });
+    activeEffects.push({ until: simNow() + 4000, onEnd() { popGravity(id); } });
   },
 });
 regSpell('earthquake', {

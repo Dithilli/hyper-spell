@@ -4,9 +4,10 @@
 // (drawn in src/render/draw-env.js).
 import { W, H, column } from './world.js';
 import {
-  addTo, addVelocity, allBodies, createBox, createCircle, gravityY, queryRegion,
-  removeFrom, setFriction, setGravityY, setRestitution, setVelocity,
+  addTo, addVelocity, allBodies, createBox, createCircle, queryRegion,
+  removeFrom, setFriction, setRestitution, setVelocity,
 } from './phys/facade.js';
+import { push as pushGravity } from './gravity.js';
 import { simRandom, rand, pick } from './rng.js';
 import { perSecond } from './time.js';
 import { spawnParticles, addShake, doFlash } from './fx.js';
@@ -106,8 +107,11 @@ export const ENV_EVENTS = [
   {
     id: 'moonshot', name: 'MOONSHOT', color: '#e8d5ff',
     start() {
-      game.baseGravity *= 0.45;
-      setGravityY(gravityY() * 0.45);
+      // Round-scoped, and taken back off by loadMap's clearModifiers() rather
+      // than by mutating the map's base. Mutating the base was what made a
+      // gravity spell cast during Moonshot restore the WRONG number when it
+      // expired, and it composes with a live spell now instead of fighting it.
+      pushGravity({ kind: 'scale', value: 0.45 });
     },
   },
   {

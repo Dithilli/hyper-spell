@@ -5,7 +5,7 @@
 // installServerBridge is handed.
 import { performance } from '../sim/env.js';
 import { W, H } from '../sim/world.js';
-import { allBodies, worldGravityScale } from '../sim/phys/facade.js';
+import { allBodies, gravityY, worldGravityScale } from '../sim/phys/facade.js';
 import { GAME_VERSION } from '../version.js';
 import { avatarVariant } from '../render/artkit.js';
 import {
@@ -22,10 +22,12 @@ import { setPostTelemetry } from '../sim/telemetry.js';
 import { cleanName, readableColor } from '../sim/lobby.js';
 import {
   game, setBanner, setSetBanner, minPlayers, joinPlayer, beginFromLobby,
-  resetMatch, setWins, toggleMode,
+  resetMatch, setWins, toggleMode, startRound,
 } from '../sim/match.js';
+import { MAPS } from '../sim/maps/builders.js';
+import { activeModifiers, baseGravity, currentGravity } from '../sim/gravity.js';
 import { players, MAX_PLAYERS, FALL_SAFE_DROP, despawnPlayer, gibs } from '../sim/player/lifecycle.js';
-import { projectiles, summons, activeEffects, boltVisual, setBoltVisual } from '../sim/spells/core.js';
+import { projectiles, summons, activeEffects, boltVisual, setBoltVisual, castSpell } from '../sim/spells/core.js';
 import { SPELLS } from '../sim/spells/registry.js';
 import { BotController, addBot } from '../sim/ai/bot.js';
 import { stepSim } from '../sim/tick.js';
@@ -265,6 +267,38 @@ export function installServerBridge(opts = {}) {
       return !!p && simNow() < (p.frozenUntil || 0);
     },
     debugSetPace: (s) => slowMo(s, 1e9),
+    // Start a round on the named map, cast `spellId` from slot 0, run
+    // `ticksToRun` ticks, and report whether the spell's gravity modifier is
+    // still on the stack. The three cycling maps rewrite gravity every tick;
+    // this is what proves they no longer erase a spell that did.
+    debugCastOnMap: (mapNameFragment, spellId, ticksToRun) => {
+      const want = mapNameFragment.toUpperCase();
+      const index = MAPS.findIndex((m) => m.name.includes(want));
+      if (index < 0) throw new Error(`no map matching ${mapNameFragment}`);
+      if (!players.length) serverAddPlayer({ name: 'probe' });
+      startRound(index); // loads the map AND respawns everyone onto it
+      if (game.mapIndex !== index) throw new Error('the round did not land on the requested map');
+      const p = players[0];
+      p.slots[0] = spellId;
+      p.casts[0] = -1e9; // past any cooldown
+      // Identify the spell's OWN modifier by id, not by counting: an env event
+      // rolled at round start may have pushed one of its own, and a count would
+      // confuse the two.
+      const before = new Set(activeModifiers().map((m) => m.id));
+      castSpell(p, simNow(), 0);
+      const mine = activeModifiers().filter((m) => !before.has(m.id));
+      if (mine.length !== 1) throw new Error(`${spellId} pushed ${mine.length} gravity modifiers, expected 1`);
+      for (let i = 0; i < ticksToRun; i++) stepSim();
+      // "Still in effect" is three claims, and the middle one is the one the
+      // bug broke: modifier-presence alone would be near-tautological (only
+      // pop/clearModifiers can remove one), so it is checked against the value
+      // the ENGINE actually has. A map that writes gravity behind the stack's
+      // back — which is exactly what Flip Zone, Blink and Glitch used to do —
+      // leaves the modifier on the list and the world unflipped, and fails here.
+      return activeModifiers().some((m) => m.id === mine[0].id)
+        && gravityY() === currentGravity()
+        && currentGravity() !== baseGravity();
+    },
     // diagnostics for the smoke harness / leak audit
     audit: () => ({
       bodies: allBodies().length,

@@ -1,7 +1,8 @@
 // match.js — the state machine: round and match flow, the arena currently
 // loaded, and the banner that narrates both.
 import { W, H, onWorldReset } from './world.js';
-import { addBody, addTo, createBox, createComposite, removeBody, setGravityY } from './phys/facade.js';
+import { addBody, addTo, createBox, createComposite, removeBody } from './phys/facade.js';
+import { clearModifiers, setBase } from './gravity.js';
 import { simNow } from './time.js';
 import { simRandom, rand, reseed } from './rng.js';
 import { pairCooldown } from './cooldown.js';
@@ -88,7 +89,12 @@ export function loadMap(index) {
   currentMap = m;
   game.mapIndex = index;
   game.baseGravity = def.gravity ?? 2;
-  setGravityY(game.baseGravity);
+  // Every gravity modifier is round-scoped, exactly like the activeEffects
+  // emptied above — this is what takes Moonshot's 0.45 back off, and what stops
+  // a Gravity Flip cast in the last second of a round from following the
+  // wizards onto the next map.
+  clearModifiers();
+  setBase(game.baseGravity);
   game.envEvent = null;
   game.boss = null;
 }

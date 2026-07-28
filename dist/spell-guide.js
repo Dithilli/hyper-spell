@@ -351,15 +351,15 @@
                   chain._chained = funcs;
                   return chain;
                 };
-                Common2.chainPathBefore = function(base, path, func) {
-                  return Common2.set(base, path, Common2.chain(
+                Common2.chainPathBefore = function(base2, path, func) {
+                  return Common2.set(base2, path, Common2.chain(
                     func,
-                    Common2.get(base, path)
+                    Common2.get(base2, path)
                   ));
                 };
-                Common2.chainPathAfter = function(base, path, func) {
-                  return Common2.set(base, path, Common2.chain(
-                    Common2.get(base, path),
+                Common2.chainPathAfter = function(base2, path, func) {
+                  return Common2.set(base2, path, Common2.chain(
+                    Common2.get(base2, path),
                     func
                   ));
                 };
@@ -4967,6 +4967,46 @@
     return Constraint.create(desc);
   }
 
+  // src/sim/gravity.js
+  var base = 2;
+  var seq = 0;
+  var mods = [];
+  var KINDS = /* @__PURE__ */ new Set(["scale", "flip", "set"]);
+  function setBase(v) {
+    base = v;
+    apply();
+  }
+  var baseGravity = () => base;
+  function push(mod) {
+    if (!KINDS.has(mod?.kind)) throw new Error(`unknown gravity modifier kind: ${mod?.kind}`);
+    const id = ++seq;
+    mods.push({ ...mod, id });
+    apply();
+    return id;
+  }
+  function pop(id) {
+    const i = mods.findIndex((m) => m.id === id);
+    if (i < 0) return;
+    mods.splice(i, 1);
+    apply();
+  }
+  function clearModifiers() {
+    mods = [];
+    apply();
+  }
+  function currentGravity() {
+    let g = base;
+    for (const m of mods) {
+      if (m.kind === "scale") g *= m.value;
+      else if (m.kind === "flip") g = -g;
+      else g = m.value;
+    }
+    return g;
+  }
+  function apply() {
+    setGravityY(currentGravity());
+  }
+
   // src/sim/world.js
   var W = 1280;
   var H = 720;
@@ -5165,11 +5205,11 @@
   onWorldReset(() => pairs.clear());
 
   // src/sim/schedule.js
-  var seq = 0;
+  var seq2 = 0;
   var entries = [];
   var running = null;
   function scheduleAt(at, fn, tag = null) {
-    const id = ++seq;
+    const id = ++seq2;
     entries.push({ at, id, fn, tag });
     return id;
   }
@@ -5873,8 +5913,7 @@
       name: "MOONSHOT",
       color: "#e8d5ff",
       start() {
-        game.baseGravity *= 0.45;
-        setGravityY(gravityY() * 0.45);
+        push({ kind: "scale", value: 0.45 });
       }
     },
     {
@@ -6671,13 +6710,13 @@
     }
     return fb;
   }
-  function statusBolt(p, o, apply) {
+  function statusBolt(p, o, apply2) {
     const m = p.mega || 1;
     const fb = shoot(p, { r: (o.r ?? 6) * m, speed: o.speed ?? 18, vy: o.vy ?? -5, color: o.color, gravityScale: o.g ?? 0.5 });
     fb.onHit = (self, other) => {
       spawnParticles(self.position.x, self.position.y, o.color, 10, 4);
       if (o.dmg && other && other.label === "player") damagePlayer(other.player, o.dmg * m, p);
-      if (other && other.label === "player" && other.player.alive) apply(other.player, m);
+      if (other && other.label === "player" && other.player.alive) apply2(other.player, m);
     };
     return fb;
   }
@@ -7723,11 +7762,11 @@
     cast(p) {
       p.gravityLockDir = gravityY() < 0 ? -1 : 1;
       p.gravityLockUntil = simNow() + 2500;
-      setGravityY(-game.baseGravity);
+      const id = push({ kind: "flip" });
       doFlash("#c084fc", 0.3);
       setBanner("GRAVITY!", "#c084fc", 1e3);
       activeEffects.push({ until: simNow() + 2500, onEnd() {
-        setGravityY(game.baseGravity);
+        pop(id);
       } });
     }
   });
@@ -7736,10 +7775,10 @@
     color: "#d8d8f0",
     cooldown: 6e3,
     cast() {
-      setGravityY(game.baseGravity * 0.3);
+      const id = push({ kind: "scale", value: 0.3 });
       setBanner("LOW GRAVITY", "#d8d8f0", 1e3);
       activeEffects.push({ until: simNow() + 4e3, onEnd() {
-        setGravityY(game.baseGravity);
+        pop(id);
       } });
     }
   });
@@ -8215,8 +8254,8 @@
     beam: true,
     cast(p) {
       for (const ao of [-0.28, -0.14, 0, 0.14, 0.28]) zapRay(p, 26, 14, 3, ao);
-      const d = aimDir(p, 1, 0), base = Math.atan2(d.y, d.x);
-      for (let i = 0; i < 18; i++) spawnBurst(p.body.position.x, p.body.position.y - 6, i % 2 ? "#fffacd" : "#ffffff", 2, { kind: "spark", dir: base + rand(-0.35, 0.35), spread: 0.1, speed: 11, r: 2 });
+      const d = aimDir(p, 1, 0), base2 = Math.atan2(d.y, d.x);
+      for (let i = 0; i < 18; i++) spawnBurst(p.body.position.x, p.body.position.y - 6, i % 2 ? "#fffacd" : "#ffffff", 2, { kind: "spark", dir: base2 + rand(-0.35, 0.35), spread: 0.1, speed: 11, r: 2 });
       sfx.lightning();
       doFlash("#ffffff", 0.4);
       addShake(9);
@@ -8229,9 +8268,9 @@
     cast(p) {
       const m = p.mega || 1;
       const fb = boomBolt(p, { selfSafe: true, color: "#d7f0ea", r: 12, vy: -5, speed: 15, radius: 180, power: 22, dmg: 36 });
-      const base = fb.onHit;
+      const base2 = fb.onHit;
       fb.onHit = (self, other) => {
-        base?.(self, other);
+        base2?.(self, other);
         if (other?.label === "player" && other.player.alive) {
           other.player.frozenUntil = simNow() + 700 * m;
           setFrictionAir(other.player.body, 1e-3);
@@ -8370,9 +8409,9 @@
     cast(p) {
       const m = p.mega || 1;
       const fb = boomBolt(p, { selfSafe: true, color: "#ff5e57", r: 14, vy: -12, speed: 12, g: 0.9, radius: 180, power: 26, dmg: 40 });
-      const base = fb.onHit;
+      const base2 = fb.onHit;
       fb.onHit = (self, other) => {
-        base?.(self, other);
+        base2?.(self, other);
         if (other?.label === "player" && other.player.alive) other.player.burnUntil = simNow() + 2200 * m;
         for (let i = 0; i < 4; i++) {
           const blob = dropProjectile(p, self.position.x + rand(-14, 14), self.position.y - 24, { r: 6, vx: rand(-9, 9), vy: rand(-10, -5), color: i % 2 ? "#ff8c5a" : "#ff5e57", density: 3e-3, expireMs: 2600 });
@@ -9476,7 +9515,8 @@
     currentMap = m;
     game.mapIndex = index;
     game.baseGravity = def.gravity ?? 2;
-    setGravityY(game.baseGravity);
+    clearModifiers();
+    setBase(game.baseGravity);
     game.envEvent = null;
     game.boss = null;
   }
@@ -9595,13 +9635,13 @@
   }
   function spawnPointFor(p) {
     const spawns = currentMap.def.spawns;
-    const base = spawns[p.slot % spawns.length];
+    const base2 = spawns[p.slot % spawns.length];
     const jitter = p.slot >= spawns.length ? (p.slot - spawns.length + 1) * 26 * (p.slot % 2 ? 1 : -1) : 0;
-    if (!groundInColumn(base.x + jitter)) {
+    if (!groundInColumn(base2.x + jitter)) {
       const spot = platformSpots(currentMap, 3).find((s) => groundInColumn(s.x));
       if (spot) return { x: spot.x, y: Math.max(80, spot.y - 150) };
     }
-    return { x: Math.max(40, Math.min(W - 40, base.x + jitter)), y: base.y };
+    return { x: Math.max(40, Math.min(W - 40, base2.x + jitter)), y: base2.y };
   }
   var players = [];
   var gibs = /* @__PURE__ */ new Set();
@@ -10488,8 +10528,8 @@
     }, u(m, now) {
       const flipped = Math.floor(now / 8e3) % 2 === 1;
       const want = flipped ? -game.baseGravity : game.baseGravity;
-      if (gravityY() !== want) {
-        setGravityY(want);
+      if (baseGravity() !== want) {
+        setBase(want);
         doFlash("#c084fc", 0.25);
         setBanner(flipped ? "GRAVITY UP!" : "GRAVITY DOWN!", "#c084fc", 900);
       }
@@ -10739,8 +10779,8 @@
     }, u(m, now) {
       const flipped = Math.floor(now / 6e3) % 2 === 1;
       const want = flipped ? -game.baseGravity : game.baseGravity;
-      if (gravityY() !== want) {
-        setGravityY(want);
+      if (baseGravity() !== want) {
+        setBase(want);
         doFlash("#ff4df0", 0.25);
         setBanner("BLINK", "#ff4df0", 700);
       }
@@ -10772,7 +10812,7 @@
       });
       addStatic(m, W / 2, 680, 400, 24, { color: "#1f1830" });
     }, u(m, now) {
-      setGravityY(game.baseGravity * (1 + Math.sin(now / 2600) * 0.5));
+      setBase(game.baseGravity * (1 + Math.sin(now / 2600) * 0.5));
     }, s: [{ x: W / 2 - 140, y: 120 }, { x: W / 2 + 140, y: 120 }, { x: W / 2 - 50, y: 120 }, { x: W / 2 + 50, y: 120 }] },
     { n: "Everything", b(m) {
       addStatic(m, 170, 520, 300, 36, { color: "#1f1830" });
