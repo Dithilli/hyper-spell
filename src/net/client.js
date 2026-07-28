@@ -8,7 +8,7 @@ import { GAME_VERSION } from '../version.js';
 // cosmetic randomness (the local starfield, the victory confetti). A client
 // runs no simulation, so these must not touch src/sim/rng.js's round stream.
 import { fxRange as rand, fxPick as pick } from '../render/fx.js';
-import { ctx } from '../render/canvas.js';
+import { ctx, RENDER_SCALE } from '../render/canvas.js';
 import { rgba } from '../render/artkit.js';
 import { ensureAudio } from '../render/audio.js';
 // spawnParticles is here because applyBrokenDestructibles bursts the block it
@@ -100,7 +100,7 @@ globalThis.drawNetStats = function drawNetStats(now) {
   if (!netStats.on) return;
   const line = `NET · snap ${netStats.lastBytes}B · ${netStats.rate}/s · ${netStats.kbs}KB/s in · gap ${Math.round(snapGapMs)}ms · delay ${Math.round(netStats.delay)}ms`;
   ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
   ctx.font = '12px Menlo, monospace';
   ctx.textAlign = 'left';
   const w = ctx.measureText(line).width + 16;
@@ -394,7 +394,12 @@ export function netClientFrame(now) {
 
   const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
   setShake(shake * 0.88);
-  ctx.setTransform(1, 0, 0, 1, sx, sy);
+  // RENDER_SCALE carries the device-pixel backing store (canvas.js). The online
+  // path still draws its own fixed framing — the camera reaches it in the boss
+  // framing task — but it has to agree with the couch path about how many
+  // device pixels a world unit is, or an online client on a HiDPI display
+  // renders the whole match into the top-left quarter of its canvas.
+  ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, sx * RENDER_SCALE, sy * RENDER_SCALE);
   ctx.clearRect(-30, -30, W + 60, H + 60);
 
   if (!snapCur || !clientMap) {

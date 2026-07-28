@@ -5,6 +5,7 @@
 // entry makes once the canvas exists.
 import { W, H } from '../sim/world.js';
 import { ensureAudio } from '../render/audio.js';
+import { screenToWorld, setCameraEnabled, cameraEnabled } from '../render/camera.js';
 
 export const keys = {};
 
@@ -14,8 +15,21 @@ export const KEYMAPS = [
   { left: 'ArrowLeft', right: 'ArrowRight', jump: 'ArrowUp', cast: 'Enter', cast2: 'ShiftRight', block: 'ArrowDown', label: 'ENTER', label2: 'R-SHIFT' },
 ];
 
-// mouse state in canvas/world coordinates
-export const mouse = { x: W / 2, y: H / 2, down: false, rdown: false, mdown: false, present: false };
+// Mouse state. sx/sy are SCREEN coords (the 1280x720 logical frame); x/y are the
+// WORLD coords aim actually uses. With a camera between the two they are no
+// longer the same point, and the world pair has to be re-derived every frame —
+// the camera keeps moving under a stationary cursor, so deriving it on mousemove
+// alone would leave aim pointing at wherever the world was when you last twitched.
+export const mouse = { x: W / 2, y: H / 2, sx: W / 2, sy: H / 2, down: false, rdown: false, mdown: false, present: false };
+
+// Called once per frame from the render path, right after updateCamera(). It
+// lives here rather than inside camera.js so the dependency runs one way:
+// platform imports render, never the reverse.
+export function syncMouseWorld() {
+  const w = screenToWorld(mouse.sx, mouse.sy);
+  mouse.x = w.x;
+  mouse.y = w.y;
+}
 
 export class KeyboardController {
   constructor(map, useMouse = false) {
@@ -56,6 +70,9 @@ export function attachKeyboard(canvas) {
   addEventListener('keydown', e => {
     ensureAudio();
     keys[e.code] = true;
+    // F9 drops the camera back to the old fixed framing — for A/B'ing the shot,
+    // and for anyone who would rather the arena just sat still
+    if (e.code === 'F9') setCameraEnabled(!cameraEnabled());
     if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', 'Space'].includes(e.code)) e.preventDefault();
   });
   addEventListener('keyup', e => keys[e.code] = false);
@@ -64,8 +81,9 @@ export function attachKeyboard(canvas) {
   if (canvas && typeof canvas.addEventListener === 'function') {
     canvas.addEventListener('mousemove', e => {
       const r = canvas.getBoundingClientRect();
-      mouse.x = (e.clientX - r.left) * (W / r.width);
-      mouse.y = (e.clientY - r.top) * (H / r.height);
+      mouse.sx = (e.clientX - r.left) * (W / r.width);
+      mouse.sy = (e.clientY - r.top) * (H / r.height);
+      syncMouseWorld();
       mouse.present = true;
     });
     canvas.addEventListener('mousedown', e => {

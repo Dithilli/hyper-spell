@@ -28,8 +28,11 @@ import {
   drawWizard, drawWizardFigure, drawGhostWisps, drawOffscreenPointers,
 } from './draw-wizard.js';
 import { drawHUD, drawLobby, drawAwards, drawSpellReport } from './hud.js';
-import { drawReplay } from './replay.js';
-import { mouse, kbControllers } from '../platform/input-keyboard.js';
+import { drawReplay, drawReplayOverlay, replayCameraPoints } from './replay.js';
+import { mouse, kbControllers, syncMouseWorld } from '../platform/input-keyboard.js';
+import {
+  updateCamera, cameraPoints, beginWorld, endWorld, clearFrame,
+} from './camera.js';
 
 // ---------- drawing ----------
 export function drawBodyRounded(b, color) {
@@ -665,21 +668,37 @@ export function drawVictory(now) {
   }
 }
 
+// The frame is two halves now. Everything between beginWorld() and endWorld()
+// is drawn in WORLD coordinates through the camera transform; everything after
+// endWorld() is screen furniture (HUD, vignette, flash, letterbox) that must not
+// scale with the zoom.
+//
+// The shake is no longer a jittered translate applied here. It is trauma the
+// camera decays, so `shake` is read and decayed in exactly one place
+// (updateCameraShake) — which is also why this function no longer calls
+// setShake: doing both would decay it twice per frame.
 export function draw(now) {
   if (game.replay) {
     // killcam: re-render the recorded tape; the live sim keeps running unseen
-    setShake(shake * 0.88);
     setFlashAlpha(flashAlpha * 0.86);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(-30, -30, W + 60, H + 60);
+    updateCamera(now, replayCameraPoints());
+    syncMouseWorld();
+    clearFrame(currentMap?.def?.bg);
+    beginWorld();
     drawReplay(now);
+    endWorld();
+    ctx.fillStyle = getVignette();
+    ctx.fillRect(0, 0, W, H);
+    drawReplayOverlay(now);
     drawHUD(now);
     return;
   }
-  const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
-  setShake(shake * 0.88);
-  ctx.setTransform(1, 0, 0, 1, sx, sy);
-  ctx.clearRect(-30, -30, W + 60, H + 60);
+  updateCamera(now, cameraPoints());
+  // the cursor sits still on screen while the camera moves under it, so the
+  // world-space aim point has to be recomputed every frame, not on mousemove
+  syncMouseWorld();
+  clearFrame(currentMap?.def?.bg);
+  beginWorld();
   drawBackdrop(now);
   drawMapBodies(now);
   drawLava(now);
@@ -703,6 +722,7 @@ export function draw(now) {
 
   drawEnvVisualsLive(now);
   drawReticle(now);
+  endWorld();
 
   ctx.fillStyle = getVignette();
   ctx.fillRect(0, 0, W, H);
@@ -710,7 +730,7 @@ export function draw(now) {
   if (flashAlpha > 0.01) {
     ctx.globalAlpha = flashAlpha;
     ctx.fillStyle = flashColor;
-    ctx.fillRect(-30, -30, W + 60, H + 60);
+    ctx.fillRect(0, 0, W, H);
     ctx.globalAlpha = 1;
   }
   setFlashAlpha(flashAlpha * 0.86);

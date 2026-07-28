@@ -29,9 +29,9 @@
     mod
   ));
 
-  // ../hyper-spell/node_modules/matter-js/build/matter.js
+  // node_modules/matter-js/build/matter.js
   var require_matter = __commonJS({
-    "../hyper-spell/node_modules/matter-js/build/matter.js"(exports, module) {
+    "node_modules/matter-js/build/matter.js"(exports, module) {
       (function webpackUniversalModuleDefinition(root2, factory) {
         if (typeof exports === "object" && typeof module === "object")
           module.exports = factory();
@@ -14307,17 +14307,38 @@
   // src/render/canvas.js
   var canvas_exports = {};
   __export(canvas_exports, {
+    RENDER_SCALE: () => RENDER_SCALE,
     canvas: () => canvas,
     ctx: () => ctx,
     drawBody: () => drawBody,
+    fitCanvasToDisplay: () => fitCanvasToDisplay,
     initCanvas: () => initCanvas
   });
   var canvas = null;
   var ctx = null;
+  var RENDER_SCALE = 1;
+  var DESIGN_W = 1280;
+  var DESIGN_H = 720;
+  var MAX_SUPERSAMPLE = 2;
   function initCanvas(el) {
     canvas = el;
-    ctx = el.getContext("2d");
+    ctx = el.getContext("2d", { alpha: false });
+    fitCanvasToDisplay();
+    if (typeof addEventListener === "function") addEventListener("resize", fitCanvasToDisplay);
     return ctx;
+  }
+  function fitCanvasToDisplay() {
+    if (!canvas || !canvas.style || typeof canvas.getBoundingClientRect !== "function") return;
+    const dpr = globalThis.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const cssW = rect.width || DESIGN_W;
+    const scale2 = Math.min(cssW * dpr / DESIGN_W, MAX_SUPERSAMPLE);
+    const bw = Math.max(1, Math.round(DESIGN_W * scale2));
+    if (canvas.width === bw) return;
+    canvas.width = bw;
+    canvas.height = Math.max(1, Math.round(DESIGN_H * scale2));
+    RENDER_SCALE = canvas.width / DESIGN_W;
+    ctx.textAlign = "center";
   }
   function drawBody(body) {
     ctx.beginPath();
@@ -14352,7 +14373,8 @@
     attachKeyboard: () => attachKeyboard,
     kbControllers: () => kbControllers,
     keys: () => keys,
-    mouse: () => mouse
+    mouse: () => mouse,
+    syncMouseWorld: () => syncMouseWorld
   });
 
   // src/render/audio.js
@@ -14612,328 +14634,6 @@
     VOICES[key]?.();
   }
   var voiceKeys = () => Object.keys(VOICES);
-
-  // src/platform/input-keyboard.js
-  var keys = {};
-  var KEYMAPS = [
-    { left: "KeyA", right: "KeyD", jump: "KeyW", cast: "KeyE", cast2: "KeyQ", block: "KeyS", label: "E", label2: "Q" },
-    { left: "ArrowLeft", right: "ArrowRight", jump: "ArrowUp", cast: "Enter", cast2: "ShiftRight", block: "ArrowDown", label: "ENTER", label2: "R-SHIFT" }
-  ];
-  var mouse = { x: W / 2, y: H / 2, down: false, rdown: false, mdown: false, present: false };
-  var KeyboardController = class {
-    constructor(map, useMouse = false) {
-      this.map = map;
-      this.useMouse = useMouse;
-      this.prev = { jump: false, cast: false, cast2: false, block: false, start: false };
-      this.assigned = false;
-    }
-    poll() {
-      const m = this.map;
-      const useM = this.useMouse && mouse.present;
-      const jump = !!keys[m.jump] || this.useMouse && !!keys["Space"];
-      const cast = !!keys[m.cast] || useM && mouse.down;
-      const cast2 = !!keys[m.cast2] || useM && mouse.rdown;
-      const block = !!keys[m.block] || useM && mouse.mdown;
-      const start = !!keys["Space"];
-      const s = {
-        move: (keys[m.right] ? 1 : 0) - (keys[m.left] ? 1 : 0),
-        jump,
-        cast,
-        cast2,
-        block,
-        jumpPressed: jump && !this.prev.jump,
-        castPressed: cast && !this.prev.cast,
-        cast2Pressed: cast2 && !this.prev.cast2,
-        blockPressed: block && !this.prev.block,
-        startPressed: start && !this.prev.start,
-        aimPoint: useM ? { x: mouse.x, y: mouse.y } : null,
-        aimVec: null
-      };
-      this.prev = { jump, cast, cast2, block, start };
-      return s;
-    }
-  };
-  var kbControllers = [];
-  function attachKeyboard(canvas3) {
-    addEventListener("keydown", (e) => {
-      ensureAudio();
-      keys[e.code] = true;
-      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter", "Space"].includes(e.code)) e.preventDefault();
-    });
-    addEventListener("keyup", (e) => keys[e.code] = false);
-    addEventListener("blur", () => {
-      for (const k in keys) keys[k] = false;
-    });
-    if (canvas3 && typeof canvas3.addEventListener === "function") {
-      canvas3.addEventListener("mousemove", (e) => {
-        const r = canvas3.getBoundingClientRect();
-        mouse.x = (e.clientX - r.left) * (W / r.width);
-        mouse.y = (e.clientY - r.top) * (H / r.height);
-        mouse.present = true;
-      });
-      canvas3.addEventListener("mousedown", (e) => {
-        ensureAudio();
-        mouse.present = true;
-        if (e.button === 0) mouse.down = true;
-        if (e.button === 2) mouse.rdown = true;
-        if (e.button === 1 || e.button === 3 || e.button === 4) {
-          mouse.mdown = true;
-          e.preventDefault();
-        }
-      });
-      addEventListener("mouseup", (e) => {
-        if (e.button === 0) mouse.down = false;
-        if (e.button === 2) mouse.rdown = false;
-        if (e.button === 1 || e.button === 3 || e.button === 4) mouse.mdown = false;
-      });
-      canvas3.addEventListener("contextmenu", (e) => e.preventDefault());
-    }
-    if (!kbControllers.length) {
-      kbControllers.push(new KeyboardController(KEYMAPS[0], true), new KeyboardController(KEYMAPS[1]));
-    }
-    return kbControllers;
-  }
-
-  // src/platform/join.js
-  var join_exports = {};
-  __export(join_exports, {
-    assignedPads: () => assignedPads,
-    attachLobbyKeys: () => attachLobbyKeys,
-    beginNameEdit: () => beginNameEdit,
-    beginPadNameEdit: () => beginPadNameEdit,
-    fightSecretBoss: () => fightSecretBoss,
-    padBtnPrev: () => padBtnPrev,
-    padPrev: () => padPrev,
-    padWheelInput: () => padWheelInput,
-    scanJoins: () => scanJoins,
-    scanLobbyPads: () => scanLobbyPads
-  });
-
-  // src/sim/lobby.js
-  var lobby_exports = {};
-  __export(lobby_exports, {
-    PAD_ALPHABET: () => PAD_ALPHABET,
-    cleanName: () => cleanName,
-    nameEdit: () => nameEdit,
-    nameEditEndAt: () => nameEditEndAt,
-    readableColor: () => readableColor,
-    setNameEdit: () => setNameEdit,
-    setNameEditEndAt: () => setNameEditEndAt
-  });
-  var nameEdit = null;
-  var nameEditEndAt = 0;
-  function setNameEdit(v) {
-    nameEdit = v;
-  }
-  function setNameEditEndAt(v) {
-    nameEditEndAt = v;
-  }
-  function cleanName(s) {
-    return String(s || "").replace(/[^\w \-'!.]/g, "").slice(0, 12);
-  }
-  function readableColor(hex) {
-    const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
-    const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    const MIN = 96;
-    if (lum >= MIN) return hex;
-    const t = (MIN - lum) / (255 - lum);
-    const up = (c) => Math.round(c + (255 - c) * t).toString(16).padStart(2, "0");
-    return `#${up(r)}${up(g)}${up(b)}`;
-  }
-  var PAD_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -!";
-
-  // src/platform/input-gamepad.js
-  var input_gamepad_exports = {};
-  __export(input_gamepad_exports, {
-    GamepadController: () => GamepadController
-  });
-  var GamepadController = class {
-    constructor(index) {
-      this.index = index;
-      this.prev = { jump: false, cast: false, cast2: false, block: false, start: false };
-    }
-    poll() {
-      const gp = navigator.getGamepads()[this.index];
-      if (!gp) return { ...IDLE_INPUT };
-      let move = Math.abs(gp.axes[0]) > 0.3 ? Math.sign(gp.axes[0]) : 0;
-      if (gp.buttons[14]?.pressed) move = -1;
-      if (gp.buttons[15]?.pressed) move = 1;
-      const jump = !!(gp.buttons[0]?.pressed || gp.buttons[12]?.pressed);
-      const cast = !!(gp.buttons[2]?.pressed || gp.buttons[7]?.pressed);
-      const cast2 = !!(gp.buttons[1]?.pressed || gp.buttons[5]?.pressed);
-      const block = !!(gp.buttons[4]?.pressed || gp.buttons[6]?.pressed);
-      const start = !!gp.buttons[9]?.pressed;
-      const ax = gp.axes[2] ?? 0, ay = gp.axes[3] ?? 0;
-      const aimVec = Math.hypot(ax, ay) > 0.35 ? { x: ax, y: ay } : null;
-      const s = {
-        move,
-        jump,
-        cast,
-        cast2,
-        block,
-        jumpPressed: jump && !this.prev.jump,
-        castPressed: cast && !this.prev.cast,
-        cast2Pressed: cast2 && !this.prev.cast2,
-        blockPressed: block && !this.prev.block,
-        startPressed: start && !this.prev.start,
-        aimPoint: null,
-        aimVec
-      };
-      this.prev = { jump, cast, cast2, block, start };
-      return s;
-    }
-  };
-
-  // src/platform/join.js
-  var assignedPads = /* @__PURE__ */ new Set();
-  var padPrev = {};
-  var padBtnPrev = {};
-  function beginNameEdit(p, storeKey) {
-    const saved = cleanName(localStorage.getItem(storeKey) || "");
-    if (storeKey === "hs-name-0" && globalThis.nameSetViaMenu) {
-      if (saved) p.name = saved;
-      return;
-    }
-    setNameEdit({ p, storeKey, buffer: saved });
-    if (nameEdit.buffer) p.name = nameEdit.buffer;
-  }
-  function beginPadNameEdit(p, padIndex) {
-    const storeKey = `hs-name-pad-${padIndex}`;
-    const saved = cleanName(localStorage.getItem(storeKey) || "");
-    setNameEdit({ p, storeKey, buffer: saved, pad: padIndex, letter: 0 });
-  }
-  function padWheelInput(edge) {
-    if (edge(14)) nameEdit.letter = (nameEdit.letter + PAD_ALPHABET.length - 1) % PAD_ALPHABET.length;
-    if (edge(15)) nameEdit.letter = (nameEdit.letter + 1) % PAD_ALPHABET.length;
-    if (edge(0) && nameEdit.buffer.length < 12) nameEdit.buffer = cleanName(nameEdit.buffer + PAD_ALPHABET[nameEdit.letter]);
-    if (edge(1)) nameEdit.buffer = nameEdit.buffer.slice(0, -1);
-    if (edge(9) || edge(3)) {
-      if (nameEdit.buffer) {
-        nameEdit.p.name = nameEdit.buffer;
-        localStorage.setItem(nameEdit.storeKey, nameEdit.buffer);
-      }
-      setNameEdit(null);
-      setNameEditEndAt(simNow());
-    }
-  }
-  function fightSecretBoss(id) {
-    if (netMode === "online") return;
-    setNameEdit(null);
-    if (players.length === 0) {
-      kbControllers[0].assigned = true;
-      joinPlayer(kbControllers[0]);
-    }
-    game.mode = "versus";
-    game.totalRounds = 0;
-    clearReplay();
-    resetMatchStats();
-    resetMatchTelemetry();
-    resetTelemetry();
-    for (const p of players) p.roundWins = 0;
-    let idx = 0, tries = 0;
-    do {
-      idx = Math.floor(Math.random() * MAPS.length);
-    } while (MAPS[idx].cozy && ++tries < 60);
-    loadMap(idx);
-    for (const p of players) {
-      clearSpells(p);
-      despawnPlayer(p);
-      spawnPlayer(p, spawnPointFor(p));
-    }
-    game.state = "PLAY";
-    game.fightAt = simNow() + 900;
-    game.fightShown = false;
-    scheduleTomes(simNow());
-    const bs = spawnBoss(simNow(), { bossId: id });
-    setBanner("\u2694  " + (bs && bs.def ? bs.def.name : "SECRET BOSS") + "  \u2694", bs && bs.def ? bs.def.color : "#ffd166", 1500, true);
-  }
-  function scanJoins() {
-    if (game.state === "VICTORY" || game.state === "RUN_OVER" || players.length >= MAX_PLAYERS) return;
-    if (nameEdit || simNow() < nameEditEndAt + 350) return;
-    for (const kc of kbControllers) {
-      if (kc.assigned) continue;
-      if (kc.poll().castPressed) {
-        kc.assigned = true;
-        joinPlayer(kc);
-        if (game.state === "LOBBY") beginNameEdit(players[players.length - 1], `hs-name-${kc === kbControllers[0] ? 0 : 1}`);
-      }
-    }
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    for (const pad of pads) {
-      if (!pad || assignedPads.has(pad.index)) continue;
-      const pressed = pad.buttons.some((b) => b.pressed);
-      const prev = padPrev[pad.index] || false;
-      padPrev[pad.index] = pressed;
-      if (pressed && !prev) {
-        ensureAudio();
-        assignedPads.add(pad.index);
-        padBtnPrev[pad.index] = new Set(pad.buttons.flatMap((b, i) => b.pressed ? [i] : []));
-        joinPlayer(new GamepadController(pad.index));
-      }
-    }
-  }
-  function scanLobbyPads() {
-    if (game.state !== "LOBBY") return;
-    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
-    for (const pad of pads) {
-      if (!pad || !assignedPads.has(pad.index)) continue;
-      const prev = padBtnPrev[pad.index] || /* @__PURE__ */ new Set();
-      const edge = (b) => !!pad.buttons[b]?.pressed && !prev.has(b);
-      if (nameEdit && nameEdit.pad === pad.index) {
-        padWheelInput(edge);
-      } else if (!nameEdit) {
-        const owner = players.find((p) => p.controller instanceof GamepadController && p.controller.index === pad.index);
-        if (edge(3) && owner) beginPadNameEdit(owner, pad.index);
-        if (edge(8)) addBot();
-        if (edge(2)) toggleMode();
-        if (edge(12)) setWins(game.winsNeeded + 1);
-        if (edge(13)) setWins(game.winsNeeded - 1);
-      }
-      padBtnPrev[pad.index] = new Set(pad.buttons.flatMap((b, i) => b.pressed ? [i] : []));
-    }
-  }
-  function attachLobbyKeys() {
-    addEventListener("keydown", (e) => {
-      if (!nameEdit) return;
-      if (game.state !== "LOBBY") {
-        setNameEdit(null);
-        return;
-      }
-      e.preventDefault();
-      if (e.code === "Enter" || e.code === "NumpadEnter") {
-        if (nameEdit.buffer) {
-          nameEdit.p.name = nameEdit.buffer;
-          localStorage.setItem(nameEdit.storeKey, nameEdit.buffer);
-        }
-        setNameEdit(null);
-        setNameEditEndAt(simNow());
-      } else if (e.code === "Escape") {
-        setNameEdit(null);
-        setNameEditEndAt(simNow());
-      } else if (e.code === "Backspace") {
-        nameEdit.buffer = nameEdit.buffer.slice(0, -1);
-      } else if (e.key.length === 1 && nameEdit.buffer.length < 12) {
-        nameEdit.buffer = cleanName(nameEdit.buffer + e.key);
-      }
-    }, true);
-    addEventListener("keydown", (e) => {
-      if (netMode === "online" || nameEdit) return;
-      if (e.code === "KeyT") {
-        fightSecretBoss("rizard");
-        return;
-      }
-      if (e.code === "KeyN") {
-        fightSecretBoss("manu");
-        return;
-      }
-      if (e.code === "Space" && game.state === "LOBBY" && players.length >= minPlayers()) beginFromLobby();
-      if (e.code === "KeyB" && game.state === "LOBBY") addBot();
-      if (e.code === "KeyM" && game.state === "LOBBY") toggleMode();
-      if (e.code === "KeyR") resetMatch();
-      if (game.state === "LOBBY" && /^Digit[1-9]$/.test(e.code)) setWins(+e.code.slice(5));
-      if (game.state === "LOBBY" && (e.code === "Equal" || e.code === "Minus")) setWins(game.winsNeeded + (e.code === "Equal" ? 1 : -1));
-    });
-  }
 
   // src/render/fx.js
   var fx_exports2 = {};
@@ -15230,6 +14930,485 @@
     flashColor = "#fff";
     flashAlpha = 0;
   });
+
+  // src/render/name-tags.js
+  var _tagSlots = [];
+  function resetNameTagSlots() {
+    _tagSlots.length = 0;
+  }
+  function claimTagSlot(x, y, halfW) {
+    const STEP = 13, LIMIT = 5;
+    let ty = y;
+    for (let i = 0; i <= LIMIT; i++) {
+      const clash = _tagSlots.some((s) => Math.abs(s.y - ty) < STEP - 1 && Math.abs(s.x - x) < s.halfW + halfW + 4);
+      if (!clash) break;
+      ty -= STEP;
+    }
+    _tagSlots.push({ x, y: ty, halfW });
+    return ty;
+  }
+
+  // src/render/camera.js
+  var CAM_HOME = { x: W / 2, y: H / 2, zoom: 1, tx: W / 2, ty: H / 2, tzoom: 1, shakeX: 0, shakeY: 0, rot: 0 };
+  var CAM = { ...CAM_HOME };
+  var CAM_TUNE = {
+    min: 1,
+    // never zoom out past the arena — there's nothing out there
+    max: 2.15,
+    // past this, knockback outruns the camera and reads as teleporting
+    padX: 170,
+    // breathing room around the action box, world px
+    padY: 105,
+    headroom: 60,
+    // extra above the box: spells arc, and you need to see them coming
+    lerpIn: 0.035,
+    // easing toward a tighter shot — slow, so it feels like a push-in
+    lerpOut: 0.1,
+    // easing wider — faster, because being off-screen is unfair
+    panLerp: 0.06,
+    maxTrauma: 26,
+    // matches the old addShake ceiling
+    shakePx: 22,
+    // peak translation at full trauma
+    shakeRot: 0.012
+    // peak rotation (rad) at full trauma
+  };
+  var camEnabled = true;
+  function setCameraEnabled(on) {
+    camEnabled = !!on;
+  }
+  function cameraEnabled() {
+    return camEnabled;
+  }
+  function cameraZoom() {
+    return CAM.zoom;
+  }
+  function cameraPoints() {
+    const pts = [];
+    for (const p of players) {
+      if (!p.alive || !p.body) continue;
+      pts.push({ x: p.body.position.x, y: p.body.position.y, r: 26 * (p.sizeScale || 1) });
+    }
+    if (game.boss?.body) {
+      const b = game.boss.body;
+      const r = b.circleRadius || Math.max(b.bounds.max.x - b.bounds.min.x, b.bounds.max.y - b.bounds.min.y) / 2;
+      pts.push({ x: b.position.x, y: b.position.y, r: r + 24 });
+    }
+    return pts;
+  }
+  function cameraTarget(pts) {
+    if (!pts || !pts.length) {
+      CAM.tzoom = 1;
+      CAM.tx = W / 2;
+      CAM.ty = H / 2;
+      return;
+    }
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of pts) {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+      const r = p.r || 0;
+      if (p.x - r < minX) minX = p.x - r;
+      if (p.x + r > maxX) maxX = p.x + r;
+      if (p.y - r < minY) minY = p.y - r;
+      if (p.y + r > maxY) maxY = p.y + r;
+    }
+    if (!Number.isFinite(minX)) {
+      CAM.tzoom = 1;
+      return;
+    }
+    const needW = maxX - minX + CAM_TUNE.padX * 2;
+    const needH = maxY - minY + CAM_TUNE.padY * 2 + CAM_TUNE.headroom;
+    const zoom = Math.max(CAM_TUNE.min, Math.min(CAM_TUNE.max, Math.min(W / needW, H / needH)));
+    CAM.tzoom = zoom;
+    CAM.tx = (minX + maxX) / 2;
+    CAM.ty = (minY + maxY) / 2 - CAM_TUNE.headroom * 0.35;
+    clampCenterToWorld();
+  }
+  function clampCenterToWorld(zoom = CAM.tzoom) {
+    const halfW = W / (2 * zoom), halfH = H / (2 * zoom);
+    CAM.tx = Math.max(halfW, Math.min(W - halfW, CAM.tx));
+    CAM.ty = Math.max(halfH, Math.min(H - halfH, CAM.ty));
+  }
+  var _nz = (t, seed) => Math.sin(t * 0.043 + seed) * 0.62 + Math.sin(t * 0.0971 + seed * 2.7) * 0.38;
+  function updateCameraShake(now) {
+    const trauma = Math.max(0, Math.min(1, shake / CAM_TUNE.maxTrauma));
+    const t2 = trauma * trauma;
+    CAM.shakeX = _nz(now, 1.7) * CAM_TUNE.shakePx * t2;
+    CAM.shakeY = _nz(now, 8.3) * CAM_TUNE.shakePx * t2;
+    CAM.rot = _nz(now, 4.1) * CAM_TUNE.shakeRot * t2;
+    setShake(shake * 0.88);
+  }
+  function updateCamera(now, pts) {
+    if (!camEnabled) {
+      CAM.x = W / 2;
+      CAM.y = H / 2;
+      CAM.zoom = 1;
+      updateCameraShake(now);
+      return;
+    }
+    cameraTarget(pts || cameraPoints());
+    const zl = CAM.tzoom < CAM.zoom ? CAM_TUNE.lerpOut : CAM_TUNE.lerpIn;
+    CAM.zoom += (CAM.tzoom - CAM.zoom) * zl;
+    CAM.x += (CAM.tx - CAM.x) * CAM_TUNE.panLerp;
+    CAM.y += (CAM.ty - CAM.y) * CAM_TUNE.panLerp;
+    const halfW = W / (2 * CAM.zoom), halfH = H / (2 * CAM.zoom);
+    CAM.x = Math.max(halfW, Math.min(W - halfW, CAM.x));
+    CAM.y = Math.max(halfH, Math.min(H - halfH, CAM.y));
+    updateCameraShake(now);
+  }
+  function beginWorld() {
+    resetNameTagSlots();
+    const s = RENDER_SCALE * CAM.zoom;
+    ctx.setTransform(s, 0, 0, s, RENDER_SCALE * (W / 2), RENDER_SCALE * (H / 2));
+    if (CAM.rot) ctx.rotate(CAM.rot);
+    ctx.translate(-CAM.x + CAM.shakeX / CAM.zoom, -CAM.y + CAM.shakeY / CAM.zoom);
+  }
+  function endWorld() {
+    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
+  }
+  function clearFrame(color) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = color || "#16121c";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    endWorld();
+  }
+  function cameraViewRect() {
+    const halfW = W / (2 * CAM.zoom), halfH = H / (2 * CAM.zoom);
+    return { x0: CAM.x - halfW, y0: CAM.y - halfH, x1: CAM.x + halfW, y1: CAM.y + halfH };
+  }
+  function screenToWorld(sx, sy) {
+    const r = cameraViewRect();
+    return { x: r.x0 + sx / W * (r.x1 - r.x0), y: r.y0 + sy / H * (r.y1 - r.y0) };
+  }
+
+  // src/platform/input-keyboard.js
+  var keys = {};
+  var KEYMAPS = [
+    { left: "KeyA", right: "KeyD", jump: "KeyW", cast: "KeyE", cast2: "KeyQ", block: "KeyS", label: "E", label2: "Q" },
+    { left: "ArrowLeft", right: "ArrowRight", jump: "ArrowUp", cast: "Enter", cast2: "ShiftRight", block: "ArrowDown", label: "ENTER", label2: "R-SHIFT" }
+  ];
+  var mouse = { x: W / 2, y: H / 2, sx: W / 2, sy: H / 2, down: false, rdown: false, mdown: false, present: false };
+  function syncMouseWorld() {
+    const w = screenToWorld(mouse.sx, mouse.sy);
+    mouse.x = w.x;
+    mouse.y = w.y;
+  }
+  var KeyboardController = class {
+    constructor(map, useMouse = false) {
+      this.map = map;
+      this.useMouse = useMouse;
+      this.prev = { jump: false, cast: false, cast2: false, block: false, start: false };
+      this.assigned = false;
+    }
+    poll() {
+      const m = this.map;
+      const useM = this.useMouse && mouse.present;
+      const jump = !!keys[m.jump] || this.useMouse && !!keys["Space"];
+      const cast = !!keys[m.cast] || useM && mouse.down;
+      const cast2 = !!keys[m.cast2] || useM && mouse.rdown;
+      const block = !!keys[m.block] || useM && mouse.mdown;
+      const start = !!keys["Space"];
+      const s = {
+        move: (keys[m.right] ? 1 : 0) - (keys[m.left] ? 1 : 0),
+        jump,
+        cast,
+        cast2,
+        block,
+        jumpPressed: jump && !this.prev.jump,
+        castPressed: cast && !this.prev.cast,
+        cast2Pressed: cast2 && !this.prev.cast2,
+        blockPressed: block && !this.prev.block,
+        startPressed: start && !this.prev.start,
+        aimPoint: useM ? { x: mouse.x, y: mouse.y } : null,
+        aimVec: null
+      };
+      this.prev = { jump, cast, cast2, block, start };
+      return s;
+    }
+  };
+  var kbControllers = [];
+  function attachKeyboard(canvas3) {
+    addEventListener("keydown", (e) => {
+      ensureAudio();
+      keys[e.code] = true;
+      if (e.code === "F9") setCameraEnabled(!cameraEnabled());
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter", "Space"].includes(e.code)) e.preventDefault();
+    });
+    addEventListener("keyup", (e) => keys[e.code] = false);
+    addEventListener("blur", () => {
+      for (const k in keys) keys[k] = false;
+    });
+    if (canvas3 && typeof canvas3.addEventListener === "function") {
+      canvas3.addEventListener("mousemove", (e) => {
+        const r = canvas3.getBoundingClientRect();
+        mouse.sx = (e.clientX - r.left) * (W / r.width);
+        mouse.sy = (e.clientY - r.top) * (H / r.height);
+        syncMouseWorld();
+        mouse.present = true;
+      });
+      canvas3.addEventListener("mousedown", (e) => {
+        ensureAudio();
+        mouse.present = true;
+        if (e.button === 0) mouse.down = true;
+        if (e.button === 2) mouse.rdown = true;
+        if (e.button === 1 || e.button === 3 || e.button === 4) {
+          mouse.mdown = true;
+          e.preventDefault();
+        }
+      });
+      addEventListener("mouseup", (e) => {
+        if (e.button === 0) mouse.down = false;
+        if (e.button === 2) mouse.rdown = false;
+        if (e.button === 1 || e.button === 3 || e.button === 4) mouse.mdown = false;
+      });
+      canvas3.addEventListener("contextmenu", (e) => e.preventDefault());
+    }
+    if (!kbControllers.length) {
+      kbControllers.push(new KeyboardController(KEYMAPS[0], true), new KeyboardController(KEYMAPS[1]));
+    }
+    return kbControllers;
+  }
+
+  // src/platform/join.js
+  var join_exports = {};
+  __export(join_exports, {
+    assignedPads: () => assignedPads,
+    attachLobbyKeys: () => attachLobbyKeys,
+    beginNameEdit: () => beginNameEdit,
+    beginPadNameEdit: () => beginPadNameEdit,
+    fightSecretBoss: () => fightSecretBoss,
+    padBtnPrev: () => padBtnPrev,
+    padPrev: () => padPrev,
+    padWheelInput: () => padWheelInput,
+    scanJoins: () => scanJoins,
+    scanLobbyPads: () => scanLobbyPads
+  });
+
+  // src/sim/lobby.js
+  var lobby_exports = {};
+  __export(lobby_exports, {
+    PAD_ALPHABET: () => PAD_ALPHABET,
+    cleanName: () => cleanName,
+    nameEdit: () => nameEdit,
+    nameEditEndAt: () => nameEditEndAt,
+    readableColor: () => readableColor,
+    setNameEdit: () => setNameEdit,
+    setNameEditEndAt: () => setNameEditEndAt
+  });
+  var nameEdit = null;
+  var nameEditEndAt = 0;
+  function setNameEdit(v) {
+    nameEdit = v;
+  }
+  function setNameEditEndAt(v) {
+    nameEditEndAt = v;
+  }
+  function cleanName(s) {
+    return String(s || "").replace(/[^\w \-'!.]/g, "").slice(0, 12);
+  }
+  function readableColor(hex) {
+    const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    const MIN = 96;
+    if (lum >= MIN) return hex;
+    const t = (MIN - lum) / (255 - lum);
+    const up = (c) => Math.round(c + (255 - c) * t).toString(16).padStart(2, "0");
+    return `#${up(r)}${up(g)}${up(b)}`;
+  }
+  var PAD_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -!";
+
+  // src/platform/input-gamepad.js
+  var input_gamepad_exports = {};
+  __export(input_gamepad_exports, {
+    GamepadController: () => GamepadController
+  });
+  var GamepadController = class {
+    constructor(index) {
+      this.index = index;
+      this.prev = { jump: false, cast: false, cast2: false, block: false, start: false };
+    }
+    poll() {
+      const gp = navigator.getGamepads()[this.index];
+      if (!gp) return { ...IDLE_INPUT };
+      let move = Math.abs(gp.axes[0]) > 0.3 ? Math.sign(gp.axes[0]) : 0;
+      if (gp.buttons[14]?.pressed) move = -1;
+      if (gp.buttons[15]?.pressed) move = 1;
+      const jump = !!(gp.buttons[0]?.pressed || gp.buttons[12]?.pressed);
+      const cast = !!(gp.buttons[2]?.pressed || gp.buttons[7]?.pressed);
+      const cast2 = !!(gp.buttons[1]?.pressed || gp.buttons[5]?.pressed);
+      const block = !!(gp.buttons[4]?.pressed || gp.buttons[6]?.pressed);
+      const start = !!gp.buttons[9]?.pressed;
+      const ax = gp.axes[2] ?? 0, ay = gp.axes[3] ?? 0;
+      const aimVec = Math.hypot(ax, ay) > 0.35 ? { x: ax, y: ay } : null;
+      const s = {
+        move,
+        jump,
+        cast,
+        cast2,
+        block,
+        jumpPressed: jump && !this.prev.jump,
+        castPressed: cast && !this.prev.cast,
+        cast2Pressed: cast2 && !this.prev.cast2,
+        blockPressed: block && !this.prev.block,
+        startPressed: start && !this.prev.start,
+        aimPoint: null,
+        aimVec
+      };
+      this.prev = { jump, cast, cast2, block, start };
+      return s;
+    }
+  };
+
+  // src/platform/join.js
+  var assignedPads = /* @__PURE__ */ new Set();
+  var padPrev = {};
+  var padBtnPrev = {};
+  function beginNameEdit(p, storeKey) {
+    const saved = cleanName(localStorage.getItem(storeKey) || "");
+    if (storeKey === "hs-name-0" && globalThis.nameSetViaMenu) {
+      if (saved) p.name = saved;
+      return;
+    }
+    setNameEdit({ p, storeKey, buffer: saved });
+    if (nameEdit.buffer) p.name = nameEdit.buffer;
+  }
+  function beginPadNameEdit(p, padIndex) {
+    const storeKey = `hs-name-pad-${padIndex}`;
+    const saved = cleanName(localStorage.getItem(storeKey) || "");
+    setNameEdit({ p, storeKey, buffer: saved, pad: padIndex, letter: 0 });
+  }
+  function padWheelInput(edge) {
+    if (edge(14)) nameEdit.letter = (nameEdit.letter + PAD_ALPHABET.length - 1) % PAD_ALPHABET.length;
+    if (edge(15)) nameEdit.letter = (nameEdit.letter + 1) % PAD_ALPHABET.length;
+    if (edge(0) && nameEdit.buffer.length < 12) nameEdit.buffer = cleanName(nameEdit.buffer + PAD_ALPHABET[nameEdit.letter]);
+    if (edge(1)) nameEdit.buffer = nameEdit.buffer.slice(0, -1);
+    if (edge(9) || edge(3)) {
+      if (nameEdit.buffer) {
+        nameEdit.p.name = nameEdit.buffer;
+        localStorage.setItem(nameEdit.storeKey, nameEdit.buffer);
+      }
+      setNameEdit(null);
+      setNameEditEndAt(simNow());
+    }
+  }
+  function fightSecretBoss(id) {
+    if (netMode === "online") return;
+    setNameEdit(null);
+    if (players.length === 0) {
+      kbControllers[0].assigned = true;
+      joinPlayer(kbControllers[0]);
+    }
+    game.mode = "versus";
+    game.totalRounds = 0;
+    clearReplay();
+    resetMatchStats();
+    resetMatchTelemetry();
+    resetTelemetry();
+    for (const p of players) p.roundWins = 0;
+    let idx = 0, tries = 0;
+    do {
+      idx = Math.floor(Math.random() * MAPS.length);
+    } while (MAPS[idx].cozy && ++tries < 60);
+    loadMap(idx);
+    for (const p of players) {
+      clearSpells(p);
+      despawnPlayer(p);
+      spawnPlayer(p, spawnPointFor(p));
+    }
+    game.state = "PLAY";
+    game.fightAt = simNow() + 900;
+    game.fightShown = false;
+    scheduleTomes(simNow());
+    const bs = spawnBoss(simNow(), { bossId: id });
+    setBanner("\u2694  " + (bs && bs.def ? bs.def.name : "SECRET BOSS") + "  \u2694", bs && bs.def ? bs.def.color : "#ffd166", 1500, true);
+  }
+  function scanJoins() {
+    if (game.state === "VICTORY" || game.state === "RUN_OVER" || players.length >= MAX_PLAYERS) return;
+    if (nameEdit || simNow() < nameEditEndAt + 350) return;
+    for (const kc of kbControllers) {
+      if (kc.assigned) continue;
+      if (kc.poll().castPressed) {
+        kc.assigned = true;
+        joinPlayer(kc);
+        if (game.state === "LOBBY") beginNameEdit(players[players.length - 1], `hs-name-${kc === kbControllers[0] ? 0 : 1}`);
+      }
+    }
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (const pad of pads) {
+      if (!pad || assignedPads.has(pad.index)) continue;
+      const pressed = pad.buttons.some((b) => b.pressed);
+      const prev = padPrev[pad.index] || false;
+      padPrev[pad.index] = pressed;
+      if (pressed && !prev) {
+        ensureAudio();
+        assignedPads.add(pad.index);
+        padBtnPrev[pad.index] = new Set(pad.buttons.flatMap((b, i) => b.pressed ? [i] : []));
+        joinPlayer(new GamepadController(pad.index));
+      }
+    }
+  }
+  function scanLobbyPads() {
+    if (game.state !== "LOBBY") return;
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (const pad of pads) {
+      if (!pad || !assignedPads.has(pad.index)) continue;
+      const prev = padBtnPrev[pad.index] || /* @__PURE__ */ new Set();
+      const edge = (b) => !!pad.buttons[b]?.pressed && !prev.has(b);
+      if (nameEdit && nameEdit.pad === pad.index) {
+        padWheelInput(edge);
+      } else if (!nameEdit) {
+        const owner = players.find((p) => p.controller instanceof GamepadController && p.controller.index === pad.index);
+        if (edge(3) && owner) beginPadNameEdit(owner, pad.index);
+        if (edge(8)) addBot();
+        if (edge(2)) toggleMode();
+        if (edge(12)) setWins(game.winsNeeded + 1);
+        if (edge(13)) setWins(game.winsNeeded - 1);
+      }
+      padBtnPrev[pad.index] = new Set(pad.buttons.flatMap((b, i) => b.pressed ? [i] : []));
+    }
+  }
+  function attachLobbyKeys() {
+    addEventListener("keydown", (e) => {
+      if (!nameEdit) return;
+      if (game.state !== "LOBBY") {
+        setNameEdit(null);
+        return;
+      }
+      e.preventDefault();
+      if (e.code === "Enter" || e.code === "NumpadEnter") {
+        if (nameEdit.buffer) {
+          nameEdit.p.name = nameEdit.buffer;
+          localStorage.setItem(nameEdit.storeKey, nameEdit.buffer);
+        }
+        setNameEdit(null);
+        setNameEditEndAt(simNow());
+      } else if (e.code === "Escape") {
+        setNameEdit(null);
+        setNameEditEndAt(simNow());
+      } else if (e.code === "Backspace") {
+        nameEdit.buffer = nameEdit.buffer.slice(0, -1);
+      } else if (e.key.length === 1 && nameEdit.buffer.length < 12) {
+        nameEdit.buffer = cleanName(nameEdit.buffer + e.key);
+      }
+    }, true);
+    addEventListener("keydown", (e) => {
+      if (netMode === "online" || nameEdit) return;
+      if (e.code === "KeyT") {
+        fightSecretBoss("rizard");
+        return;
+      }
+      if (e.code === "KeyN") {
+        fightSecretBoss("manu");
+        return;
+      }
+      if (e.code === "Space" && game.state === "LOBBY" && players.length >= minPlayers()) beginFromLobby();
+      if (e.code === "KeyB" && game.state === "LOBBY") addBot();
+      if (e.code === "KeyM" && game.state === "LOBBY") toggleMode();
+      if (e.code === "KeyR") resetMatch();
+      if (game.state === "LOBBY" && /^Digit[1-9]$/.test(e.code)) setWins(+e.code.slice(5));
+      if (game.state === "LOBBY" && (e.code === "Equal" || e.code === "Minus")) setWins(game.winsNeeded + (e.code === "Equal" ? 1 : -1));
+    });
+  }
 
   // src/net/fx-names.js
   var WIRE_FX = /* @__PURE__ */ new Set([
@@ -15557,15 +15736,17 @@
     drawWizardFigure: () => drawWizardFigure
   });
   function drawOffscreenPointers(list, now) {
-    const INSET = 22;
+    const v = cameraViewRect();
+    const z = cameraZoom();
+    const INSET = 22 / z, EDGE = 18 / z;
     for (const w of list) {
-      if (w.x > -18 && w.x < W + 18 && w.y > -18 && w.y < H + 18) continue;
-      const ax = Math.max(INSET, Math.min(W - INSET, w.x));
-      const ay = Math.max(INSET, Math.min(H - INSET, w.y));
+      if (w.x > v.x0 - EDGE && w.x < v.x1 + EDGE && w.y > v.y0 - EDGE && w.y < v.y1 + EDGE) continue;
+      const ax = Math.max(v.x0 + INSET, Math.min(v.x1 - INSET, w.x));
+      const ay = Math.max(v.y0 + INSET, Math.min(v.y1 - INSET, w.y));
       const speed = Math.hypot(w.vx || 0, w.vy || 0);
       const ang = speed > 0.8 ? Math.atan2(w.vy, w.vx) : Math.atan2(w.y - ay, w.x - ax);
       const dist = Math.hypot(w.x - ax, w.y - ay);
-      const s = Math.max(9, 15 - dist * 0.012) * (1 + 0.12 * Math.sin(now * 0.012));
+      const s = Math.max(9, 15 - dist * 0.012) / z * (1 + 0.12 * Math.sin(now * 0.012));
       ctx.save();
       ctx.translate(ax, ay);
       ctx.rotate(ang);
@@ -15640,16 +15821,30 @@
     });
   }
   function drawNameTag(name, color, x, y) {
-    ctx.font = "bold 11px Georgia";
+    const z = cameraZoom();
+    ctx.save();
+    ctx.font = `bold ${11 / z}px Georgia`;
     ctx.textAlign = "center";
+    const halfW = ctx.measureText(name).width / 2;
+    const ty = claimTagSlot(x, y, halfW);
     ctx.globalAlpha = 0.9;
     ctx.strokeStyle = "rgba(10, 6, 16, 0.85)";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 / z;
     ctx.lineJoin = "round";
-    ctx.strokeText(name, x, y);
+    ctx.strokeText(name, x, ty);
     ctx.fillStyle = color;
-    ctx.fillText(name, x, y);
+    ctx.fillText(name, x, ty);
+    if (ty < y - 2) {
+      ctx.globalAlpha = 0.45;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1 / z;
+      ctx.beginPath();
+      ctx.moveTo(x, ty + 3 / z);
+      ctx.lineTo(x, y + 2 / z);
+      ctx.stroke();
+    }
     ctx.globalAlpha = 1;
+    ctx.restore();
   }
   function drawWizard(p, now) {
     const { x, y } = p.body.position;
@@ -16085,12 +16280,18 @@
   var replay_exports2 = {};
   __export(replay_exports2, {
     drawReplay: () => drawReplay,
-    drawReplayOverlay: () => drawReplayOverlay
+    drawReplayOverlay: () => drawReplayOverlay,
+    replayCameraPoints: () => replayCameraPoints
   });
+  function replayCameraPoints() {
+    const f = replayFrameAt();
+    if (!f) return null;
+    return f.snap.ps.filter((gp) => gp.al).map((gp) => ({ x: gp.x, y: gp.y, r: 26 }));
+  }
   function drawReplayOverlay(now) {
     ctx.fillStyle = "#000";
-    ctx.fillRect(-30, -30, W + 60, 84);
-    ctx.fillRect(-30, H - 54, W + 60, 84);
+    ctx.fillRect(0, 0, W, 54);
+    ctx.fillRect(0, H - 54, W, 54);
     ctx.fillStyle = "#ff5e57";
     ctx.beginPath();
     ctx.arc(30, 30, 6 + 1.5 * Math.sin(now * 0.01), 0, Math.PI * 2);
@@ -16104,9 +16305,6 @@
     const f = replayFrameAt();
     if (!f) return;
     drawSnapshotWorld(f.snap, f.prev, f.alpha, now);
-    ctx.fillStyle = getVignette();
-    ctx.fillRect(0, 0, W, H);
-    drawReplayOverlay(now);
     if (f.done) game.replay = null;
   }
 
@@ -16879,18 +17077,23 @@
   }
   function draw(now) {
     if (game.replay) {
-      setShake(shake * 0.88);
       setFlashAlpha(flashAlpha * 0.86);
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(-30, -30, W + 60, H + 60);
+      updateCamera(now, replayCameraPoints());
+      syncMouseWorld();
+      clearFrame(currentMap?.def?.bg);
+      beginWorld();
       drawReplay(now);
+      endWorld();
+      ctx.fillStyle = getVignette();
+      ctx.fillRect(0, 0, W, H);
+      drawReplayOverlay(now);
       drawHUD(now);
       return;
     }
-    const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
-    setShake(shake * 0.88);
-    ctx.setTransform(1, 0, 0, 1, sx, sy);
-    ctx.clearRect(-30, -30, W + 60, H + 60);
+    updateCamera(now, cameraPoints());
+    syncMouseWorld();
+    clearFrame(currentMap?.def?.bg);
+    beginWorld();
     drawBackdrop(now);
     drawMapBodies(now);
     drawLava(now);
@@ -16914,12 +17117,13 @@
     drawGhostWisps(now);
     drawEnvVisualsLive(now);
     drawReticle(now);
+    endWorld();
     ctx.fillStyle = getVignette();
     ctx.fillRect(0, 0, W, H);
     if (flashAlpha > 0.01) {
       ctx.globalAlpha = flashAlpha;
       ctx.fillStyle = flashColor;
-      ctx.fillRect(-30, -30, W + 60, H + 60);
+      ctx.fillRect(0, 0, W, H);
       ctx.globalAlpha = 1;
     }
     setFlashAlpha(flashAlpha * 0.86);
@@ -17229,7 +17433,7 @@
     if (!netStats.on) return;
     const line = `NET \xB7 snap ${netStats.lastBytes}B \xB7 ${netStats.rate}/s \xB7 ${netStats.kbs}KB/s in \xB7 gap ${Math.round(snapGapMs)}ms \xB7 delay ${Math.round(netStats.delay)}ms`;
     ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, 0);
     ctx.font = "12px Menlo, monospace";
     ctx.textAlign = "left";
     const w = ctx.measureText(line).width + 16;
@@ -17457,7 +17661,7 @@
     lastFxAt = now;
     const sx = (Math.random() - 0.5) * shake, sy = (Math.random() - 0.5) * shake;
     setShake(shake * 0.88);
-    ctx.setTransform(1, 0, 0, 1, sx, sy);
+    ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, sx * RENDER_SCALE, sy * RENDER_SCALE);
     ctx.clearRect(-30, -30, W + 60, H + 60);
     if (!snapCur || !clientMap) {
       ctx.fillStyle = "#16121c";
