@@ -16,7 +16,6 @@
 import { H, onWorldReset } from '../sim/world.js';
 import { simNow } from '../sim/time.js';
 import * as art from './artkit.js';
-import { rgba } from './artkit.js';
 import { pushParticle } from './fx.js';
 
 export const fxEffects = [];
@@ -96,9 +95,13 @@ export function drawVfx(e, now, ctx) {
       }
       break;
     }
-    // the air tornado, and the wire's `tor` ghost, are the same five ellipses
+    // The air tornado. Untinted, always: the only sim descriptor of this kind
+    // is spells/book.js's Tornado, and Firestorm's tinted funnel is `firetor`
+    // below. The tint lives on the WIRE's `tor` payload instead — a LAN client
+    // gets one descriptor for both funnels and draws them in
+    // src/render/draw-snapshot.js's drawFxLite, which does read `c`.
     case 'tor': {
-      ctx.strokeStyle = v.c ? rgba(v.c, 0.6) : 'rgba(207,232,232,0.55)';
+      ctx.strokeStyle = 'rgba(207,232,232,0.55)';
       ctx.lineWidth = 3;
       for (let i = 0; i < 5; i++) {
         const yy = H - 80 - i * 90;

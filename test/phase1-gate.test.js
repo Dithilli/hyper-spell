@@ -33,7 +33,14 @@ test('GATE: every spell casts on every map without corrupting the world', { time
   const { SPELLS } = await import('../src/sim/spells/registry.js');
   const { MAPS } = await import('../src/sim/maps/builders.js');
   const { createSim } = await import('../src/platform/node.js');
+  const { matchSpellTally } = await import('../src/sim/telemetry.js');
   const ids = Object.keys(SPELLS);
+  // telCast() fires inside castSpell, one line past the cooldown gate, so this
+  // counts CASTS THAT HAPPENED. Everything else in this test — no NaN, no leak,
+  // an empty queue — holds trivially on a world where nothing was ever cast,
+  // and `castsMade` below only counts attempts. Without this the gate's own
+  // headline claim is the one thing it does not check.
+  const castsInTally = () => Object.values(matchSpellTally).reduce((n, s) => n + s.casts, 0);
 
   // THE INVENTORY IS A FLOOR, THE COVERAGE IS AN EQUALITY, and the difference
   // is deliberate.
@@ -60,7 +67,9 @@ test('GATE: every spell casts on every map without corrupting the world', { time
 
   let mapsVisited = 0;
   let castsMade = 0;
+  let castsLanded = 0;
   const leaks = [];
+  const silent = [];
 
   for (let mi = 0; mi < MAPS.length; mi++) {
     const { bridge, destroy } = createSim({});
@@ -68,9 +77,14 @@ test('GATE: every spell casts on every map without corrupting the world', { time
       bridge.addPlayer({ name: 'A' });
       bridge.addPlayer({ name: 'B' });
       bridge.start();
+      const tallyAtMapStart = castsInTally();
       for (const id of ids) {
+        const before = castsInTally();
         bridge.debugCastSpell(0, id, mi);
         castsMade++;
+        // per-spell, so a book where ONE spell silently stops casting is named
+        // rather than averaged away by the 141 that still do
+        if (castsInTally() === before) silent.push(`${id} on map ${mi} (${MAPS[mi].name})`);
         for (let t = 0; t < 30; t++) bridge.stepSim();
         const snap = bridge.takeWireSnapshot();
         for (const p of snap.ps) {
@@ -78,6 +92,7 @@ test('GATE: every spell casts on every map without corrupting the world', { time
           assert.ok(Number.isFinite(p.hp), `NaN hp after ${id} on map ${mi} (${MAPS[mi].name})`);
         }
       }
+      castsLanded += castsInTally() - tallyAtMapStart;
       const audit = bridge.audit();
       if (audit.effects >= 200) leaks.push(`map ${mi} (${MAPS[mi].name}): ${audit.effects} effects`);
       // the cosmetic queue is drained every tick; a host whose drain stopped
@@ -90,6 +105,11 @@ test('GATE: every spell casts on every map without corrupting the world', { time
   }
 
   assert.deepEqual(leaks, [], `effect leaks:\n${leaks.join('\n')}`);
+  assert.deepEqual(silent.slice(0, 20), [], `${silent.length} casts never happened:\n${silent.slice(0, 20).join('\n')}`);
   assert.equal(mapsVisited, MAPS.length, 'the gate did not reach every map');
-  assert.equal(castsMade, MAPS.length * ids.length, 'the gate did not cast every spell on every map');
+  assert.equal(castsMade, MAPS.length * ids.length, 'the gate did not attempt every spell on every map');
+  // attempts == casts. `castsMade` alone is a loop counter and would survive
+  // debugCastSpell being gutted to a no-op; this is what makes the sentence
+  // "every spell casts on every map" true rather than merely claimed.
+  assert.equal(castsLanded, castsMade, `${castsMade - castsLanded} of ${castsMade} attempted casts never reached castSpell`);
 });

@@ -143,18 +143,52 @@ function withSim(fn) {
   try { return fn(sim.bridge, log); } finally { sim.destroy(); }
 }
 
-test('the bridge forwards the tick\'s cosmetics in emission order', () => {
+// THE TEN NAMES, LITERALLY. Every other test here derives its expectation from
+// WIRE_FX, which makes them all tautological in the deletion direction: drop
+// 'doFlash' from the list and the sender stops forwarding flashes, the receiver
+// starts rejecting them, LAN clients go dark on every explosion — and nothing
+// else in the suite notices, because everything else asks WIRE_FX what to
+// expect. GAME_VERSION is frozen at 9, so this list is a wire-compatibility
+// promise; it is written out here so breaking it costs a deliberate edit.
+//
+// These are exactly the ten the old server-side wrapper covered (the WRAPPED
+// table it replaced) and exactly the ten src/net/client.js's FX_ALLOWED
+// accepted. `sfx` rides the same channel but is handled separately at both
+// ends, because its payload is a cue key rather than an argument list.
+test('the wire carries exactly these ten cosmetic names', () => {
+  assert.deepEqual([...WIRE_FX].sort(), [
+    'addKillFeed', 'addShake', 'boltVisual', 'doFlash', 'setBanner',
+    'slowMo', 'spawnBurst', 'spawnParticles', 'spawnRing', 'spawnText',
+  ]);
+});
+
+// Ordering is the property wrapServerFx gave by construction — each wrapper
+// broadcast as it was called — and the property a queue can lose. Cosmetics
+// narrate a tick (the flash, then the ring, then the text) and a consumer
+// handed them backwards draws the wrong story.
+//
+// This asserts it pairwise, on the BRIDGE, which is where the queue is turned
+// back into a stream. The earlier version of this test only checked that a
+// setBanner existed and that every name was a wire name; `flushFx` reversing
+// its batch left it green.
+test('the bridge forwards a tick\'s cosmetics in emission order', () => {
   withSim((bridge, log) => {
     bridge.addPlayer({ name: 'A' });
     bridge.addPlayer({ name: 'B' });
     bridge.start();
     for (let i = 0; i < 30; i++) bridge.stepSim();
     assert.ok(log.length > 0, 'a running match emitted no cosmetics at all');
-    // order: the banner startRound sets must arrive before anything the ticks
-    // after it produced
-    const banner = log.findIndex((e) => e.f === 'setBanner');
-    assert.ok(banner >= 0, 'the round banner never reached the wire');
     for (const e of log) assert.ok(e.f === 'sfx' || WIRE_FX.has(e.f), `${e.f} is not a wire name`);
+
+    // three markers, queued in a known order, ahead of a tick that will emit
+    // plenty of its own
+    const mark = log.length;
+    for (const n of ['ORDER-1', 'ORDER-2', 'ORDER-3']) emit('spawnText', 0, 0, n, '#fff');
+    bridge.stepSim();
+    const batch = log.slice(mark);
+    assert.ok(batch.length >= 3, 'the markers never reached the wire');
+    // they were queued first, so they must arrive first, in the order queued
+    assert.deepEqual(batch.slice(0, 3).map((e) => e.a[2]), ['ORDER-1', 'ORDER-2', 'ORDER-3']);
   });
 });
 

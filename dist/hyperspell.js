@@ -15043,9 +15043,13 @@
         }
         break;
       }
-      // the air tornado, and the wire's `tor` ghost, are the same five ellipses
+      // The air tornado. Untinted, always: the only sim descriptor of this kind
+      // is spells/book.js's Tornado, and Firestorm's tinted funnel is `firetor`
+      // below. The tint lives on the WIRE's `tor` payload instead — a LAN client
+      // gets one descriptor for both funnels and draws them in
+      // src/render/draw-snapshot.js's drawFxLite, which does read `c`.
       case "tor": {
-        ctx2.strokeStyle = v.c ? rgba(v.c, 0.6) : "rgba(207,232,232,0.55)";
+        ctx2.strokeStyle = "rgba(207,232,232,0.55)";
         ctx2.lineWidth = 3;
         for (let i = 0; i < 5; i++) {
           const yy = H - 80 - i * 90;
