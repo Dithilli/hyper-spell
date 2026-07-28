@@ -2431,7 +2431,6 @@
       "src/render/draw-snapshot.js",
       "src/render/draw-wizard.js",
       "src/render/draw-world.js",
-      "src/render/effect-art.js",
       "src/render/effects.js",
       "src/render/fx.js",
       "src/render/hud.js",

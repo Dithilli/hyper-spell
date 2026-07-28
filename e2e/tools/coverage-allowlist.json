@@ -16,7 +16,6 @@
     "src/platform/debug-globals.js": "the suite's own instrumentation surface; every spec that reads HS exercises it"
   },
   "renderFiles": {
-    "src/render/content-pack.js": "the optional content-pack probe, same reason as the `pack` message",
-    "src/render/effect-art.js": "the vfx descriptor -> drawer table from the cosmetics-as-events refactor; test/vfx-descriptors.test.js asserts every kind the sim writes has a drawer, and 06-spells exercises the table on every cast without naming the file"
+    "src/render/content-pack.js": "the optional content-pack probe, same reason as the `pack` message"
   }
 }
