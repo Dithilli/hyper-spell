@@ -10,8 +10,7 @@ import { GAME_VERSION } from '../version.js';
 import { game, currentMap } from './match.js';
 import { players, gibs } from './player/lifecycle.js';
 import { tomes, hats } from './pickups.js';
-import { projectiles, summons, activeEffects } from './spells/core.js';
-import { SPELLS } from './spells/registry.js';
+import { projectiles, summons, activeEffects, effectiveCooldown } from './spells/core.js';
 import { BotController } from './ai/bot.js';
 import { simNow } from './time.js';
 
@@ -36,12 +35,15 @@ export function serializeSnapshot() {
     ...flag('iv', now < (p.invulnUntil || 0)), ...flag('rf', now < (p.reflectUntil || 0)),
     ...flag('pg', now < (p.pigUntil || 0)), ...flag('hu', now < (p.hurtUntil || 0)),
     ...(p.ghost && !p.alive ? { gx: Math.round(p.ghost.x), gy: Math.round(p.ghost.y) } : {}),
-    sp: p.spellId, ...flag('rd', p.spellId && now - p.lastCast > SPELLS[p.spellId].cooldown),
+    // C4: rd/c0/c1 report the cooldown the cast gate ENFORCES, not the one
+    // the spell declares. Same wire shape, corrected values — a client that
+    // drew Fireball's bar full at 450ms was drawing a lie.
+    sp: p.spellId, ...flag('rd', p.spellId && now - p.lastCast > effectiveCooldown(p.spellId)),
     // both spell slots + per-slot cooldown fraction for the two-slot HUD
     s0: p.slots[0], s1: p.slots[1],
     h0: p.slotCharges?.[0] ?? undefined, h1: p.slotCharges?.[1] ?? undefined, // fusion charges left
-    c0: p.slots[0] ? +Math.min(1, (now - p.casts[0]) / (SPELLS[p.slots[0]].cooldown || 1)).toFixed(2) : 0,
-    c1: p.slots[1] ? +Math.min(1, (now - p.casts[1]) / (SPELLS[p.slots[1]].cooldown || 1)).toFixed(2) : 0,
+    c0: p.slots[0] ? +Math.min(1, (now - p.casts[0]) / effectiveCooldown(p.slots[0])).toFixed(2) : 0,
+    c1: p.slots[1] ? +Math.min(1, (now - p.casts[1]) / effectiveCooldown(p.slots[1])).toFixed(2) : 0,
     ...(p.megaCasts ? { mc: p.megaCasts } : {}),
     ...(p.roundWins ? { w: p.roundWins } : {}),
     ...flag('b', typeof BotController !== 'undefined' && p.controller instanceof BotController),

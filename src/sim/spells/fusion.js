@@ -10,7 +10,7 @@
 // as an argument instead of reaching for a global ctx.
 import { W, H, column } from '../world.js';
 import {
-  addVelocity, createBox, queryRegion, setFrictionAir, setPosition,
+  addVelocity, createBox, queryRegion, setPosition,
   setVelocity,
 } from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
@@ -23,6 +23,7 @@ import { sfx } from '../sfx.js';
 import { game, setBanner } from '../match.js';
 import { healPlayer } from '../player/lifecycle.js';
 import { damagePlayer } from '../player/combat.js';
+import { applyFreeze, freezeUntil } from '../player/status.js';
 import { telPick } from '../telemetry.js';
 import { SPELLS } from './registry.js';
 import {
@@ -154,8 +155,7 @@ regHybrid('absolutezero', {
     const m = p.mega || 1;
     sfx.freeze(); doFlash('#bfe8ff', 0.35); addShake(6);
     for (const q of enemiesOf(p)) {
-      q.frozenUntil = simNow() + 1400 * m;
-      setFrictionAir(q.body, 0.001);
+      applyFreeze(q, simNow() + 1400 * m);
       damagePlayer(q, 14 * m, p);
       // bespoke: a burst of jagged ice shards flung outward
       spawnBurst(q.body.position.x, q.body.position.y, '#eaffff', 14, { kind: 'spark', speed: 9, r: 2.5 });
@@ -181,7 +181,7 @@ regHybrid('steamburst', {
     const base = fb.onHit;
     fb.onHit = (self, other) => {
       base?.(self, other);
-      if (other?.label === 'player' && other.player.alive) { other.player.frozenUntil = simNow() + 700 * m; setFrictionAir(other.player.body, 0.001); }
+      if (other?.label === 'player' && other.player.alive) applyFreeze(other.player, simNow() + 700 * m);
     };
     // bespoke: billowing steam that rises and lingers
     const sp = frontPos(p, 90, -6);
@@ -212,8 +212,7 @@ regHybrid('superconductor', {
     // clients see the pillar too.
     const { hit, pt } = zapRay(p, 38, 10, 3);
     if (hit && hit.label === 'player') {
-      hit.player.frozenUntil = simNow() + 1000 * m;
-      setFrictionAir(hit.player.body, 0.001);
+      applyFreeze(hit.player, simNow() + 1000 * m);
     }
     const d = aimDir(p, 1, 0);
     const px = Math.max(30, Math.min(W - 30, pt.x - d.x * 16));
@@ -277,7 +276,7 @@ regHybrid('howlingblizzard', {
     explode(x + p.facing * 260, y, 220, 10 * m, 18 * m, p, { selfSafe: true });
     for (const q of enemiesOf(p)) {
       if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 440) {
-        q.frozenUntil = simNow() + 800 * m; setFrictionAir(q.body, 0.001);
+        applyFreeze(q, simNow() + 800 * m);
         addVelocity(q.body, { x: p.facing * 6, y: 0 });
       }
     }
@@ -337,7 +336,7 @@ regHybrid('avalanche', {
           chunk.onHit = () => {
             explode(chunk.position.x, chunk.position.y, 90 * m, 12 * m, 16 * m, p, { selfSafe: true });
             const nw = simNow();
-            for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - chunk.position.x, q.body.position.y - chunk.position.y) < 120) { q.frozenUntil = Math.max(q.frozenUntil || 0, nw + 700 * m); setFrictionAir(q.body, 0.001); }
+            for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - chunk.position.x, q.body.position.y - chunk.position.y) < 120) applyFreeze(q, Math.max(q.frozenUntil || 0, nw + 700 * m));
             spawnBurst(chunk.position.x, chunk.position.y, '#eaffff', 10, { kind: 'spark', speed: 7 });
           };
         }
@@ -464,7 +463,7 @@ regHybrid('frozenstar', {
     const dir = aimDir(p, 1, 0);
     const sx = p.body.position.x + dir.x * 240, sy = p.body.position.y - 30 + dir.y * 240;
     spawnSingularity(sx, sy, m, p, { selfSafe: true });
-    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - sx, q.body.position.y - sy) < 320) { q.frozenUntil = simNow() + 1100 * m; setFrictionAir(q.body, 0.001); }
+    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - sx, q.body.position.y - sy) < 320) applyFreeze(q, simNow() + 1100 * m);
     doFlash('#9be7ff', 0.3); sfx.freeze();
   },
 });
@@ -477,7 +476,7 @@ regHybrid('frostward', {
     // in close locks up solid. The reflect shimmer is netted (rf flag).
     healPlayer(p, 22 * m);
     p.reflectUntil = Math.max(p.reflectUntil || 0, now + 1900 * m);
-    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 260) { q.frozenUntil = now + 900 * m; setFrictionAir(q.body, 0.001); }
+    for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 260) applyFreeze(q, now + 900 * m);
     for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; spawnBurst(p.body.position.x + Math.cos(a) * 34, p.body.position.y - 8 + Math.sin(a) * 34, '#eaffff', 2, { kind: 'spark', dir: a, spread: 0.2, speed: 1.5, g: 0, life: 50, r: 2 }); }
     spawnRing(p.body.position.x, p.body.position.y, '#aee4ff');
     spawnText(p.body.position.x, p.body.position.y - 50, 'FROST WARD', '#aee4ff');
@@ -577,7 +576,7 @@ regHybrid('pandemonium', {
     const m = p.mega || 1, now = simNow();
     for (const q of enemiesOf(p)) {
       const roll = Math.floor(simRandom() * 5);
-      if (roll === 0) q.frozenUntil = now + 1000 * m;
+      if (roll === 0) freezeUntil(q, now + 1000 * m); // never slicked the body — see status.js
       else if (roll === 1) q.reversedUntil = now + 2500 * m;
       else if (roll === 2) q.shrinkUntil = now + 3500 * m;
       else if (roll === 3) { q.floatyUntil = now + 2500 * m; setVelocity(q.body, { x: q.body.velocity.x, y: -9 }); }
@@ -604,7 +603,7 @@ regHybrid('coldfeet', {
   cast(p) {
     const m = p.mega || 1, now = simNow();
     for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 420) {
-      q.frozenUntil = now + 700 * m; q.reversedUntil = now + 3000 * m; setFrictionAir(q.body, 0.001);
+      applyFreeze(q, now + 700 * m); q.reversedUntil = now + 3000 * m;
       spawnBurst(q.body.position.x, q.body.position.y, '#a7d8ff', 12, { speed: 5, r: 2.5 });
     }
     sfx.freeze();

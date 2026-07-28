@@ -56,7 +56,7 @@ Flipping any single row's class makes it fail. Here is the account.
 
 **The re-read found one real misclassification**, and it is recorded rather than
 quietly corrected because it shows what the audit was for:
-`src/sim/spells/starters.js:43`, Gust hitting an in-flight bolt. The write is
+`src/sim/spells/starters.js:44`, Gust hitting an in-flight bolt. The write is
 `{ x: dir.x * spd, y: dir.y * spd }`, which reads as a launch — but `spd` is
 `Math.hypot(b.velocity.x, b.velocity.y)`, computed two lines above. Gust
 *redirects* a bolt at its existing speed; that is a push. First pass called it

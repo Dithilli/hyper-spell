@@ -7,7 +7,7 @@ import { W, H, column } from '../world.js';
 import {
   addVelocity, allBodies, createBox, createCircle, createPolygon, gravityY,
   queryCapsule, queryRadius, queryRegion, removeBody, setAngularVelocity,
-  setFrictionAir, setPosition, setType, setVelocity,
+  setPosition, setType, setVelocity,
 } from '../phys/facade.js';
 import { push as pushGravity, pop as popGravity } from '../gravity.js';
 import { perSecond, simNow } from '../time.js';
@@ -18,23 +18,38 @@ import { sfx } from '../sfx.js';
 // `game` is no longer imported: gravflip and moongrav were the last readers of
 // game.baseGravity here, and they compose over the base now instead of naming it.
 import { setBanner } from '../match.js';
-import { players, gibs, healPlayer } from '../player/lifecycle.js';
+import { players, gibs, healPlayer, disarmPlayer } from '../player/lifecycle.js';
 import { damagePlayer } from '../player/combat.js';
 import { grounded } from '../player/controller.js';
+import { applyFreeze, freezeUntil } from '../player/status.js';
 import { tomes, hats } from '../pickups.js';
 import { damageBoss } from '../ai/boss.js';
 import { SPELLS } from './registry.js';
 import {
-  projectiles, summons, activeEffects, aimDir, shoot, dropProjectile, removeProjectile, summon, enemiesOf, nearestEnemy, explode, raycastHit, boltVisual, groundYAt, zapHit, skyBolt, makeZone, loose,
+  projectiles, summons, activeEffects, aimDir, shoot, dropProjectile, removeProjectile, summon, enemiesOf, nearestEnemy, explode, raycastHit, boltVisual, groundYAt, zapHit, skyBolt, makeZone, loose, resolvePotency,
 } from './core.js';
 
 // filled here, merged into SPELLS by src/sim/content.js
 export const BOOK_SPELLS = {};
 function regSpell(id, def) { BOOK_SPELLS[id] = def; }
 
+// C1. THE SPELLS ROULETTE AND MIRROR CAST MAY PRODUCE.
+//
+// Hybrids exist only through fusion: you hold two spells of the right pair and
+// they combine, spending charges. Both of these picked uniformly over
+// Object.keys(SPELLS), which is every registered spell — 36 of the 142 are
+// hybrids, so roughly a quarter of Roulette casts handed out a fusion-only
+// spell for free, at no charge cost, from a 1000ms uncommon. Matches the rule
+// tomePool() already followed (src/sim/pickups.js).
+const castablePool = () =>
+  Object.keys(SPELLS).filter((k) => k !== 'roulette' && k !== 'mirrorcast' && !SPELLS[k].hybrid);
+export const roulettePool = castablePool;
+export const mirrorPool = castablePool;
+const mirrorEligible = (id) => !!id && mirrorPool().includes(id);
+
 // generic exploding bolt
 export function boomBolt(p, o = {}) {
-  const m = p.mega || 1;
+  const m = resolvePotency(p, o);
   const fb = shoot(p, {
     r: (o.r ?? 7) * m, speed: o.speed ?? 20, vy: o.vy ?? -6,
     color: o.color, gravityScale: o.g ?? 0.45,
@@ -49,7 +64,7 @@ export function boomBolt(p, o = {}) {
 
 // bolt that applies a status to the player it hits
 export function statusBolt(p, o, apply) {
-  const m = p.mega || 1;
+  const m = resolvePotency(p, o);
   const fb = shoot(p, { r: (o.r ?? 6) * m, speed: o.speed ?? 18, vy: o.vy ?? -5, color: o.color, gravityScale: o.g ?? 0.5 });
   fb.onHit = (self, other) => {
     spawnParticles(self.position.x, self.position.y, o.color, 10, 4);
@@ -60,7 +75,7 @@ export function statusBolt(p, o, apply) {
 }
 
 export function zapRay(p, dmg, imp, width = 3, angOff = 0) {
-  const m = p.mega || 1;
+  const m = resolvePotency(p);
   const { hit, pt, from, dir } = raycastHit(p, angOff);
   boltVisual(from.x, from.y, pt.x, pt.y, '#fff89e', width * m);
   spawnParticles(pt.x, pt.y, '#fff89e', 10, 5);
@@ -206,11 +221,15 @@ regSpell('dragonbreath', {
   name: "Dragon's Breath", color: '#ff5e3a', cooldown: 1900,
   cast(p) {
     const t0 = simNow();
+    // C3: the volley's potency is decided HERE, at the cast, not six times over
+    // the next 720ms as each bolt happens to fire. A HYPERSPELL proc landing
+    // mid-breath used to supercharge whatever was left of it.
+    const m = p.mega || 1;
     let i = 0;
     activeEffects.push({
       until: t0 + 720,
       update(now) {
-        if (now > t0 + i * 120 && i < 6 && p.alive) { i++; boomBolt(p, { color: '#ff5e3a', r: 4, speed: rand(19, 25), vy: rand(-4, 0), g: 0.3, radius: 65, power: 9, dmg: 9 }); }
+        if (now > t0 + i * 120 && i < 6 && p.alive) { i++; boomBolt(p, { m, color: '#ff5e3a', r: 4, speed: rand(19, 25), vy: rand(-4, 0), g: 0.3, radius: 65, power: 9, dmg: 9 }); }
       },
     });
   },
@@ -503,7 +522,9 @@ regSpell('tornado', {
 });
 
 // ============ ICE & CONTROL ============
-regSpell('iceshard', { name: 'Ice Shard', color: '#bfe8ff', cooldown: 400, cast(p) { statusBolt(p, { color: '#bfe8ff', r: 4, speed: 23, vy: -2, dmg: 12 }, (q) => { q.frozenUntil = simNow() + 450; }); } });
+// Ice Shard freezes without slicking the body — one of the three freezes that
+// never wrote frictionAir. See the note on freezeUntil in player/status.js.
+regSpell('iceshard', { name: 'Ice Shard', color: '#bfe8ff', cooldown: 400, cast(p) { statusBolt(p, { color: '#bfe8ff', r: 4, speed: 23, vy: -2, dmg: 12 }, (q) => { freezeUntil(q, simNow() + 450); }); } });
 regSpell('glacier', {
   name: 'Glacier', color: '#9be7ff', cooldown: 2600,
   cast(p) {
@@ -523,7 +544,7 @@ regSpell('blizzard', {
       x: pos.x, y: pos.y, r: 240 * m, life: 3200, color: '#d8f4ff',
       tick(q, now) {
         if (q === p) return;
-        q.frozenUntil = Math.max(q.frozenUntil, now + 200);
+        freezeUntil(q, Math.max(q.frozenUntil, now + 200)); // a chill, not a slick
         if (simRandom() < 0.02) damagePlayer(q, 3);
       },
       draw(now, ctx) {
@@ -546,7 +567,7 @@ regSpell('snowball', {
     fb.contactDamage = 8 * m;
   },
 });
-regSpell('flashfreeze', { name: 'Flash Freeze', color: '#e0f7ff', cooldown: 3400, cast(p) { const m = p.mega || 1; sfx.freeze(); doFlash('#bfe8ff', 0.3); for (const q of enemiesOf(p)) { q.frozenUntil = simNow() + 800 * m; setFrictionAir(q.body, 0.001); } } });
+regSpell('flashfreeze', { name: 'Flash Freeze', color: '#e0f7ff', cooldown: 3400, cast(p) { const m = p.mega || 1; sfx.freeze(); doFlash('#bfe8ff', 0.3); for (const q of enemiesOf(p)) applyFreeze(q, simNow() + 800 * m); } });
 regSpell('frostnova', {
   name: 'Frost Nova', color: '#aee4ff', cooldown: 2400,
   cast(p) {
@@ -555,7 +576,7 @@ regSpell('frostnova', {
     sfx.freeze();
     for (const q of enemiesOf(p)) {
       const d = Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y);
-      if (d < 180 * m) { q.frozenUntil = simNow() + 1200 * m; setFrictionAir(q.body, 0.001); damagePlayer(q, 10 * m); }
+      if (d < 180 * m) { applyFreeze(q, simNow() + 1200 * m); damagePlayer(q, 10 * m); }
     }
   },
 });
@@ -577,13 +598,12 @@ regSpell('coldsnap', {
   name: 'Cold Snap', color: '#9be7ff', cooldown: 1800,
   cast(p) {
     statusBolt(p, { color: '#9be7ff', r: 5, speed: 19, vy: -3, dmg: 6 }, (q, m) => {
-      q.frozenUntil = simNow() + 1000 * m;
-      setFrictionAir(q.body, 0.001);
+      applyFreeze(q, simNow() + 1000 * m);
       sfx.freeze();
     });
   },
 });
-regSpell('permafrost', { name: 'Permafrost', color: '#7fd4ff', cooldown: 2800, cast(p) { statusBolt(p, { color: '#7fd4ff', r: 9, speed: 10, vy: -3, dmg: 20 }, (q, m) => { q.frozenUntil = simNow() + 2600 * m; setFrictionAir(q.body, 0.001); sfx.freeze(); }); } });
+regSpell('permafrost', { name: 'Permafrost', color: '#7fd4ff', cooldown: 2800, cast(p) { statusBolt(p, { color: '#7fd4ff', r: 9, speed: 10, vy: -3, dmg: 20 }, (q, m) => { applyFreeze(q, simNow() + 2600 * m); sfx.freeze(); }); } });
 
 // ============ FIRE & STATUS ============
 regSpell('ignite', { name: 'Ignite', color: '#ff8c5a', cooldown: 700, cast(p) { statusBolt(p, { color: '#ff8c5a', dmg: 8 }, (q, m) => { q.burnUntil = simNow() + 3000 * m; }); } });
@@ -926,12 +946,11 @@ regSpell('poltergeist', {
     }
   },
 });
-regSpell('disarm', { name: 'Butterfingers', color: '#f5deb3', cooldown: 4500, cast(p) { for (const q of enemiesOf(p)) { q.spellId = null; spawnText(q.body.position.x, q.body.position.y - 44, 'DISARMED', '#f5deb3'); } } });
+regSpell('disarm', { name: 'Butterfingers', color: '#f5deb3', cooldown: 4500, cast(p) { for (const q of enemiesOf(p)) { disarmPlayer(q); spawnText(q.body.position.x, q.body.position.y - 44, 'DISARMED', '#f5deb3'); } } });
 regSpell('roulette', {
   name: 'Roulette', color: '#ff6b81', cooldown: 1000,
   cast(p) {
-    const keys = Object.keys(SPELLS).filter(k => k !== 'roulette' && k !== 'mirrorcast');
-    const k = pick(keys);
+    const k = pick(roulettePool());
     spawnText(p.body.position.x, p.body.position.y - 52, SPELLS[k].name.toUpperCase() + '?!', SPELLS[k].color);
     SPELLS[k].cast(p);
   },
@@ -989,9 +1008,8 @@ regSpell('midas', {
     const t = nearestEnemy(p, 320);
     if (!t) return;
     const now = simNow(), dur = 2000 * m;
-    t.frozenUntil = now + dur;
+    applyFreeze(t, now + dur);
     t.heavyUntil = now + dur; // solid gold — heavy
-    setFrictionAir(t.body, 0.001);
     spawnParticles(t.body.position.x, t.body.position.y, '#ffd700', 20, 5);
     spawnText(t.body.position.x, t.body.position.y - 44, 'GOLD!', '#ffd700');
     // the golden statue shatters when it wears off, for bonus damage
@@ -1072,7 +1090,8 @@ regSpell('mirrorcast', {
   name: 'Mirror Cast', color: '#dcdcf0', cooldown: 1200,
   cast(p) {
     const t = nearestEnemy(p);
-    const id = t && t.spellId && t.spellId !== 'mirrorcast' && t.spellId !== 'roulette' ? t.spellId : null;
+    const src = t && t.spellId;
+    const id = mirrorEligible(src) ? src : null;
     if (!id) {
       spawnText(p.body.position.x, p.body.position.y - 52, 'NOTHING!', '#dcdcf0');
       return;

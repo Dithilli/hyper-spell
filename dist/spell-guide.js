@@ -5373,6 +5373,38 @@
     return ids[ids.length - 1];
   }
 
+  // src/sim/player/status.js
+  function clearStatuses(p) {
+    p.frozenUntil = 0;
+    p.burnUntil = 0;
+    p.nextBurnTick = 0;
+    p.wetUntil = 0;
+    p.reversedUntil = 0;
+    p.slipUntil = 0;
+    p.floatyUntil = 0;
+    p.featherUntil = 0;
+    p.heavyUntil = 0;
+    p.speedUntil = 0;
+    p.jumpBoostUntil = 0;
+    p.invulnUntil = 0;
+    p.reflectUntil = 0;
+    p.shrinkUntil = 0;
+    p.growUntil = 0;
+    p.pigUntil = 0;
+    p.megaCasts = 0;
+    p.megaUntil = 0;
+    p.blockCdUntil = 0;
+  }
+  var BASE_FRICTION_AIR = 0.02;
+  var FROZEN_FRICTION_AIR = 1e-3;
+  function applyFreeze(p, until) {
+    p.frozenUntil = until;
+    setFrictionAir(p.body, FROZEN_FRICTION_AIR);
+  }
+  function freezeUntil(p, until) {
+    p.frozenUntil = until;
+  }
+
   // src/sim/replay.js
   var REPLAY = {
     BUF_MS: 3400,
@@ -5725,10 +5757,7 @@
             if (t) bossBolt(b.position, t, { speed: 13, r: 7, color: "#9ec9ff", boom: [55, 8, 12] });
             if (simRandom() < 0.4) {
               const q = bossAliveTarget(null);
-              if (q) {
-                q.frozenUntil = now + 700;
-                setFrictionAir(q.body, 1e-3);
-              }
+              if (q) applyFreeze(q, now + 700);
             }
             sfx.freeze();
           }
@@ -5763,6 +5792,7 @@
       hp: maxHp,
       maxHp,
       announced: false,
+      invulnerableUntilAnnounced: true,
       secret,
       num,
       dmgMult: 1 + 0.12 * (num - 1),
@@ -5776,7 +5806,8 @@
   }
   function damageBoss(dmg, at, src) {
     const bs = game.boss;
-    if (!bs || game.state !== "PLAY" || !bs.announced || bs.hp <= 0) return;
+    if (!bs || game.state !== "PLAY" || bs.hp <= 0) return;
+    if (bs.invulnerableUntilAnnounced && !bs.announced) return;
     if (src && src.slot !== void 0) statFor(src).bossDmg += dmg;
     if (src && src.spellId) telBossDmg(src.spellId, dmg);
     bs.hp -= dmg;
@@ -6050,10 +6081,7 @@
       const now = simNow();
       for (const q of players) {
         if (!q.alive) continue;
-        if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 100) {
-          q.frozenUntil = Math.max(q.frozenUntil || 0, now + 450);
-          setFrictionAir(q.body, 1e-3);
-        }
+        if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 100) applyFreeze(q, Math.max(q.frozenUntil || 0, now + 450));
       }
       spawnParticles(x, y, "#eaffff", 12, 5, 30);
       sfx.freeze?.();
@@ -6346,29 +6374,6 @@
   function isLeafy(hex) {
     if (typeof hex !== "string" || hex[0] !== "#") return false;
     return parseInt(hex.slice(3, 5), 16) > parseInt(hex.slice(1, 3), 16) + 20;
-  }
-
-  // src/sim/player/status.js
-  function clearStatuses(p) {
-    p.frozenUntil = 0;
-    p.burnUntil = 0;
-    p.nextBurnTick = 0;
-    p.wetUntil = 0;
-    p.reversedUntil = 0;
-    p.slipUntil = 0;
-    p.floatyUntil = 0;
-    p.featherUntil = 0;
-    p.heavyUntil = 0;
-    p.speedUntil = 0;
-    p.jumpBoostUntil = 0;
-    p.invulnUntil = 0;
-    p.reflectUntil = 0;
-    p.shrinkUntil = 0;
-    p.growUntil = 0;
-    p.pigUntil = 0;
-    p.megaCasts = 0;
-    p.megaUntil = 0;
-    p.blockCdUntil = 0;
   }
 
   // src/sim/player/controller.js
@@ -6680,6 +6685,7 @@
     });
   }
   var CAST_FLOOR = 480;
+  var resolvePotency = (p, o = {}) => o.m ?? p?.mega ?? 1;
   var boltVisual = baseBoltVisual;
   onWorldReset(() => {
     projectiles.clear();
@@ -6692,8 +6698,12 @@
   function regSpell(id, def) {
     BOOK_SPELLS[id] = def;
   }
+  var castablePool = () => Object.keys(SPELLS).filter((k) => k !== "roulette" && k !== "mirrorcast" && !SPELLS[k].hybrid);
+  var roulettePool = castablePool;
+  var mirrorPool = castablePool;
+  var mirrorEligible = (id) => !!id && mirrorPool().includes(id);
   function boomBolt(p, o = {}) {
-    const m = p.mega || 1;
+    const m = resolvePotency(p, o);
     const fb = shoot(p, {
       r: (o.r ?? 7) * m,
       speed: o.speed ?? 20,
@@ -6711,7 +6721,7 @@
     return fb;
   }
   function statusBolt(p, o, apply2) {
-    const m = p.mega || 1;
+    const m = resolvePotency(p, o);
     const fb = shoot(p, { r: (o.r ?? 6) * m, speed: o.speed ?? 18, vy: o.vy ?? -5, color: o.color, gravityScale: o.g ?? 0.5 });
     fb.onHit = (self, other) => {
       spawnParticles(self.position.x, self.position.y, o.color, 10, 4);
@@ -6721,7 +6731,7 @@
     return fb;
   }
   function zapRay(p, dmg, imp, width = 3, angOff = 0) {
-    const m = p.mega || 1;
+    const m = resolvePotency(p);
     const { hit, pt, from, dir } = raycastHit(p, angOff);
     boltVisual(from.x, from.y, pt.x, pt.y, "#fff89e", width * m);
     spawnParticles(pt.x, pt.y, "#fff89e", 10, 5);
@@ -6913,13 +6923,14 @@
     cooldown: 1900,
     cast(p) {
       const t0 = simNow();
+      const m = p.mega || 1;
       let i = 0;
       activeEffects.push({
         until: t0 + 720,
         update(now) {
           if (now > t0 + i * 120 && i < 6 && p.alive) {
             i++;
-            boomBolt(p, { color: "#ff5e3a", r: 4, speed: rand(19, 25), vy: rand(-4, 0), g: 0.3, radius: 65, power: 9, dmg: 9 });
+            boomBolt(p, { m, color: "#ff5e3a", r: 4, speed: rand(19, 25), vy: rand(-4, 0), g: 0.3, radius: 65, power: 9, dmg: 9 });
           }
         }
       });
@@ -7276,7 +7287,7 @@
   });
   regSpell("iceshard", { name: "Ice Shard", color: "#bfe8ff", cooldown: 400, cast(p) {
     statusBolt(p, { color: "#bfe8ff", r: 4, speed: 23, vy: -2, dmg: 12 }, (q) => {
-      q.frozenUntil = simNow() + 450;
+      freezeUntil(q, simNow() + 450);
     });
   } });
   regSpell("glacier", {
@@ -7306,7 +7317,7 @@
         color: "#d8f4ff",
         tick(q, now) {
           if (q === p) return;
-          q.frozenUntil = Math.max(q.frozenUntil, now + 200);
+          freezeUntil(q, Math.max(q.frozenUntil, now + 200));
           if (simRandom() < 0.02) damagePlayer(q, 3);
         },
         draw(now, ctx) {
@@ -7337,10 +7348,7 @@
     const m = p.mega || 1;
     sfx.freeze();
     doFlash("#bfe8ff", 0.3);
-    for (const q of enemiesOf(p)) {
-      q.frozenUntil = simNow() + 800 * m;
-      setFrictionAir(q.body, 1e-3);
-    }
+    for (const q of enemiesOf(p)) applyFreeze(q, simNow() + 800 * m);
   } });
   regSpell("frostnova", {
     name: "Frost Nova",
@@ -7353,8 +7361,7 @@
       for (const q of enemiesOf(p)) {
         const d = Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y);
         if (d < 180 * m) {
-          q.frozenUntil = simNow() + 1200 * m;
-          setFrictionAir(q.body, 1e-3);
+          applyFreeze(q, simNow() + 1200 * m);
           damagePlayer(q, 10 * m);
         }
       }
@@ -7388,16 +7395,14 @@
     cooldown: 1800,
     cast(p) {
       statusBolt(p, { color: "#9be7ff", r: 5, speed: 19, vy: -3, dmg: 6 }, (q, m) => {
-        q.frozenUntil = simNow() + 1e3 * m;
-        setFrictionAir(q.body, 1e-3);
+        applyFreeze(q, simNow() + 1e3 * m);
         sfx.freeze();
       });
     }
   });
   regSpell("permafrost", { name: "Permafrost", color: "#7fd4ff", cooldown: 2800, cast(p) {
     statusBolt(p, { color: "#7fd4ff", r: 9, speed: 10, vy: -3, dmg: 20 }, (q, m) => {
-      q.frozenUntil = simNow() + 2600 * m;
-      setFrictionAir(q.body, 1e-3);
+      applyFreeze(q, simNow() + 2600 * m);
       sfx.freeze();
     });
   } });
@@ -7828,7 +7833,7 @@
   });
   regSpell("disarm", { name: "Butterfingers", color: "#f5deb3", cooldown: 4500, cast(p) {
     for (const q of enemiesOf(p)) {
-      q.spellId = null;
+      disarmPlayer(q);
       spawnText(q.body.position.x, q.body.position.y - 44, "DISARMED", "#f5deb3");
     }
   } });
@@ -7837,8 +7842,7 @@
     color: "#ff6b81",
     cooldown: 1e3,
     cast(p) {
-      const keys = Object.keys(SPELLS).filter((k2) => k2 !== "roulette" && k2 !== "mirrorcast");
-      const k = pick(keys);
+      const k = pick(roulettePool());
       spawnText(p.body.position.x, p.body.position.y - 52, SPELLS[k].name.toUpperCase() + "?!", SPELLS[k].color);
       SPELLS[k].cast(p);
     }
@@ -7913,9 +7917,8 @@
       const t = nearestEnemy(p, 320);
       if (!t) return;
       const now = simNow(), dur = 2e3 * m;
-      t.frozenUntil = now + dur;
+      applyFreeze(t, now + dur);
       t.heavyUntil = now + dur;
-      setFrictionAir(t.body, 1e-3);
       spawnParticles(t.body.position.x, t.body.position.y, "#ffd700", 20, 5);
       spawnText(t.body.position.x, t.body.position.y - 44, "GOLD!", "#ffd700");
       activeEffects.push({ until: now + dur, onEnd() {
@@ -8014,7 +8017,8 @@
     cooldown: 1200,
     cast(p) {
       const t = nearestEnemy(p);
-      const id = t && t.spellId && t.spellId !== "mirrorcast" && t.spellId !== "roulette" ? t.spellId : null;
+      const src = t && t.spellId;
+      const id = mirrorEligible(src) ? src : null;
       if (!id) {
         spawnText(p.body.position.x, p.body.position.y - 52, "NOTHING!", "#dcdcf0");
         return;
@@ -8239,8 +8243,7 @@
       doFlash("#bfe8ff", 0.35);
       addShake(6);
       for (const q of enemiesOf(p)) {
-        q.frozenUntil = simNow() + 1400 * m;
-        setFrictionAir(q.body, 1e-3);
+        applyFreeze(q, simNow() + 1400 * m);
         damagePlayer(q, 14 * m, p);
         spawnBurst(q.body.position.x, q.body.position.y, "#eaffff", 14, { kind: "spark", speed: 9, r: 2.5 });
         spawnBurst(q.body.position.x, q.body.position.y, "#bfe8ff", 8, { speed: 4, r: 3 });
@@ -8271,10 +8274,7 @@
       const base2 = fb.onHit;
       fb.onHit = (self, other) => {
         base2?.(self, other);
-        if (other?.label === "player" && other.player.alive) {
-          other.player.frozenUntil = simNow() + 700 * m;
-          setFrictionAir(other.player.body, 1e-3);
-        }
+        if (other?.label === "player" && other.player.alive) applyFreeze(other.player, simNow() + 700 * m);
       };
       const sp = frontPos(p, 90, -6);
       spawnBurst(sp.x, sp.y, "#eafaf6", 22, { speed: 3.5, up: 3, g: -0.08, life: 60, r: 5 });
@@ -8308,8 +8308,7 @@
       const m = p.mega || 1;
       const { hit, pt } = zapRay(p, 38, 10, 3);
       if (hit && hit.label === "player") {
-        hit.player.frozenUntil = simNow() + 1e3 * m;
-        setFrictionAir(hit.player.body, 1e-3);
+        applyFreeze(hit.player, simNow() + 1e3 * m);
       }
       const d = aimDir(p, 1, 0);
       const px = Math.max(30, Math.min(W - 30, pt.x - d.x * 16));
@@ -8376,8 +8375,7 @@
       explode(x + p.facing * 260, y, 220, 10 * m, 18 * m, p, { selfSafe: true });
       for (const q of enemiesOf(p)) {
         if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 440) {
-          q.frozenUntil = simNow() + 800 * m;
-          setFrictionAir(q.body, 1e-3);
+          applyFreeze(q, simNow() + 800 * m);
           addVelocity(q.body, { x: p.facing * 6, y: 0 });
         }
       }
@@ -8445,10 +8443,7 @@
             chunk.onHit = () => {
               explode(chunk.position.x, chunk.position.y, 90 * m, 12 * m, 16 * m, p, { selfSafe: true });
               const nw = simNow();
-              for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - chunk.position.x, q.body.position.y - chunk.position.y) < 120) {
-                q.frozenUntil = Math.max(q.frozenUntil || 0, nw + 700 * m);
-                setFrictionAir(q.body, 1e-3);
-              }
+              for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - chunk.position.x, q.body.position.y - chunk.position.y) < 120) applyFreeze(q, Math.max(q.frozenUntil || 0, nw + 700 * m));
               spawnBurst(chunk.position.x, chunk.position.y, "#eaffff", 10, { kind: "spark", speed: 7 });
             };
           }
@@ -8603,10 +8598,7 @@
       const dir = aimDir(p, 1, 0);
       const sx = p.body.position.x + dir.x * 240, sy = p.body.position.y - 30 + dir.y * 240;
       spawnSingularity(sx, sy, m, p, { selfSafe: true });
-      for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - sx, q.body.position.y - sy) < 320) {
-        q.frozenUntil = simNow() + 1100 * m;
-        setFrictionAir(q.body, 1e-3);
-      }
+      for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - sx, q.body.position.y - sy) < 320) applyFreeze(q, simNow() + 1100 * m);
       doFlash("#9be7ff", 0.3);
       sfx.freeze();
     }
@@ -8619,10 +8611,7 @@
       const m = p.mega || 1, now = simNow();
       healPlayer(p, 22 * m);
       p.reflectUntil = Math.max(p.reflectUntil || 0, now + 1900 * m);
-      for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 260) {
-        q.frozenUntil = now + 900 * m;
-        setFrictionAir(q.body, 1e-3);
-      }
+      for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 260) applyFreeze(q, now + 900 * m);
       for (let i = 0; i < 12; i++) {
         const a = i / 12 * Math.PI * 2;
         spawnBurst(p.body.position.x + Math.cos(a) * 34, p.body.position.y - 8 + Math.sin(a) * 34, "#eaffff", 2, { kind: "spark", dir: a, spread: 0.2, speed: 1.5, g: 0, life: 50, r: 2 });
@@ -8767,7 +8756,7 @@
       const m = p.mega || 1, now = simNow();
       for (const q of enemiesOf(p)) {
         const roll = Math.floor(simRandom() * 5);
-        if (roll === 0) q.frozenUntil = now + 1e3 * m;
+        if (roll === 0) freezeUntil(q, now + 1e3 * m);
         else if (roll === 1) q.reversedUntil = now + 2500 * m;
         else if (roll === 2) q.shrinkUntil = now + 3500 * m;
         else if (roll === 3) {
@@ -8805,9 +8794,8 @@
     cast(p) {
       const m = p.mega || 1, now = simNow();
       for (const q of enemiesOf(p)) if (Math.hypot(q.body.position.x - p.body.position.x, q.body.position.y - p.body.position.y) < 420) {
-        q.frozenUntil = now + 700 * m;
+        applyFreeze(q, now + 700 * m);
         q.reversedUntil = now + 3e3 * m;
-        setFrictionAir(q.body, 1e-3);
         spawnBurst(q.body.position.x, q.body.position.y, "#a7d8ff", 12, { speed: 5, r: 2.5 });
       }
       sfx.freeze();
@@ -9492,6 +9480,7 @@
     hats.clear();
     for (const s of summons) removeBody(s);
     summons.clear();
+    for (const e of activeEffects) e.onAbandon?.();
     activeEffects.length = 0;
     particles.length = 0;
     pairCooldown.clear();
@@ -9664,7 +9653,7 @@
     p.lastHitBy = null;
     clearStatuses(p);
     setPlayerScale(p, 1);
-    setFrictionAir(p.body, 0.02);
+    setFrictionAir(p.body, BASE_FRICTION_AIR);
     setPosition(p.body, pos);
     setVelocity(p.body, { x: 0, y: 0 });
     setAngularVelocity(p.body, 0);
@@ -9680,6 +9669,12 @@
     if (!p.alive) return;
     p.hp = Math.min(MAX_HP, p.hp + amt);
     spawnText(p.body.position.x, p.body.position.y - 34, `+${Math.round(amt)}`, "#7bd88f");
+  }
+  function disarmPlayer(q) {
+    q.slots[0] = q.slots[1] = null;
+    q.slotCharges[0] = q.slotCharges[1] = null;
+    q.casts[0] = q.casts[1] = 0;
+    q.slotFilledAt[0] = q.slotFilledAt[1] = 0;
   }
   function clearSpells(p) {
     p.slots[0] = p.slots[1] = null;
@@ -9904,8 +9899,7 @@
           spawnParticles(self.position.x, self.position.y, "#9be7ff", 10, 4);
           if (other && other.label === "player" && other.player.alive) {
             damagePlayer(other.player, 15 * m);
-            other.player.frozenUntil = simNow() + 1500 * m;
-            setFrictionAir(other, 1e-3);
+            applyFreeze(other.player, simNow() + 1500 * m);
             sfx.freeze();
           }
         };

@@ -336,6 +336,25 @@ export function makeZone({ x, y, r, life, color, tick, tickBody, draw, onEnd }) 
 // taste: higher = more measured, lower = twitchier.
 export const CAST_FLOOR = 480;
 
+// C4. THE ONE COOLDOWN NUMBER. Three readers used to compute "how far through
+// the cooldown" from SPELLS[id].cooldown while the cast gate below enforced
+// max(cooldown, CAST_FLOOR). Four spells declare less than the floor
+// (fireball 450, ember 250, zapspell 350, iceshard 400), so their HUD bar and
+// their wire `rd` flag both read READY up to 230ms before the spell would
+// actually fire — the bar filled and the button did nothing. Everything that
+// asks "how long is this spell's cooldown" asks here.
+export const effectiveCooldown = (id) => Math.max(SPELLS[id]?.cooldown ?? 0, CAST_FLOOR);
+
+// C3. POTENCY IS DECIDED AT CAST TIME. castSpell writes p.mega and then calls
+// spell.cast(p); a spell that spawns over the next second or two (Dragon's
+// Breath fires six bolts across 720ms) used to read p.mega again inside each
+// deferred spawn, so a HYPERSPELL proc landing mid-cast retroactively
+// supercharged the rest of the volley — and a plain cast landing mid-volley
+// quietly de-powered it. A deferred spawner captures its potency at cast and
+// threads it through as `o.m`; an immediate one passes nothing and still reads
+// the caster, which is the same value at that instant.
+export const resolvePotency = (p, o = {}) => o.m ?? p?.mega ?? 1;
+
 // FUSION CHARGES: hybrids are no longer limitless — they burn out after a few
 // casts, scaled to their power (cooldown is the power proxy). In exchange each
 // cast hits harder: the fewer the charges, the bigger the bang.
@@ -350,7 +369,7 @@ export function castSpell(p, now, slot = 0) {
   const id = p.slots[slot];
   const spell = id && SPELLS[id];
   if (!spell) return;
-  if (now - p.casts[slot] < Math.max(spell.cooldown, CAST_FLOOR)) return;
+  if (now - p.casts[slot] < effectiveCooldown(id)) return;
   p.casts[slot] = now;
   p.lastCastSlot = slot; // primary slot for spellId/lastCast accessors + attribution
   telCast(id); // balance: a confirmed cast (past the cooldown gate)

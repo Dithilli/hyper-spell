@@ -3,7 +3,7 @@
 import { W, H } from '../world.js';
 import {
   applyForce, worldGravityScale, gravityY, queryRegion, setAngle,
-  setAngularVelocity, setFrictionAir, setPosition, setVelocity,
+  setAngularVelocity, setPosition, setVelocity,
 } from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
 import { simRandom, rand } from '../rng.js';
@@ -14,7 +14,7 @@ import { game, currentMap } from '../match.js';
 import { castSpell } from '../spells/core.js';
 import { players, FALL_SAFE_DROP, setPlayerScale } from './lifecycle.js';
 import { damagePlayer, killPlayer } from './combat.js';
-import { tryBlock } from './status.js';
+import { tickStatuses, tryBlock } from './status.js';
 
 // gravity direction as this player experiences it (Gravity Flip spares its caster)
 export function gravDirFor(p) {
@@ -65,12 +65,9 @@ export function updatePlayers(now) {
       if (lift < 1 && simRandom() < 0.06) spawnParticles(body.position.x + rand(-10, 10), body.position.y - 18, '#fffde7', 1, 1.2, 22);
     }
 
-    if (p.wasFrozen && !frozen) {
-      setFrictionAir(body, 0.02);
-      spawnParticles(body.position.x, body.position.y, '#9be7ff', 10, 4);
-      p.wetUntil = now + 4500; // just thawed → Wet (conducts lightning)
-    }
-    p.wasFrozen = frozen;
+    // the freeze→thaw transition, and the frictionAir it restores, belong to
+    // the status rather than to the movement pass (C8)
+    tickStatuses(p, now);
     // standing on ice/snow keeps you Wet; a faint sheen hints at it
     if (currentMap.def.icy || currentMap.data.eventIcy) p.wetUntil = Math.max(p.wetUntil || 0, now + 600);
     if (now < (p.wetUntil || 0) && simRandom() < 0.04) spawnParticles(body.position.x, body.position.y + 8, '#9ec9ff', 1, 1.5, 16);

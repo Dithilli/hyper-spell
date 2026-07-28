@@ -10,7 +10,7 @@ import { spawnParticles, spawnText } from '../fx.js';
 import { IDLE_INPUT } from '../input-contract.js';
 import { currentMap } from '../match.js';
 import { platformSpots } from '../events.js';
-import { clearStatuses } from './status.js';
+import { BASE_FRICTION_AIR, clearStatuses } from './status.js';
 
 export const MAX_PLAYERS = 8;
 export const FALL_SAFE_DROP = 440; // px of safe fall — a double jump drops ~350 from its apex
@@ -111,7 +111,7 @@ export function spawnPlayer(p, pos) {
   p.lastHitBy = null;
   clearStatuses(p);
   setPlayerScale(p, 1);
-  setFrictionAir(p.body, 0.02);
+  setFrictionAir(p.body, BASE_FRICTION_AIR);
   setPosition(p.body, pos);
   setVelocity(p.body, { x: 0, y: 0 });
   setAngularVelocity(p.body, 0);
@@ -151,6 +151,21 @@ export function addSpell(p, id) {
   p.slotCharges[i] = null; // tome spells are limitless; only fusion sets charges
   p.slotFilledAt[i] = now;
   return i;
+}
+
+// C11. BUTTERFINGERS DESTROYS A CHARGED FUSION, AND THAT IS THE POINT.
+//
+// Butterfingers is legendary (drop weight 4) and costs 4.5 seconds of cooldown.
+// Annihilating the fusion someone spent two tomes and a pickup window charging
+// is the payoff for landing it. The behaviour used to be a side effect of the
+// spellId setter above — `q.spellId = null` happened to clear both slots and
+// both charge counts — which read like an accessor leaking rather than a rule.
+// It is a rule. See spec §6 C11.
+export function disarmPlayer(q) {
+  q.slots[0] = q.slots[1] = null;
+  q.slotCharges[0] = q.slotCharges[1] = null;
+  q.casts[0] = q.casts[1] = 0;
+  q.slotFilledAt[0] = q.slotFilledAt[1] = 0;
 }
 
 export function clearSpells(p) {

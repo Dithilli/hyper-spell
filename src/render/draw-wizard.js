@@ -7,6 +7,7 @@ import { avatarVariant, drawStoryWizard } from './artkit.js';
 import { game } from '../sim/match.js';
 import { players, MAX_HP } from '../sim/player/lifecycle.js';
 import { SPELLS } from '../sim/spells/registry.js';
+import { effectiveCooldown } from '../sim/spells/core.js';
 
 // edge pointers for wizards knocked offscreen (usually skyward). A color-coded
 // chevron rides the screen edge at the wizard's clamped position and points
@@ -82,7 +83,10 @@ export function drawGhostWisps(now) {
 // gallery share one source of truth; this adapter just supplies the state.
 export function drawWizardFigure(p, x, y, scale, now, angle = 0) {
   const spell = p.spellId && SPELLS[p.spellId];
-  const ready = spell && now - p.lastCast > spell.cooldown;
+  // C4: the hand glows when the spell is actually castable. Like the HUD bar
+  // this used to read the DECLARED cooldown, so Fireball's hand lit up 30ms
+  // before the cast gate would let it fire.
+  const ready = spell && now - p.lastCast > effectiveCooldown(p.spellId);
   drawStoryWizard(ctx, {
     x, y, scale, angle, now, name: p.name,
     color: p.color, hat: p.hat, hp: ((p.hp ?? MAX_HP) / MAX_HP) * 100,

@@ -6,7 +6,7 @@
 import { W, H } from '../world.js';
 import {
   addBody, applyForce, createBox, createCircle, worldGravityScale, gravityY,
-  setAngle, setAngularVelocity, setFrictionAir, setPosition, setVelocity,
+  setAngle, setAngularVelocity, setPosition, setVelocity,
 } from '../phys/facade.js';
 import { simNow } from '../time.js';
 import { simRandom, rand, pick } from '../rng.js';
@@ -22,6 +22,7 @@ import { telBossDmg } from '../telemetry.js';
 import { game, setBanner, startRound, nextMapIndex } from '../match.js';
 import { players } from '../player/lifecycle.js';
 import { damagePlayer } from '../player/combat.js';
+import { applyFreeze } from '../player/status.js';
 import { startReplay } from '../replay.js';
 import {
   projectiles, summons, summon, removeSummon, dropProjectile, explode,
@@ -325,7 +326,7 @@ export const SECRET_BOSSES = [
           bs.nextDe = now + bcd(bs, 1500, 1500);
           const t = bossAliveTarget(b.position);
           if (t) bossBolt(b.position, t, { speed: 13, r: 7, color: '#9ec9ff', boom: [55, 8, 12] });
-          if (simRandom() < 0.4) { const q = bossAliveTarget(null); if (q) { q.frozenUntil = now + 700; setFrictionAir(q.body, 0.001); } }
+          if (simRandom() < 0.4) { const q = bossAliveTarget(null); if (q) applyFreeze(q, now + 700); }
           sfx.freeze();
         }
       } else {
@@ -368,7 +369,7 @@ export function spawnBoss(now, opts = {}) {
   const maxHp = Math.round((400 + 200 * Math.max(2, players.length)) * (1 + 0.4 * (num - 1)));
   const title = def.name + (num > 1 ? ' ' + (BOSS_ROMAN[num] || `×${num}`) : '');
   game.boss = {
-    def, body, hp: maxHp, maxHp, announced: false, secret,
+    def, body, hp: maxHp, maxHp, announced: false, invulnerableUntilAnnounced: true, secret,
     num, dmgMult: 1 + 0.12 * (num - 1), rate: 1 + 0.10 * (num - 1), title,
     enraged: false, enrageAt: 0, nextEnrageWave: 0,
   };
@@ -377,7 +378,13 @@ export function spawnBoss(now, opts = {}) {
 
 export function damageBoss(dmg, at, src) {
   const bs = game.boss;
-  if (!bs || game.state !== 'PLAY' || !bs.announced || bs.hp <= 0) return;
+  if (!bs || game.state !== 'PLAY' || bs.hp <= 0) return;
+  // C12. The awaken banner, the flash and the shake are a telegraph, and the
+  // boss is deliberately untouchable until it lands — otherwise a wizard
+  // holding a charged fusion deletes a third of the fight before the players
+  // have been told there IS a fight. It used to be a bare read of the announce
+  // flag, which looked like a UI check leaking into damage. See spec §6 C12.
+  if (bs.invulnerableUntilAnnounced && !bs.announced) return;
   if (src && src.slot !== undefined) statFor(src).bossDmg += dmg;
   if (src && src.spellId) telBossDmg(src.spellId, dmg); // balance: boss damage per spell
   bs.hp -= dmg;

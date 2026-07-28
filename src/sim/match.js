@@ -56,6 +56,13 @@ export function loadMap(index) {
   hats.clear();
   for (const s of summons) removeBody(s);
   summons.clear();
+  // C9. Round teardown: pending effects are ABANDONED, not resolved. A Sticky
+  // Bomb that never detonated must not explode into the next round's map, and
+  // a Singularity that never collapsed must not blast a fresh arena — onEnd is
+  // for effects that reach their OWN end. Truncating the array said this by
+  // omission; the sweep says it out loud and gives an effect holding something
+  // (a body, a gravity modifier) a hook to let go of it.
+  for (const e of activeEffects) e.onAbandon?.();
   activeEffects.length = 0;
   particles.length = 0;
   // Every contact gate goes with the round. The bodies most of them are keyed

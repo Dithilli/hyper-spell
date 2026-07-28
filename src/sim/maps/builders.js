@@ -4,7 +4,7 @@ import { W, H } from '../world.js';
 import {
   addBody as addWorldBody, addTo, addVelocity, allBodies, createBox,
   createCircle, createJoint, createPolygon, removeFrom, setAngularVelocity,
-  setFrictionAir, setPosition, setType, setVelocity,
+  setPosition, setType, setVelocity,
 } from '../phys/facade.js';
 import { perSecond, simNow } from '../time.js';
 import { simRandom, rand, pick } from '../rng.js';
@@ -12,6 +12,7 @@ import { particles, spawnParticles, spawnBurst, addShake } from '../fx.js';
 import { sfx } from '../sfx.js';
 import { currentMap } from '../match.js';
 import { players, gibs } from '../player/lifecycle.js';
+import { applyFreeze } from '../player/status.js';
 import { explode, skyBolt } from '../spells/core.js';
 import { platformSpots } from '../events.js';
 
@@ -85,7 +86,7 @@ export function breakDestructible(b) {
     const now = simNow();
     for (const q of players) {
       if (!q.alive) continue;
-      if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 100) { q.frozenUntil = Math.max(q.frozenUntil || 0, now + 450); setFrictionAir(q.body, 0.001); }
+      if (Math.hypot(q.body.position.x - x, q.body.position.y - y) < 100) applyFreeze(q, Math.max(q.frozenUntil || 0, now + 450));
     }
     spawnParticles(x, y, '#eaffff', 12, 5, 30);
     sfx.freeze?.();

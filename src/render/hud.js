@@ -8,6 +8,7 @@ import { killFeedLines } from '../sim/awards.js';
 import { nameEdit, PAD_ALPHABET } from '../sim/lobby.js';
 import { MAPS } from '../sim/maps/builders.js';
 import { SPELLS } from '../sim/spells/registry.js';
+import { effectiveCooldown } from '../sim/spells/core.js';
 import { TIER_COLOR, tierColor } from '../sim/spells/tiers.js';
 import { enemies } from '../sim/ai/enemies.js';
 import { BotController } from '../sim/ai/bot.js';
@@ -163,7 +164,10 @@ export function drawHUD(now) {
       ctx.font = 'bold 15px Georgia';
       ctx.fillText(`${p.roundWins} / ${game.winsNeeded}`, x, 58);
     }
-    const cdf = [0, 1].map(s => p.slots[s] ? Math.min(1, (now - p.casts[s]) / (SPELLS[p.slots[s]].cooldown || 1)) : 0);
+    // C4: the bar fills against the cooldown the cast gate enforces, so a
+    // full bar means castable. It used to divide by the DECLARED cooldown,
+    // which for Fireball and three others reads ready up to 230ms early.
+    const cdf = [0, 1].map(s => p.slots[s] ? Math.min(1, (now - p.casts[s]) / effectiveCooldown(p.slots[s])) : 0);
     drawPlayerSpells(x, p.slots, cdf, p.megaCasts, p.slotCharges);
   });
   if (now < bannerUntil) {
