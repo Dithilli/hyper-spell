@@ -1,5 +1,9 @@
 # Upstream v10 port log
 
+**STATUS: the ledger balances.** Every row below is done, `origin/main` is an
+ancestor of this branch, and `git merge-tree HEAD origin/main` reports no
+conflict. 257 unit tests pass; `node server/verify-spawns.js` passes.
+
 The merge with origin/main is structural: `js/` stays deleted, so the ~2,400
 lines upstream added there arrive as re-implementations in `src/`, one commit
 per feature. This file tracks that, so a reviewer can check the ledger balances.
