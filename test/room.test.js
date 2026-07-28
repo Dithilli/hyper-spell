@@ -28,3 +28,71 @@ test('destroy stops the stats interval', () => {
   room.destroy();
   assert.equal(room.statsTimer._destroyed, true);
 });
+
+// a joined connection, ready to send input
+function seated(kit, name = 'GANDALF') {
+  const ws = kit.connect({ name });
+  ws.emit({ t: 'join', name });
+  return ws;
+}
+
+test('a non-finite move never reaches the physics', () => {
+  const kit = makeRoom();
+  const ws = seated(kit);
+  for (const m of [NaN, Infinity, -Infinity, '3', null, undefined, {}]) {
+    ws.emit({ t: 'input', m, j: 0, c: 0, c2: 0, b: 0, a: null });
+    const sent = kit.bridge.last('setInput').args[1];
+    assert.ok(Number.isFinite(sent.m), `m survived as ${String(m)}`);
+  }
+});
+
+test('move is clamped to the range a controller can produce', () => {
+  const kit = makeRoom();
+  const ws = seated(kit);
+  ws.emit({ t: 'input', m: 1e9, j: 0, c: 0, c2: 0, b: 0, a: null });
+  assert.equal(kit.bridge.last('setInput').args[1].m, 1);
+  ws.emit({ t: 'input', m: -1e9, j: 0, c: 0, c2: 0, b: 0, a: null });
+  assert.equal(kit.bridge.last('setInput').args[1].m, -1);
+  ws.emit({ t: 'input', m: 0.4, j: 0, c: 0, c2: 0, b: 0, a: null });
+  assert.equal(kit.bridge.last('setInput').args[1].m, 0.4, 'analog sticks still work');
+});
+
+test('a non-finite aim becomes no aim, not a NaN angle', () => {
+  const kit = makeRoom();
+  const ws = seated(kit);
+  ws.emit({ t: 'input', m: 0, j: 0, c: 0, c2: 0, b: 0, a: NaN });
+  assert.equal(kit.bridge.last('setInput').args[1].a, null);
+  ws.emit({ t: 'input', m: 0, j: 0, c: 0, c2: 0, b: 0, a: 1.25 });
+  assert.equal(kit.bridge.last('setInput').args[1].a, 1.25);
+});
+
+test('the buttons arrive as 0 or 1 whatever was sent', () => {
+  const kit = makeRoom();
+  const ws = seated(kit);
+  ws.emit({ t: 'input', m: 0, j: 'yes', c: 7, c2: null, b: {}, a: null });
+  const sent = kit.bridge.last('setInput').args[1];
+  assert.deepEqual([sent.j, sent.c, sent.c2, sent.b], [1, 1, 0, 1]);
+});
+
+test('a 144Hz display does not have its input throttled', () => {
+  const kit = makeRoom();
+  const ws = seated(kit);
+  const before = kit.bridge.of('setInput').length;
+  for (let i = 0; i < 720; i++) ws.emit({ t: 'input', m: 1, j: 0, c: 0, c2: 0, b: 0, a: null });
+  assert.equal(kit.bridge.of('setInput').length - before, 720, '5s of 144Hz input was dropped');
+});
+
+test('a command flood is still throttled', () => {
+  const kit = makeRoom();
+  const ws = seated(kit);
+  for (let i = 0; i < 500; i++) ws.emit({ t: 'start' });
+  assert.ok(kit.bridge.of('start').length < 200, 'the command budget did not hold');
+});
+
+test('a command still lands after a burst of input', () => {
+  const kit = makeRoom();
+  const ws = seated(kit);
+  for (let i = 0; i < 720; i++) ws.emit({ t: 'input', m: 1, j: 0, c: 0, c2: 0, b: 0, a: null });
+  ws.emit({ t: 'start' });
+  assert.equal(kit.bridge.of('start').length, 1, 'input spent the command budget');
+});
