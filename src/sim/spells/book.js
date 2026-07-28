@@ -45,7 +45,7 @@ const castablePool = () =>
   Object.keys(SPELLS).filter((k) => k !== 'roulette' && k !== 'mirrorcast' && !SPELLS[k].hybrid);
 export const roulettePool = castablePool;
 export const mirrorPool = castablePool;
-const mirrorEligible = (id) => !!id && mirrorPool().includes(id);
+export const mirrorEligible = (id) => !!id && mirrorPool().includes(id);
 
 // generic exploding bolt
 export function boomBolt(p, o = {}) {

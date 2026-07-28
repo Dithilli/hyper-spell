@@ -29,7 +29,7 @@ import { tmpdir } from 'node:os';
 
 import '../src/sim/content.js'; // fills SPELLS/MAPS; nothing below works without it
 import { SPELLS } from '../src/sim/spells/registry.js';
-import { roulettePool, mirrorPool } from '../src/sim/spells/book.js';
+import { roulettePool, mirrorPool, mirrorEligible } from '../src/sim/spells/book.js';
 import {
   CAST_FLOOR, effectiveCooldown, resolvePotency, castSpell, projectiles, activeEffects,
 } from '../src/sim/spells/core.js';
@@ -108,6 +108,32 @@ test('C1: Mirror Cast cannot copy a hybrid either', () => {
   const pool = mirrorPool();
   assert.equal(pool.some((id) => SPELLS[id].hybrid), false);
   assert.ok(pool.length > 90);
+});
+
+test('C1: the Mirror Cast predicate itself refuses every hybrid', () => {
+  // THE HOLE THIS CLOSES. The pool test above covers a pure function the
+  // predicate need not call, and the wiring test below greps for the literal
+  // `mirrorEligible(` — so a predicate rewritten to filter only the two
+  // self-referential ids restores the whole Mirror Cast half of C1 and leaves
+  // both green. That mutation was found by a reviewer, not by this file: the
+  // tests covered the pure function and the call site's EXISTENCE, but never
+  // the predicate's BEHAVIOUR, which is exactly where the defect lives.
+  // Asserted over every hybrid, not a sample.
+  const hybrids = Object.keys(SPELLS).filter((k) => SPELLS[k].hybrid);
+  assert.ok(hybrids.length > 30, `expected the hybrid book, saw ${hybrids.length}`);
+  for (const id of hybrids) {
+    assert.equal(mirrorEligible(id), false, `Mirror Cast must not copy the hybrid ${id}`);
+  }
+  // ...and it still says yes to what it is supposed to copy, so a predicate
+  // that simply refused everything would not pass either
+  for (const id of ['fireball', 'permafrost', 'sunburst', 'dragonbreath']) {
+    assert.equal(mirrorEligible(id), true, `${id} is copyable`);
+  }
+  assert.equal(mirrorEligible('mirrorcast'), false, 'nor itself');
+  assert.equal(mirrorEligible('roulette'), false, 'nor Roulette');
+  assert.equal(mirrorEligible(null), false);
+  assert.equal(mirrorEligible(undefined), false);
+  assert.equal(mirrorEligible('no-such-spell'), false, 'an unregistered id is not castable');
 });
 
 test('C1: both spells actually draw from those pools', () => {

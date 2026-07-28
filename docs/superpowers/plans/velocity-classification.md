@@ -246,6 +246,29 @@ The tape is therefore structurally blind to id drift. Task 9 adds a ray per
 stepping loop per tick, so ids will drift hard, and the only oracle that would
 notice is one nobody has written.
 
+**The tape is also blind while the killcam is playing, and that is about a third
+of the long tape.** `takeWireSnapshot` (`src/net/server-bridge.js`, line 110) returns
+pre-recorded replay frames for the whole of a round-end killcam, so every tick
+hash in that window is a hash of the *replay buffer*, not of the live sim. The
+sim keeps stepping underneath it — `src/sim/player/controller.js` line 109 lets bots
+go on casting — and any divergence it accumulates is invisible until the killcam
+ends. Nothing new enters the buffer meanwhile: `src/sim/replay.js` line 22 returns
+early unless `game.state === 'PLAY'`.
+
+The window is `LEAD_MS 500 + TAIL_MS 2200 / SPEED 0.45 + HOLD_MS 400` ≈ 5.8s ≈
+350 ticks per round end (`src/sim/replay.js`, lines 12-15 and 46). `three-rounds` crosses
+four of them inside 4,200 ticks, so roughly 1,400 ticks — a third of the tape —
+cannot see a sim difference at all.
+
+This was measured in task 12, where a change to Roulette's pool altered a roll at
+tick 2976 and the first differing hash did not appear until tick 3102: the first
+live frame after the killcam, 126 ticks later. It does not weaken a divergence
+the tape DOES report, and it does not weaken a whole-tape identity result (all
+4,200 hashes equal means the live frames all matched). It does mean a change
+whose only effect lands inside a killcam window will not move this tape, so
+"the tape did not move" is never on its own a proof that behaviour did not
+change. Pair it with a unit test.
+
 ## Every site
 
 | Site | Class | Form | Facade call | Rationale |
