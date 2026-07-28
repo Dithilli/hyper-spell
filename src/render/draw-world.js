@@ -34,6 +34,7 @@ import {
   updateCamera, cameraPoints, beginWorld, endWorld, clearFrame,
 } from './camera.js';
 import { applyBloom } from './bloom.js';
+import { perfBegin, perfEnd } from './profiler.js';
 
 // ---------- drawing ----------
 export function drawBodyRounded(b, color) {
@@ -699,6 +700,7 @@ export function draw(now) {
   // world-space aim point has to be recomputed every frame, not on mousemove
   syncMouseWorld();
   clearFrame(currentMap?.def?.bg);
+  perfBegin('world');
   beginWorld();
   drawBackdrop(now);
   drawMapBodies(now);
@@ -724,11 +726,13 @@ export function draw(now) {
   drawEnvVisualsLive(now);
   drawReticle(now);
   endWorld();
+  perfEnd();
 
   // The light pass goes here: after the world, before the vignette and HUD. The
   // vignette should darken the glow, and HUD text must never bloom.
-  applyBloom(now);
+  perfBegin('bloom'); applyBloom(now); perfEnd();
 
+  perfBegin('hud');
   ctx.fillStyle = getVignette();
   ctx.fillRect(0, 0, W, H);
 
@@ -744,6 +748,7 @@ export function draw(now) {
   if (game.state === 'LOBBY') drawLobby();
   if (game.state === 'VICTORY') drawVictory(now);
   if (game.state === 'RUN_OVER') drawRunOver(now);
+  perfEnd();
   globalThis.drawNetStats?.(now); // F8 overlay (net.js; absent in file:// couch mode)
 }
 

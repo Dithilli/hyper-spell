@@ -11,6 +11,7 @@ import { fxRange as rand, fxPick as pick } from '../render/fx.js';
 import { ctx, RENDER_SCALE } from '../render/canvas.js';
 import { updateCamera, beginWorld, endWorld, clearFrame } from '../render/camera.js';
 import { applyBloom } from '../render/bloom.js';
+import { perfBegin, perfEnd, perfCount } from '../render/profiler.js';
 import { rgba } from '../render/artkit.js';
 import { ensureAudio } from '../render/audio.js';
 // spawnParticles is here because applyBrokenDestructibles bursts the block it
@@ -534,6 +535,7 @@ export function netClientFrame(now) {
   // the boss off screen.
   updateCamera(now, cameraPointsFromSnapshot(wb, wa, walpha));
   clearFrame(clientMap?.def?.bg);
+  perfBegin('world');
   beginWorld();
   const ghosts = drawSnapshotWorld(wb, wa, walpha, now, true);
 
@@ -547,8 +549,9 @@ export function netClientFrame(now) {
     ctx.globalAlpha = 1;
   }
   endWorld();
+  perfEnd();
 
-  applyBloom(now); // same place as the couch path: after the world, before the HUD
+  perfBegin('bloom'); applyBloom(now); perfEnd(); // same place as the couch path
 
   ctx.fillStyle = getVignette();
   ctx.fillRect(0, 0, W, H);
