@@ -13,10 +13,12 @@ import {
 import {
   FUSIONS, F_FIRE, F_ICE, F_ZAP, F_AIR, F_EARTH, F_VOID, F_LIFE, F_TRICK,
 } from '../sim/spells/fusion.js';
+import { CAST_KINDS, castKind, classifyAllCasts } from '../sim/spells/cast-kind.js';
 
 Object.assign(globalThis, {
   SPELLS,
   CAST_FLOOR,
   SPELL_TIERS, TIER_COLOR, TIER_RANK, TIER_WEIGHT, spellTier,
   FUSIONS, F_FIRE, F_ICE, F_ZAP, F_AIR, F_EARTH, F_VOID, F_LIFE, F_TRICK,
+  CAST_KINDS, castKind, classifyAllCasts,
 });

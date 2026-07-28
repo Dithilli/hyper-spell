@@ -10847,6 +10847,66 @@
   // src/sim/content.js
   Object.assign(SPELLS, STARTERS, BOOK_SPELLS, HYBRID_SPELLS);
 
+  // src/sim/spells/cast-kind.js
+  var CAST_KINDS = {
+    // ordered most-specific first; the first rule that matches wins
+    drop: { label: "Falls from above", hint: "lands on the spot you aim at" },
+    ray: { label: "Instant ray", hint: "fires in a straight line, right now" },
+    nova: { label: "Bursts from you", hint: "radiates outward \u2014 aim does not matter" },
+    place: { label: "Places something", hint: "leaves a thing at the spot" },
+    self: { label: "Self", hint: "changes you, not them" },
+    bolt: { label: "Thrown bolt", hint: "travels and arcs \u2014 lead your target" }
+  };
+  var CAST_OVERRIDES = {
+    chain: "ray",
+    // draws bolt visuals rather than a ray, but it is hitscan
+    boomerang: "bolt",
+    // comes back to you; on the way out it is still a thrown bolt
+    gust: "nova",
+    // a cone off your own hands, not an aimed projectile
+    shove: "nova"
+    // a short shunt at contact range; nothing leaves your hands
+  };
+  var CAST_RULES = [
+    // a body constructed above the top of the screen, or far above its target, is
+    // being dropped — this is what separates Anvil and Rain of Frogs (drop) from
+    // Black Cat and Rubber Duck (place), all four of which are summons
+    // Two guards here are load-bearing, both learned the hard way:
+    //   [^A-Za-z]y:  — a bare /y:\s*-\d/ also matches the `vy: -6` in every
+    //                  ordinary shoot() call, which called half the game rain
+    //   -\d{2,}      — spawn heights are -30 and up; single digits are impulses
+    // (setVelocity is stripped from the source before this runs, for the same reason)
+    // the body-constructor alternation is spelled out in full rather than as
+    // `create(?:Box|…)` because test/no-undefined-identifiers.test.js reads the
+    // shape `name(` as a call and does not strip regex literals — the short form
+    // makes this file look like it calls an undeclared create()
+    ["drop", /dropProjectile|skyBolt|(?:createBox|createCircle|createPolygon)\s*\([^,]*,\s*-\d|[^A-Za-z]y:\s*-\d{2,}|position\.y\s*-\s*(?:2[0-9]{2}|[3-9][0-9]{2})/],
+    ["ray", /zapRay|raycastHit|boltVisual/],
+    ["bolt", /boomBolt|statusBolt|shoot\s*\(/],
+    ["place", /summonCritter|summon\s*\(/],
+    ["nova", /enemiesOf\s*\(\s*p\s*\)|explode\s*\(\s*p\.body\.position/],
+    ["self", /p\.\w+Until\s*=|p\.sizeScale\s*=/]
+  ];
+  function classifyCast(id, def) {
+    if (CAST_OVERRIDES[id]) return CAST_OVERRIDES[id];
+    if (def.beam) return "ray";
+    if (def.selfMove) return "self";
+    const src = (typeof def.cast === "function" ? String(def.cast) : "").replace(/setVelocity\s*\([^)]*\)/g, "");
+    for (const [kind, re] of CAST_RULES) if (re.test(src)) return kind;
+    return "bolt";
+  }
+  function castKind(id) {
+    const def = id && SPELLS[id];
+    if (!def) return null;
+    if (!def._cast) def._cast = classifyCast(id, def);
+    return def._cast;
+  }
+  function classifyAllCasts() {
+    const out = {};
+    for (const id of Object.keys(SPELLS)) out[id] = castKind(id);
+    return out;
+  }
+
   // src/platform/spell-guide.js
   Object.assign(globalThis, {
     SPELLS,
@@ -10864,7 +10924,10 @@
     F_EARTH,
     F_VOID,
     F_LIFE,
-    F_TRICK
+    F_TRICK,
+    CAST_KINDS,
+    castKind,
+    classifyAllCasts
   });
 })();
 /*! Bundled license information:

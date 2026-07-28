@@ -12,7 +12,7 @@ Each row names every file the feature lands in, so the ledger stands on its own
 | 2 | c11b4b2 | camera + world transform (incl. the `core`/`player`/`replay` plumbing that hangs off it: device-pixel backing store, world-space mouse aim, nametag slots, view-rect offscreen pointers, trauma shake) | `src/render/camera.js`, `src/render/name-tags.js`, `src/render/draw-world.js`, `src/render/canvas.js`, `src/render/draw-wizard.js`, `src/render/replay.js`, `src/platform/input-keyboard.js`, `src/net/client.js` | **done** |
 | 3 | c11b4b2 | bloom / light pass | `src/render/bloom.js`, `src/render/artkit.js`, `src/render/draw-world.js` | pending |
 | 4 | c1ee936 | particle budget | `src/render/fx.js`, `src/render/artkit.js` | pending |
-| 5 | c1ee936 | cast descriptors | `src/sim/spells/cast-kind.js`, `src/platform/spell-guide.js`, `src/render/hud.js` | pending |
+| 5 | c1ee936 | cast descriptors | `src/sim/spells/cast-kind.js`, `src/platform/spell-guide.js`, `src/render/hud.js` | **done** — the drawn glyph vocabulary (tome cover, pickup stamp, cursor mark) rides with the artkit pass in task 4 |
 | 6 | 3c2b225 | frame profiler | `src/render/profiler.js`, `src/platform/browser.js`, `src/platform/input-keyboard.js` | pending |
 | 7 | 83ad928 | bots: ledge avoidance | `src/sim/ai/bot.js` | pending |
 | 7 | 5292ab8 | bots: retreat | `src/sim/ai/bot.js`, `src/sim/player/controller.js` | pending |

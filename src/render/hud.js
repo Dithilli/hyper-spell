@@ -10,6 +10,7 @@ import { MAPS } from '../sim/maps/builders.js';
 import { SPELLS } from '../sim/spells/registry.js';
 import { effectiveCooldown } from '../sim/spells/core.js';
 import { TIER_COLOR, tierColor } from '../sim/spells/tiers.js';
+import { CAST_KINDS, castKind } from '../sim/spells/cast-kind.js';
 import { enemies } from '../sim/ai/enemies.js';
 import { BotController } from '../sim/ai/bot.js';
 import { drawBossBar } from './draw-boss.js';
@@ -111,7 +112,17 @@ export function drawPlayerSpells(x, slots, cdf, megaCasts, charges) {
     ctx.fillStyle = def ? (tierColor(slots[i]) || '#9c8ab8') : '#4a415c';
     const n = charges?.[i];
     ctx.fillText(def ? def.name + (n != null ? ` ×${n}` : '') : '· · ·', x, y);
-    if (def) drawCooldownBar(x, y + 6, def, cdf[i], i === 0 ? megaCasts : 0);
+    if (def) {
+      drawCooldownBar(x, y + 6, def, cdf[i], i === 0 ? megaCasts : 0);
+      // how it delivers, under the name — the thing you need before you commit
+      // a cast and previously had to learn by casting it once and watching
+      const kind = CAST_KINDS[castKind(slots[i])];
+      if (kind) {
+        ctx.font = '9px Georgia';
+        ctx.fillStyle = '#6d6086';
+        ctx.fillText(kind.label, x, y + 15);
+      }
+    }
   }
 }
 
