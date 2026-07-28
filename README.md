@@ -6,6 +6,8 @@ wizards · physics · violence — a couch/LAN party brawler. Last wizard standi
 
 Open `index.html` in a browser. Press **E**, **Enter**, or any gamepad button to join; **B** adds an AI bot (great for playing solo); **Space** to fight; **1–9** sets the win target.
 
+Debug keys: **F7** frame profiler (Shift+F7 dumps its ring buffer as CSV; `?perf=1` starts it on), **F8** live net stats, **F9** toggles the fit-to-action camera back to the old fixed framing.
+
 ## Play over the network (v2: the server runs the match)
 
 The server is no longer a dumb relay — **the simulation runs on the server** (headless

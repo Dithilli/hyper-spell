@@ -6,33 +6,7 @@
 </head>
 <body>
 <canvas id="game" width="1280" height="720"></canvas>
-<script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
-<script src="js/core.js"></script>
-<script src="js/profiler.js"></script>
-<script src="js/camera.js"></script>
-<script src="js/bloom.js"></script>
-<script src="js/artkit.js"></script>
-<script src="js/audio.js"></script>
-<script src="js/fx.js"></script>
-<script src="js/awards.js"></script>
-<script src="js/telemetry.js"></script>
-<script src="js/input.js"></script>
-<script src="js/spells.js"></script>
-<script src="js/player.js"></script>
-<script src="js/pickups.js"></script>
-<script src="js/spellbook.js"></script>
-<script src="js/spelltiers.js"></script>
-<script src="js/spellcast.js"></script>
-<script src="js/hybrids.js"></script>
-<script src="js/maps.js"></script>
-<script src="js/mapbook.js"></script>
-<script src="js/events.js"></script>
-<script src="js/boss.js"></script>
-<script src="js/enemies.js"></script>
-<script src="js/bot.js"></script>
-<script src="js/snapshot.js"></script>
-<script src="js/game.js"></script>
-<script src="js/replay.js"></script>
+<script src="dist/hyperspell.js?nomenu"></script>
 <script>
 // headless smoke test: boots the real game, then asserts map traversability,
 // cover guarantees, seeded determinism, block/parry, and MAX_HP.
@@ -172,12 +146,19 @@
     game.winsNeeded = 99;
     for (const q of players) { clearSpells(q); q.roundWins = 0; }
     out.lavaDeaths = 0;
-    const _kill = killPlayer;
-    killPlayer = function (q) {
-      out.allDeaths = (out.allDeaths || 0) + 1;
-      const lv = currentMap.data.lavaY;
-      if (lv != null && q.body.position.y > lv - 40) out.lavaDeaths++;
-      return _kill(q);
+    // deaths are observed, not intercepted: killPlayer is a module binding now,
+    // so the harness watches each wizard's alive flag flip and asks where they
+    // were standing when it did.
+    const wasAlive = new Map(players.map(q => [q, q.alive]));
+    const sampleDeaths = () => {
+      for (const q of players) {
+        if (wasAlive.get(q) && !q.alive) {
+          out.allDeaths = (out.allDeaths || 0) + 1;
+          const lv = currentMap.data.lavaY;
+          if (lv != null && q.body.position.y > lv - 40) out.lavaDeaths++;
+        }
+        wasAlive.set(q, q.alive);
+      }
     };
     startRound(idx >= 0 ? idx : 0);
     // drive the game loop from the (virtual) timer clock so physics actually
@@ -186,7 +167,7 @@
     // interval tick spawns another live rAF chain — frames multiply until the
     // whole run hangs (older headless barely ticked rAF, which hid this).
     requestAnimationFrame = () => 0;
-    const stepper = setInterval(() => frame(performance.now()), 33);
+    const stepper = setInterval(() => { frame(performance.now()); sampleDeaths(); }, 33);
     // battle conditions: everyone armed with SELF-MOVEMENT spells (the classic
     // bot suicide buttons) and blast-grade shoves — survival = both the air
     // recovery reflex and the don't-dash-into-lava judgment work
@@ -200,7 +181,6 @@
     setTimeout(() => {
       clearInterval(stepper);
       clearInterval(shover);
-      killPlayer = _kill;
       out.navDebug = { st: game.state, deaths: out.allDeaths || 0, rounds: game.totalRounds, ps: players.map(q => [Math.round(q.body.position.x), Math.round(q.body.position.y), q.alive ? 1 : 0, q.slots[0]]) };
       if (out.lavaDeaths > 2) out.errors.push('bots drowned in lava ' + out.lavaDeaths + 'x in 14s');
       const v2 = out.errors.length || out.gaps.length ? 'SMOKE-FAIL' : 'SMOKE-PASS';
