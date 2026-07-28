@@ -96,3 +96,39 @@ test('a command still lands after a burst of input', () => {
   ws.emit({ t: 'start' });
   assert.equal(kit.bridge.of('start').length, 1, 'input spent the command budget');
 });
+
+test('a seat is held for the full reserve window, across a round boundary', () => {
+  const kit = makeRoom();
+  const ws = seated(kit, 'GANDALF');
+  kit.bridge._state = 'PLAY';
+  ws.close();                     // dropped mid-match
+  kit.bridge._round = 1;          // …and a round ends while they are away
+  kit.snapshot({ st: 'PLAY', rn: 1 });
+  assert.equal(kit.bridge.of('removePlayer').length, 0, 'the seat was released early');
+
+  const back = kit.connect({ name: 'GANDALF' });
+  back.emit({ t: 'join', name: 'gandalf' }); // same name, any case
+  assert.equal(back.last('you').slot, 0, 'the seat did not come back');
+});
+
+test('an expired reservation is swept at the next round boundary', () => {
+  const kit = makeRoom();
+  const ws = seated(kit, 'GANDALF');
+  kit.bridge._state = 'PLAY';
+  ws.close();
+  for (const r of kit.room.reserved.values()) r.expiresAt = -1; // two minutes later
+  kit.bridge._round = 1;
+  kit.snapshot({ st: 'PLAY', rn: 1 });
+  assert.equal(kit.bridge.of('removePlayer').length, 1, 'the shell outlived its reservation');
+  assert.equal(kit.room.reserved.size, 0, 'the expired reservation was not pruned');
+});
+
+test('a name is cleaned before it becomes a reservation key or a banner', () => {
+  const kit = makeRoom();
+  const ws = kit.connect({ name: 'x' });
+  ws.emit({ t: 'join', name: '\u{1F480}\u{1F480}' + 'A'.repeat(40) });
+  ws.emit({ t: 'reset' });
+  const shouted = kit.bridge.last('reset').args[0];
+  assert.ok(shouted.length <= 12, `an unbounded name reached the banner: ${shouted}`);
+  assert.ok(!/[\u{1F300}-\u{1FAFF}]/u.test(shouted), 'the banner takes whatever bytes were sent');
+});

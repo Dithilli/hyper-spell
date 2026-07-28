@@ -246,6 +246,10 @@ export function installServerBridge(opts = {}) {
     worldInfo: serverWorldInfo,
     state: () => game.state,
     round: () => game.totalRounds || 0,
+    // The room keys seat reservations on a name and shouts it in the reset
+    // banner, so it needs the same cleaning the sim gives a player's name —
+    // from the sim's own definition, not a second copy that can drift.
+    cleanName: (s) => cleanName(s),
     // content-pack diagnostics: payload staged (pre-seeded, not yet claimed by
     // an unlock) and the live spell count (jumps when a pack installs)
     packStaged: () => typeof globalThis.__hsPackData !== 'undefined',

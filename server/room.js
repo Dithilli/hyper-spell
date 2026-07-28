@@ -125,6 +125,11 @@ class Room {
     if (snap.rn !== this.lastRound || (snap.st === 'LOBBY' && this.shellSinceRound.size)) {
       this.lastRound = snap.rn;
       for (const [slot, sinceRound] of this.shellSinceRound) {
+        // RESERVE_MS is a promise the README makes to a player who dropped:
+        // refresh within two minutes and your seat and your round wins are
+        // still there. Releasing at the next round boundary broke it quietly,
+        // because a round is often thirty seconds.
+        if (this.reservedFor(slot)) continue;
         if (snap.st === 'LOBBY' || snap.rn > sinceRound) {
           this.bridge.removePlayer(slot);
           this.shellSinceRound.delete(slot);
@@ -133,6 +138,19 @@ class Room {
       }
     }
     this.broadcast(snap, true);
+  }
+
+  // is this slot still inside somebody's reserve window? Prunes as it walks —
+  // an expired reservation is the only thing standing between a shell and the
+  // sweep above, so it must not outlive its own deadline in the map either.
+  reservedFor(slot) {
+    const now = performance.now();
+    let held = false;
+    for (const [key, r] of this.reserved) {
+      if (r.expiresAt <= now) { this.reserved.delete(key); continue; }
+      if (r.slot === slot) held = true;
+    }
+    return held;
   }
 
   addConn(ws) {
@@ -163,7 +181,7 @@ class Room {
 
     if (msg.t === 'hello') {
       conn.hello = true;
-      if (typeof msg.name === 'string') conn.name = msg.name;
+      if (typeof msg.name === 'string') conn.name = this.bridge.cleanName(msg.name) || null;
       // np:1 = insecure origin, can't self-decrypt the content pack — relay it
       // if it's already unlocked (no-op otherwise; onPackUnlocked covers later)
       if (msg.np) { conn.wantsPack = true; this.sendPack(conn); }
@@ -200,7 +218,7 @@ class Room {
       case 'name': {
         if (now < conn.nextNameAt || this.bridge.state() !== 'LOBBY') break;
         conn.nextNameAt = now + 1000;
-        const clean = String(msg.name || '').slice(0, 12);
+        const clean = this.bridge.cleanName(msg.name);
         if (clean) { conn.name = clean; this.bridge.renamePlayer(conn.slot, clean); }
         break;
       }
@@ -219,7 +237,12 @@ class Room {
 
   join(conn, msg) {
     if (!conn.hello || conn.slot != null) return;
-    const name = typeof msg.name === 'string' ? msg.name : (typeof msg.n === 'string' ? msg.n : conn.name);
+    // One cleaned string for the seat, the reservation key and the reset
+    // banner. The sim cleans the PLAYER's name inside addPlayer; this one is
+    // the room's own copy, and it used to be whatever bytes arrived — which
+    // then went out to every screen as `NAME RESET THE MATCH`.
+    const raw = typeof msg.name === 'string' ? msg.name : (typeof msg.n === 'string' ? msg.n : conn.name);
+    const name = this.bridge.cleanName(raw) || null;
 
     // reconnect: a join whose name matches a waiting seat gets that seat back,
     // round wins intact. Among ≤8 key-gated friends, name matching is enough.
