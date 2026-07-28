@@ -8,6 +8,7 @@
 // and whether a fusion tome outranks a fistfight. addBot() deals temperaments
 // round-robin so any bot lobby has real variety.
 import { W, H, onWorldReset } from '../world.js';
+import { allBodies } from '../phys/facade.js';
 import { simNow } from '../time.js';
 import { simRandom, rand, pick } from '../rng.js';
 import { game, currentMap, joinPlayer } from '../match.js';
@@ -16,38 +17,96 @@ import { tomes } from '../pickups.js';
 import { SPELLS } from '../spells/registry.js';
 import { hybridFor } from '../spells/fusion.js';
 import {
-  projectiles, summons, enemiesOf, nearestEnemy, groundYAt,
+  projectiles, summons, enemiesOf, nearestEnemy,
 } from '../spells/core.js';
 
 export const BOT_PERSONAS = {
   // the classic all-rounder — today's bot, unchanged
   balanced: {
     names: ['BOTLIN', 'CLANKY', 'SPARKY', 'RUSTY', 'GIZMO', 'WIZ-E', 'COGSWORTH', 'BLIP'],
-    cadence: 1, combo: 0.22, keepDist: 0.15, standoff: 0, blockOdds: 0.3, aimMult: 1, tomeLust: false, fleeHp: 0, bully: false, chaos: false,
+    cadence: 1, combo: 0.22, keepDist: 0.15, standoff: 0, blockOdds: 0.3, aimMult: 1, tomeLust: false, fleeHp: 0, bully: false, chaos: false, nerve: 0.030,
   },
   // wants your face: picks on the weakest wizard, presses in, fires fast, rarely blocks
   berserker: {
     names: ['CRUSHER', 'MAULBOT', 'RAMPAGE', 'SMASHY', 'GRIMBOLT'],
-    cadence: 0.6, combo: 0.4, keepDist: 0, standoff: 0, blockOdds: 0.15, aimMult: 1.15, tomeLust: false, fleeHp: 0, bully: true, chaos: false,
+    cadence: 0.6, combo: 0.4, keepDist: 0, standoff: 0, blockOdds: 0.15, aimMult: 1.15, tomeLust: false, fleeHp: 0, bully: true, chaos: false, nerve: 0.055,
   },
   // fights at arm's length: kites to a standoff range, parries well, runs when hurt
   skirmisher: {
     names: ['SKITTER', 'DODGEREL', 'ZOOMBOT', 'FLICKER', 'WISPY'],
-    cadence: 1.1, combo: 0.15, keepDist: 0.3, standoff: 340, blockOdds: 0.45, aimMult: 0.95, tomeLust: false, fleeHp: 55, bully: false, chaos: false,
+    cadence: 1.1, combo: 0.15, keepDist: 0.3, standoff: 340, blockOdds: 0.45, aimMult: 0.95, tomeLust: false, fleeHp: 55, bully: false, chaos: false, nerve: 0.020,
   },
   // plays the long game: a tome that completes a fusion outranks any fight
   alchemist: {
     names: ['BREWBOT', 'FUSEY', 'MIXTRON', 'CAULDRON', 'ALEMBIC'],
-    cadence: 1.15, combo: 0.3, keepDist: 0.3, standoff: 0, blockOdds: 0.3, aimMult: 1, tomeLust: true, fleeHp: 45, bully: false, chaos: false,
+    cadence: 1.15, combo: 0.3, keepDist: 0.3, standoff: 0, blockOdds: 0.3, aimMult: 1, tomeLust: true, fleeHp: 45, bully: false, chaos: false, nerve: 0.015,
   },
   // nobody knows what it wants, including itself — wild aim, wandering feet
   trickster: {
     names: ['JESTER', 'WOBBLES', 'GLITCHY', 'HOOPLA', 'KAZOO'],
-    cadence: 0.85, combo: 0.3, keepDist: 0.25, standoff: 0, blockOdds: 0.25, aimMult: 1.3, tomeLust: false, fleeHp: 0, bully: false, chaos: true,
+    cadence: 0.85, combo: 0.3, keepDist: 0.25, standoff: 0, blockOdds: 0.25, aimMult: 1.3, tomeLust: false, fleeHp: 0, bully: false, chaos: true, nerve: 0.075,
   },
 };
 const PERSONA_ORDER = ['berserker', 'skirmisher', 'alchemist', 'trickster', 'balanced'];
 let nextPersona = 0;
+
+// ---------- navigation ground query ----------
+// Bots used to ask groundYAt() what was underfoot. That helper scans a column
+// from y=0 DOWNWARD and returns the topmost solid it finds, which is the right
+// answer for "where does a meteor land" and the wrong answer for "what will I
+// stand on" — any platform ABOVE the bot wins the scan. Measured upstream on
+// live matches, ~30% of ledge checks were reasoning about a ceiling, and falls
+// were two thirds of all bot deaths.
+//
+// navGroundY answers the question the bot actually has: the highest surface at
+// column x that is at or below fromY, or null when there is nothing to land on
+// at all. AABB-based, so it is also far cheaper than the 60 point queries
+// groundYAt costs — which matters, because good ledge logic asks several times
+// per think.
+//
+// Anything you can stand on counts, NOT just static terrain. Crates and
+// destructible blocks are dynamic, and on a map like CRATE MOUNTAIN almost all
+// the footing is made of them; a static-only query reports "no floor anywhere"
+// and the bots freeze in place rather than fall. Excluded: things you cannot
+// stand on, things that kill you, and other wizards — a bot should not path
+// across someone's head.
+const NAV_SKIP = new Set(['lava', 'spikes', 'projectile', 'gib', 'player', 'boss', 'enemy', 'tome', 'hat']);
+let _navBodies = null, _navBodiesAt = -1e9;
+
+// The cache TTL is measured on SIM time, not the performance.now() upstream
+// used. A wall clock here would make what the bots can see a function of how
+// fast the host's machine happens to be running: a desync in a
+// server-authoritative build, a replay divergence in a recorded one. src/sim is
+// banned from the wall clock for exactly this reason.
+function navCandidates() {
+  const now = simNow();
+  if (!_navBodies || now - _navBodiesAt > 200) {
+    // only the LIST is cached; bounds are read live at query time, so moving
+    // platforms and tumbling crates still report their real position
+    _navBodies = allBodies().filter(b => !b.isSensor && !NAV_SKIP.has(b.label));
+    _navBodiesAt = now;
+  }
+  return _navBodies;
+}
+
+// A new world has none of the old world's bodies. Carrying the list across a
+// round would navigate the bots by the previous map's geometry for up to 200ms
+// of sim time, and keep every body of a destroyed world alive behind it.
+onWorldReset(() => { _navBodies = null; _navBodiesAt = -1e9; });
+
+export function navGroundY(x, fromY) {
+  let best = null;
+  for (const b of navCandidates()) {
+    // mask is re-checked per query, not cached: phantom platforms blink solid
+    // and non-solid on a timer, and standing on one that just vanished is a
+    // death the bot should see coming
+    if (b.collisionFilter.mask === 0) continue;
+    if (x < b.bounds.min.x + 4 || x > b.bounds.max.x - 4) continue;
+    if (b.bounds.min.y < fromY - 8) continue; // above the bot — a ceiling, not a floor
+    if (best == null || b.bounds.min.y < best) best = b.bounds.min.y;
+  }
+  return best;
+}
 
 export class BotController {
   constructor(persona) {
@@ -67,24 +126,43 @@ export class BotController {
   }
 
   // is stepping one pace in `dir` a walk into lava or off into a deep pit?
-  // lookahead scales with current speed — a sprinting bot needs to brake sooner
+  // The lookahead has to cover everything the bot will traverse before its next
+  // think (up to 280ms), so it scales with speed — and it samples ACROSS that
+  // span rather than only at the far end, because a narrow gap between here and
+  // there is still a hole to fall into.
   fallDanger(me, dir, vx = 0) {
-    const aheadX = Math.max(20, Math.min(W - 20, me.x + dir * (42 + Math.abs(vx) * 10)));
-    const gAhead = groundYAt(aheadX);
+    const look = Math.max(46, 42 + Math.abs(vx) * 14);
     const lava = currentMap.data.lavaY;
-    if (lava != null && gAhead > lava - 24) return true; // ground ahead sits under lava → you'd land in it
-    if (gAhead >= H - 31) return true;                   // no platform ahead at all → open void
-    return gAhead - me.y > 300;                          // a long drop onto real ground
+    // Two samples, not three: a gap narrower than the wizard is walked straight
+    // over, so sampling too densely just makes the bot flinch at every seam
+    // between two crates. 0.7 catches a real hole opening up mid-stride; 1.0 is
+    // where the foot actually lands.
+    for (const frac of [0.7, 1]) {
+      const aheadX = Math.max(20, Math.min(W - 20, me.x + dir * look * frac));
+      const g = navGroundY(aheadX, me.y);
+      if (g == null) return true;                        // nothing to land on → open void
+      if (lava != null && g > lava - 24) return true;    // the floor there sits under lava
+      if (g - me.y > 300) return true;                   // a long drop onto real ground
+    }
+    return false;
+  }
+
+  // How far this wizard can actually throw itself right now: a ground jump plus
+  // the air jump it still has, carried by whatever speed it already has. Bots
+  // used to assume one fixed 135px hop and refuse gaps they could clear.
+  jumpReach(p, vx = 0) {
+    const air = p.airJumps > 0 ? 1 : 0;
+    return (274 + air * 150) * Math.min(1.25, 0.8 + Math.abs(vx) * 0.12);
   }
 
   // nearest direction with real footing within reach (used mid-air over death)
   safeGroundDir(me, lavaY) {
-    for (let d = 60; d <= 380; d += 64) {
+    for (let d = 60; d <= 380; d += 48) {
       for (const dir of [-1, 1]) {
         const x = me.x + dir * d;
         if (x < 30 || x > W - 30) continue;
-        const g = groundYAt(x);
-        if (g < H - 31 && (lavaY == null || g < lavaY - 24) && g - me.y < 300) return dir;
+        const g = navGroundY(x, me.y);
+        if (g != null && (lavaY == null || g < lavaY - 24) && g - me.y < 300) return dir;
       }
     }
     return 0;
@@ -98,8 +176,8 @@ export class BotController {
     // recovery at all between their slow think ticks.
     const lavaY = currentMap.data.lavaY;
     if (now - (p.lastGround || 0) >= 220) {
-      const gBelow = groundYAt(me.x);
-      if ((lavaY != null && gBelow > lavaY - 24) || gBelow >= H - 31) {
+      const gBelow = navGroundY(me.x, me.y);
+      if (gBelow == null || (lavaY != null && gBelow > lavaY - 24)) {
         const dir = this.safeGroundDir(me, lavaY) || (me.x > W / 2 ? -1 : 1);
         this.plan = { move: dir, jump: p.body.velocity.y > 2 && p.airJumps > 0, cast: false, cast2: false, aim: null, block: false };
         this.nextThink = now + 70; // panic reflexes
@@ -156,17 +234,40 @@ export class BotController {
         if (best) goal = best.position;
       }
     }
-    // the hurt ones run: below the flee threshold, away beats toward
-    const fleeing = m.fleeHp && p.hp < m.fleeHp && goal === tpos && tpos;
+    // STALEMATE BREAKER: if nothing has taken damage in a while and the round
+    // is still going, temperament stops mattering — everyone closes. Without
+    // this a round can simply never end, which is worse than any bad fight.
+    const stale = game.lastDamageAt != null && now - game.lastDamageAt > 7000;
+
+    // RETREAT IS A MOVE, NOT A PERSONALITY. Fleeing used to be a pure state
+    // test — below fleeHp, run away, no time limit and no distance check — so
+    // two flee-capable bots at low HP ran to opposite walls and stayed there.
+    // Now you can only flee a threat that is actually near you, the retreat is
+    // time-boxed, and it is followed by a window where you owe them a fight.
+    const FLEE_NEAR = 420;      // beyond this there is nothing to run from
+    const REENGAGE_MS = 2800;   // after a retreat, no fleeing for this long
+    let fleeing = false;
+    if (!stale && m.fleeHp && tpos && goal === tpos && p.hp < m.fleeHp) {
+      const dThreat = Math.hypot(tpos.x - me.x, tpos.y - me.y);
+      if (now < (this.fleeUntil || 0)) fleeing = true;               // mid-retreat
+      else if (now < (this.reengageUntil || 0)) fleeing = false;     // owe them a fight
+      else if (dThreat < FLEE_NEAR) {                                // threat is real → break off
+        this.fleeUntil = now + rand(900, 1700);
+        this.reengageUntil = this.fleeUntil + REENGAGE_MS;
+        fleeing = true;
+      }
+    }
+    // a kiting standoff has the same failure mode, so it yields to staleness too
+    const standoff = stale ? 0 : m.standoff;
 
     let move = 0;
     if (goal) {
       const dx = goal.x - me.x;
       const d = goal === tpos ? Math.hypot(tpos.x - me.x, tpos.y - me.y) : 1e9;
       if (fleeing) move = -Math.sign(dx || 1);
-      else if (goal === tpos && m.standoff && d < m.standoff - 60) move = -Math.sign(dx || 1); // kite back out
-      else if (Math.abs(dx) > 46 && !(goal === tpos && m.standoff && d < m.standoff + 60)) move = Math.sign(dx);
-      else if (goal === tpos && simRandom() < m.keepDist) move = -Math.sign(dx || 1); // occasionally keep some distance
+      else if (goal === tpos && standoff && d < standoff - 60) move = -Math.sign(dx || 1); // kite back out
+      else if (Math.abs(dx) > 46 && !(goal === tpos && standoff && d < standoff + 60)) move = Math.sign(dx);
+      else if (goal === tpos && !stale && simRandom() < m.keepDist) move = -Math.sign(dx || 1); // occasionally keep some distance
     } else if (simRandom() < 0.12) {
       move = pick([-1, 0, 1]);
     }
@@ -176,18 +277,79 @@ export class BotController {
 
     const grounded = now - (p.lastGround || 0) < 220;
     let jump = false;
+
+    // THE SECOND JUMP. Bots knew this game had a double jump only in the sense
+    // that the lava-panic branch spent one while already plummeting. On a
+    // deliberate gap leap they never used it, which capped them at ~274px of a
+    // real ~424px range and left them dropping into gaps they could have
+    // cleared. Now: if we are mid-leap, falling, and there is still nothing
+    // under us, spend it — exactly when a player would.
+    if (!grounded && now < (this.gapJumpUntil || 0) && p.airJumps > 0 && p.body.velocity.y > 1) {
+      const dir = Math.sign(p.body.velocity.x) || p.facing || 1;
+      const ahead = navGroundY(me.x + dir * 40, me.y);
+      if (ahead == null || ahead - me.y > 130) jump = true;
+    }
     if (currentMap.data.lavaY != null && me.y > currentMap.data.lavaY - 60) jump = true; // feet warm — bail off the lava
 
     // LEDGE SAFETY: don't stroll off a cliff into lava or a pit. If the goal is
     // that way, only leap when a safe landing is within jump range; else hold up.
-    if (move && this.fallDanger(me, move, p.body.velocity.x)) {
-      const landX = Math.max(24, Math.min(W - 24, me.x + move * 135));
-      const gLand = groundYAt(landX);
-      const lava = currentMap.data.lavaY;
-      const safeLanding = (lava == null || gLand < lava - 24) && gLand - me.y < 240 && gLand - me.y > -140;
-      if (safeLanding && grounded) jump = true; // clear the gap on purpose
-      else move = 0;                            // otherwise refuse to step off
+    const vx = p.body.velocity.x;
+    const lava = currentMap.data.lavaY;
+    let vetoed = false;
+
+    // NERVE: the roll happens at the moment of the veto — the instant the bot
+    // has spotted the edge and is deciding whether to respect it. Rolling here
+    // rather than once per think is what makes the rate tunable: `nerve` is
+    // literally "odds of going anyway when you know better", instead of a
+    // compound probability that in practice never fired.
+    //
+    // A blunder then COMMITS for ~half a second. A one-frame lapse achieves
+    // nothing — the next think is 70ms later and the bot simply catches itself,
+    // which is not a fall, it is a stutter. Staying committed is what carries it
+    // over the lip.
+    const blundering = now < (this.blunderUntil || 0);
+
+    if (move && !blundering && this.fallDanger(me, move, vx)) {
+      // is there a real landing across the gap? scan a spread of jump distances
+      // instead of one fixed 135px guess — most gaps aren't exactly that wide —
+      // but only as far as this wizard can actually throw itself right now
+      const reach = this.jumpReach(p, vx) * 0.85; // margin: land ON it, not at its lip
+      let landDir = 0;
+      for (const dist of [110, 135, 165, 195, 240, 300, 360]) {
+        if (dist > reach) break;                  // ascending, so nothing further fits
+        const landX = Math.max(24, Math.min(W - 24, me.x + move * dist));
+        const gLand = navGroundY(landX, me.y);
+        if (gLand == null) continue;
+        if (lava != null && gLand > lava - 24) continue;
+        if (gLand - me.y < 240 && gLand - me.y > -140) { landDir = move; break; }
+      }
+      const nerveOdds = (m.nerve ?? 0.03) * (fleeing ? 2.5 : 1);
+      if (landDir && grounded) {                            // clear the gap on purpose
+        jump = true;
+        this.gapJumpUntil = now + 1100;                     // remember we're mid-leap
+      } else if (Math.abs(vx) > 1.6 && simRandom() < nerveOdds) {
+        this.blunderUntil = now + 520;                      // ...went for it anyway
+      } else { move = 0; vetoed = true; }                   // refuse to step off
     }
+
+    // BRAKING: refusing to walk off an edge does nothing about the speed already
+    // carrying you there. A wizard at full tilt slides well past the lip after
+    // its input drops to zero, which is how a bot that "decided not to" still
+    // ends up in the lava. Counter-steer instead of coasting.
+    // A bot mid-blunder doesn't catch itself either — that's what makes it a
+    // blunder rather than a stumble.
+    if (Math.abs(vx) > 1.2 && !blundering) {
+      const slideDir = Math.sign(vx);
+      // only brake if we aren't already steering away from the danger
+      if (this.fallDanger(me, slideDir, vx) && (move === 0 || move === slideDir)) {
+        move = -slideDir;
+        vetoed = true;
+      }
+    }
+
+    // and re-think sooner than the usual 130-280ms when standing next to death:
+    // a slow tick is exactly how a bot walks off a ledge it already spotted
+    if (vetoed) this.nextThink = now + 70;
 
     if (goal && goal.y < me.y - 70 && grounded && simRandom() < 0.4) jump = true;                // goal is above → hop up
     if (move && Math.abs(p.body.velocity.x) < 0.5 && grounded && simRandom() < 0.3) jump = true; // wedged against a wall

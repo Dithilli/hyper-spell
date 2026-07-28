@@ -18,6 +18,7 @@ export function damagePlayer(p, amt, src) {
     return;
   }
   if (src && src.slot !== undefined) p.lastHitBy = { player: src, at: now }; // starts the kill-credit timer
+  game.lastDamageAt = now; // bots watch this to notice a round has gone quiet (ai/bot.js)
   let n = Math.round(amt);
   if (n <= 0) return;
   // SHATTER synergy: a solid blow to a frozen wizard cracks the ice for bonus

@@ -150,6 +150,12 @@ export function startRound(index) {
   // different arena. Clearing the board first makes the list mean what it says.
   for (const p of players) { clearSpells(p); despawnPlayer(p); }
   for (const p of players) spawnPlayer(p, spawnPointFor(p));
+  // The bots' stalemate breaker asks how long it has been since anything took
+  // damage (ai/bot.js). Left carrying over from the previous round, a round that
+  // starts more than seven seconds after the last blow of the last one opens
+  // already stale — every bot abandoning its temperament before the fight has
+  // begun. The clock belongs to the round.
+  game.lastDamageAt = simNow();
   game.state = 'PLAY';
   game.fightAt = simNow() + 1100;
   game.fightShown = false;

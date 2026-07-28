@@ -5480,7 +5480,8 @@
   __export(bot_exports, {
     BOT_PERSONAS: () => BOT_PERSONAS,
     BotController: () => BotController,
-    addBot: () => addBot
+    addBot: () => addBot,
+    navGroundY: () => navGroundY
   });
 
   // src/sim/pickups.js
@@ -10029,7 +10030,8 @@
       tomeLust: false,
       fleeHp: 0,
       bully: false,
-      chaos: false
+      chaos: false,
+      nerve: 0.03
     },
     // wants your face: picks on the weakest wizard, presses in, fires fast, rarely blocks
     berserker: {
@@ -10043,7 +10045,8 @@
       tomeLust: false,
       fleeHp: 0,
       bully: true,
-      chaos: false
+      chaos: false,
+      nerve: 0.055
     },
     // fights at arm's length: kites to a standoff range, parries well, runs when hurt
     skirmisher: {
@@ -10057,7 +10060,8 @@
       tomeLust: false,
       fleeHp: 55,
       bully: false,
-      chaos: false
+      chaos: false,
+      nerve: 0.02
     },
     // plays the long game: a tome that completes a fusion outranks any fight
     alchemist: {
@@ -10071,7 +10075,8 @@
       tomeLust: true,
       fleeHp: 45,
       bully: false,
-      chaos: false
+      chaos: false,
+      nerve: 0.015
     },
     // nobody knows what it wants, including itself — wild aim, wandering feet
     trickster: {
@@ -10085,11 +10090,37 @@
       tomeLust: false,
       fleeHp: 0,
       bully: false,
-      chaos: true
+      chaos: true,
+      nerve: 0.075
     }
   };
   var PERSONA_ORDER = ["berserker", "skirmisher", "alchemist", "trickster", "balanced"];
   var nextPersona = 0;
+  var NAV_SKIP = /* @__PURE__ */ new Set(["lava", "spikes", "projectile", "gib", "player", "boss", "enemy", "tome", "hat"]);
+  var _navBodies = null;
+  var _navBodiesAt = -1e9;
+  function navCandidates() {
+    const now = simNow();
+    if (!_navBodies || now - _navBodiesAt > 200) {
+      _navBodies = allBodies().filter((b) => !b.isSensor && !NAV_SKIP.has(b.label));
+      _navBodiesAt = now;
+    }
+    return _navBodies;
+  }
+  onWorldReset(() => {
+    _navBodies = null;
+    _navBodiesAt = -1e9;
+  });
+  function navGroundY(x, fromY) {
+    let best = null;
+    for (const b of navCandidates()) {
+      if (b.collisionFilter.mask === 0) continue;
+      if (x < b.bounds.min.x + 4 || x > b.bounds.max.x - 4) continue;
+      if (b.bounds.min.y < fromY - 8) continue;
+      if (best == null || b.bounds.min.y < best) best = b.bounds.min.y;
+    }
+    return best;
+  }
   var BotController = class {
     constructor(persona) {
       this.persona = persona && BOT_PERSONAS[persona] ? persona : PERSONA_ORDER[nextPersona++ % PERSONA_ORDER.length];
@@ -10106,23 +10137,37 @@
       return { move: 0, jump: false, cast: false, cast2: false, block: false, jumpPressed: false, castPressed: false, cast2Pressed: false, blockPressed: false, startPressed: false, aimPoint: null, aimVec: null, aimAngle: null };
     }
     // is stepping one pace in `dir` a walk into lava or off into a deep pit?
-    // lookahead scales with current speed — a sprinting bot needs to brake sooner
+    // The lookahead has to cover everything the bot will traverse before its next
+    // think (up to 280ms), so it scales with speed — and it samples ACROSS that
+    // span rather than only at the far end, because a narrow gap between here and
+    // there is still a hole to fall into.
     fallDanger(me, dir, vx = 0) {
-      const aheadX = Math.max(20, Math.min(W - 20, me.x + dir * (42 + Math.abs(vx) * 10)));
-      const gAhead = groundYAt(aheadX);
+      const look = Math.max(46, 42 + Math.abs(vx) * 14);
       const lava2 = currentMap.data.lavaY;
-      if (lava2 != null && gAhead > lava2 - 24) return true;
-      if (gAhead >= H - 31) return true;
-      return gAhead - me.y > 300;
+      for (const frac of [0.7, 1]) {
+        const aheadX = Math.max(20, Math.min(W - 20, me.x + dir * look * frac));
+        const g = navGroundY(aheadX, me.y);
+        if (g == null) return true;
+        if (lava2 != null && g > lava2 - 24) return true;
+        if (g - me.y > 300) return true;
+      }
+      return false;
+    }
+    // How far this wizard can actually throw itself right now: a ground jump plus
+    // the air jump it still has, carried by whatever speed it already has. Bots
+    // used to assume one fixed 135px hop and refuse gaps they could clear.
+    jumpReach(p, vx = 0) {
+      const air = p.airJumps > 0 ? 1 : 0;
+      return (274 + air * 150) * Math.min(1.25, 0.8 + Math.abs(vx) * 0.12);
     }
     // nearest direction with real footing within reach (used mid-air over death)
     safeGroundDir(me, lavaY) {
-      for (let d = 60; d <= 380; d += 64) {
+      for (let d = 60; d <= 380; d += 48) {
         for (const dir of [-1, 1]) {
           const x = me.x + dir * d;
           if (x < 30 || x > W - 30) continue;
-          const g = groundYAt(x);
-          if (g < H - 31 && (lavaY == null || g < lavaY - 24) && g - me.y < 300) return dir;
+          const g = navGroundY(x, me.y);
+          if (g != null && (lavaY == null || g < lavaY - 24) && g - me.y < 300) return dir;
         }
       }
       return 0;
@@ -10131,8 +10176,8 @@
       const me = p.body.position;
       const lavaY = currentMap.data.lavaY;
       if (now - (p.lastGround || 0) >= 220) {
-        const gBelow = groundYAt(me.x);
-        if (lavaY != null && gBelow > lavaY - 24 || gBelow >= H - 31) {
+        const gBelow = navGroundY(me.x, me.y);
+        if (gBelow == null || lavaY != null && gBelow > lavaY - 24) {
           const dir = this.safeGroundDir(me, lavaY) || (me.x > W / 2 ? -1 : 1);
           this.plan = { move: dir, jump: p.body.velocity.y > 2 && p.airJumps > 0, cast: false, cast2: false, aim: null, block: false };
           this.nextThink = now + 70;
@@ -10198,15 +10243,29 @@
           if (best) goal = best.position;
         }
       }
-      const fleeing = m.fleeHp && p.hp < m.fleeHp && goal === tpos && tpos;
+      const stale = game.lastDamageAt != null && now - game.lastDamageAt > 7e3;
+      const FLEE_NEAR = 420;
+      const REENGAGE_MS = 2800;
+      let fleeing = false;
+      if (!stale && m.fleeHp && tpos && goal === tpos && p.hp < m.fleeHp) {
+        const dThreat = Math.hypot(tpos.x - me.x, tpos.y - me.y);
+        if (now < (this.fleeUntil || 0)) fleeing = true;
+        else if (now < (this.reengageUntil || 0)) fleeing = false;
+        else if (dThreat < FLEE_NEAR) {
+          this.fleeUntil = now + rand(900, 1700);
+          this.reengageUntil = this.fleeUntil + REENGAGE_MS;
+          fleeing = true;
+        }
+      }
+      const standoff = stale ? 0 : m.standoff;
       let move = 0;
       if (goal) {
         const dx = goal.x - me.x;
         const d = goal === tpos ? Math.hypot(tpos.x - me.x, tpos.y - me.y) : 1e9;
         if (fleeing) move = -Math.sign(dx || 1);
-        else if (goal === tpos && m.standoff && d < m.standoff - 60) move = -Math.sign(dx || 1);
-        else if (Math.abs(dx) > 46 && !(goal === tpos && m.standoff && d < m.standoff + 60)) move = Math.sign(dx);
-        else if (goal === tpos && simRandom() < m.keepDist) move = -Math.sign(dx || 1);
+        else if (goal === tpos && standoff && d < standoff - 60) move = -Math.sign(dx || 1);
+        else if (Math.abs(dx) > 46 && !(goal === tpos && standoff && d < standoff + 60)) move = Math.sign(dx);
+        else if (goal === tpos && !stale && simRandom() < m.keepDist) move = -Math.sign(dx || 1);
       } else if (simRandom() < 0.12) {
         move = pick([-1, 0, 1]);
       }
@@ -10215,15 +10274,49 @@
       if (me.x > W - 80) move = -1;
       const grounded2 = now - (p.lastGround || 0) < 220;
       let jump = false;
-      if (currentMap.data.lavaY != null && me.y > currentMap.data.lavaY - 60) jump = true;
-      if (move && this.fallDanger(me, move, p.body.velocity.x)) {
-        const landX = Math.max(24, Math.min(W - 24, me.x + move * 135));
-        const gLand = groundYAt(landX);
-        const lava2 = currentMap.data.lavaY;
-        const safeLanding = (lava2 == null || gLand < lava2 - 24) && gLand - me.y < 240 && gLand - me.y > -140;
-        if (safeLanding && grounded2) jump = true;
-        else move = 0;
+      if (!grounded2 && now < (this.gapJumpUntil || 0) && p.airJumps > 0 && p.body.velocity.y > 1) {
+        const dir = Math.sign(p.body.velocity.x) || p.facing || 1;
+        const ahead = navGroundY(me.x + dir * 40, me.y);
+        if (ahead == null || ahead - me.y > 130) jump = true;
       }
+      if (currentMap.data.lavaY != null && me.y > currentMap.data.lavaY - 60) jump = true;
+      const vx = p.body.velocity.x;
+      const lava2 = currentMap.data.lavaY;
+      let vetoed = false;
+      const blundering = now < (this.blunderUntil || 0);
+      if (move && !blundering && this.fallDanger(me, move, vx)) {
+        const reach = this.jumpReach(p, vx) * 0.85;
+        let landDir = 0;
+        for (const dist of [110, 135, 165, 195, 240, 300, 360]) {
+          if (dist > reach) break;
+          const landX = Math.max(24, Math.min(W - 24, me.x + move * dist));
+          const gLand = navGroundY(landX, me.y);
+          if (gLand == null) continue;
+          if (lava2 != null && gLand > lava2 - 24) continue;
+          if (gLand - me.y < 240 && gLand - me.y > -140) {
+            landDir = move;
+            break;
+          }
+        }
+        const nerveOdds = (m.nerve ?? 0.03) * (fleeing ? 2.5 : 1);
+        if (landDir && grounded2) {
+          jump = true;
+          this.gapJumpUntil = now + 1100;
+        } else if (Math.abs(vx) > 1.6 && simRandom() < nerveOdds) {
+          this.blunderUntil = now + 520;
+        } else {
+          move = 0;
+          vetoed = true;
+        }
+      }
+      if (Math.abs(vx) > 1.2 && !blundering) {
+        const slideDir = Math.sign(vx);
+        if (this.fallDanger(me, slideDir, vx) && (move === 0 || move === slideDir)) {
+          move = -slideDir;
+          vetoed = true;
+        }
+      }
+      if (vetoed) this.nextThink = now + 70;
       if (goal && goal.y < me.y - 70 && grounded2 && simRandom() < 0.4) jump = true;
       if (move && Math.abs(p.body.velocity.x) < 0.5 && grounded2 && simRandom() < 0.3) jump = true;
       if (m.chaos && grounded2 && simRandom() < 0.15) jump = true;
@@ -10722,6 +10815,7 @@
       despawnPlayer(p);
     }
     for (const p of players) spawnPlayer(p, spawnPointFor(p));
+    game.lastDamageAt = simNow();
     game.state = "PLAY";
     game.fightAt = simNow() + 1100;
     game.fightShown = false;
@@ -11278,6 +11372,7 @@
       return;
     }
     if (src && src.slot !== void 0) p.lastHitBy = { player: src, at: now };
+    game.lastDamageAt = now;
     let n = Math.round(amt);
     if (n <= 0) return;
     if (now < (p.frozenUntil || 0) && n >= 8) {

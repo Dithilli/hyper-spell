@@ -114,7 +114,7 @@ an input to the value, so they are overrides.
   not "the old velocity plus something", it is "what the belt permits". They
   are marked `blended` in the form column because the arithmetic still reads the
   current velocity, so the facade call is `setVelocity`.
-- **`src/sim/player/combat.js:50`** (the hat gib) reads
+- **`src/sim/player/combat.js:51`** (the hat gib) reads
   `p.body.velocity.x` — the *caster's* velocity, not the hat's. The hat is a
   body created two lines earlier and has no motion of its own, so this is a
   spawn, not a push. "Reads a velocity" is not the test; "reads *its own*

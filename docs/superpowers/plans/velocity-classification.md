@@ -125,7 +125,7 @@ an input to the value, so they are overrides.
   not "the old velocity plus something", it is "what the belt permits". They
   are marked `blended` in the form column because the arithmetic still reads the
   current velocity, so the facade call is `setVelocity`.
-- **`src/sim/player/combat.js:50`** (the hat gib) reads
+- **`src/sim/player/combat.js:51`** (the hat gib) reads
   `p.body.velocity.x` — the *caster's* velocity, not the hat's. The hat is a
   body created two lines earlier and has no motion of its own, so this is a
   spawn, not a push. "Reads a velocity" is not the test; "reads *its own*
@@ -274,8 +274,8 @@ change. Pair it with a unit test.
 | Site | Class | Form | Facade call | Rationale |
 |---|---|---|---|---|
 
-| `src/sim/player/combat.js:50` | **override** | absolute | `setVelocity` | Gib spawn. The hat is new and has no velocity of its own; it inherits half the caster's x. Reading another body's velocity is not reading your own. |
-| `src/sim/player/combat.js:72` | **override** | absolute | `setVelocity` | Gib spawn: a fresh body is thrown at a randomised velocity. |
+| `src/sim/player/combat.js:51` | **override** | absolute | `setVelocity` | Gib spawn. The hat is new and has no velocity of its own; it inherits half the caster's x. Reading another body's velocity is not reading your own. |
+| `src/sim/player/combat.js:73` | **override** | absolute | `setVelocity` | Gib spawn: a fresh body is thrown at a randomised velocity. |
 | `src/sim/spells/starters.js:26` | **push** | additive | `addVelocity` | Blast recoil on the caster: velocity minus a facing-scaled kick. |
 | `src/sim/spells/starters.js:44` | **push** | blended | `setVelocity` | Gust REDIRECTS an in-flight bolt: `spd = Math.hypot(b.velocity.x, b.velocity.y)` two lines up, then the same speed on a new heading. Reads its own velocity — a push, not a launch. Classified override on first pass; the read is off-line, which is exactly why the audit had to look past the write itself. |
 | `src/sim/spells/starters.js:47` | **push** | additive | `setVelocity` ¹ | Gust shoves whatever it catches. The mass-independent push, verbatim. |

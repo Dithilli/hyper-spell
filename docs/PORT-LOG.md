@@ -14,9 +14,9 @@ Each row names every file the feature lands in, so the ledger stands on its own
 | 4 | c1ee936 | particle budget | `src/render/fx.js`, `src/render/artkit.js` | pending |
 | 5 | c1ee936 | cast descriptors | `src/sim/spells/cast-kind.js`, `src/platform/spell-guide.js`, `src/render/hud.js` | **done** — the drawn glyph vocabulary (tome cover, pickup stamp, cursor mark) rides with the artkit pass in task 4 |
 | 6 | 3c2b225 | frame profiler | `src/render/profiler.js`, `src/platform/browser.js`, `src/platform/input-keyboard.js` | pending |
-| 7 | 83ad928 | bots: ledge avoidance | `src/sim/ai/bot.js` | pending |
-| 7 | 5292ab8 | bots: retreat | `src/sim/ai/bot.js`, `src/sim/player/controller.js` | pending |
-| 7 | 832ef00 | bots: double jump | `src/sim/ai/bot.js` | pending |
+| 7 | 83ad928 | bots: ledge avoidance | `src/sim/ai/bot.js` (new `navGroundY`) | **done** |
+| 7 | 5292ab8 | bots: retreat + stalemate breaker | `src/sim/ai/bot.js`, `src/sim/player/combat.js`, `src/sim/match.js` | **done** |
+| 7 | 832ef00 | bots: double jump | `src/sim/ai/bot.js` | **done** |
 | 8 | 3c2b225 b798196 898d796 | spawn safety / escape analysis | `src/sim/maps/reach.js` (new), `src/sim/player/lifecycle.js`, `src/sim/maps/builders.js`, `src/sim/phys/{facade,matter-backend}.js`, `server/verify-spawns.js` | **done** |
 | 9 | c11b4b2 3c2b225 | snapshot playout + server-clock interpolation | `src/net/client.js`, `src/sim/snapshot.js`, `src/net/server-bridge.js` | pending |
 | 10 | c1ee936 3c2b225 | opening loadouts | `src/sim/pickups.js`, `src/sim/events.js`, `src/sim/match.js` | pending |
